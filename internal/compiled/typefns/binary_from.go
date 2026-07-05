@@ -372,50 +372,12 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 	if objectHasCallSignature(rt, ctx) {
 		return RTCode{Code: "", Type: CodeNS}
 	}
-	// Collect the index-signature child (if any) — decoded AFTER the named props
-	// (it reads only the dynamic keys the encoder wrote, keeping `ret`). Before,
-	// an index signature took over the whole object and lost the named props (F1).
-	var indexSig *protocol.RunType
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved != nil && resolved.Kind == protocol.KindIndexSignature {
-			indexSig = resolved
-			break
-		}
-	}
-
-	var required, optional []*protocol.RunType
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved == nil {
-			continue
-		}
-		if resolved.IsStatic {
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
-			continue
-		}
-		if resolved.Kind != protocol.KindProperty && resolved.Kind != protocol.KindPropertySignature {
-			continue
-		}
-		if resolved.Child == nil {
-			continue
-		}
-		childResolved := ctx.ResolveRef(resolved.Child)
-		if childResolved == nil {
-			continue
-		}
-		if strippedPropertyDrop(childResolved, resolved.Name, ctx) {
-			// Directly DataOnly-stripped value — drop the property (mirrors the
-			// encode side so the wire bitmap stays in sync). A
-			// structurally-unserializable value stays and fails via CodeNS (F3).
-			continue
-		}
-		if resolved.Optional {
-			optional = append(optional, child)
-		} else {
-			required = append(required, child)
-		}
-	}
+	// The shared partition keeps decode in lockstep with encode (the wire
+	// bitmap depends on the same required/optional split on both sides).
+	// The index signature is decoded AFTER the named props (it reads only
+	// the dynamic keys the encoder wrote, keeping `ret`). Before, an index
+	// signature took over the whole object and lost the named props (F1).
+	required, optional, indexSig := partitionBinaryObjectProps(rt, ctx)
 
 	// `ret = {};` — explicit `;` because addFullStop in walker.go would
 	// treat the trailing `}` of `{}` as already-terminated and skip the
