@@ -49,12 +49,12 @@ func userFixture() *protocol.RunType {
 	}
 }
 
-func TestEmitFriendly(t *testing.T) {
-	got := EmitFriendly(userFixture(), EmitOptions{VarName: "userFriendly", TypeName: "User"})
+func TestFriendlySkeleton(t *testing.T) {
+	got := FriendlySkeleton(userFixture(), nil)
 	// Count-bearing constraints (minLength/maxLength/min/max) scaffold a plural
 	// OBJECT with the source locale's arms (default en: one/other); the rest
 	// stay plain strings.
-	want := `export const userFriendly: FriendlyText<User> = {
+	want := `{
   rt$label: '',
   rt$errors: {type: ''},
   name: {rt$label: '', rt$errors: {type: '', maxLength: {one: '', other: ''}, minLength: {one: '', other: ''}}},
@@ -67,10 +67,9 @@ func TestEmitFriendly(t *testing.T) {
     email: {rt$label: '', rt$errors: {type: ''}},
     score: {rt$label: '', rt$errors: {type: '', max: {one: '', other: ''}, min: {one: '', other: ''}}},
   },
-};
-`
+}`
 	if got != want {
-		t.Errorf("EmitFriendly mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		t.Errorf("FriendlySkeleton mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
@@ -95,17 +94,20 @@ func TestEmitFriendly_SourceLocaleArms(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.locale, func(t *testing.T) {
-			got := EmitFriendly(fixture, EmitOptions{VarName: "boxFriendly", TypeName: "Box", SourceLocale: test.locale})
-			if !strings.Contains(got, test.want) {
-				t.Errorf("EmitFriendly(%s) missing %q:\n%s", test.locale, test.want, got)
+			ctx := newWalkCtx(nil)
+			ctx.setSourceLocale(test.locale)
+			var b strings.Builder
+			emitFriendlyNode(&b, ctx, fixture, 0)
+			if got := b.String(); !strings.Contains(got, test.want) {
+				t.Errorf("friendly skeleton (%s) missing %q:\n%s", test.locale, test.want, got)
 			}
 		})
 	}
 }
 
-func TestEmitMock(t *testing.T) {
-	got := EmitMock(userFixture(), EmitOptions{VarName: "userMock", TypeName: "User"})
-	want := `export const userMock: MockData<User> = {
+func TestMockSkeleton(t *testing.T) {
+	got := MockSkeleton(userFixture(), nil)
+	want := `{
   name: {pool: []},
   age: {pool: []},
   isActive: {pool: []},
@@ -114,10 +116,9 @@ func TestEmitMock(t *testing.T) {
     email: {pool: []},
     score: {pool: []},
   },
-};
-`
+}`
 	if got != want {
-		t.Errorf("EmitMock mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		t.Errorf("MockSkeleton mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
@@ -183,19 +184,19 @@ func setFixture() *protocol.RunType {
 
 // TestEmitFriendlyTuple pins the structural `rt$slots` shape (solution A).
 func TestEmitFriendlyTuple(t *testing.T) {
-	got := EmitFriendly(tupleFixture(), EmitOptions{VarName: "tupleFriendly", TypeName: "Target"})
-	want := "export const tupleFriendly: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}, rt$slots: [{rt$label: '', rt$errors: {type: ''}}, {rt$label: '', rt$errors: {type: ''}}]};\n"
+	got := FriendlySkeleton(tupleFixture(), nil)
+	want := "{rt$label: '', rt$errors: {type: ''}, rt$slots: [{rt$label: '', rt$errors: {type: ''}}, {rt$label: '', rt$errors: {type: ''}}]}"
 	if got != want {
-		t.Errorf("EmitFriendly(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		t.Errorf("FriendlySkeleton(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
 // TestEmitMockTuple pins the structural `rt$slots` shape (fixed length, no rt$length).
 func TestEmitMockTuple(t *testing.T) {
-	got := EmitMock(tupleFixture(), EmitOptions{VarName: "tupleMock", TypeName: "Target"})
-	want := "export const tupleMock: MockData<Target> = {rt$slots: [{pool: []}, {pool: []}]};\n"
+	got := MockSkeleton(tupleFixture(), nil)
+	want := "{rt$slots: [{pool: []}, {pool: []}]}"
 	if got != want {
-		t.Errorf("EmitMock(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		t.Errorf("MockSkeleton(tuple) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
@@ -229,33 +230,33 @@ func TestEmitVariadicTuple(t *testing.T) {
 
 // TestEmitFriendlyMap pins the structural `rt$keys`/`rt$values` shape.
 func TestEmitFriendlyMap(t *testing.T) {
-	got := EmitFriendly(mapFixture(), EmitOptions{VarName: "mapFriendly", TypeName: "Target"})
-	want := "export const mapFriendly: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}, rt$keys: {rt$label: '', rt$errors: {type: ''}}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
+	got := FriendlySkeleton(mapFixture(), nil)
+	want := "{rt$label: '', rt$errors: {type: ''}, rt$keys: {rt$label: '', rt$errors: {type: ''}}, rt$values: {rt$label: '', rt$errors: {type: ''}}}"
 	if got != want {
-		t.Errorf("EmitFriendly(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		t.Errorf("FriendlySkeleton(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
 // TestEmitMockMap pins the structural `rt$keys`/`rt$values` shape (no rt$size emitted).
 func TestEmitMockMap(t *testing.T) {
-	got := EmitMock(mapFixture(), EmitOptions{VarName: "mapMock", TypeName: "Target"})
-	want := "export const mapMock: MockData<Target> = {rt$keys: {pool: []}, rt$values: {pool: []}};\n"
+	got := MockSkeleton(mapFixture(), nil)
+	want := "{rt$keys: {pool: []}, rt$values: {pool: []}}"
 	if got != want {
-		t.Errorf("EmitMock(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		t.Errorf("MockSkeleton(map) mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
 // TestEmitSet pins the structural `rt$values` shape for both emitters.
 func TestEmitSet(t *testing.T) {
-	gotFriendly := EmitFriendly(setFixture(), EmitOptions{VarName: "setFriendly", TypeName: "Target"})
-	wantFriendly := "export const setFriendly: FriendlyText<Target> = {rt$label: '', rt$errors: {type: ''}, rt$values: {rt$label: '', rt$errors: {type: ''}}};\n"
+	gotFriendly := FriendlySkeleton(setFixture(), nil)
+	wantFriendly := "{rt$label: '', rt$errors: {type: ''}, rt$values: {rt$label: '', rt$errors: {type: ''}}}"
 	if gotFriendly != wantFriendly {
-		t.Errorf("EmitFriendly(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotFriendly, wantFriendly)
+		t.Errorf("FriendlySkeleton(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotFriendly, wantFriendly)
 	}
-	gotMock := EmitMock(setFixture(), EmitOptions{VarName: "setMock", TypeName: "Target"})
-	wantMock := "export const setMock: MockData<Target> = {rt$values: {pool: []}};\n"
+	gotMock := MockSkeleton(setFixture(), nil)
+	wantMock := "{rt$values: {pool: []}}"
 	if gotMock != wantMock {
-		t.Errorf("EmitMock(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotMock, wantMock)
+		t.Errorf("MockSkeleton(set) mismatch:\n--- got ---\n%s\n--- want ---\n%s", gotMock, wantMock)
 	}
 }
 
@@ -267,7 +268,7 @@ func TestEmitFriendlyCyclic(t *testing.T) {
 		prop("value", leaf(protocol.KindString)),
 		prop("next", node), // self-reference
 	}
-	got := EmitFriendly(node, EmitOptions{VarName: "nodeFriendly", TypeName: "Node"})
+	got := FriendlySkeleton(node, nil)
 	if got == "" || len(got) > 4096 {
 		t.Fatalf("expected a bounded non-empty emit for a cyclic type, got %d bytes", len(got))
 	}

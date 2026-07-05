@@ -61,23 +61,6 @@ func TestResolveType_Describe(t *testing.T) {
 	}
 }
 
-func TestResolveType_EmitFriendly(t *testing.T) {
-	resolved := resolveFixture(t, "user.ts", "User", map[string]string{
-		"user.ts": "export interface User { name: string; age: number }\n",
-	})
-	got := enrich.EmitFriendly(resolved.Node, enrich.EmitOptions{
-		VarName:  "userFriendly",
-		TypeName: "User",
-		Resolve:  resolved.Resolve,
-	})
-	if !strings.Contains(got, "FriendlyText<User>") {
-		t.Errorf("EmitFriendly missing 'FriendlyText<User>'; got:\n%s", got)
-	}
-	if !strings.Contains(got, "name:") {
-		t.Errorf("EmitFriendly missing 'name:' entry; got:\n%s", got)
-	}
-}
-
 func TestResolveType_UnknownTypeErrors(t *testing.T) {
 	cwd := tspath.NormalizePath(t.TempDir())
 	abs := tspath.ResolvePath(cwd, "user.ts")

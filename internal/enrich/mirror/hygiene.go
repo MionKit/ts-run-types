@@ -136,12 +136,6 @@ func (scan *Scan) CarcassMatches() [][2]int {
 	return matches
 }
 
-// CarcassMatches is the one-shot twin of Scan.CarcassMatches (parses text per
-// call — build a Scan to share the parse across probes).
-func CarcassMatches(text string) [][2]int {
-	return NewScan(text).CarcassMatches()
-}
-
 // commentStartsAt reports whether a comment span starts exactly at offset.
 func (scan *Scan) commentStartsAt(offset int) bool {
 	for _, span := range scan.spans {

@@ -49,8 +49,9 @@ type ClosureOptions struct {
 	// emitted NamedConst's DeclFile is left empty and the caller falls back to the
 	// root file. Built by the bridge from the checker symbol declarations.
 	DeclFiles map[string]string
-	// FriendlyErrors picks the `rt$errors` mode new nodes scaffold ("default" →
-	// the exclusive catch-all; else per-constraint). See EmitOptions.
+	// FriendlyErrors picks the `rt$errors` mode new nodes scaffold (tsconfig
+	// `friendlyErrors`): "" / "perConstraint" → one key per failable format
+	// param; "default" → the exclusive `{rt$default: ''}` catch-all.
 	FriendlyErrors string
 	// SourceLocale is the language the FriendlyText source maps are authored in
 	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
@@ -94,8 +95,8 @@ type closureEmitter struct {
 // const graph never hits a TDZ self-reference.
 //
 // A named root whose fields are all anonymous yields exactly ONE NamedConst whose
-// bodies equal EmitFriendly/EmitMock's — the single-const path is the degenerate
-// case.
+// bodies equal FriendlySkeleton/MockSkeleton's — the single-const path is the
+// degenerate case.
 func EmitClosure(root *protocol.RunType, opts ClosureOptions) []NamedConst {
 	if root == nil {
 		return nil

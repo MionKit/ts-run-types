@@ -3,7 +3,6 @@ package enrich
 import (
 	"encoding/json"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/enrich/cldr"
@@ -471,26 +470,6 @@ func checkMockNode(findings *[]Finding, ctx *walkCtx, rt *protocol.RunType, lite
 			checkMockNode(findings, ctx, child.Child, nested, joinPath(path, key), depth+1)
 		}
 	}
-}
-
-// SortFindings orders findings by (Path, Code) for deterministic reporting.
-func SortFindings(findings []Finding) {
-	sort.SliceStable(findings, func(left, right int) bool {
-		if findings[left].Path != findings[right].Path {
-			return findings[left].Path < findings[right].Path
-		}
-		return findings[left].Code < findings[right].Code
-	})
-}
-
-// HasError reports whether any finding is Error severity.
-func HasError(findings []Finding) bool {
-	for _, finding := range findings {
-		if finding.Severity == Error {
-			return true
-		}
-	}
-	return false
 }
 
 // FormatFinding renders one finding as the text-report line body

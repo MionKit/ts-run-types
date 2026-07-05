@@ -41,12 +41,6 @@ func TestCategories(t *testing.T) {
 	}
 }
 
-func TestKnown(t *testing.T) {
-	if !Known("pt-BR") || Known("fi") || Known("") {
-		t.Errorf("Known: want pt-BR=true, fi=false, \"\"=false; got %v %v %v", Known("pt-BR"), Known("fi"), Known(""))
-	}
-}
-
 func TestIsCategory(t *testing.T) {
 	for _, category := range AllCategories {
 		if !IsCategory(category) {

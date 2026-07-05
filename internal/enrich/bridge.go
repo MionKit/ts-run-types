@@ -17,7 +17,7 @@ type Resolved struct {
 	// Node is the canonical full RunType for the named type (not a ref).
 	Node *protocol.RunType
 	// Resolve looks up a KindRef's canonical node by id — pass this as the
-	// walkers' EmitOptions.Resolve / DescribeOptions.Resolve.
+	// walkers' DescribeOptions.Resolve / the skeleton emitters' resolve arg.
 	Resolve func(id string) *protocol.RunType
 	// DeclFiles maps a named type's RunType.ID to the absolute path of its
 	// declaration source file (followed through re-exports/aliases to the

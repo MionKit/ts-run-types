@@ -6,61 +6,6 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// EmitOptions configures a `.rt.ts` skeleton emit.
-type EmitOptions struct {
-	// VarName is the exported const name, e.g. "userFriendly".
-	VarName string
-	// TypeName is the type the map is for, e.g. "User".
-	TypeName string
-	// Resolve looks up a KindRef sentinel's canonical node by id; nil means the
-	// graph is fully inlined (no refs to follow).
-	Resolve func(id string) *protocol.RunType
-	// SourceLocale is the language the FriendlyText source map is authored in
-	// (tsconfig `i18n.sourceLocale`); it selects the CLDR arm set count-bearing
-	// `rt$errors` constraints scaffold. Empty means the default ('en').
-	SourceLocale string
-	// FriendlyErrors picks the `rt$errors` mode NEW nodes scaffold (tsconfig
-	// `friendlyErrors`): "" / "perConstraint" → one key per failable format
-	// param; "default" → the exclusive `{rt$default: ''}` catch-all.
-	FriendlyErrors string
-}
-
-// EmitFriendly renders an `export const <VarName>: FriendlyText<<TypeName>> = {…};`
-// skeleton for rt: one entry per data field, every node seeded with `rt$label: ”`,
-// and `rt$errors` pre-keyed with `type` plus the field's declared format
-// constraints (minLength / max / pattern / …). A starting scaffold for the
-// author or agent to fill in.
-func EmitFriendly(rt *protocol.RunType, opts EmitOptions) string {
-	ctx := newWalkCtx(opts.Resolve)
-	ctx.setSourceLocale(opts.SourceLocale)
-	ctx.setFriendlyErrors(opts.FriendlyErrors)
-	var b strings.Builder
-	b.WriteString("export const ")
-	b.WriteString(opts.VarName)
-	b.WriteString(": " + FriendlyTextName + "<")
-	b.WriteString(opts.TypeName)
-	b.WriteString("> = ")
-	emitFriendlyNode(&b, ctx, rt, 0)
-	b.WriteString(";\n")
-	return b.String()
-}
-
-// EmitMock renders an `export const <VarName>: MockData<<TypeName>> = {…};`
-// skeleton: one entry per data field, leaves seeded with an empty `pool`, arrays
-// with `rt$items` + `rt$length`. The author fills the pools with realistic values.
-func EmitMock(rt *protocol.RunType, opts EmitOptions) string {
-	ctx := newWalkCtx(opts.Resolve)
-	var b strings.Builder
-	b.WriteString("export const ")
-	b.WriteString(opts.VarName)
-	b.WriteString(": MockData<")
-	b.WriteString(opts.TypeName)
-	b.WriteString("> = ")
-	emitMockNode(&b, ctx, rt, 0)
-	b.WriteString(";\n")
-	return b.String()
-}
-
 // FriendlySkeleton renders ONLY the FriendlyText object-literal skeleton for rt
 // (no `export const … =` wrapper, no trailing `;`) — the value the batch/stdout
 // `gen` mode returns so the test harness compares against a case's initializer.

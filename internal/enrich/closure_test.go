@@ -294,8 +294,8 @@ func TestEmitClosure_SelfRecursive(t *testing.T) {
 }
 
 // TestEmitClosure_BackwardCompat: a named type with only inline/anonymous fields
-// yields exactly one const whose body equals EmitFriendly/EmitMock's (the
-// degenerate single-const case).
+// yields exactly one const whose body equals FriendlySkeleton/MockSkeleton's
+// (the degenerate single-const case).
 func TestEmitClosure_BackwardCompat(t *testing.T) {
 	sources := map[string]string{
 		"user.ts": "export interface User { name: string; tags: string[]; profile: { email: string } }\n",
@@ -311,10 +311,10 @@ func TestEmitClosure_BackwardCompat(t *testing.T) {
 	wantFriendly := enrich.FriendlySkeleton(inlined.Node, inlined.Resolve)
 	wantMock := enrich.MockSkeleton(inlined.Node, inlined.Resolve)
 	if got.Friendly != wantFriendly {
-		t.Errorf("friendly body diverged from EmitFriendly's:\n got:\n%s\nwant:\n%s", got.Friendly, wantFriendly)
+		t.Errorf("friendly body diverged from FriendlySkeleton's:\n got:\n%s\nwant:\n%s", got.Friendly, wantFriendly)
 	}
 	if got.Mock != wantMock {
-		t.Errorf("mock body diverged from EmitMock's:\n got:\n%s\nwant:\n%s", got.Mock, wantMock)
+		t.Errorf("mock body diverged from MockSkeleton's:\n got:\n%s\nwant:\n%s", got.Mock, wantMock)
 	}
 	// The anonymous `profile` shape stays inlined (its email field is present).
 	if !strings.Contains(got.Friendly, "email:") {
