@@ -481,13 +481,10 @@ func (w *Walker) accessPath() []string {
 // that the emitted RT function will reach via `utl.getPureFn(<ns>,
 // <fn>)`. Idempotent on the full triple.
 //
-// No source-file walk happens here — validation is deferred to
-// end-of-compilation in the resolver. The resolver builds a single
-// *purefns.Index from the program-wide extraction and runs
-// purefns.ValidatePureFnDependencies(deps, idx, lookup) which checks
-// every dep against the index in O(1) and lazily expands the index by
-// parsing any dep filePath not yet scanned. See
-// internal/purefns/index.go for the validation surface.
+// No source-file walk happens here — recording is O(1) and the deps
+// ride the wire (protocol.PureFnDep / entry SoftDeps) for the module
+// emitter. There is no build-time missing-dep check; a dep that never
+// registered surfaces at runtime when `utl.getPureFn` throws.
 func (w *Walker) AddPureFnDependency(namespace, fnName, filePath string) {
 	for _, dep := range w.PureFnDependencies {
 		if dep.Namespace == namespace && dep.FunctionName == fnName && dep.FilePath == filePath {

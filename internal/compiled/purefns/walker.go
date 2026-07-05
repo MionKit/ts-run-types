@@ -16,7 +16,7 @@ import (
 // Code is the JS-stripped factory body; BodyHash is byte-compatible.
 //
 // sourceFile/callPos are unexported origin-tracking fields used internally
-// by ExtractFromProgram to build cross-file collision diagnostics. They're
+// by ExtractFromProgramCached to build cross-file collision diagnostics. They're
 // elided from JSON serialisation (unexported) and from the module render
 // (the module emitter reads only Key()/ParamNames/Code/BodyHash).
 type Entry struct {
@@ -53,7 +53,7 @@ func (p Entry) Key() string {
 	return p.Namespace + "::" + p.FunctionName
 }
 
-// SourceFileLookup is the narrow program-side surface ExtractFromProgram
+// SourceFileLookup is the narrow program-side surface ExtractFromProgramCached
 // needs. *program.Program satisfies it.
 type SourceFileLookup interface {
 	SourceFile(absPath string) *ast.SourceFile
@@ -95,7 +95,7 @@ func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag
 	cache.diags[filePath] = diagnostics
 }
 
-// ExtractFromProgram walks every file in `files`, finds calls to
+// ExtractFromProgramCached walks every file in `files`, finds calls to
 // `registerPureFnFactory(...)` whose resolved signature carries the
 // expected marker brands (CompTimeArgs<string> + PureFunction<F>
 // on slots 0, 1), and returns (deduped entries, diagnostics).
@@ -114,7 +114,7 @@ func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag
 // emitted by `resolver.scanCall` via CTA001 / PFN001,
 // NOT here. This pass emits only purefn-specific diagnostics:
 // PFE9004 (cross-file collision), PFE9005 (destructured factory
-// param), PFE9006-9011 (purity), PFE9012-9013 (deps).
+// param), PFE9006-9011 (purity), PFE9013 (deps).
 //
 // Dedup semantics (per plan):
 //
@@ -125,13 +125,10 @@ func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag
 //
 // Order: entries sorted by Key (alphabetical); diagnostics sorted by Site
 // (filepath, line, col) — both deterministic for stable test fixtures.
-func ExtractFromProgram(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string) ([]Entry, []diag.Diagnostic) {
-	return ExtractFromProgramCached(typeChecker, markerOpts, lookup, files, nil)
-}
-
-// ExtractFromProgramCached is ExtractFromProgram with an optional per-Program
-// FileCache: cached files skip the AST walk + purity checks entirely, fresh
-// files are extracted and stored. A nil cache degrades to the uncached path.
+//
+// The per-Program FileCache is optional: cached files skip the AST walk +
+// purity checks entirely, fresh files are extracted and stored. A nil cache
+// degrades to a plain uncached walk.
 func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string, cache *FileCache) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
 	var diagnostics []diag.Diagnostic
@@ -186,28 +183,10 @@ func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Op
 	return entries, diagnostics
 }
 
-// extractFromFile walks a single source file resolved from lookup and
-// returns its pure-fn entries + extractor-side diagnostics (PFE9005 +
-// purity violations + dep diagnostics). Called both by
-// ExtractFromProgram in the main pass and by index lazy-expansion when
-// a recorded rt dep points at an unscanned file.
-//
-// Does NOT perform cross-file collision detection (PFE9004) — the
-// caller folds entries into a shared map and surfaces collisions there.
-// A nil/missing source file yields (nil, nil); the caller decides
-// whether that is an error.
-func extractFromFile(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, filePath string) ([]Entry, []diag.Diagnostic) {
-	sourceFile := lookup.SourceFile(filePath)
-	if sourceFile == nil {
-		return nil, nil
-	}
-	return extractFromSourceFile(typeChecker, markerOpts, sourceFile)
-}
-
 // extractFromSourceFile is the per-file extraction core: build symbol
-// table, walk every CallExpression, dispatch to extractOne. Shared by
-// the lookup-driven helper above and the original ExtractFromProgram
-// loop body (which already holds a *SourceFile in hand).
+// table, walk every CallExpression, dispatch to extractOne. Called by
+// the ExtractFromProgramCached loop body (which already holds a
+// *SourceFile in hand).
 func extractFromSourceFile(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
 	var diagnostics []diag.Diagnostic
@@ -322,7 +301,7 @@ func paramHasMarker(typeChecker *checker.Checker, markerOpts marker.Options, par
 // Marker-shape validation (non-literal id / factory) is emitted as
 // CTA001 / PFN001 by `resolver.scanCall` — this function does NOT
 // double-report. Only purefn-specific diagnostics are emitted here
-// (PFE9005, PFE9006-9011, PFE9012-9013).
+// (PFE9005, PFE9006-9011, PFE9013).
 //
 // The returned Entry carries internal-only fields (sourceFile, callPos)
 // that the caller uses for cross-file collision reporting; these never
@@ -446,13 +425,6 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 // siteFromNode builds a 1-based diag.Site for the node's start/end.
 func siteFromNode(sourceFile *ast.SourceFile, node *ast.Node) diag.Site {
 	return textpos.NodeSite(sourceFile.FileName(), sourceFile, node)
-}
-
-// siteFromCall is siteFromNode anchored at a CallExpression's callee position
-// so the diagnostic points at `registerPureFnFactory` instead of the whole
-// argument list.
-func siteFromCall(sourceFile *ast.SourceFile, call *ast.Node) diag.Site {
-	return siteFromNode(sourceFile, call)
 }
 
 // siteFromFile reproduces a site from a previously-captured file + pos pair,

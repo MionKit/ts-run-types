@@ -66,7 +66,7 @@ func extractFromOverlay(t *testing.T, files map[string]string) ([]Entry, []Diagn
 			releaseLease()
 		}
 	})
-	return ExtractFromProgram(typeChecker, marker.WithDefaults(marker.Options{}), prog, abs)
+	return ExtractFromProgramCached(typeChecker, marker.WithDefaults(marker.Options{}), prog, abs, nil)
 }
 
 func TestExtract_HappyPath_FunctionExpression(t *testing.T) {
