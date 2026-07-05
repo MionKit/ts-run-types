@@ -62,11 +62,10 @@ func TestUpdateDependencies_SkipsNoopChildren(t *testing.T) {
 	}
 }
 
-// AddPureFnDependency is now record-only: it appends the triple and
-// dedupes. Validation against the actual `registerPureFnFactory` call
-// happens at end-of-compilation via purefns.ValidatePureFnDependencies,
-// so the cases that previously asserted "missing source file" /
-// "wrong namespace" errors moved to internal/purefns/index_test.go.
+// AddPureFnDependency is record-only: it appends the triple and
+// dedupes. There is no build-time validation against the actual
+// `registerPureFnFactory` call — an unregistered dep surfaces at
+// runtime when `utl.getPureFn` throws.
 
 func TestAddPureFnDependency_RecordsTriple(t *testing.T) {
 	w := newTestWalker()
@@ -83,8 +82,7 @@ func TestAddPureFnDependency_RecordsTriple(t *testing.T) {
 func TestAddPureFnDependency_NoValidationAtCallSite(t *testing.T) {
 	// The whole point of the optimization: appending is O(1) and does
 	// NOT touch the filesystem. Pass a nonsense filePath — it should
-	// still record cleanly. The eventual diagnostic surfaces later in
-	// purefns.ValidatePureFnDependencies.
+	// still record cleanly.
 	w := newTestWalker()
 	w.AddPureFnDependency("rt", "asJSONString", "/this/path/does/not/exist.ts")
 	if len(w.PureFnDependencies) != 1 {
@@ -104,8 +102,6 @@ func TestAddPureFnDependency_DedupesFullTriple(t *testing.T) {
 
 func TestAddPureFnDependency_DifferentFilePathIsDistinctEntry(t *testing.T) {
 	// Same (ns, fn) but different filePath — both entries recorded.
-	// Resolution to a "real" file happens later in
-	// purefns.ValidatePureFnDependencies via lazy index expansion.
 	w := newTestWalker()
 	w.AddPureFnDependency("rt", "asJSONString", "/a.ts")
 	w.AddPureFnDependency("rt", "asJSONString", "/b.ts")

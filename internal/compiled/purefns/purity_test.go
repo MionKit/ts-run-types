@@ -5,7 +5,7 @@ import (
 )
 
 // withFactoryBody wraps a body into a complete registerPureFnFactory call
-// so we can drive checkPurity end-to-end via ExtractFromProgram. Returns
+// so we can drive checkPurity end-to-end via ExtractFromProgramCached. Returns
 // only the diagnostics that came back; entries are ignored for the
 // purity test surface (we already cover the happy-path emission paths
 // in extract_test.go).

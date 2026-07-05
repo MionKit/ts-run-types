@@ -165,7 +165,8 @@ _Baseline metrics (re-measured in Phase 0 on a fresh build, Linux amd64 containe
 | # | Phase/Pass | Step (target + move) | Structural/Behavioral | Verified green | Commit |
 |---|---|---|---|---|---|
 | 0 | Phase 0 | Baseline captured (metrics above); tooling installed; green baseline confirmed on Go + JS suites | — (doc only) | go build+test, pnpm test | fdd8655 |
-| 1 | A2 deps | `go mod tidy`: make the checker/parser/scanner shim requires explicit (were implicit via `replace`). Finding: **no removable deps** — every module requirement is the tsgo shim set + its transitive needs (fixed, vendored); binary-size wins must come from reachable-code cuts, not go.mod. | Structural | go build, go test ./internal/... | (this commit) |
+| 1 | A2 deps | `go mod tidy`: make the checker/parser/scanner shim requires explicit (were implicit via `replace`). Finding: **no removable deps** — every module requirement is the tsgo shim set + its transitive needs (fixed, vendored); binary-size wins must come from reachable-code cuts, not go.mod. | Structural | go build, go test ./internal/... | 30224203 |
+| 2 | A1 dead code | **purefns: delete the never-wired dep-validation API** — `index.go` (Index/NewIndex/Get/Scanned/merge/ValidatePureFnDependencies) + `index_test.go`, the superseded `ExtractFromProgram` wrapper (tests now call `ExtractFromProgramCached(…, nil)`), `extractFromFile`, `siteFromCall`, the `CodeMissingPureFnDep` re-export; stale comments scrubbed (typefns walker + tests). Fence: built 2026-05-16 with wiring explicitly deferred; never wired, no plan exists, runtime backstop (`usePureFn` throws). Consequence filed: [pfe9012-orphaned-diagnostic.md](pfe9012-orphaned-diagnostic.md) (PFE9012 published but unfirable — predates this refactor in effect). | Structural | go build, go vet, go test ./internal/... | (this commit) |
 
 ---
 
