@@ -4,7 +4,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
-	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 )
 
 // dataOnlyAliasName is the symbol name of the DataOnly utility type alias the

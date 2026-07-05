@@ -30,9 +30,9 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/compiler"
+	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/resolver"
 )

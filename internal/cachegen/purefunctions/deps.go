@@ -5,9 +5,9 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/marker"
 )
 
 // extractDeps walks factoryFn's body for `<utlName>.<method>(<keyLit>)`
@@ -250,7 +250,7 @@ func buildFactoryLocalTable(factoryFn *ast.Node) symbolTable {
 
 // Shared types used by the factory-local dep extractor in deps.go.
 // The previous file-level symbol-table + traceIdentifier helpers
-// have been moved to internal/comptimeargs — call
+// have been moved to internal/compiler/comptimeargs — call
 // `comptimeargs.ResolveLiteralString` for the checker-driven
 // string-literal trace and `comptimeargs.CheckLiteralFunction` for
 // the inline-function trace.

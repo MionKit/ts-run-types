@@ -10,9 +10,9 @@
 >
 > **What shipped vs. this note:**
 > - **Part A** — `comptimeargs.ResolveSpreadContainer` (in
->   [values.go](../../internal/comptimeargs/values.go)) resolves the operand
+>   [values.go](../../internal/compiler/comptimeargs/values.go)) resolves the operand
 >   through wrappers + `const` chain + **import aliases**; `checkObjectSpread` /
->   `checkArraySpread` ([comptimeargs.go](../../internal/comptimeargs/comptimeargs.go))
+>   `checkArraySpread` ([comptimeargs.go](../../internal/compiler/comptimeargs/comptimeargs.go))
 >   accept ONLY a resolved literal of the matching kind. Soundness refinement
 >   over the original sketch: rejection is on the resolved KIND, not by
 >   re-validating the operand as a bare literal — a scalar `const` is a valid
@@ -55,18 +55,18 @@ All three raise `CTA003` today.
 
 The shared literal validator rejects spread in both container kinds:
 
-- object spread (`{...x}`) → [internal/comptimeargs/comptimeargs.go:312](../../internal/comptimeargs/comptimeargs.go) (`KindSpreadAssignment`)
-- array spread (`[...x]`) → [internal/comptimeargs/comptimeargs.go:330](../../internal/comptimeargs/comptimeargs.go) (`KindSpreadElement`)
+- object spread (`{...x}`) → [internal/compiler/comptimeargs/comptimeargs.go:312](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadAssignment`)
+- array spread (`[...x]`) → [internal/compiler/comptimeargs/comptimeargs.go:330](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadElement`)
 - diagnostic `CTA003` lists "spread" as a forbidden construct ([codes_marker.go:38](../../internal/diag/codes_marker.go), user fix text in [diagnosticCatalog.ts:187](../../packages/runtypes-devtools/src/diagnosticCatalog.ts))
 - pinned by tests `TestComposerCTA_TupleSpreadRejected` / `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/resolver/comptimeargs_composer_test.go))
 
 `CheckLiteral` already const-traces a *whole* identifier
-(`const opts = {...}; createValidate(undefined, opts)` works — [comptimeargs.go:361](../../internal/comptimeargs/comptimeargs.go)).
+(`const opts = {...}; createValidate(undefined, opts)` works — [comptimeargs.go:361](../../internal/compiler/comptimeargs/comptimeargs.go)).
 The gap is purely **merging two fragments**.
 
 ## Key insight — there are two consumer classes, and spread costs them very differently
 
-The shared validator `comptimeargs.CheckLiteral` (entry [comptimeargs.go:89](../../internal/comptimeargs/comptimeargs.go),
+The shared validator `comptimeargs.CheckLiteral` (entry [comptimeargs.go:89](../../internal/compiler/comptimeargs/comptimeargs.go),
 called from [scan.go:783](../../internal/resolver/scan.go)) guards both markers, but the
 two classes of consumer use the literal differently:
 
@@ -87,7 +87,7 @@ two classes of consumer use the literal differently:
    ([scan.go:651](../../internal/resolver/scan.go)) both go through it. Here spread
    needs **real merge logic** in Go.
 
-   > Note: the type channel (`TypeLiteralObject`, [typevalues.go:37](../../internal/comptimeargs/typevalues.go))
+   > Note: the type channel (`TypeLiteralObject`, [typevalues.go:37](../../internal/compiler/comptimeargs/typevalues.go))
    > can NOT substitute here. The option-bag param types (`ValidateOptions`, etc.)
    > are non-`const`, so `{noLiterals: true}` widens its property to `boolean` — the
    > literal `true` exists only in the AST tokens. The AST read is mandatory, and
@@ -115,7 +115,7 @@ the existing identifier trace, plus Decision 2 on cross-module).
 
 ## Implementation
 
-### Part A — relax the shared validator (`internal/comptimeargs/comptimeargs.go`)
+### Part A — relax the shared validator (`internal/compiler/comptimeargs/comptimeargs.go`)
 
 In `checkObjectLiteral` replace the `KindSpreadAssignment` rejection with: unwrap the
 spread's expression and `CheckLiteral` it (depth+1, same `builderCall` predicate); the
@@ -155,8 +155,8 @@ threaded into `eachOptionProperty` and its two callers (today they take only
    presets un-mergeable and is a weaker story.
 2. **Cross-module operand?** The split-and-merge use case is strongest when `base` is
    an **imported** shared fragment. The existing identifier trace is deliberately
-   same-module ([values.go:22-26](../../internal/comptimeargs/values.go)), but the regex
-   trace already crosses modules via `ResolveImportAlias` ([values.go:27, 80](../../internal/comptimeargs/values.go)).
+   same-module ([values.go:22-26](../../internal/compiler/comptimeargs/values.go)), but the regex
+   trace already crosses modules via `ResolveImportAlias` ([values.go:27, 80](../../internal/compiler/comptimeargs/values.go)).
    Recommended: **follow import aliases for the spread operand** (both the Part A guard
    trace and the Part C value trace) so `import {base} from './schema'` works.
    Builders' type channel already resolves imported types cross-module, so rejecting
@@ -176,7 +176,7 @@ threaded into `eachOptionProperty` and its two callers (today they take only
 
 ## Test plan
 
-- **Go (`internal/comptimeargs`)** — new accept tests: inline object/array spread,
+- **Go (`internal/compiler/comptimeargs`)** — new accept tests: inline object/array spread,
   const-traced operand, nested spread, override order; keep reject tests for dynamic /
   non-container / shape-mismatched / non-`const` operands.
 - **Go (`internal/resolver`)** — **flip** `TestComposerCTA_TupleSpreadRejected` /
@@ -200,7 +200,7 @@ threaded into `eachOptionProperty` and its two callers (today they take only
   (dynamic / non-container operand) stay.
 - [markers.ts](../../packages/ts-runtypes/src/markers.ts) JSDoc for `CompTimeArgs` /
   `CompTimeFnArgs` ("No spread" → "spread of a const-bound literal fragment is allowed").
-- The package header comment in [comptimeargs.go](../../internal/comptimeargs/comptimeargs.go)
+- The package header comment in [comptimeargs.go](../../internal/compiler/comptimeargs/comptimeargs.go)
   (Accepted containers / Rejected constructs lists).
 - Website value-first docs (per the **Website docs style** in CLAUDE.md) — show the
   `object({...base, …})` composition pattern.

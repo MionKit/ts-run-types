@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
+	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/resolver"
 )

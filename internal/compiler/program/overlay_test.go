@@ -12,7 +12,7 @@ import (
 // `node_modules/<pkg>/…` (the wasm playground, in-memory scans), and DirectoryExists
 // / GetAccessibleEntries fall through to the base OS FS and report the virtual
 // package as missing. This is the fix behind the marker package-name gate reading
-// overlay-staged packages (see internal/marker + internal/resolver/pkgjson_fs_test.go).
+// overlay-staged packages (see internal/compiler/marker + internal/resolver/pkgjson_fs_test.go).
 func TestOverlayFS_SynthesizesVirtualDirectories(t *testing.T) {
 	// Paths under /virtual do not exist on the real disk — everything is overlay-only.
 	files := map[string]string{

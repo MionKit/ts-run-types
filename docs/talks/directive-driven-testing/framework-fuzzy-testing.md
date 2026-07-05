@@ -673,7 +673,7 @@ like a stateful sync pipeline.
 > node shapes in [`packages/ts-runtypes/src/enrich/friendlyType.ts`](../../../packages/ts-runtypes/src/enrich/friendlyType.ts)
 >
 > - `mockData.ts`; comptime-args validation in
->   [`internal/comptimeargs/comptimeargs.go`](../../../internal/comptimeargs/comptimeargs.go).
+>   [`internal/compiler/comptimeargs/comptimeargs.go`](../../../internal/compiler/comptimeargs/comptimeargs.go).
 >   Existing **example-based** tests
 >   ([`packages/ts-runtypes/test/suites/enrich/enrichReconcile.test.ts`](../../../packages/ts-runtypes/test/suites/enrich/enrichReconcile.test.ts),
 >   `enrichGen.test.ts`, `enrichCheck.test.ts`) already pin individual cases — the

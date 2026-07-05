@@ -9,7 +9,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

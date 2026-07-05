@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/marker"
-	"github.com/mionkit/ts-runtypes/internal/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
+	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 )
 
 // runtypesDts is the ambient marker declaration injected into every

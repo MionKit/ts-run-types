@@ -188,10 +188,10 @@ void _bad;
 }
 
 // Shape-mismatch / scalar / dynamic / non-`const` spread rejects are pinned by
-// the reflection-free unit tests in internal/comptimeargs (CheckLiteral
+// the reflection-free unit tests in internal/compiler/comptimeargs (CheckLiteral
 // directly), since a deliberately malformed reject fixture (e.g. an object
 // spread of an array) would otherwise reach typeid reflection here. See
-// internal/comptimeargs/spread_test.go.
+// internal/compiler/comptimeargs/spread_test.go.
 
 // TestComposerCTA_FuncDynamicParamsRejected proves the variadic func params
 // brand (`CompTimeArgs<P>`, const P) is detected: a const bound to a ternary

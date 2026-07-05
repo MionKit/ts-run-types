@@ -52,7 +52,7 @@ F: the schema builder `array(item: CompTimeArgs<RunType<T>>)` marks its argument
 `array(self)` passes `self` — an **`Identifier`** (the callback parameter). `CheckLiteral`
 routes identifiers to `traceIdentifier`, which can't resolve a runtime-supplied
 callback parameter to anything static → `FailNonLiteral` → **CTA001 (Error)**
-([internal/comptimeargs/comptimeargs.go](../../internal/comptimeargs/comptimeargs.go):137,
+([internal/compiler/comptimeargs/comptimeargs.go](../../internal/compiler/comptimeargs/comptimeargs.go):137,
 [internal/resolver/scan.go](../../internal/resolver/scan.go):848-870), even though
 codegen succeeds.
 

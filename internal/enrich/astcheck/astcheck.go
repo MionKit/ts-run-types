@@ -18,10 +18,10 @@ import (
 	"github.com/microsoft/typescript-go/shim/scanner"
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
 	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
-	"github.com/mionkit/ts-runtypes/internal/marker"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 

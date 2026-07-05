@@ -142,11 +142,11 @@ Disk cache format is **v11** (keys embed fnHash; the payload is the tuple `ArgsT
 
 ```
 cmd/ts-runtypes/             CLI entry point
-internal/program/                tsconfig + VFS bootstrap
+internal/compiler/program/                tsconfig + VFS bootstrap
 internal/resolver/               op dispatch (scanFiles, dump, …); AST call-walk (walk.go + scan.go)
-internal/marker/                 InjectRunTypeId<T> / InjectTypeFnArgs<T, Fn> sentinel detection (name + module check)
-internal/builders/               value-first builder-call recognition (return-type keyed)
-internal/comptimeargs/           CompTimeArgs literal validation + extraction (CTA0xx)
+internal/compiler/marker/                 InjectRunTypeId<T> / InjectTypeFnArgs<T, Fn> sentinel detection (name + module check)
+internal/compiler/builders/               value-first builder-call recognition (return-type keyed)
+internal/compiler/comptimeargs/           CompTimeArgs literal validation + extraction (CTA0xx)
 internal/cachegen/operations/             single source of truth for RT operations + fnHash computation
 internal/cachegen/runtype/       *checker.Type → protocol.RunType projection + per-entry tuple collection + typeid/
 internal/cachegen/typefunctions/       per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …)
@@ -167,7 +167,7 @@ third_party/tsgolint/            git submodule — shim layer into typescript-go
 docs/                            this file
 ```
 
-### internal/program
+### internal/compiler/program
 
 Wraps the [`oxc-project/tsgolint`](https://github.com/oxc-project/tsgolint) shim packages into a simple `program.New(Options)` that:
 
@@ -196,7 +196,7 @@ Owns both the AST call-walk and op dispatch. `walk.go` contains `NodeAt`, `CallE
 
 **Function-call argument warning.** The resolver flags `createValidate(getX())` (and any other reflect-form marker call with a `CallExpression` argument) as an anti-pattern: the function is invoked at runtime purely so the type checker can infer `T` from its return type, even though the value is discarded. The validator still works, but the recommended replacement is the static form using `ReturnType<typeof fn>`. The warning surfaces on the response's `markerDiagnostics` channel and the Vite plugin re-emits it through `this.warn` in canonical `tsc --pretty=false` format so VS Code's `$tsc` problem matcher picks it up.
 
-### internal/marker
+### internal/compiler/marker
 
 `Detect(t *checker.Type, opts Options) (typeArg, ok)` — given the type of a function's trailing parameter, returns whether it matches the configured marker (name + declaring-module check) and extracts the single type argument `T`. `IsFreeTypeParameter(t)` filters out calls inside generic bodies.
 
@@ -387,7 +387,7 @@ replace (
 )
 ```
 
-So when [`internal/program/program.go`](../internal/program/) writes `import "github.com/microsoft/typescript-go/shim/checker"`, it picks up the aliased `internal/checker` from the typescript-go that tsgolint vendors. We never write `internal/*` import paths ourselves — Go would refuse to compile if we did.
+So when [`internal/compiler/program/program.go`](../internal/compiler/program/) writes `import "github.com/microsoft/typescript-go/shim/checker"`, it picks up the aliased `internal/checker` from the typescript-go that tsgolint vendors. We never write `internal/*` import paths ourselves — Go would refuse to compile if we did.
 
 ### Patches we layer on top
 
@@ -399,7 +399,7 @@ A handful of upstream `internal` symbols that tsgolint _wants_ to alias are them
 
 - The oxc-project tsgolint repo tracks typescript-go via renovate. Whenever typescript-go bumps, tsgolint regenerates its shim and we pick it up via `git submodule update`. Drift is bounded and automatable.
 - The runtime cost of going through a shim is **zero**: aliases and `//go:linkname` are link-time, not runtime constructs.
-- When [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516) lands with an official transformer/linter API, we replace the shim imports with that API — call sites in [`internal/program`](../internal/program/), [`internal/marker`](../internal/marker/), and [`internal/resolver`](../internal/resolver/) change; everything else (sentinel detection, structural ids, hash dictionary, cache emission, Vite plugin) stays put.
+- When [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516) lands with an official transformer/linter API, we replace the shim imports with that API — call sites in [`internal/compiler/program`](../internal/compiler/program/), [`internal/compiler/marker`](../internal/compiler/marker/), and [`internal/resolver`](../internal/resolver/) change; everything else (sentinel detection, structural ids, hash dictionary, cache emission, Vite plugin) stays put.
 
 ## Build and test
 
@@ -438,7 +438,7 @@ Vite's resolver and tsgo's resolver are unrelated implementations. Vite reads `r
 
 ### How the marker gate plays into this
 
-[`internal/marker/marker.go`](../internal/marker/marker.go) gates whether a `InjectRunTypeId<T>` reference counts as the marker by checking that the alias' declaration lives inside the configured marker package. The check accepts two forms:
+[`internal/compiler/marker/marker.go`](../internal/compiler/marker/marker.go) gates whether a `InjectRunTypeId<T>` reference counts as the marker by checking that the alias' declaration lives inside the configured marker package. The check accepts two forms:
 
 1. The declaration is inside an ambient `declare module "<module>" { … }` block (used by [`internal/testfixtures/runtypes.d.ts`](../internal/testfixtures/runtypes.d.ts) and any other synthetic fixture without a real package.json on disk).
 2. The declaration's file belongs to an on-disk package whose `package.json` `"name"` equals `<module>`. The check walks parent directories from the declaration file looking for the nearest `package.json` and reads its name. The on-disk directory name is irrelevant — only the `"name"` field matters.

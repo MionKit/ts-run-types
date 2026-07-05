@@ -42,10 +42,10 @@
 > - **Decisions 2 & 3:** rule applies to both markers; distinct PFN001 vs PFN002
 >   (both say "inline it", but PFN002 names the import/export cause).
 >
-> Code: `internal/comptimeargs/comptimeargs.go` (cross-module trace, widened-const
+> Code: `internal/compiler/comptimeargs/comptimeargs.go` (cross-module trace, widened-const
 > guard, import/export rejection), `internal/resolver/scan.go` (option-bag
 > cross-module read, CTA004/PFN002 mapping), `internal/diag/codes_marker.go`.
-> Tests: `internal/comptimeargs/external_test.go`,
+> Tests: `internal/compiler/comptimeargs/external_test.go`,
 > `internal/resolver/external_module_test.go`,
 > `packages/ts-runtypes/test/external-module*.ts`,
 > `packages/runtypes-devtools/test/pure-fns-cache.test.ts` (PFN002). Docs:
@@ -58,12 +58,12 @@
   imported types; cross-module already works with no special handling (the
   marker reads the resolved type off the brand).
 - **`CompTimeArgs` / `CompTimeFnArgs` identifier trace**
-  (`resolveConstInitializer`, [internal/comptimeargs/comptimeargs.go](../../internal/comptimeargs/comptimeargs.go)):
+  (`resolveConstInitializer`, [internal/compiler/comptimeargs/comptimeargs.go](../../internal/compiler/comptimeargs/comptimeargs.go)):
   **same-module only** — it does NOT apply `ResolveImportAlias`. So an imported
   *whole* option-bag const or an imported builder-child const is rejected
   (CTA001).
 - **Spread-operand trace** (`ResolveSpreadContainer`,
-  [internal/comptimeargs/values.go](../../internal/comptimeargs/values.go)):
+  [internal/compiler/comptimeargs/values.go](../../internal/compiler/comptimeargs/values.go)):
   **cross-module** via `ResolveImportAlias` (mirrors the regex-literal trace).
   So `{...importedFragment}` resolves.
 - **Net asymmetry:** `object({...importedBase, x: string()})` works, but
@@ -71,7 +71,7 @@
   `createValidate(undefined, importedOptsConst)` do NOT (CTA001). The
   split-and-merge story is cross-module; the whole-const story is not.
 - **`PureFunction` / `registerPureFnFactory`** (`CheckLiteralFunction`,
-  [comptimeargs.go](../../internal/comptimeargs/comptimeargs.go)):
+  [comptimeargs.go](../../internal/compiler/comptimeargs/comptimeargs.go)):
   resolves a **same-module** `const f = …` or `function f(){}` (no
   `ResolveImportAlias`), so an imported function is already rejected (PFN001).
   There is **no `export` check** — an *exported* same-module pure-fn literal is
@@ -137,7 +137,7 @@ it:
 > exported → PFN002; any other named reference → PFN001.
 
 Implementation sketch: in `CheckLiteralFunction`
-([comptimeargs.go](../../internal/comptimeargs/comptimeargs.go)), once the
+([comptimeargs.go](../../internal/compiler/comptimeargs/comptimeargs.go)), once the
 literal resolves to a same-module declaration, reject it when that declaration
 (or its binding) carries an export modifier / participates in an export
 statement. Emit a new diagnostic (e.g. **PFN002**, Error severity) with fix
@@ -174,9 +174,9 @@ text: "inline the function at the call site, or bind it to a module-private
 - **Go (`internal/resolver`)** — two-file overlays for each matrix row;
   convergence asserts (imported vs inline → same id / fnId). New reject tests
   for an exported pure-fn (PFN002) and an imported pure-fn (PFN001/PFN002).
-- **Go (`internal/comptimeargs`)** — reflection-free `CheckLiteralFunction`
+- **Go (`internal/compiler/comptimeargs`)** — reflection-free `CheckLiteralFunction`
   unit tests for the export/import rejection (mirrors
-  [internal/comptimeargs/spread_test.go](../../internal/comptimeargs/spread_test.go)).
+  [internal/compiler/comptimeargs/spread_test.go](../../internal/compiler/comptimeargs/spread_test.go)).
 - **JS (marker package / plugin)** — real cross-file imports: an imported schema
   drives a working validator / JSON codec; the marker-coverage rule (both
   `getRunTypeId` shapes) holds for an imported type.

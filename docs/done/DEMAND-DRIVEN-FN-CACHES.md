@@ -187,7 +187,7 @@ per-site `fnId` assertions; do not delete it.
   `Fn` key → base tag + which `CompTimeArgs` axis refines it; and
   `(Fn, fnId) → []cacheFamilyTag`. Add `BrandInjectTypeFnArgs`.
 - `cmd/gen-ts-constants`: mirror the registry to TS. `pnpm run gen:ts-constants`.
-- `internal/marker/marker.go`: add `KindInjectTypeFnArgs` spec + brand; read the
+- `internal/compiler/marker/marker.go`: add `KindInjectTypeFnArgs` spec + brand; read the
   1st (`T`) and 2nd (`Fn`) type-args of the alias.
 - `packages/ts-go-run-types/src/markers.ts`: add
   `export type InjectTypeFnArgs<T, Fn extends string> = …` (phantom brand).
@@ -281,7 +281,7 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [x] A1 `internal/constants/constants.go`: `BrandInjectTypeFnArgs` (in marker.go),
   compile-function registry (`CompFns`, `JsonStrategyFamilies`, `FnDemand`,
   `ResolveFnId`, `DemandsForFnId`), `MigratedFamilies` + `IsFamilyMigrated`.
-- [x] A2 `internal/marker/marker.go`: `KindInjectTypeFnArgs` spec +
+- [x] A2 `internal/compiler/marker/marker.go`: `KindInjectTypeFnArgs` spec +
   `DefaultInjectTypeFnArgsName` + brand; `FnKeyForInjectTypeFnArgs` reads the
   `Fn` type-arg (handles the optional-param `| undefined` union).
 - [x] A3 `packages/ts-go-run-types/src/markers.ts`: `InjectTypeFnArgs<T, Fn>`

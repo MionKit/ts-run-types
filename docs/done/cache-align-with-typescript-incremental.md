@@ -26,7 +26,7 @@ knobs, and behaviour that matches the mental model users already have from `tsc`
 
 2. **The cache follows `CompilerOptions.IsIncremental()`.** The `program`
    package surfaces it via `Program.IsIncremental()`
-   ([program.go](../../internal/program/program.go)), read from the fully parsed
+   ([program.go](../../internal/compiler/program/program.go)), read from the fully parsed
    config so an `incremental`/`composite` inherited through `extends` counts. The
    resolver's enable+locate decision lives in `cacheLocation`
    ([resolver.go](../../internal/resolver/resolver.go)), fed by the new
