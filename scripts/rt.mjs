@@ -138,19 +138,25 @@ async function runWebsite(args) {
 
 // ── bench ────────────────────────────────────────────────────────────────
 const BENCH_SUB = new Set(['audit', 'typecost', 'compiletime', 'serialization', 'smoke', 'prep', 'clean', 'capture-env', 'shell', 'transform-wire', 'fullbench', 'website-bench', 'bench-one', 'build']);
-function runBench(args) {
-  if (args[0] && !args[0].startsWith('-') && BENCH_SUB.has(args[0])) return proxy('bash', ['scripts/website/bench-data/bench.sh', ...args]);
+// Translate the rt-level flags (--one/--full/--website/--build-only) to bench.mjs's
+// own sub-verbs; a bare sub-verb passes through, and the default is `bench`.
+function benchArgs(args) {
+  if (args[0] && !args[0].startsWith('-') && BENCH_SUB.has(args[0])) return args;
   const one = takeFlag(args, '--one', {valued: true});
-  if (one.value !== undefined) return proxy('bash', ['scripts/website/bench-data/bench.sh', 'bench-one', one.value, ...one.rest]);
+  if (one.value !== undefined) return ['bench-one', one.value, ...one.rest];
   const full = takeFlag(args, '--full');
-  if (full.value) return proxy('bash', ['scripts/website/bench-data/bench.sh', 'fullbench', ...full.rest]);
+  if (full.value) return ['fullbench', ...full.rest];
   const web = takeFlag(args, '--website');
-  if (web.value) return proxy('bash', ['scripts/website/bench-data/bench.sh', 'website-bench', ...web.rest]);
+  if (web.value) return ['website-bench', ...web.rest];
   const buildOnly = takeFlag(args, '--build-only');
-  if (buildOnly.value) return proxy('bash', ['scripts/website/bench-data/bench.sh', 'build', ...buildOnly.rest]);
+  if (buildOnly.value) return ['build', ...buildOnly.rest];
   const stray = args.find((a) => !a.startsWith('-'));
   if (stray) die(`unknown bench target '${stray}'. Try a flag (--one/--full/--website/--build-only) or a sub-verb.`);
-  proxy('bash', ['scripts/website/bench-data/bench.sh', 'bench', ...args]);
+  return ['bench', ...args];
+}
+async function runBench(args) {
+  const {main} = await import('./website/bench-data/bench.mjs');
+  return main(benchArgs(args));
 }
 
 // ── release: npm publish + orchestrate the site build/deploy ────────────────
