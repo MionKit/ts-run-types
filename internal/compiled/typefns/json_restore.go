@@ -27,65 +27,10 @@ func (RestoreFromJsonEmitter) Args() []ArgSpec {
 	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
 }
 
-// Supports mirrors PrepareForJsonEmitter.Supports — every kind the
-// prepare side handles has a corresponding restore arm.
+// Supports — the shared JSON-wire kind set; every kind the prepare
+// side handles has a corresponding restore arm.
 func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
-	if rt == nil {
-		return false
-	}
-	switch rt.Kind {
-	case protocol.KindAny, protocol.KindUnknown,
-		protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol,
-		protocol.KindObject, protocol.KindRegexp,
-		protocol.KindLiteral, protocol.KindEnum:
-		return true
-	case protocol.KindNever:
-		// (ref: nodes/atomic/never.ts:23) — emitRestoreFromJson throws
-		// "Never type cannot be decoded from JSON.". Supports returns
-		// true so the renderer surfaces the throw via factory.
-		return true
-	case protocol.KindArray:
-		return rt.Child != nil
-	case protocol.KindObjectLiteral:
-		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
-		return true
-	case protocol.KindIndexSignature:
-		return true
-	case protocol.KindTuple:
-		return true
-	case protocol.KindTupleMember:
-		return true
-	case protocol.KindUnion:
-		// Decodes the `[memberIndex, encodedValue]` envelope produced
-		// by prepareForJson — see json_prepare.go union case.
-		return len(rt.Children) > 0
-	case protocol.KindIntersection:
-		// Defensive noop — see json_prepare.go intersection case.
-		return true
-	case protocol.KindTemplateLiteral:
-		// String-flavoured at runtime — noop.
-		return true
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// Top-level function types: noop body (caller's responsibility).
-		return true
-	case protocol.KindClass:
-		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet,
-			protocol.SubKindNonSerializable:
-			return true
-		}
-		return protocol.IsTemporalSubKind(rt.SubKind)
-	case protocol.KindPromise:
-		// Throws — same pattern as prepareForJson.
-		return true
-	}
-	return false
+	return jsonWireSupports(rt)
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined.

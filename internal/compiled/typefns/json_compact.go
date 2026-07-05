@@ -45,7 +45,7 @@ func (CompactForJsonEmitter) Args() []ArgSpec {
 // Supports mirrors the prepareForJson supported surface — compact handles the
 // same kinds, only the object wire shape differs.
 func (CompactForJsonEmitter) Supports(rt *protocol.RunType) bool {
-	return PrepareForJsonEmitter{}.Supports(rt)
+	return jsonWireSupports(rt)
 }
 
 func (CompactForJsonEmitter) IsRTInlined(ctx *InlineContext) bool {

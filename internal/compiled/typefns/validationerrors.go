@@ -45,73 +45,10 @@ func (ValidationErrorsEmitter) Args() []ArgSpec {
 	}
 }
 
-// Supports mirrors ValidateEmitter.Supports — every kind the validate
-// emitter handles should have a validationErrors arm too. The set grows
-// kind-by-kind as the implementation phases roll out; current scope
-// is atomic + array + object/member + class (non-Date).
+// Supports — the shared validate/validationErrors kind set
+// (validationSupports in validate.go).
 func (ValidationErrorsEmitter) Supports(rt *protocol.RunType) bool {
-	if rt == nil {
-		return false
-	}
-	switch rt.Kind {
-	case protocol.KindAny, protocol.KindUnknown,
-		protocol.KindNever, protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol,
-		protocol.KindObject, protocol.KindRegexp,
-		protocol.KindLiteral, protocol.KindEnum:
-		return true
-	case protocol.KindArray:
-		// Gate on a non-nil child — a malformed RunType with Kind=KindArray
-		// and Child=nil would reach Emit and panic.
-		return rt.Child != nil
-	case protocol.KindObjectLiteral:
-		return true
-	case protocol.KindClass:
-		// Date, non-Date class instances (treated as interface),
-		// Map / Set variants — emit real validation. NonSerializable
-		// IS supported here so the renderer emits a throw-factory
-		// (NonSerializableRunType.emitTypeErrors throws too).
-		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet,
-			protocol.SubKindNonSerializable:
-			return true
-		}
-		return protocol.IsTemporalSubKind(rt.SubKind)
-	case protocol.KindPromise:
-		// We treat Promise<T> as a thenable check — the wrapped T
-		// isn't validated synchronously. Same as the validate emit.
-		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
-		return true
-	case protocol.KindIndexSignature:
-		return true
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// Function-flavoured kinds emit `typeof v === 'function'` at
-		// top level (same as nodes/function/function.ts). As
-		// children of an object they're skipped via the function-
-		// property-dropped rule in emitObjectValidationErrors.
-		return true
-	case protocol.KindTuple:
-		return true
-	case protocol.KindTupleMember:
-		return true
-	case protocol.KindUnion:
-		// (ref: nodes/collection/union.ts:emitTypeErrors) — delegates to
-		// the validate validator for the boolean check, emits a single
-		// 'union' error if the whole shape fails. Per-arm error
-		// breakdown is intentionally NOT a feature of
-		// validationErrors. Same set of supported unions as validate (gate on
-		// non-empty children).
-		return len(rt.Children) > 0
-	case protocol.KindTemplateLiteral:
-		// Same gate as ValidateEmitter — non-empty Literal payload.
-		return rt.Literal != nil
-	}
-	return false
+	return validationSupports(rt)
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as

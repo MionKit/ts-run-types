@@ -40,53 +40,7 @@ func (StringifyJsonEmitter) Args() []ArgSpec {
 // throw at emit; function-shaped as object-property children get
 // dropped at the parent loop.
 func (StringifyJsonEmitter) Supports(rt *protocol.RunType) bool {
-	if rt == nil {
-		return false
-	}
-	switch rt.Kind {
-	case protocol.KindAny, protocol.KindUnknown,
-		protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol,
-		protocol.KindObject, protocol.KindRegexp,
-		protocol.KindLiteral, protocol.KindEnum:
-		return true
-	case protocol.KindNever:
-		return true
-	case protocol.KindArray:
-		return rt.Child != nil
-	case protocol.KindObjectLiteral:
-		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
-		return true
-	case protocol.KindIndexSignature:
-		return true
-	case protocol.KindTuple:
-		return true
-	case protocol.KindTupleMember:
-		return true
-	case protocol.KindUnion:
-		return len(rt.Children) > 0
-	case protocol.KindIntersection:
-		return true
-	case protocol.KindTemplateLiteral:
-		return true
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
-		return true
-	case protocol.KindClass:
-		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet,
-			protocol.SubKindNonSerializable:
-			return true
-		}
-		return protocol.IsTemporalSubKind(rt.SubKind)
-	case protocol.KindPromise:
-		return true
-	}
-	return false
+	return jsonWireSupports(rt)
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as

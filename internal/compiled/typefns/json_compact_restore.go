@@ -30,7 +30,7 @@ func (CompactFromJsonEmitter) Args() []ArgSpec {
 
 // Supports mirrors the restoreFromJson supported surface.
 func (CompactFromJsonEmitter) Supports(rt *protocol.RunType) bool {
-	return RestoreFromJsonEmitter{}.Supports(rt)
+	return jsonWireSupports(rt)
 }
 
 func (CompactFromJsonEmitter) IsRTInlined(ctx *InlineContext) bool {

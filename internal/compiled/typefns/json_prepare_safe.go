@@ -42,7 +42,7 @@ func (PrepareForJsonSafeEmitter) Args() []ArgSpec {
 // the non-safe sibling handles. The wire format is identical so the
 // supported surface stays in lockstep.
 func (PrepareForJsonSafeEmitter) Supports(rt *protocol.RunType) bool {
-	return PrepareForJsonEmitter{}.Supports(rt)
+	return jsonWireSupports(rt)
 }
 
 func (PrepareForJsonSafeEmitter) IsRTInlined(ctx *InlineContext) bool {
