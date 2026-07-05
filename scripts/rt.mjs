@@ -172,9 +172,14 @@ function runRelease(args) {
   steps(plan);
 }
 
-// In-process env leaf (env/check.mjs). Migrated leaves import + call their main().
+// In-process leaves import + call their main(). Dynamic import defers module
+// evaluation until after loadEnv() so the leaf sees a populated process.env.
 async function runEnv(args) {
   const {main} = await import('./env/check.mjs');
+  main(args);
+}
+async function runContainer(args) {
+  const {main} = await import('./container/image.mjs');
   main(args);
 }
 
@@ -217,7 +222,7 @@ async function dispatch(argv) {
     case 'website': return runWebsite(rest);
     case 'bench': return runBench(rest);
     case 'release': return runRelease(rest);
-    case 'container': return proxy('bash', ['scripts/container/image.sh', ...rest]);
+    case 'container': return runContainer(rest);
     case 'env': return runEnv(rest);
     case 'verify': return (coreBuild(['all']), steps([['pnpm', ['run', 'lint']], ['pnpm', ['run', 'check-format']]]));
     case 'fmt': return proxy('pnpm', ['run', hasFlag(rest, '--check') ? 'check-format' : 'format']);
