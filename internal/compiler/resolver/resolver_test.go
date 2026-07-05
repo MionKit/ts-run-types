@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 func fixturesDir(t *testing.T) string {
 	t.Helper()
-	abs, err := filepath.Abs("../testfixtures")
+	abs, err := filepath.Abs("../../testfixtures")
 	if err != nil {
 		t.Fatalf("abs: %v", err)
 	}

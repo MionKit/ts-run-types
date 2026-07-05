@@ -100,8 +100,8 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // Concretely: a source file that declares `type Junk = {x: bigint}`
 // but never passes Junk to a marker function leaves NO trace in the
 // cache. Pinned by:
-//   - internal/resolver/perfile_test.go:TestScope_UnreferencedTypesAreNotProjected
-//   - internal/resolver/perfile_test.go:TestDump_OnlyMarkerReachableTypes
+//   - internal/compiler/resolver/perfile_test.go:TestScope_UnreferencedTypesAreNotProjected
+//   - internal/compiler/resolver/perfile_test.go:TestDump_OnlyMarkerReachableTypes
 //   - packages/runtypes-devtools/test/scope-bounded.test.ts
 //
 // The bench's compile-time measurements

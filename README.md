@@ -53,7 +53,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | [cmd/ts-runtypes/main.go](cmd/ts-runtypes/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                      |
 | [internal/compiler/program](internal/compiler/program/)                      | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                                 |
-| [internal/resolver](internal/resolver/)                              | `scanFiles` / `dump` op dispatch; AST call-walk (`walk.go` + `scan.go`); asks checker for resolved signatures. |
+| [internal/compiler/resolver](internal/compiler/resolver/)                              | `scanFiles` / `dump` op dispatch; AST call-walk (`walk.go` + `scan.go`); asks checker for resolved signatures. |
 | [internal/compiler/marker](internal/compiler/marker/)                                  | `InjectRunTypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
 | [internal/cachegen/runtype/](internal/cachegen/runtype/)             | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup; JSON/TS-module renderers.                |
 | [internal/cachegen/runtype/typeid/](internal/cachegen/runtype/typeid/) | Structural-id computer mirroring the reference `_createTypeId`; deterministic, cycle-aware.                         |

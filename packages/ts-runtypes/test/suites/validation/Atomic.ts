@@ -1079,7 +1079,7 @@ export const ATOMIC = {
   // check: the validator accepts any value of the base type instead
   // of only the exact literal. The Go-side resolver swaps the
   // literal type for its base via Checker_getBaseTypeOfLiteralType
-  // before assigning the hash (see internal/resolver/scan.go), so
+  // before assigning the hash (see internal/compiler/resolver/scan.go), so
   // these cases reuse the existing base-kind emit code.
 
   literal_2_noLiterals: {

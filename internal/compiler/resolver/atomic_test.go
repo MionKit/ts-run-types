@@ -8,9 +8,9 @@ import (
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // filterDiagsByFamily returns the subset of diags belonging to the given
@@ -30,7 +30,7 @@ func filterDiagsByFamily(diagnostics []diag.Diagnostic, family diag.Family) []di
 // two file-loading regression tests (TestAtomic_String_*).
 func atomicFixturesDir(t *testing.T) string {
 	t.Helper()
-	abs, err := filepath.Abs("../testfixtures/atomic")
+	abs, err := filepath.Abs("../../testfixtures/atomic")
 	if err != nil {
 		t.Fatalf("abs: %v", err)
 	}

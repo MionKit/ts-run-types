@@ -7,9 +7,9 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // inlinemode_test.go covers the inlining policy end to end. DEFAULT mode

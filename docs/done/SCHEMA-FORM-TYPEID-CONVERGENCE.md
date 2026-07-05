@@ -187,7 +187,7 @@ code and should be removed.
 
 ### 1. Schema-form scan path — folded onto the builder Site, not deleted
 
-[internal/resolver/scan.go](../internal/resolver/scan.go):
+[internal/compiler/resolver/scan.go](../internal/compiler/resolver/scan.go):
 
 - **Replaced** `schemaFormVariantSite` with `schemaFormOptions`: rather
   than emit a second `EmitOnly` Site, it returns the enclosing

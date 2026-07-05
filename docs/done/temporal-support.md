@@ -398,7 +398,7 @@ adding Temporal.
 - Go: structural-id + scanner fixtures (qualified detection, id stability), per
   per-family emit assertions (one per RT-fn, per type), the essential
   param-validation matrix if Phase 2 lands. Mirror
-  `internal/resolver/native_date_format_test.go` and the serialization
+  `internal/compiler/resolver/native_date_format_test.go` and the serialization
   round-trip suites.
 - JS: mirror the Date entries in `packages/ts-go-run-types/test/suites/serialization/`
   (the `date` case wires `unsafeEncoder`/`safeEncoder`/`safeDecoder`/

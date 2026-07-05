@@ -12,7 +12,7 @@
 //
 // Projection is rooted ONLY at types passed to AssignID — which the
 // resolver invokes exclusively for marker call arguments
-// (see the BOUNDED-SCOPE INVARIANT block in internal/resolver/scan.go).
+// (see the BOUNDED-SCOPE INVARIANT block in internal/compiler/resolver/scan.go).
 // Children are walked transitively from those roots; the serializer
 // never reaches into the source file's top-level declarations on its
 // own initiative.
@@ -356,7 +356,7 @@ func (cache *Cache) computerFor(typeChecker *checker.Checker) *typeid.Computer {
 // redirect a unique-symbol literal type to the canonical `symbol`
 // kind — tsgo's `getBaseTypeOfLiteralType` doesn't handle
 // TypeFlagsUniqueESSymbol, so the resolver does the swap explicitly
-// after detecting the unhandled case (see internal/resolver/scan.go).
+// after detecting the unhandled case (see internal/compiler/resolver/scan.go).
 //
 // Two calls with the same kind deduplicate via the structural map.
 // Today only `KindSymbol` is needed; if other atomic kinds ever

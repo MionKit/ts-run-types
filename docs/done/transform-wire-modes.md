@@ -1,7 +1,7 @@
 # Transform wire modes — call-site edits + FE apply vs full-file Go transform (+ benchmarks)
 
 **Status:** **implemented** (2026-07-04). Approach (b) shipped; default is `'edits'` (data-driven — the benchmark measured a 6-55× inbound-wire reduction). Both modes kept and benchmarked.
-**Related:** [`internal/protocol/protocol.go`](../../internal/protocol/protocol.go) (`OpScanFiles`, `OpTransform`, `Site`, `Replacement`, `TransformResult`, `SourceMap`, `Edit`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go), [`internal/compiler/sourcerewrite/transform.go`](../../internal/compiler/sourcerewrite/transform.go) + [`editbuffer.go`](../../internal/compiler/sourcerewrite/editbuffer.go) + [`edits.go`](../../internal/compiler/sourcerewrite/edits.go), [`packages/runtypes-devtools/src/unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts), [`edit-buffer.ts`](../../packages/runtypes-devtools/src/edit-buffer.ts) + [`apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts), [`resolver-client.ts`](../../packages/runtypes-devtools/src/resolver-client.ts), [docs/ARCHITECTURE.md → Rewrite mechanics](../ARCHITECTURE.md)
+**Related:** [`internal/protocol/protocol.go`](../../internal/protocol/protocol.go) (`OpScanFiles`, `OpTransform`, `Site`, `Replacement`, `TransformResult`, `SourceMap`, `Edit`), [`internal/compiler/resolver/dispatch.go`](../../internal/compiler/resolver/dispatch.go), [`internal/compiler/sourcerewrite/transform.go`](../../internal/compiler/sourcerewrite/transform.go) + [`editbuffer.go`](../../internal/compiler/sourcerewrite/editbuffer.go) + [`edits.go`](../../internal/compiler/sourcerewrite/edits.go), [`packages/runtypes-devtools/src/unplugin.ts`](../../packages/runtypes-devtools/src/unplugin.ts), [`edit-buffer.ts`](../../packages/runtypes-devtools/src/edit-buffer.ts) + [`apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts), [`resolver-client.ts`](../../packages/runtypes-devtools/src/resolver-client.ts), [docs/ARCHITECTURE.md → Rewrite mechanics](../ARCHITECTURE.md)
 
 ## What shipped
 
@@ -138,7 +138,7 @@ The bundler hands the plugin the original `code` and composes chained source map
 - **Source-hash guard fixture (§3.2):** a transform where the bundler-supplied `code` deliberately diverges from the resolver's bytes (simulating an upstream `enforce: 'pre'` plugin) — assert the mismatch is detected, the `setSources` + re-request fallback produces correct output, and the debug/warn line is emitted. Plus the happy path: matching hash applies edits with zero extra round-trips.
 - The e2e vite-build composite source-map test (breakpoints land on original lines) must run in **both** modes.
 - **Marker test coverage rule applies:** parity fixtures must cover both call shapes — static `getRunTypeId<T>()` and value-first `getRunTypeId(value)` — plus multi-fn `createX` sites (`fnIds`), `trailingComma` sites, pure-fn `Replacement`s, and `moduleMode: allSingle` bundle targeting.
-- Go tests for the new op/knob in [`internal/resolver`](../../internal/resolver) + [`internal/compiler/sourcerewrite`](../../internal/compiler/sourcerewrite); `go test ./internal/...`.
+- Go tests for the new op/knob in [`internal/compiler/resolver`](../../internal/compiler/resolver) + [`internal/compiler/sourcerewrite`](../../internal/compiler/sourcerewrite); `go test ./internal/...`.
 
 ## 6. Risks / open questions
 

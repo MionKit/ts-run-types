@@ -6,8 +6,8 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // resolveFixture builds an inferred Program from in-memory sources, a resolver

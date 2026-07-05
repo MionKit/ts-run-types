@@ -9,7 +9,7 @@ package diag
 // without a second prose source.
 //
 // Example is not just docs. The standardized suite in
-// internal/resolver/diag_examples_test.go feeds every non-empty Example
+// internal/compiler/resolver/diag_examples_test.go feeds every non-empty Example
 // through the real scan pipeline and asserts this code fires, so an example
 // can never drift from the diagnostic it demonstrates. Author an Example as
 // a complete file: the `ts-runtypes` import, the type, and the marker call.

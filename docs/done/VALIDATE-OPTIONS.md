@@ -53,7 +53,7 @@ new field on the wire shape:
 
 ## 2. Type id is options-independent
 
-[internal/resolver/scan.go](../internal/resolver/scan.go) — the id-
+[internal/compiler/resolver/scan.go](../internal/compiler/resolver/scan.go) — the id-
 resolution block shrank dramatically. Removed:
 
 - The `noLiterals` type-swap (`Checker_getBaseTypeOfLiteralType` +
@@ -66,7 +66,7 @@ was deleted entirely from
 
 ## 3. Schema-form options ride on the builder's Site (DONE)
 
-**Primary (only) path:** [`scanCall`](../internal/resolver/scan.go) — the
+**Primary (only) path:** [`scanCall`](../internal/compiler/resolver/scan.go) — the
 InjectRunTypeId-marker walk. `extractValidateOptions` populates
 `Site.Options` for the marker forms (`createValidate<T>(…, options)`).
 
@@ -76,12 +76,12 @@ runtime. That id is owned by the **builder** call (`RT.array(…)`,
 `RT.regexp()`, `RT.object({…})`), which IS a marker and resolves the
 id — including recursive interning the type alone can't reproduce. To
 make a schema-form `options` call
-materialise its variant factory, [`scanCall`](../internal/resolver/scan.go)
+materialise its variant factory, [`scanCall`](../internal/compiler/resolver/scan.go)
 folds the enclosing factory's options onto **that builder's own Site**:
-[`schemaFormOptions`](../internal/resolver/scan.go) checks whether the
+[`schemaFormOptions`](../internal/compiler/resolver/scan.go) checks whether the
 builder sits at slot 0 of a `createValidateFor` / `createValidationErrorsFor`
-call ([`isSchemaFormFactory`](../internal/resolver/scan.go) +
-[`readValidateOptionsLiteral`](../internal/resolver/scan.go)) and ORs its
+call ([`isSchemaFormFactory`](../internal/compiler/resolver/scan.go) +
+[`readValidateOptionsLiteral`](../internal/compiler/resolver/scan.go)) and ORs its
 option bits into the builder Site's `Options`. No second Site, no
 `EmitOnly`, no rewriter filter.
 
@@ -190,7 +190,7 @@ variant body is cheap to re-render, so this is fine.
   requested on a non-array type. Warning severity.
 
 Emitted by
-[`noopValidateOptionDiag`](../internal/resolver/scan.go), anchored at the
+[`noopValidateOptionDiag`](../internal/compiler/resolver/scan.go), anchored at the
 options-literal node. The variant factory is still materialised
 (always-emit invariant — JS can't tell at runtime whether an option
 is meaningful for a given T), so the diagnostic is the only signal.
@@ -199,7 +199,7 @@ is meaningful for a given T), so the diagnostic is the only signal.
 
 - Go: `TestResolver_ValidateOptions_DoNotChangeID` and
   `TestResolver_ValidateOptions_NoLiteralsNoop` in
-  [atomic_test.go](../internal/resolver/atomic_test.go).
+  [atomic_test.go](../internal/compiler/resolver/atomic_test.go).
 - Go: `TestValidateModule_ArrayNoIsArrayCheck` rewritten to drive the
   variant via `dump.Sites` instead of the legacy `rt.Flags` field.
 - JS: [`validateOptionsDispatch.test.ts`](../packages/ts-go-run-types/test/adapters/validateOptionsDispatch.test.ts)

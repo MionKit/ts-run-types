@@ -58,7 +58,7 @@ The shared literal validator rejects spread in both container kinds:
 - object spread (`{...x}`) → [internal/compiler/comptimeargs/comptimeargs.go:312](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadAssignment`)
 - array spread (`[...x]`) → [internal/compiler/comptimeargs/comptimeargs.go:330](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadElement`)
 - diagnostic `CTA003` lists "spread" as a forbidden construct ([codes_marker.go:38](../../internal/diag/codes_marker.go), user fix text in [diagnosticCatalog.ts:187](../../packages/runtypes-devtools/src/diagnosticCatalog.ts))
-- pinned by tests `TestComposerCTA_TupleSpreadRejected` / `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/resolver/comptimeargs_composer_test.go))
+- pinned by tests `TestComposerCTA_TupleSpreadRejected` / `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/compiler/resolver/comptimeargs_composer_test.go))
 
 `CheckLiteral` already const-traces a *whole* identifier
 (`const opts = {...}; createValidate(undefined, opts)` works — [comptimeargs.go:361](../../internal/compiler/comptimeargs/comptimeargs.go)).
@@ -67,7 +67,7 @@ The gap is purely **merging two fragments**.
 ## Key insight — there are two consumer classes, and spread costs them very differently
 
 The shared validator `comptimeargs.CheckLiteral` (entry [comptimeargs.go:89](../../internal/compiler/comptimeargs/comptimeargs.go),
-called from [scan.go:783](../../internal/resolver/scan.go)) guards both markers, but the
+called from [scan.go:783](../../internal/compiler/resolver/scan.go)) guards both markers, but the
 two classes of consumer use the literal differently:
 
 1. **Value-first builders** (`object` / `union` / `tuple` / `intersection` / `record` /
@@ -82,9 +82,9 @@ two classes of consumer use the literal differently:
    `createValidate`, `createJsonEncoder`, `createJsonDecoder`, the `huk`/`suk`/… group)
    — the literal **value is read from the AST** to compute the fn-hash variant.
    `eachOptionProperty` walks the literal positionally and **silently skips spreads**
-   ([scan.go:613-620](../../internal/resolver/scan.go)); `extractValidateOptions`
-   ([scan.go:733](../../internal/resolver/scan.go)) and `extractStrategyOption`
-   ([scan.go:651](../../internal/resolver/scan.go)) both go through it. Here spread
+   ([scan.go:613-620](../../internal/compiler/resolver/scan.go)); `extractValidateOptions`
+   ([scan.go:733](../../internal/compiler/resolver/scan.go)) and `extractStrategyOption`
+   ([scan.go:651](../../internal/compiler/resolver/scan.go)) both go through it. Here spread
    needs **real merge logic** in Go.
 
    > Note: the type channel (`TypeLiteralObject`, [typevalues.go:37](../../internal/compiler/comptimeargs/typevalues.go))
@@ -95,7 +95,7 @@ two classes of consumer use the literal differently:
 
 ## ⚠️ Soundness coupling — do not relax the guard alone
 
-`CheckLiteral` is shared by both markers ([scan.go:352-365](../../internal/resolver/scan.go)).
+`CheckLiteral` is shared by both markers ([scan.go:352-365](../../internal/compiler/resolver/scan.go)).
 If we relax it to accept spread **without** also teaching the option-bag readers to
 merge, then `createValidate<T>(undefined, {...strict, rejectCircularRefs: true})` would
 **pass validation and then silently drop** `strict`'s options → wrong fn-hash → wrong
@@ -136,7 +136,7 @@ No Go value-merge needed. Verify the **type** still infers correctly through the
   operand collapses to an array (losing per-slot precision). Document that the operand
   must be a tuple (`as const` / const-inferred) and pin it with a typesafety test.
 
-### Part C — option bags (the careful part, `internal/resolver/scan.go`)
+### Part C — option bags (the careful part, `internal/compiler/resolver/scan.go`)
 
 Teach `eachOptionProperty` to handle `KindSpreadAssignment`: resolve the operand to its
 object-literal declaration (reuse `comptimeargs.EachConstVariableDeclaration` /
@@ -179,8 +179,8 @@ threaded into `eachOptionProperty` and its two callers (today they take only
 - **Go (`internal/compiler/comptimeargs`)** — new accept tests: inline object/array spread,
   const-traced operand, nested spread, override order; keep reject tests for dynamic /
   non-container / shape-mismatched / non-`const` operands.
-- **Go (`internal/resolver`)** — **flip** `TestComposerCTA_TupleSpreadRejected` /
-  `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/resolver/comptimeargs_composer_test.go))
+- **Go (`internal/compiler/resolver`)** — **flip** `TestComposerCTA_TupleSpreadRejected` /
+  `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/compiler/resolver/comptimeargs_composer_test.go))
   from "rejected" to "accepted + correct reflected type". New `extractValidateOptions`
   / `extractStrategyOption` merge tests proving spread-merged options select the right
   fn-hash variant (and override order is honored). If Decision 2 = cross-module, a

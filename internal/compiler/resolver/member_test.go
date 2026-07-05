@@ -3,8 +3,8 @@ package resolver_test
 import (
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Each scenario below has paired *_Static / *_Reflect tests per the

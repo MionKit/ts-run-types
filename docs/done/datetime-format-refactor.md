@@ -148,7 +148,7 @@ Diagnostics use existing `diag.CodeFMTInvalidParams` (`FMT002`) with precise mes
 - `time.go`: same with `timeKind`.
 - `datetime.go`: validate top-level `min`/`max` with `dateTimeKind`, and nested `date.format`/`time.format`.
 
-Confirm the registry actually invokes `ParamValidator` for these emitters (it does for stringformat/uuid via the `ParamValidator` interface check in `registry.go`); since they'll now implement the interface, diagnostics will surface through the same scan path exercised by `internal/resolver/format_param_validation_test.go`.
+Confirm the registry actually invokes `ParamValidator` for these emitters (it does for stringformat/uuid via the `ParamValidator` interface check in `registry.go`); since they'll now implement the interface, diagnostics will surface through the same scan path exercised by `internal/compiler/resolver/format_param_validation_test.go`.
 
 ### 3d. Go: emit min/max checks in `isType` / `getTypeErrors`
 
@@ -254,11 +254,11 @@ These are the **core acceptance tests** for this feature and MUST exist before t
 3. **Malformed bound value** → `FMT002`: invalid calendar/time literal (`'2020-13-01'`, `'25:00'`), malformed duration (`'now+P'`, `'now+1Y'` missing `P`, `'nowP1Y'`).
 4. **min > max** for two absolute bounds in the same layout → `FMT002`. (Relative-vs-anything ordering is not statically checkable → assert it is **skipped**, not falsely flagged.)
 
-Implement these as a **table-driven** Go test (one row per matrix cell, asserting presence/absence of `FMT002` and ideally the message substring) in a new `internal/resolver/datetime_bound_validation_test.go`, plus direct unit tests on `bounds.go` (`parseRelative`, `validateBound`, `validateMinMax`) covering the same matrix at the function level. The Go binary is the source of truth for validation, so the Go layer is where these essential tests live; the JS adapter tests below mirror the runtime behaviour but the diagnostics matrix is asserted Go-side.
+Implement these as a **table-driven** Go test (one row per matrix cell, asserting presence/absence of `FMT002` and ideally the message substring) in a new `internal/compiler/resolver/datetime_bound_validation_test.go`, plus direct unit tests on `bounds.go` (`parseRelative`, `validateBound`, `validateMinMax`) covering the same matrix at the function level. The Go binary is the source of truth for validation, so the Go layer is where these essential tests live; the JS adapter tests below mirror the runtime behaviour but the diagnostics matrix is asserted Go-side.
 
 ### Go (`internal/`)
 - New/extended fixtures under `internal/testfixtures/` for: date min/max absolute, date min/max relative, time min/max, dateTime min/max, native Date min/max, and **invalid** cases (cross-kind duration, bad literal, min>max).
-- Extend `internal/resolver/format_param_validation_test.go` (or the new `datetime_bound_validation_test.go`) to assert the new `FMT002` diagnostics fire for each invalid case, and do NOT fire for valid ones — see the **ESSENTIAL** matrix above.
+- Extend `internal/compiler/resolver/format_param_validation_test.go` (or the new `datetime_bound_validation_test.go`) to assert the new `FMT002` diagnostics fire for each invalid case, and do NOT fire for valid ones — see the **ESSENTIAL** matrix above.
 - Bound-parser unit tests for `bounds.go` (component-restriction matrix: date×time-component → error, etc.).
 
 ### JS (`packages/ts-go-run-types/test/`)

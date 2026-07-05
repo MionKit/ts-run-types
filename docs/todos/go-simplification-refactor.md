@@ -89,7 +89,7 @@ The Go binary is a build input to the JS suite, so Go changes must be proven gre
 - `go build ./...` and `go test ./internal/...` — the Go suite (fast; run constantly).
 - **Rebuild `bin/ts-runtypes`** then `pnpm test` — the Vite-plugin tests spawn the binary; a Go change that breaks resolution only shows here. (`pnpm rt core build` / `pretest` handles the rebuild + staleness.)
 - **Marker coverage rule still holds** — any change touching marker/resolution keeps *both* `getRunTypeId` call shapes covered with a hash-equivalence assertion (CLAUDE.md → Marker test coverage rule).
-- **Fuzz where relevant** — `pnpm rt core fuzz <suite>` for changes near value/type/enrich/roundtrip logic; the **noop-predicate soundness corpus** (`internal/resolver/noop_predicate_test.go`) must stay green when touching typefns/noop-elision.
+- **Fuzz where relevant** — `pnpm rt core fuzz <suite>` for changes near value/type/enrich/roundtrip logic; the **noop-predicate soundness corpus** (`internal/compiler/resolver/noop_predicate_test.go`) must stay green when touching typefns/noop-elision.
 - **Codegen mirrors** — if `internal/constants` (or the diag catalog / run-type-kind) changes, `pnpm rt core codegen all --check` must pass (the Go→TS mirrors regenerate + commit).
 - `pnpm rt verify` (build if stale → lint → format check) and `gofmt`/the repo `format` before commit.
 
@@ -118,7 +118,7 @@ The concrete target layout is **discovered during Phase B**, one move at a time;
 - **Enrichment (MockData & FriendlyText):** `enrich` (+ `astcheck`, `cldr`, `mirror`).
 - **Shared/foundational:** `constants`, `diag`, `testfixtures`.
 
-Notable movers to expect: the opaque **`internal/compiled/`** grab-bag (13 subpackages under a name that describes nothing) likely splits along the transform-vs-cache line; the oversized **`internal/resolver`** is the highest-churn/highest-complexity package and the best candidate to break into cohesive units *after* Phase A has thinned it.
+Notable movers to expect: the opaque **`internal/compiled/`** grab-bag (13 subpackages under a name that describes nothing) likely splits along the transform-vs-cache line; the oversized **`internal/compiler/resolver`** is the highest-churn/highest-complexity package and the best candidate to break into cohesive units *after* Phase A has thinned it.
 
 ### Target layout (decided at Phase B start, 2026-07-05 — owner naming preference: descriptive > short)
 

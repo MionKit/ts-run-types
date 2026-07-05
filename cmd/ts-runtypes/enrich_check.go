@@ -154,7 +154,7 @@ func tagCodeMessage(kind mirror.TagKind, family mirror.MirrorFamily) (string, st
 }
 
 // tagCode maps a hygiene TagKind + mirror family to its diag code (the CLI
-// twin of the resolver's mapping in internal/resolver/enrichcheck.go).
+// twin of the resolver's mapping in internal/compiler/resolver/enrichcheck.go).
 func tagCode(kind mirror.TagKind, family mirror.MirrorFamily) string {
 	if family == mirror.FamilyMock {
 		switch kind {

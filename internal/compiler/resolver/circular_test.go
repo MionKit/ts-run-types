@@ -3,8 +3,8 @@ package resolver_test
 import (
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Circular-type tests adapted from circularRefs.spec.ts

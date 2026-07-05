@@ -6,8 +6,8 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // resolveRawFixture mirrors resolveFixture (bridge_test.go) but returns the RAW

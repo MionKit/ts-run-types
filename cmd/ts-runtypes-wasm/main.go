@@ -31,9 +31,9 @@ import (
 	// binary's main.
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // wasmCwd is the virtual working directory every relative source path in a
