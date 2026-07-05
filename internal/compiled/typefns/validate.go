@@ -45,7 +45,11 @@ func (ValidateEmitter) Args() []ArgSpec {
 // Keep this set in lockstep with the `switch` in Emit — drift would
 // silently emit broken JS (renderer thinks it's supported, Emit
 // panics) or skip a valid kind.
-func (ValidateEmitter) Supports(rt *protocol.RunType) bool {
+//
+// validationSupports is shared by validate AND validationErrors — the
+// two families must cover exactly the same kinds (every kind validate
+// can check must be able to report errors, and vice versa).
+func validationSupports(rt *protocol.RunType) bool {
 	if rt == nil {
 		return false
 	}
@@ -112,6 +116,10 @@ func (ValidateEmitter) Supports(rt *protocol.RunType) bool {
 		return rt.Literal != nil
 	}
 	return false
+}
+
+func (ValidateEmitter) Supports(rt *protocol.RunType) bool {
+	return validationSupports(rt)
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined. The reference

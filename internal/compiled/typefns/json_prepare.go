@@ -29,95 +29,10 @@ func (PrepareForJsonEmitter) Args() []ArgSpec {
 	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
 }
 
-// Supports gates the renderer's top-level loop. Phase 1 covers every
-// atomic kind whose node ships an emitPrepareForJson. Subsequent
-// phases extend the set kind by kind.
-//
-// Kinds that throw at RT-compile time (never, enumMember) are
-// excluded — Supports false means no factory is emitted.
+// Supports gates the renderer's top-level loop on the shared JSON-wire
+// kind set (jsonWireSupports in json_shared.go).
 func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
-	if rt == nil {
-		return false
-	}
-	switch rt.Kind {
-	case protocol.KindAny, protocol.KindUnknown,
-		protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol,
-		protocol.KindObject, protocol.KindRegexp,
-		protocol.KindLiteral, protocol.KindEnum:
-		return true
-	case protocol.KindNever:
-		// ref: nodes/atomic/never.ts:20 — emitPrepareForJson throws
-		// "Never type cannot be encoded to JSON.". We surface that
-		// via a throw-factory; Supports() returns true so the
-		// renderer compiles the entry (and the compile produces the
-		// throw via RTThrow in Emit).
-		return true
-	case protocol.KindArray:
-		// Gate on a non-nil child — a malformed RunType with KindArray
-		// and Child=nil would reach Emit and panic.
-		return rt.Child != nil
-	case protocol.KindObjectLiteral:
-		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
-		return true
-	case protocol.KindIndexSignature:
-		return true
-	case protocol.KindTuple:
-		return true
-	case protocol.KindTupleMember:
-		return true
-	case protocol.KindUnion:
-		// Unions encode as `[memberIndex, transformedValue]` per the
-		// nodes/collection/union.ts — see emitUnionPrepareForJson below
-		// for the full implementation. The wrapping is per-member: a
-		// noop-on-both-sides member doesn't tuple-encode (the decode's
-		// shape check distinguishes encoded vs raw values).
-		return len(rt.Children) > 0
-	case protocol.KindIntersection:
-		// Intersection types are resolved by tsgo at the type-checker
-		// layer (`A & B` → merged object literal, `string & number` →
-		// `never`). The reference throws if its IntersectionRunType is ever
-		// invoked. We support it as a defensive noop in case some
-		// resolution path produces an unresolved intersection.
-		return true
-	case protocol.KindTemplateLiteral:
-		// Template literals validate at compile time against a regex
-		// (handled by validate). The value is always a string at runtime,
-		// so prepareForJson / restoreFromJson are atomic-string-like
-		// (noop). Same emit shape as KindString.
-		return true
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// Functions are non-serializable. Top-level support emits a
-		// noop body (return v unchanged) — JSON.stringify already
-		// drops function values. Object-property children of these
-		// kinds are filtered out by the object emit.
-		return true
-	case protocol.KindClass:
-		// Date is atomic — its prepareForJson is a noop (Date
-		// has its own toJSON()). User classes (SubKindNone) use the
-		// object emit. Map / Set get their own arms that materialise
-		// the iterable into an Array (JSON-encodable form).
-		// NonSerializable IS supported so the renderer emits a
-		// throw-factory (the NonSerializableRunType throws).
-		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet,
-			protocol.SubKindNonSerializable:
-			return true
-		}
-		return protocol.IsTemporalSubKind(rt.SubKind)
-	case protocol.KindPromise:
-		// ref: nodes/native/promise.ts:23 — emitPrepareForJson throws
-		// "RT compilation disabled for Non Serializable types.".
-		// Supports() returns true so the renderer compiles and surfaces
-		// the throw via a runtime-throwing factory.
-		return true
-	}
-	return false
+	return jsonWireSupports(rt)
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
