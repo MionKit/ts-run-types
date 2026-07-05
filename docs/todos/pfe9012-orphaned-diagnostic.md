@@ -1,7 +1,7 @@
 # PFE9012 "RT depends on missing pure-fn" is published but can never fire
 
 **Status:** open — decision needed (retire the code vs wire the validation)
-**Found during:** the Go simplification refactor ([go-simplification-refactor.md](go-simplification-refactor.md), Phase A1 dead-code sweep)
+**Found during:** the Go simplification refactor ([go-simplification-refactor.md](../done/go-simplification-refactor.md), Phase A1 dead-code sweep)
 **Predates the refactor:** yes — the condition existed before any refactor commit; the sweep only made it explicit.
 
 ## What was found

@@ -1,6 +1,6 @@
 # Go-side simplification refactor (iterative) + module reorganization
 
-**Status:** in progress (Phase A done; Phase B moves done — final docs sweep pending)
+**Status:** DONE — shipped on `claude/go-refactor-simplify-gunobr` (see the completion summary at the end)
 **Scope:** the **Go code only** — `cmd/` + `internal/` (~52k src LOC / ~29k test / 313 files across 17 top-level `internal/` packages + 6 `cmd/` binaries). **Explicitly NOT** the JS/TS packages, the scripts, the website, or `third_party/` (off-limits).
 **Goal:** apply the [Code Simplification & Reduction guide](../CODE-SIMPLIFICATION-GUIDE.md) to the Go pipeline to make it smaller and simpler without changing behavior, then — as a final phase — reorganize the Go packages so their layout clearly reflects the product's areas.
 
@@ -207,8 +207,35 @@ _Baseline metrics (re-measured in Phase 0 on a fresh build, Linux amd64 containe
 | 10 | A3 dupl ③ ⑤ | **shared element-loop + path-tracked dep call** — `emitElementLoop` (json_shared.go) replaces the five identical compile-child-under-`v[i]`-and-wrap blocks in the mutating JSON trio (array + rest-tuple arms); `EmitContext.emitPathTrackedDepCall` replaces the identical ve/uke `EmitDependencyCall` bodies. Emitted strings identical by construction (same NextLocalVar/CompileChild sequencing). | Structural | go build, typefns + resolver suites (goldens + noop corpus) | (this commit) |
 | 11 | A3 dupl ④ | **`partitionBinaryObjectProps`** (binary_shared.go) — the required/optional/indexSig object split binary encode + decode must agree on **by wire contract** now lives once; decode's "mirrors the encode side so the wire bitmap stays in sync" copy-discipline comment became structure. `publishSiblingNamedKeysForIndexSig` hoisted above the partition on the encode side (context-prologue registration; order-independent of the local scan). | Structural | go build, full go test, value fuzz suite, **pnpm test (172 files green)** | (this commit) |
 | 12 | B moves | **Phase B executed as 8 move steps** (one commit each, `git mv`, imports/qualifiers/docs updated per step, build+tests green per step): `cache/disk→cachegen/diskcache` (pkg `diskcache`), `hashid`+`operations→cachegen/`, `compiled/purefns→cachegen/purefunctions` (+package doc), `compiled/runtype(+typeid)→cachegen/runtype`, `compiled/typefns→cachegen/typefunctions`, `compiled/transform→compiler/sourcerewrite`, `compiled/entrymod→compiler/virtualmodules` (main file follows; gen-ts-constants header + TS mirror in lockstep), `compile→compiler/batchcompile`, `program`/`marker`/`builders`/`comptimeargs`/`resolver→compiler/` (resolver tests' relative fixture path fixed `../../testfixtures`), `enrich→enrichment` (+ mirror package doc — closes the A5 doc audit). `internal/compiled/` and `internal/cache/` are gone. | Structural | per-step: go build + targeted suites; full suite after resolver + enrichment; codegen --check | (B commits) |
+| 13 | Final | **Final metrics + gates** (vs Phase 0 baseline): src **51,832 → 51,193 LOC** (−639), test **29,460 → 29,147** (−313), −952 LOC total; files 313 → 314 (+3 shared-helper files, −2 deleted); resolver bin **31,458,401 → 31,456,209 B** (held, as the Phase 0 caveat predicted); WASM gzip **8,638,598 → 8,629,636 B** (held); extract-fn-bodies 11,370,228 B (held); `gocyclo>15` **122 → 118**, `gocognit>20` **112 → 111** (true baselines recomputed from the pre-refactor commit in a worktree — the Phase 0 baseline FILES were silently truncated by a `tee \| head` SIGPIPE at ~100 lines; the headline hotspot lists were unaffected); `deadcode` **28 → 7**, all seven documented deliberate keeps (test-infrastructure surface: the soundness-corpus hook, the compile-map test helper, the four owner-decided one-shot mirror twins, the codegen-drift tripwire helper); `staticcheck` **9 → 4**, all four documented leaves (2×ST1005 prose errors, 2×SA1019 BaseUrl fallback). Gates: full `go test ./internal/...`, `pnpm test` (172 files / 7,677 tests), `rt verify` (lint + format), `rt core codegen all --check`, unit + value fuzz suites — all green. | — | everything above | (this commit) |
 
 ---
 
-### On completion
-`git mv` this file into `docs/done/` and summarize what shipped (final metrics vs baseline, the resulting package map).
+## Completion summary (what shipped)
+
+**Phase A (simplification, behavior-preserving):**
+- **A1 dead code:** 21 symbols deleted after per-candidate Chesterton's-Fence research (git archaeology + adversarial non-Go-reference verification): the never-wired purefns dep-validation API (`index.go` + tests; consequence filed as [pfe9012-orphaned-diagnostic.md](../todos/pfe9012-orphaned-diagnostic.md)), superseded enrich emit wrappers (shape tests migrated to the live skeleton API, not dropped), vanished-caller accessors (`Store.Root`, `Resolver.RTStore`, `TemporalInfoByFormatName` + its reverse map, `boundKind.label`, `entrymod.Render`), and unreferenced mirror helpers. Seven tool-reported symbols were **deliberate keeps** (documented test-infrastructure fences).
+- **A2 deps:** none removable — the module graph is exactly the vendored tsgo shim set.
+- **A3 duplication (all 20 `dupl` groups read and dispositioned):** five true-concept merges — one JSON-wire `Supports` set, one validate/validationErrors `Supports` set, the shared element-loop, the shared path-tracked dep call, and the binary encode/decode object partition (a wire contract that was previously copy-discipline); plus `protocol.EachRefSlot` unifying three hand-maintained full-slot walkers. Everything else was same-shaped-different-meaning (per-family emit arms under the noop-predicate mirror contract) and stays by design.
+- **A4 local:** unparam/unconvert pass over non-uniform helpers (dead params, always-nil error results); staticcheck fixes (SA4006/S1011).
+- **A5 structural:** package docs added where missing (purefunctions, mirror); no dead flags/config surfaced.
+
+**Phase B (reorganization, layout = product areas):**
+
+```
+internal/compiler/     program, marker, builders, comptimeargs, resolver,
+                       sourcerewrite (was compiled/transform),
+                       virtualmodules (was compiled/entrymod),
+                       batchcompile (was compile)
+internal/cachegen/     runtype (+typeid), typefunctions (was typefns; +formats),
+                       purefunctions (was purefns), operations,
+                       diskcache (was cache/disk), hashid
+internal/enrichment/   (was enrich) astcheck, cldr, mirror
+shared (top level):    protocol, constants, diag, textpos, jsquote, testfixtures
+```
+
+Every move is a `git mv` (history preserved) in its own commit with imports, qualifiers, generated-constants header, JS sync-boundary comments, and docs updated in the same change. `internal/compiled/` and `internal/cache/` are gone; every remaining package name reads as a word (`purefunctions`, `typefunctions`, `virtualmodules`, `sourcerewrite`, `batchcompile`, `diskcache`, `enrichment`) per the owner's descriptive-over-short preference.
+
+**Numbers vs baseline:** −952 LOC (src+test); binaries/WASM held (predicted — the shipped size is tsgo checker + Go runtime + embedded TS libs; our code is ~1.3 MiB of the 30 MiB binary); complexity slightly down with the hot tops (dispatch, analyzeCall, the emit arms) untouched as **essential** complexity; `deadcode` 28→7 and `staticcheck` 9→4 with every survivor documented as a deliberate keep. Both suites, lint/format, codegen mirrors, and the unit/value fuzz suites are green on every commit.
+
+**Out-of-scope findings filed:** [pfe9012-orphaned-diagnostic.md](../todos/pfe9012-orphaned-diagnostic.md) (published-but-unfirable diagnostic; predates the refactor), plus a pre-existing stale fixture path in SETUP.md (fixed in the docs sweep).
