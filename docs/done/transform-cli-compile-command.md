@@ -1,11 +1,11 @@
 # Transform architecture — CLI full-transform + incremental wire
 
 **Status:** **implemented** (2026-07-04). The **wire** half shipped in [transform-wire-modes](../done/transform-wire-modes.md); the **CLI** half (`ts-runtypes --compile`) is now built — see What shipped.
-**Related:** [`internal/compile/compile.go`](../../internal/compile/compile.go) (the pipeline), [`internal/compiler/sourcerewrite/compose.go`](../../internal/compiler/sourcerewrite/compose.go) (`ComposeMaps`), [`internal/compiler/sourcerewrite/transform.go`](../../internal/compiler/sourcerewrite/transform.go) (`Apply`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go) (`OpTransform`, `OpGenerate`), [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go) (`--compile`)
+**Related:** [`internal/compiler/batchcompile/compile.go`](../../internal/compiler/batchcompile/compile.go) (the pipeline), [`internal/compiler/sourcerewrite/compose.go`](../../internal/compiler/sourcerewrite/compose.go) (`ComposeMaps`), [`internal/compiler/sourcerewrite/transform.go`](../../internal/compiler/sourcerewrite/transform.go) (`Apply`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go) (`OpTransform`, `OpGenerate`), [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go) (`--compile`)
 
 ## What shipped
 
-`ts-runtypes --compile` — a tsc-style batch compile ([internal/compile.Run](../../internal/compile/compile.go)):
+`ts-runtypes --compile` — a tsc-style batch compile ([internal/compiler/batchcompile.Run](../../internal/compiler/batchcompile/compile.go)):
 
 1. **Pass 1** builds the tsconfig Program, scans for markers, and via `OpTransform` (empty OutDir → keeps `virtual:rt/…` specifiers) gets each marker file's rewritten source + **map A** (rewritten → original); `OpGenerate` writes the cache modules to the compile cache dir — resolved tsc-style: the `--run-types-gen-dir` flag, then the tsconfig `runTypesGenDir` plugin key, then the `<cwd>/__runtypes` default (`resolveRunTypesGenDir` in `buildconfig.go`).
 2. **Pass 2** rebuilds the Program with the rewritten sources **overlaid** at the same paths (so the real tsconfig options — target/module/outDir/sourceMap — apply) and runs tsgo `Emit`, capturing every output via the `WriteFile` sink.

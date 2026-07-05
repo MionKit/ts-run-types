@@ -29,7 +29,7 @@ RunTypes is a compile-time **type resolver** targeting **TypeScript 7 / tsgo**. 
 
 In the **bundler path** we **do not replace `tsc`**, and we do not implement a compiler. The Vite plugin is a normal `transform()` plugin running inside Vite/Rollup's pipeline, and the Go binary is a separate process used solely for _type resolution + the call-site rewrite_ — the bundler emits the JavaScript.
 
-> **The `--compile` command is the exception (and the only one).** For a host with no bundler plugin, `ts-runtypes --compile` is a batch, tsc-like build that DOES emit `.js`: it applies the rewrite, then drives tsgo's own `Emit` on the rewritten source (honoring the tsconfig `outDir`/`target`/`module`/`sourceMap`), and composes the two source maps back to the original TypeScript. It reuses the same rewrite; only the emit + map-composition are extra ([internal/compile](../internal/compile/), [compose.go](../internal/compiler/sourcerewrite/compose.go)). The table below describes the bundler path.
+> **The `--compile` command is the exception (and the only one).** For a host with no bundler plugin, `ts-runtypes --compile` is a batch, tsc-like build that DOES emit `.js`: it applies the rewrite, then drives tsgo's own `Emit` on the rewritten source (honoring the tsconfig `outDir`/`target`/`module`/`sourceMap`), and composes the two source maps back to the original TypeScript. It reuses the same rewrite; only the emit + map-composition are extra ([internal/compiler/batchcompile](../internal/compiler/batchcompile/), [compose.go](../internal/compiler/sourcerewrite/compose.go)). The table below describes the bundler path.
 
 Concretely, at build time (bundler path):
 

@@ -17,7 +17,7 @@
 //     .js.map (map B: js → rewritten) is composed with map A into js → original.
 //
 // Emit has no custom-transformer hook, hence the two-pass + compose approach.
-package compile
+package batchcompile
 
 import (
 	"context"
