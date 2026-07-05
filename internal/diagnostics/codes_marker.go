@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // Marker-scanner codes (MKRxxx). Issued by the resolver when a marker call
 // compiles correctly but uses an anti-pattern.

@@ -28,7 +28,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -340,8 +340,8 @@ func main() {
 		}
 		errorCount := 0
 		for _, d := range compileResult.Diagnostics {
-			fmt.Fprintln(os.Stderr, diag.FormatDebug(d))
-			if d.Severity == diag.SeverityError {
+			fmt.Fprintln(os.Stderr, diagnostics.FormatDebug(d))
+			if d.Severity == diagnostics.SeverityError {
 				errorCount++
 			}
 		}

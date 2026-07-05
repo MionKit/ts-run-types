@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // Mirror↔source linkage codes (GExxx) — `gen --check` and the resolver's
 // checkEnrich pass validating that a generated mirror file (of EITHER family;

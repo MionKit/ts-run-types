@@ -3,7 +3,7 @@ package purefunctions
 import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -95,11 +95,11 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 // idx is mutated in-place when lazy expansion adds entries — the
 // caller can keep using it afterwards (e.g. to inspect the now-larger
 // scanned-files set).
-func ValidatePureFnDependencies(typeChecker *checker.Checker, markerOpts marker.Options, deps []protocol.PureFnDep, idx *Index, lookup SourceFileLookup) []diag.Diagnostic {
+func ValidatePureFnDependencies(typeChecker *checker.Checker, markerOpts marker.Options, deps []protocol.PureFnDep, idx *Index, lookup SourceFileLookup) []diagnostics.Diagnostic {
 	if idx == nil {
 		return nil
 	}
-	var diagnostics []diag.Diagnostic
+	var diags []diagnostics.Diagnostic
 	seenMisses := make(map[string]bool, len(deps))
 	for _, dep := range deps {
 		key := dep.Namespace + "::" + dep.FunctionName
@@ -128,11 +128,11 @@ func ValidatePureFnDependencies(typeChecker *checker.Checker, markerOpts marker.
 		// source position. Future enhancement: have the rt walker
 		// thread the source position of the utl.getPureFn(...) call
 		// through to here.
-		diagnostics = append(diagnostics, diag.New(
-			diag.CodeMissingPureFnDep,
-			diag.Site{},
+		diags = append(diags, diagnostics.New(
+			diagnostics.CodeMissingPureFnDep,
+			diagnostics.Site{},
 			args...,
 		))
 	}
-	return diagnostics
+	return diags
 }

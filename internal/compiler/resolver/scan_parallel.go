@@ -7,7 +7,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -47,7 +47,7 @@ type scanGroup struct {
 // replayed in order by the serial commit phase.
 type analyzedCall struct {
 	pending     pendingCall
-	diagnostics []diag.Diagnostic
+	diagnostics []diagnostics.Diagnostic
 	emitSite    bool
 }
 
@@ -88,7 +88,7 @@ func (resolver *Resolver) planScanGroups(files []string) ([]*ast.SourceFile, []s
 // request can't honestly be parallelized — a file fails to resolve
 // (serial reproduces the established partial-scan + error semantics) or
 // every file lands on one checker.
-func (resolver *Resolver) dispatchScanFilesParallel(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
+func (resolver *Resolver) dispatchScanFilesParallel(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
 	sourceFiles, groups, err := resolver.planScanGroups(files)
 	if err != nil || len(groups) < 2 {
 		return resolver.dispatchScanFilesSerial(files)
@@ -148,7 +148,7 @@ func (resolver *Resolver) dispatchScanFilesParallel(files []string) ([]protocol.
 	// per-file body exactly so site order, diagnostic order, cache intern
 	// order, and the per-file bookkeeping all match.
 	var sites []protocol.Site
-	var diagnostics []diag.Diagnostic
+	var diagnostics []diagnostics.Diagnostic
 	for fileIndex, file := range files {
 		fileStart := len(sites)
 		for _, call := range analyzed[fileIndex] {

@@ -340,7 +340,7 @@ func insideRanges(ranges [][2]int, offset int) bool {
 }
 
 // LineIndex converts byte offsets in a raw text (no AST required) to 1-based
-// line/column pairs — the convention diag.Site and textpos share. Columns are
+// line/column pairs — the convention diagnostics.Site and textpos share. Columns are
 // byte columns; every tag this package emits is pure ASCII and sits before any
 // non-ASCII text on its line, so tag columns are stable across encodings.
 type LineIndex struct {

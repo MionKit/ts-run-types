@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -58,41 +58,41 @@ var allSerdeFamilies = []string{
 // nonSerPropDropCodes maps each family to its …015 directly-stripped-property
 // drop Warning (function-valued props use …010 instead — see the function test).
 var nonSerPropDropCodes = map[string]string{
-	"validate":           diag.CodeVLNonSerializablePropDrop,
-	"validationErrors":   diag.CodeVENonSerializablePropDrop,
-	"prepareForJson":     diag.CodePJNonSerializablePropDrop,
-	"prepareForJsonSafe": diag.CodePJSNonSerializablePropDrop,
-	"stringifyJson":      diag.CodeSJNonSerializablePropDrop,
-	"restoreFromJson":    diag.CodeRJNonSerializablePropDrop,
-	"toBinary":           diag.CodeTBNonSerializablePropDrop,
-	"fromBinary":         diag.CodeFBNonSerializablePropDrop,
+	"validate":           diagnostics.CodeVLNonSerializablePropDrop,
+	"validationErrors":   diagnostics.CodeVENonSerializablePropDrop,
+	"prepareForJson":     diagnostics.CodePJNonSerializablePropDrop,
+	"prepareForJsonSafe": diagnostics.CodePJSNonSerializablePropDrop,
+	"stringifyJson":      diagnostics.CodeSJNonSerializablePropDrop,
+	"restoreFromJson":    diagnostics.CodeRJNonSerializablePropDrop,
+	"toBinary":           diagnostics.CodeTBNonSerializablePropDrop,
+	"fromBinary":         diagnostics.CodeFBNonSerializablePropDrop,
 }
 
 // symbolRootCodes maps each family to the symbol root-position Error its
 // alwaysThrow factory carries (symbol[] reaches a symbol leaf in a propagating
 // array-element slot).
 var symbolRootCodes = map[string]string{
-	"validate":           diag.CodeVLSymbolRoot,
-	"validationErrors":   diag.CodeVESymbolRoot,
-	"prepareForJson":     diag.CodePJSymbolRoot,
-	"prepareForJsonSafe": diag.CodePJSSymbolRoot,
-	"stringifyJson":      diag.CodeSJSymbolRoot,
-	"restoreFromJson":    diag.CodeRJSymbolRoot,
-	"toBinary":           diag.CodeTBSymbolRoot,
-	"fromBinary":         diag.CodeFBSymbolRoot,
+	"validate":           diagnostics.CodeVLSymbolRoot,
+	"validationErrors":   diagnostics.CodeVESymbolRoot,
+	"prepareForJson":     diagnostics.CodePJSymbolRoot,
+	"prepareForJsonSafe": diagnostics.CodePJSSymbolRoot,
+	"stringifyJson":      diagnostics.CodeSJSymbolRoot,
+	"restoreFromJson":    diagnostics.CodeRJSymbolRoot,
+	"toBinary":           diagnostics.CodeTBSymbolRoot,
+	"fromBinary":         diagnostics.CodeFBSymbolRoot,
 }
 
 // functionPropDropCodes maps each family to its …010 function-valued-property
 // drop Warning — the code a function-valued property keeps (NOT …015).
 var functionPropDropCodes = map[string]string{
-	"validate":           diag.CodeVLFunctionPropDropped,
-	"validationErrors":   diag.CodeVEFunctionPropDropped,
-	"prepareForJson":     diag.CodePJFunctionPropDropped,
-	"prepareForJsonSafe": diag.CodePJSFunctionPropDropped,
-	"stringifyJson":      diag.CodeSJFunctionPropDropped,
-	"restoreFromJson":    diag.CodeRJFunctionPropDropped,
-	"toBinary":           diag.CodeTBFunctionPropDropped,
-	"fromBinary":         diag.CodeFBFunctionPropDropped,
+	"validate":           diagnostics.CodeVLFunctionPropDropped,
+	"validationErrors":   diagnostics.CodeVEFunctionPropDropped,
+	"prepareForJson":     diagnostics.CodePJFunctionPropDropped,
+	"prepareForJsonSafe": diagnostics.CodePJSFunctionPropDropped,
+	"stringifyJson":      diagnostics.CodeSJFunctionPropDropped,
+	"restoreFromJson":    diagnostics.CodeRJFunctionPropDropped,
+	"toBinary":           diagnostics.CodeTBFunctionPropDropped,
+	"fromBinary":         diagnostics.CodeFBFunctionPropDropped,
 }
 
 // A directly-stripped property value (symbol / Promise / non-serializable native)
@@ -117,12 +117,12 @@ func TestF3_DirectlyStrippedPropertyDrops(t *testing.T) {
 					t.Errorf("[%s/%s optional=%v] expected drop warning %s; sink=%+v", fam, name, optional, nonSerPropDropCodes[fam], sink)
 					continue
 				}
-				if got.Severity != diag.SeverityWarning {
+				if got.Severity != diagnostics.SeverityWarning {
 					t.Errorf("[%s/%s optional=%v] %s severity = %v, want Warning", fam, name, optional, nonSerPropDropCodes[fam], got.Severity)
 				}
 				// A clean drop never carries an Error-severity diagnostic.
 				for _, d := range sink {
-					if d.Severity == diag.SeverityError {
+					if d.Severity == diagnostics.SeverityError {
 						t.Errorf("[%s/%s optional=%v] a dropped property must not emit an Error diagnostic, got %s", fam, name, optional, d.Code)
 					}
 				}
@@ -176,7 +176,7 @@ func TestF3_StructurallyUnserializablePropertyFails(t *testing.T) {
 			t.Errorf("[%s] expected root symbol error %s; sink=%+v", fam, symbolRootCodes[fam], sink)
 			continue
 		}
-		if got.Severity != diag.SeverityError {
+		if got.Severity != diagnostics.SeverityError {
 			t.Errorf("[%s] %s severity = %v, want Error", fam, symbolRootCodes[fam], got.Severity)
 		}
 	}

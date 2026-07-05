@@ -1,8 +1,8 @@
 // GENERATED FILE — DO NOT EDIT. Run `pnpm run gen:diag-catalog` to refresh.
 //
 // The message dictionary for every diagnostic code the Go binary can emit,
-// exported from the authoritative catalog in internal/diag (wording lives in
-// internal/diag/messages.go). The wire carries only code + args; the render
+// exported from the authoritative catalog in internal/diagnostics (wording lives in
+// internal/diagnostics/messages.go). The wire carries only code + args; the render
 // helpers in ./diagnosticCatalog.ts substitute `{0}`, `{1}`, … placeholders
 // against the args array to produce the final text.
 

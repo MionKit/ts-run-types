@@ -26,7 +26,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -177,7 +177,7 @@ type Resolver struct {
 	// overrideDiagnostics holds OVR0xx diagnostics from the override pass
 	// (OVR001 duplicate-override, OVR010 validate cross-family), surfaced on
 	// every scan response for the current Program.
-	overrideDiagnostics []diag.Diagnostic
+	overrideDiagnostics []diagnostics.Diagnostic
 	// overrideArgSpansByFile records, per source file, the byte spans of each
 	// override call's inline pure-fn argument. The transform rewrites these to
 	// `null` (the body lives only in the cfn module) — emitted as per-file

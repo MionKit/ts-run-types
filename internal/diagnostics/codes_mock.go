@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // MockData mirror-file codes (MDxxx) — the MockData twin of codes_friendly.go
 // under the per-family mirror split. Content validity from the paired checker

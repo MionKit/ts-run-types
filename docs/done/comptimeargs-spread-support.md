@@ -57,7 +57,7 @@ The shared literal validator rejects spread in both container kinds:
 
 - object spread (`{...x}`) → [internal/compiler/comptimeargs/comptimeargs.go:312](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadAssignment`)
 - array spread (`[...x]`) → [internal/compiler/comptimeargs/comptimeargs.go:330](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadElement`)
-- diagnostic `CTA003` lists "spread" as a forbidden construct ([codes_marker.go:38](../../internal/diag/codes_marker.go), user fix text in [diagnosticCatalog.ts:187](../../packages/runtypes-devtools/src/diagnosticCatalog.ts))
+- diagnostic `CTA003` lists "spread" as a forbidden construct ([codes_marker.go:38](../../internal/diagnostics/codes_marker.go), user fix text in [diagnosticCatalog.ts:187](../../packages/runtypes-devtools/src/diagnosticCatalog.ts))
 - pinned by tests `TestComposerCTA_TupleSpreadRejected` / `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/compiler/resolver/comptimeargs_composer_test.go))
 
 `CheckLiteral` already const-traces a *whole* identifier

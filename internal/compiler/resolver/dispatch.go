@@ -20,7 +20,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
 	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -227,7 +227,7 @@ func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctio
 		collectMs float64
 	}
 	results := make([]familyResult, len(families))
-	familyDiagnostics := make([][]diag.Diagnostic, len(families))
+	familyDiagnostics := make([][]diagnostics.Diagnostic, len(families))
 	factShards := make([]*typefunctions.FactsTable, len(families))
 	var waitGroup sync.WaitGroup
 	for familyIndex, spec := range families {
@@ -650,7 +650,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// Per-cache "did this scan change anything?" signals consumed by
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
-		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
+		combinedDiagnostics := append(append(append([]diagnostics.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
 		// Opt-in enrichment-health pass (tag hygiene + FriendlyText/MockData
 		// content + breadcrumb drift) for the lint surfaces. Runs AFTER
 		// cache.Added(before) so the types the content checks intern never
@@ -693,7 +693,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// that work. IncludeRtDiagnostics runs the SAME collection for its
 		// diagnostics but drops the module payload (lint pass).
 		renderEntries := request.IncludeEntryModules || request.IncludeRtDiagnostics
-		var rtDiagnostics []diag.Diagnostic
+		var rtDiagnostics []diagnostics.Diagnostic
 		var rtOpts typefunctions.RenderOpts
 		if renderEntries {
 			rtOptsStart := time.Now()
@@ -757,7 +757,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// rtDiagnostics mirrors the OpScanFiles branch — one sink shared
 		// across the whole collection, flushed into response.Diagnostics
 		// once the render completes.
-		var rtDiagnostics []diag.Diagnostic
+		var rtDiagnostics []diagnostics.Diagnostic
 		rtOpts := resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
 		pureFnGraph, pureFnsDiagnostics := resolver.collectProgramPureFns(metrics)
 		response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
@@ -785,7 +785,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			RunTypes: resolver.cache.Dump(),
 			Sites:    resolver.stampSiteModules(resolver.Sites()),
 		}
-		var genDiagnostics []diag.Diagnostic
+		var genDiagnostics []diagnostics.Diagnostic
 		genOpts := resolver.rtRenderOpts(&genDiagnostics, resolver.buildProvenanceSites())
 		genPureFnGraph, genPureFnsDiagnostics := resolver.collectProgramPureFns(metrics)
 		genModules, genModulesErr := resolver.collectEntryModules(genDump, genOpts, genPureFnGraph, metrics)
@@ -922,7 +922,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			// unaffected either way.
 			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap, SourceHash: sourcerewrite.SourceHash(source)}
 		}
-		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
+		combinedDiagnostics := append(append(append([]diagnostics.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
 		response := protocol.Response{
 			Transformed:   transformed,
 			Sites:         sites,
@@ -997,7 +997,7 @@ func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 // that drops one of its pure-fn calls still leaves the session entry
 // behind (matches the runTypes cache's structural-dedup contract;
 // the orphan is harmless until the next process restart).
-func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefunctions.Entry, diagnostics []diag.Diagnostic, replacements []protocol.Replacement, changed bool) {
+func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefunctions.Entry, diagnostics []diagnostics.Diagnostic, replacements []protocol.Replacement, changed bool) {
 	if resolver.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}

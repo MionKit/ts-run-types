@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 )
 
 // datetime_bound_validation_test.go is the ESSENTIAL acceptance suite for
@@ -27,7 +27,7 @@ type boundCase struct {
 
 // scanBoundCase builds a getRunTypeId<TypeFormat<string, format, params>>()
 // snippet and returns the FMT002 diagnostics.
-func scanBoundCase(t *testing.T, format, params string) []diag.Diagnostic {
+func scanBoundCase(t *testing.T, format, params string) []diagnostics.Diagnostic {
 	t.Helper()
 	code := `import {createValidate} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
@@ -99,7 +99,7 @@ func TestDateTimeBounds_Matrix(t *testing.T) {
 			diags := scanBoundCase(t, tc.format, tc.params)
 			if tc.wantErr {
 				if len(diags) == 0 {
-					t.Fatalf("expected an %s diagnostic, got none", diag.CodeFMTInvalidParams)
+					t.Fatalf("expected an %s diagnostic, got none", diagnostics.CodeFMTInvalidParams)
 				}
 				if tc.msgContains != "" {
 					found := false
@@ -120,7 +120,7 @@ func TestDateTimeBounds_Matrix(t *testing.T) {
 	}
 }
 
-func diagArgs(diags []diag.Diagnostic) []string {
+func diagArgs(diags []diagnostics.Diagnostic) []string {
 	var out []string
 	for _, d := range diags {
 		if len(d.Args) > 0 {

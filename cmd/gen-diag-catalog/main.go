@@ -1,11 +1,11 @@
 // gen-diag-catalog dumps the authoritative diagnostic catalog as JSON.
 //
-// internal/diag is the single source of truth for which diagnostic codes
+// internal/diagnostics is the single source of truth for which diagnostic codes
 // exist, what severity each one carries, the user-facing wording (headline +
-// detail, authored in internal/diag/messages.go), and the docs prose
+// detail, authored in internal/diagnostics/messages.go), and the docs prose
 // (summary, fix, and the verified triggering example, authored in
-// internal/diag/prose.go). This program imports that package, reads
-// diag.Definitions, and prints one JSON array of {code, family, severity,
+// internal/diagnostics/prose.go). This program imports that package, reads
+// diagnostics.Definitions, and prints one JSON array of {code, family, severity,
 // title, headline, detail, summary, fix, example} records (sorted by code)
 // to stdout.
 //
@@ -27,7 +27,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 )
 
 // record is the per-code shape emitted to stdout. Family and severity are
@@ -49,27 +49,27 @@ type record struct {
 }
 
 // familyLabel maps the numeric Family to a stable lowercase string.
-func familyLabel(family diag.Family) string {
+func familyLabel(family diagnostics.Family) string {
 	switch family {
-	case diag.FamilyPureFn:
+	case diagnostics.FamilyPureFn:
 		return "purefn"
-	case diag.FamilyMarker:
+	case diagnostics.FamilyMarker:
 		return "marker"
-	case diag.FamilyRunType:
+	case diagnostics.FamilyRunType:
 		return "runtype"
-	case diag.FamilyEnrich:
+	case diagnostics.FamilyEnrich:
 		return "enrich"
 	}
 	return "unknown"
 }
 
 func main() {
-	records := make([]record, 0, len(diag.Definitions))
-	for _, definition := range diag.Definitions {
+	records := make([]record, 0, len(diagnostics.Definitions))
+	for _, definition := range diagnostics.Definitions {
 		records = append(records, record{
 			Code:     definition.Code,
 			Family:   familyLabel(definition.Family),
-			Severity: diag.SeverityLabel(definition.Severity),
+			Severity: diagnostics.SeverityLabel(definition.Severity),
 			Title:    definition.Title,
 			Headline: definition.Headline,
 			Detail:   definition.Detail,

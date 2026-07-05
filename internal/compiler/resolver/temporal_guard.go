@@ -3,7 +3,7 @@ package resolver
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
@@ -24,12 +24,12 @@ import (
 //
 // Note: when the lib IS loaded, `Temporal.PlainDate` resolves to a real
 // (non-any) type, so this fires nothing — zero cost for correct setups.
-func detectTemporalNotLoaded(scanChecker *checker.Checker, file string, call *ast.Node) []diag.Diagnostic {
+func detectTemporalNotLoaded(scanChecker *checker.Checker, file string, call *ast.Node) []diagnostics.Diagnostic {
 	callExpression := call.AsCallExpression()
 	if callExpression == nil || callExpression.TypeArguments == nil {
 		return nil
 	}
-	var diagnostics []diag.Diagnostic
+	var diagnostics []diagnostics.Diagnostic
 	for _, typeArgNode := range callExpression.TypeArguments.Nodes {
 		walkTemporalRefs(scanChecker, file, typeArgNode, &diagnostics)
 	}
@@ -38,7 +38,7 @@ func detectTemporalNotLoaded(scanChecker *checker.Checker, file string, call *as
 
 // walkTemporalRefs recurses a type-node subtree, emitting TMP001 for every
 // `Temporal.<Name>` reference that resolved to `any`.
-func walkTemporalRefs(scanChecker *checker.Checker, file string, node *ast.Node, out *[]diag.Diagnostic) {
+func walkTemporalRefs(scanChecker *checker.Checker, file string, node *ast.Node, out *[]diagnostics.Diagnostic) {
 	if node == nil {
 		return
 	}
@@ -48,8 +48,8 @@ func walkTemporalRefs(scanChecker *checker.Checker, file string, node *ast.Node,
 			if refType != nil && checker.Type_flags(refType)&checker.TypeFlagsAny != 0 {
 				sourceFile := ast.GetSourceFileOfNode(node)
 				if sourceFile != nil {
-					*out = append(*out, diag.New(
-						diag.CodeTemporalNotLoaded,
+					*out = append(*out, diagnostics.New(
+						diagnostics.CodeTemporalNotLoaded,
 						textpos.NodeSite(file, sourceFile, node),
 						name,
 					))

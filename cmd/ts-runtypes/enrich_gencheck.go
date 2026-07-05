@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/enrichment"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
@@ -173,7 +173,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 		return []driftFinding{{
 			File:     mirrorFile,
 			Severity: enrichment.Error,
-			Code:     diag.CodeGenMirrorUnreadable,
+			Code:     diagnostics.CodeGenMirrorUnreadable,
 			Message:  "cannot read mirror file: " + err.Error(),
 			Args:     []string{err.Error()},
 		}}
@@ -198,7 +198,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 			Line:     line,
 			Col:      col,
 		})
-		if drift.Code == diag.CodeGenSourceMissing {
+		if drift.Code == diagnostics.CodeGenSourceMissing {
 			// Can't judge location drift without the source.
 			return findings
 		}
@@ -220,7 +220,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
 			Severity: enrichment.Warning,
-			Code:     diag.CodeGenMirrorDrift,
+			Code:     diagnostics.CodeGenMirrorDrift,
 			Message: fmt.Sprintf("mirror location drift: source maps to the per-family files %s + %s but this file is %s — re-run gen to migrate/relocate",
 				expectedFriendly, expectedMock, mirrorFile),
 			Args: []string{expectedFriendly + " + " + expectedMock, mirrorFile},
@@ -235,7 +235,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
 			Severity: enrichment.Warning,
-			Code:     diag.CodeGenMirrorDrift,
+			Code:     diagnostics.CodeGenMirrorDrift,
 			Message:  fmt.Sprintf("mirror location drift: source maps to %s but this file is %s — re-run gen to relocate", expectedMirror, mirrorFile),
 			Args:     []string{expectedMirror, mirrorFile},
 			Line:     line,

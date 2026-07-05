@@ -81,7 +81,7 @@ and remains a real finding to triage.
 - JSON object/index-sig emit (the correct reference + the absorption path) — [`internal/cachegen/typefunctions/json_prepare.go`](../../internal/cachegen/typefunctions/json_prepare.go)
 - Union flat layout + merged-prop emit (the K2 site) — [`internal/cachegen/typefunctions/union_flat_layout.go`](../../internal/cachegen/typefunctions/union_flat_layout.go), [`union_flat.go`](../../internal/cachegen/typefunctions/union_flat.go)
 - Validate root arms (the F2 site) — [`internal/cachegen/typefunctions/validate.go`](../../internal/cachegen/typefunctions/validate.go)
-- Diagnostic severities (the F3 site) — [`internal/cachegen/typefunctions/diag_codes.go`](../../internal/cachegen/typefunctions/diag_codes.go), [`internal/diag/codes_runtype.go`](../../internal/diag/codes_runtype.go)
+- Diagnostic severities (the F3 site) — [`internal/cachegen/typefunctions/diag_codes.go`](../../internal/cachegen/typefunctions/diag_codes.go), [`internal/diagnostics/codes_runtype.go`](../../internal/diagnostics/codes_runtype.go)
 - Fuzz harness + runner + generator + product mock — [`typeFuzzHarness.ts`](../../packages/ts-runtypes/test/fuzz/typeFuzzHarness.ts), [`typeFuzzRunner.ts`](../../packages/ts-runtypes/test/fuzz/typeFuzzRunner.ts), [`typeGen.ts`](../../packages/ts-runtypes/test/fuzz/typeGen.ts), [`mockType.ts`](../../packages/ts-runtypes/src/mocking/mockType.ts)
 
 ---

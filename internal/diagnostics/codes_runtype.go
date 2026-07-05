@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // RunType RT-compiler codes. Per-family prefixes so users reading their
 // build log can tell which RT family produced a diagnostic without

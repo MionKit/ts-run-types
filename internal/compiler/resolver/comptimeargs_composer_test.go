@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -41,15 +41,15 @@ const composerCTADTS = `declare module 'ts-runtypes' {
 
 // scanComposerCTA scans a single test.ts against composerCTADTS and returns the
 // CTA-family diagnostics (CompTimeArgs gate only — MKR/other codes filtered out).
-func scanComposerCTA(t *testing.T, code string) []diag.Diagnostic {
+func scanComposerCTA(t *testing.T, code string) []diagnostics.Diagnostic {
 	t.Helper()
 	r := setupInline(t, map[string]string{"runtypes.d.ts": composerCTADTS, "test.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	var cta []diag.Diagnostic
-	for _, d := range filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker) {
+	var cta []diagnostics.Diagnostic
+	for _, d := range filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker) {
 		if strings.HasPrefix(d.Code, "CTA") {
 			cta = append(cta, d)
 		}
@@ -91,8 +91,8 @@ void _bad;
 	if len(cta) != 1 {
 		t.Fatalf("expected 1 CTA diagnostic for dynamic array child, got %d: %+v", len(cta), cta)
 	}
-	if cta[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
+	if cta[0].Code != diagnostics.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected %s, got %q", diagnostics.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
 	}
 }
 
@@ -161,7 +161,7 @@ void _ok;
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	for _, d := range filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker) {
+	for _, d := range filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker) {
 		if strings.HasPrefix(d.Code, "CTA") {
 			t.Fatalf("expected no CTA diagnostics for cross-module spread, got %s: %+v", d.Code, d)
 		}
@@ -182,8 +182,8 @@ void _bad;
 	if len(cta) != 1 {
 		t.Fatalf("expected 1 CTA diagnostic for spread of an unresolvable operand, got %d: %+v", len(cta), cta)
 	}
-	if cta[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
+	if cta[0].Code != diagnostics.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected %s, got %q", diagnostics.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
 	}
 }
 
@@ -207,7 +207,7 @@ void _bad;
 	if len(cta) != 1 {
 		t.Fatalf("expected 1 CTA diagnostic for dynamic func params, got %d: %+v", len(cta), cta)
 	}
-	if cta[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
+	if cta[0].Code != diagnostics.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected %s, got %q", diagnostics.CodeCompTimeArgsForbiddenConstruct, cta[0].Code)
 	}
 }

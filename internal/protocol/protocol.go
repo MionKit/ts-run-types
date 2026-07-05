@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 )
 
 func jsonMarshal(v any) ([]byte, error) { return json.Marshal(v) }
@@ -570,9 +570,9 @@ type Response struct {
 	// Family discriminator inside each entry tells the consumer which
 	// subsystem produced it; the Code is the stable identifier and
 	// Severity classifies impact. Vite plugin re-emits each via
-	// `this.warn(diag.FormatTsc(d))` so VS Code's $tsc problem matcher
+	// `this.warn(diagnostics.FormatTsc(d))` so VS Code's $tsc problem matcher
 	// picks them up. Schema mirrors the LSP Diagnostic shape.
-	Diagnostics []diag.Diagnostic `json:"diagnostics,omitempty"`
+	Diagnostics []diagnostics.Diagnostic `json:"diagnostics,omitempty"`
 	// TsCompileMs is populated by OpTsCompile only. Wall time of the
 	// tsgo bind + typecheck + Emit() pass on the resolver's current
 	// source overlay, in milliseconds. Zero for every other op.

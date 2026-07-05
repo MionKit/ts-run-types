@@ -7,7 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 )
 
 // extractDeps walks factoryFn's body for `<utlName>.<method>(<keyLit>)`
@@ -28,13 +28,13 @@ import (
 // an empty namespace prefix (`"::" + fnName`) so the runtime's
 // cross-namespace resolver treats it the same way as a suffix match.
 // This mirrors the historical behaviour of the tracking proxy.
-func extractDeps(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, factoryFn *ast.Node, utlName string) ([]string, []diag.Diagnostic) {
+func extractDeps(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, factoryFn *ast.Node, utlName string) ([]string, []diagnostics.Diagnostic) {
 	if utlName == "" {
 		return nil, nil
 	}
 	localTable := buildFactoryLocalTable(factoryFn)
 	depSet := map[string]bool{}
-	var diags []diag.Diagnostic
+	var diags []diagnostics.Diagnostic
 	var visit ast.Visitor
 	visit = func(node *ast.Node) bool {
 		if node == nil {
@@ -75,7 +75,7 @@ func handleCall(
 	localTable symbolTable,
 	utlName string,
 	depSet map[string]bool,
-	diags *[]diag.Diagnostic,
+	diags *[]diagnostics.Diagnostic,
 ) {
 	callExpr := call.AsCallExpression()
 	if callExpr == nil || callExpr.Expression == nil {
@@ -107,8 +107,8 @@ func handleCall(
 	arg := callExpr.Arguments.Nodes[0]
 	literal, _ := resolveDepArg(typeChecker, localTable, arg)
 	if literal == nil {
-		*diags = append(*diags, diag.New(
-			diag.CodePurityDepNotLiteral,
+		*diags = append(*diags, diagnostics.New(
+			diagnostics.CodePurityDepNotLiteral,
 			siteFromNode(sourceFile, arg),
 			utlName,
 			method,

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -12,7 +12,7 @@ import (
 // When suppressAmbient is true, an EMPTY temporal.d.ts is overlaid so the
 // `Temporal` namespace is NOT declared — simulating a consumer whose tsconfig
 // lib doesn't load Temporal (the type resolves to `any`).
-func temporalNotLoadedDiags(t *testing.T, code string, suppressAmbient bool) []diag.Diagnostic {
+func temporalNotLoadedDiags(t *testing.T, code string, suppressAmbient bool) []diagnostics.Diagnostic {
 	t.Helper()
 	sources := map[string]string{"a.ts": code}
 	if suppressAmbient {
@@ -23,9 +23,9 @@ func temporalNotLoadedDiags(t *testing.T, code string, suppressAmbient bool) []d
 	if resp.Error != "" {
 		t.Fatalf("scan: %s", resp.Error)
 	}
-	var out []diag.Diagnostic
+	var out []diagnostics.Diagnostic
 	for _, d := range resp.Diagnostics {
-		if d.Code == diag.CodeTemporalNotLoaded {
+		if d.Code == diagnostics.CodeTemporalNotLoaded {
 			out = append(out, d)
 		}
 	}
@@ -40,7 +40,7 @@ export const _ = getRunTypeId<Temporal.PlainDate>();
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 TMP001 when Temporal lib missing, got %d", len(diags))
 	}
-	if diags[0].Severity != diag.SeverityError {
+	if diags[0].Severity != diagnostics.SeverityError {
 		t.Errorf("expected Error severity, got %d", diags[0].Severity)
 	}
 	if len(diags[0].Args) == 0 || diags[0].Args[0] != "Temporal.PlainDate" {

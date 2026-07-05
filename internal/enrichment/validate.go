@@ -52,7 +52,7 @@ type Finding struct {
 	Message  string   `json:"message"`
 	// Args are the positional substitution values for the JS-side diagnostic
 	// catalog ({0}, {1}, …) when the finding rides the resolver wire as a
-	// diag.Diagnostic. Message stays the CLI's pre-rendered text; the lint
+	// diagnostics.Diagnostic. Message stays the CLI's pre-rendered text; the lint
 	// surfaces render from Code+Args so wording lives in one JS catalog.
 	Args []string `json:"args,omitempty"`
 }

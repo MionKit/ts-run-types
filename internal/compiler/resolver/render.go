@@ -6,7 +6,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
@@ -20,7 +20,7 @@ import (
 // emitted by the walker at RTThrow / silent-skip sites; provenance
 // (when non-nil) maps RT IDs to the marker call sites that reference
 // them, so EmitDiagnostic can fan out one Diagnostic per call site.
-func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[string][]diag.Site) typefunctions.RenderOpts {
+func (resolver *Resolver) rtRenderOpts(sink *[]diagnostics.Diagnostic, provenance map[string][]diagnostics.Site) typefunctions.RenderOpts {
 	if resolver == nil {
 		return typefunctions.RenderOpts{}
 	}
@@ -58,11 +58,11 @@ func (resolver *Resolver) fullRefTable() map[string]*protocol.RunType {
 }
 
 // buildProvenanceSites converts the resolver's protocol.Site list into
-// the (RT ID → []diag.Site) map the typefns walker uses to fan out
+// the (RT ID → []diagnostics.Site) map the typefns walker uses to fan out
 // per-call-site diagnostics. Pos→line/col is computed against the
 // resolver's current Program; sites whose file isn't in the program
 // (defensive) are skipped.
-func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
+func (resolver *Resolver) buildProvenanceSites() map[string][]diagnostics.Site {
 	if resolver == nil || resolver.Program == nil {
 		return nil
 	}
@@ -70,7 +70,7 @@ func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
 	if len(sites) == 0 {
 		return nil
 	}
-	out := make(map[string][]diag.Site, len(sites))
+	out := make(map[string][]diagnostics.Site, len(sites))
 	for _, site := range sites {
 		if site.ID == "" {
 			continue
@@ -80,11 +80,11 @@ func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
 			// Fall back to file-only — better than dropping the entry
 			// entirely; the user still sees which file the error belongs
 			// to even when line/col can't be resolved.
-			out[site.ID] = append(out[site.ID], diag.Site{FilePath: site.File})
+			out[site.ID] = append(out[site.ID], diagnostics.Site{FilePath: site.File})
 			continue
 		}
 		line, col := textpos.LineCol(sourceFile, site.Pos)
-		out[site.ID] = append(out[site.ID], diag.Site{
+		out[site.ID] = append(out[site.ID], diagnostics.Site{
 			FilePath:  site.File,
 			StartLine: line,
 			StartCol:  col,
@@ -97,7 +97,7 @@ func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
 // extractor and returns the per-entry graph (the OpDump path; OpScanFiles
 // reuses its own per-request extraction instead). Returns the wire-shaped
 // diagnostics from the in-place extraction alongside.
-func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (virtualmodules.Graph, []diag.Diagnostic) {
+func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (virtualmodules.Graph, []diagnostics.Diagnostic) {
 	if resolver.Program == nil {
 		return virtualmodules.Graph{}, nil
 	}

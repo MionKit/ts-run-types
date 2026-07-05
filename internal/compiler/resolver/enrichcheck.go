@@ -2,7 +2,7 @@ package resolver
 
 import (
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/enrichment"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/astcheck"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
@@ -25,8 +25,8 @@ import (
 // nothing; the pass never fails the op. Sites echo the REQUESTED path,
 // matching the marker scanner's convention, so the consumer can key
 // diagnostics back to the file it asked about.
-func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
-	var out []diag.Diagnostic
+func (resolver *Resolver) checkEnrichFiles(files []string) []diagnostics.Diagnostic {
+	var out []diagnostics.Diagnostic
 	if resolver.Program == nil {
 		return out
 	}
@@ -44,7 +44,7 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 		lineIndex := mirror.NewLineIndex(text)
 		classifier := scan.FamilyClassifier()
 		for _, tag := range scan.DirtyTags() {
-			out = append(out, diag.New(tagCode(tag.Kind, classifier.FamilyFor(tag)), tagSite(file, lineIndex, tag)))
+			out = append(out, diagnostics.New(tagCode(tag.Kind, classifier.FamilyFor(tag)), tagSite(file, lineIndex, tag)))
 		}
 
 		for _, finding := range astcheck.CheckSourceFile(sourceFile, resolver.checker, resolver.cache, resolver.Program.FS, file) {
@@ -59,7 +59,7 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 		if scan.HasMarkerComment() {
 			absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
 			for _, drift := range mirror.CheckBreadcrumbDrift(absolutePath, text, resolver.Program.FS) {
-				out = append(out, diag.New(drift.Code, tagSite(file, lineIndex, mirror.TagFinding{Start: drift.Start, End: drift.End}), drift.Args...))
+				out = append(out, diagnostics.New(drift.Code, tagSite(file, lineIndex, mirror.TagFinding{Start: drift.Start, End: drift.End}), drift.Args...))
 			}
 		}
 	}
@@ -67,16 +67,16 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 }
 
 // enrichDiagnostic builds the wire diagnostic for one content finding. Known
-// codes go through diag.New (severity owned by the catalog); an UNREGISTERED
+// codes go through diagnostics.New (severity owned by the catalog); an UNREGISTERED
 // code — a checker code that landed without a codes_friendly.go /
 // codes_mock.go entry — must not panic the resolver mid-lint, so it is built
 // manually with the finding's own severity. The JS side renders unknown codes with its own fallback, so
 // the finding still reaches the user either way.
-func enrichDiagnostic(code string, severity enrichment.Severity, args []string, site diag.Site) diag.Diagnostic {
-	if _, known := diag.Definitions[code]; known {
-		return diag.New(code, site, args...)
+func enrichDiagnostic(code string, severity enrichment.Severity, args []string, site diagnostics.Site) diagnostics.Diagnostic {
+	if _, known := diagnostics.Definitions[code]; known {
+		return diagnostics.New(code, site, args...)
 	}
-	diagnostic := diag.Diagnostic{Code: code, Family: diag.FamilyEnrich, Severity: diagSeverityFor(severity), Site: site}
+	diagnostic := diagnostics.Diagnostic{Code: code, Family: diagnostics.FamilyEnrich, Severity: diagSeverityFor(severity), Site: site}
 	if len(args) > 0 {
 		diagnostic.Args = args
 	}
@@ -84,14 +84,14 @@ func enrichDiagnostic(code string, severity enrichment.Severity, args []string, 
 }
 
 // diagSeverityFor maps an enrichment.Severity onto the wire severity scheme.
-func diagSeverityFor(severity enrichment.Severity) diag.Severity {
+func diagSeverityFor(severity enrichment.Severity) diagnostics.Severity {
 	switch severity {
 	case enrichment.Error:
-		return diag.SeverityError
+		return diagnostics.SeverityError
 	case enrichment.Warning:
-		return diag.SeverityWarning
+		return diagnostics.SeverityWarning
 	default:
-		return diag.SeverityInfo
+		return diagnostics.SeverityInfo
 	}
 }
 
@@ -105,27 +105,27 @@ func tagCode(kind mirror.TagKind, family mirror.MirrorFamily) string {
 	if family == mirror.FamilyMock {
 		switch kind {
 		case mirror.TagOrphan:
-			return diag.CodeMockOrphanConst
+			return diagnostics.CodeMockOrphanConst
 		case mirror.TagOrphanChild:
-			return diag.CodeMockOrphanField
+			return diagnostics.CodeMockOrphanField
 		default:
-			return diag.CodeMockTodo
+			return diagnostics.CodeMockTodo
 		}
 	}
 	switch kind {
 	case mirror.TagOrphan:
-		return diag.CodeFriendlyOrphanConst
+		return diagnostics.CodeFriendlyOrphanConst
 	case mirror.TagOrphanChild:
-		return diag.CodeFriendlyOrphanField
+		return diagnostics.CodeFriendlyOrphanField
 	default:
-		return diag.CodeFriendlyTodo
+		return diagnostics.CodeFriendlyTodo
 	}
 }
 
-// tagSite converts a byte-offset finding to a 1-based diag.Site on the
+// tagSite converts a byte-offset finding to a 1-based diagnostics.Site on the
 // requested file path.
-func tagSite(file string, lineIndex *mirror.LineIndex, tag mirror.TagFinding) diag.Site {
+func tagSite(file string, lineIndex *mirror.LineIndex, tag mirror.TagFinding) diagnostics.Site {
 	startLine, startCol := lineIndex.At(tag.Start)
 	endLine, endCol := lineIndex.At(tag.End)
-	return diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
+	return diagnostics.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
 }

@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // Temporal-scanner codes (TMPxxx). Issued by the resolver when a runtype
 // references a `Temporal.*` type that did NOT resolve to a real type — i.e.

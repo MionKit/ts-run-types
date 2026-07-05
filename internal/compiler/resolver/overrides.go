@@ -9,7 +9,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
@@ -44,7 +44,7 @@ type rawOverride struct {
 	typeArg *checker.Type
 	fnKey   string
 	cfnHash string
-	site    diag.Site
+	site    diagnostics.Site
 }
 
 // overrideArgSpan is the byte range of an override call's inline pure-fn
@@ -185,15 +185,15 @@ func overrideMapsEqual(a, b map[string]map[string]string) bool {
 // keys. OVR001 is STRICT: any second override of the same (type, family) is an
 // error regardless of body (you can't have two overrides for one function and
 // type). OVR010 warns once per distinct validate override (its cross-family reach).
-func overrideDiagnostics(raws []rawOverride, baseKeys []string) []diag.Diagnostic {
-	var diagnostics []diag.Diagnostic
+func overrideDiagnostics(raws []rawOverride, baseKeys []string) []diagnostics.Diagnostic {
+	var diags []diagnostics.Diagnostic
 	firstIndex := map[string]int{} // "<baseKey>|<fnKey>" → index of the winning raw
 	for i, raw := range raws {
 		key := baseKeys[i] + "|" + raw.fnKey
 		if winner, exists := firstIndex[key]; exists {
-			diagnostics = append(diagnostics, diag.NewWithRelated(
-				diag.CodeDuplicateOverride, raw.site, []string{raw.fnKey},
-				diag.Related{Site: raws[winner].site, Message: "First overridden here"},
+			diags = append(diags, diagnostics.NewWithRelated(
+				diagnostics.CodeDuplicateOverride, raw.site, []string{raw.fnKey},
+				diagnostics.Related{Site: raws[winner].site, Message: "First overridden here"},
 			))
 			continue
 		}
@@ -202,10 +202,10 @@ func overrideDiagnostics(raws []rawOverride, baseKeys []string) []diag.Diagnosti
 		// decoders call val_<member> to narrow. Overriding it reaches past
 		// createValidate<T>(), so flag the site (Warning — the build proceeds).
 		if raw.fnKey == "val" {
-			diagnostics = append(diagnostics, diag.New(diag.CodeOverrideValidateCrossFamily, raw.site))
+			diags = append(diags, diagnostics.New(diagnostics.CodeOverrideValidateCrossFamily, raw.site))
 		}
 	}
-	return diagnostics
+	return diags
 }
 
 // collectOverrideReplacements returns the `null` replacements for every override

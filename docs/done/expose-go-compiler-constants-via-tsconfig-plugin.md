@@ -372,7 +372,7 @@ Proposed structure (subject to bikeshedding):
 ## Sketched approach
 
 1. **Inventory pass.** Read-only walk of the five anchor files plus
-   `internal/diag/*`; produce a table tagging each constant `expose-tsconfig` /
+   `internal/diagnostics/*`; produce a table tagging each constant `expose-tsconfig` /
    `host-plugin-only` / `keep-internal` / `decide-later`. Output: a short
    table in this file, not in code.
 2. **Reader extension.** Add the new fields to `tsRuntypesPlugin` +

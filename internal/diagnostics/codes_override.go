@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // Custom-override codes (OVRxxx). The override pure-fn itself reuses the
 // PureFunction marker layer (PFN001 inline-shape, PFE9006-9011 purity), so the

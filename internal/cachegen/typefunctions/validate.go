@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -185,7 +185,7 @@ func (e ValidateEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCT
 			// format-bearing string; deduped per-code-per-walk by the walker.
 			if validator, ok := emitter.(formats.ParamValidator); ok {
 				for _, msg := range validator.ValidateParams(rt.FormatAnnotation) {
-					ctx.EmitDiagnostic(diag.CodeFMTInvalidParams, msg)
+					ctx.EmitDiagnostic(diagnostics.CodeFMTInvalidParams, msg)
 				}
 			}
 			check := emitter.EmitValidateCheck(rt.FormatAnnotation, ctx.Vλl, ctx)

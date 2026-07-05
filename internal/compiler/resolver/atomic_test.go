@@ -9,15 +9,15 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // filterDiagsByFamily returns the subset of diags belonging to the given
 // family. Test helper for asserting on per-family diagnostic counts.
-func filterDiagsByFamily(diagnostics []diag.Diagnostic, family diag.Family) []diag.Diagnostic {
-	var out []diag.Diagnostic
-	for _, d := range diagnostics {
+func filterDiagsByFamily(diags []diagnostics.Diagnostic, family diagnostics.Family) []diagnostics.Diagnostic {
+	var out []diagnostics.Diagnostic
+	for _, d := range diags {
 		if d.Family == family {
 			out = append(out, d)
 		}
@@ -1028,16 +1028,16 @@ getRunTypeId(makeUser());
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 1 {
 		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(markerDiags), markerDiags)
 	}
 	d := markerDiags[0]
-	if d.Code != diag.CodeMarkerFunctionCallArg {
-		t.Fatalf("expected code %s, got %q", diag.CodeMarkerFunctionCallArg, d.Code)
+	if d.Code != diagnostics.CodeMarkerFunctionCallArg {
+		t.Fatalf("expected code %s, got %q", diagnostics.CodeMarkerFunctionCallArg, d.Code)
 	}
-	if d.Severity != diag.SeverityWarning {
-		t.Fatalf("expected severity warning (%d), got %d", diag.SeverityWarning, d.Severity)
+	if d.Severity != diagnostics.SeverityWarning {
+		t.Fatalf("expected severity warning (%d), got %d", diagnostics.SeverityWarning, d.Severity)
 	}
 	if len(d.Args) != 1 || d.Args[0] != "makeUser" {
 		t.Fatalf("expected args=[makeUser], got %v", d.Args)
@@ -1060,7 +1060,7 @@ getRunTypeId(user);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 0 {
 		t.Fatalf("expected 0 marker diagnostics for identifier arg, got %d (%+v)", len(markerDiags), markerDiags)
 	}
@@ -1148,7 +1148,7 @@ createValidate<string>(undefined, getOptions());
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 1 {
 		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(markerDiags), markerDiags)
 	}
@@ -1157,11 +1157,11 @@ createValidate<string>(undefined, getOptions());
 	// construct (CTA003) — the validator sees `getOptions()` as a call
 	// expression at the top level and rejects it, not as a "non-literal
 	// identifier-chain leaf" (CTA001).
-	if d.Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected code %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, d.Code)
+	if d.Code != diagnostics.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected code %s, got %q", diagnostics.CodeCompTimeArgsForbiddenConstruct, d.Code)
 	}
-	if d.Severity != diag.SeverityError {
-		t.Fatalf("expected severity error (%d), got %d", diag.SeverityError, d.Severity)
+	if d.Severity != diagnostics.SeverityError {
+		t.Fatalf("expected severity error (%d), got %d", diagnostics.SeverityError, d.Severity)
 	}
 }
 
@@ -1190,7 +1190,7 @@ createValidate<string>(undefined, {});
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	for _, d := range markerDiags {
 		// CTA gate only — MKR is a different subject (anti-patterns).
 		if strings.HasPrefix(d.Code, "CTA") {
@@ -1221,12 +1221,12 @@ createJsonEncoder<string>(undefined, getOptions());
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 1 {
 		t.Fatalf("expected 1 marker diagnostic (CTA003 for function call inside CompTimeArgs), got %d (%+v)", len(markerDiags), markerDiags)
 	}
-	if markerDiags[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected code %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
+	if markerDiags[0].Code != diagnostics.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected code %s, got %q", diagnostics.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
 	}
 }
 
@@ -1253,7 +1253,7 @@ createValidate<string>(undefined, opts);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 0 {
 		t.Fatalf("expected 0 marker diagnostics for const-bound literal, got %d (%+v)", len(markerDiags), markerDiags)
 	}
@@ -1282,7 +1282,7 @@ withValidator<string>((v) => typeof v === 'string');
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 0 {
 		t.Fatalf("expected 0 marker diagnostics for inline pure arrow, got %d (%+v)", len(markerDiags), markerDiags)
 	}
@@ -1301,12 +1301,12 @@ withValidator<string>(isString);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 1 {
 		t.Fatalf("expected 1 marker diagnostic (PFN001), got %d (%+v)", len(markerDiags), markerDiags)
 	}
-	if markerDiags[0].Code != diag.CodePureFunctionNotLiteral {
-		t.Fatalf("expected code %s, got %q", diag.CodePureFunctionNotLiteral, markerDiags[0].Code)
+	if markerDiags[0].Code != diagnostics.CodePureFunctionNotLiteral {
+		t.Fatalf("expected code %s, got %q", diagnostics.CodePureFunctionNotLiteral, markerDiags[0].Code)
 	}
 }
 
@@ -1325,7 +1325,7 @@ withValidator<string>(async (v) => { await Promise.resolve(); return typeof v ==
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	// All PFE diagnostics live under FamilyPureFn — not FamilyMarker.
-	pfeDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyPureFn)
+	pfeDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyPureFn)
 	if len(pfeDiags) == 0 {
 		t.Fatalf("expected at least one PFE diagnostic for `await`, got 0 (all: %+v)", resp.Diagnostics)
 	}
@@ -1354,7 +1354,7 @@ withValidator<number>((v) => v === outer);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	pfeDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyPureFn)
+	pfeDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyPureFn)
 	closureSeen := false
 	for _, d := range pfeDiags {
 		if d.Code == "PFE9011" {
@@ -1394,12 +1394,12 @@ noInjectWrapper(getLabel(), 1);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 1 {
 		t.Fatalf("expected 1 CTA diagnostic for non-literal arg without injection slot, got %d (%+v)", len(markerDiags), markerDiags)
 	}
-	if markerDiags[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
+	if markerDiags[0].Code != diagnostics.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected %s, got %q", diagnostics.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
 	}
 }
 
@@ -1413,12 +1413,12 @@ pureOnlyWrapper(isString);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 1 {
 		t.Fatalf("expected 1 PFN001 diagnostic for non-literal fn without injection slot, got %d (%+v)", len(markerDiags), markerDiags)
 	}
-	if markerDiags[0].Code != diag.CodePureFunctionNotLiteral {
-		t.Fatalf("expected %s, got %q", diag.CodePureFunctionNotLiteral, markerDiags[0].Code)
+	if markerDiags[0].Code != diagnostics.CodePureFunctionNotLiteral {
+		t.Fatalf("expected %s, got %q", diagnostics.CodePureFunctionNotLiteral, markerDiags[0].Code)
 	}
 }
 
@@ -1447,12 +1447,12 @@ createValidate<string>(undefined, getOptions());
 	if len(resp.Sites) != 1 {
 		t.Fatalf("expected 1 Site for injection, got %d", len(resp.Sites))
 	}
-	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diagnostics.FamilyMarker)
 	if len(markerDiags) != 1 {
 		t.Fatalf("expected 1 CTA diagnostic alongside the Site, got %d (%+v)", len(markerDiags), markerDiags)
 	}
-	if markerDiags[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
-		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
+	if markerDiags[0].Code != diagnostics.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected %s, got %q", diagnostics.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
 	}
 }
 
@@ -1563,17 +1563,17 @@ createValidate<{a: string}>(undefined, {noIsArrayCheck: true});
 	var nl, na bool
 	for _, d := range resp.Diagnostics {
 		switch d.Code {
-		case diag.CodeValidateOptionsNoLiteralsNoop:
+		case diagnostics.CodeValidateOptionsNoLiteralsNoop:
 			nl = true
-		case diag.CodeValidateOptionsNoArrayNoop:
+		case diagnostics.CodeValidateOptionsNoArrayNoop:
 			na = true
 		}
 	}
 	if !nl {
-		t.Errorf("expected %s for {noLiterals:true} on non-literal type, got: %+v", diag.CodeValidateOptionsNoLiteralsNoop, resp.Diagnostics)
+		t.Errorf("expected %s for {noLiterals:true} on non-literal type, got: %+v", diagnostics.CodeValidateOptionsNoLiteralsNoop, resp.Diagnostics)
 	}
 	if !na {
-		t.Errorf("expected %s for {noIsArrayCheck:true} on non-array type, got: %+v", diag.CodeValidateOptionsNoArrayNoop, resp.Diagnostics)
+		t.Errorf("expected %s for {noIsArrayCheck:true} on non-array type, got: %+v", diagnostics.CodeValidateOptionsNoArrayNoop, resp.Diagnostics)
 	}
 }
 
@@ -1660,10 +1660,10 @@ createValidate<string>(undefined, {noLiterals: true} as const);
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	for _, d := range resp.Diagnostics {
-		if d.Code == diag.CodeValidateOptionsNoLiteralsNoop {
+		if d.Code == diagnostics.CodeValidateOptionsNoLiteralsNoop {
 			return
 		}
 	}
 	t.Fatalf("expected %s for as-const {noLiterals:true} on a non-literal type (option must be extracted through the wrapper), got: %+v",
-		diag.CodeValidateOptionsNoLiteralsNoop, resp.Diagnostics)
+		diagnostics.CodeValidateOptionsNoLiteralsNoop, resp.Diagnostics)
 }

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -36,7 +36,7 @@ func scanExternal(t *testing.T, dts string, files map[string]string) protocol.Re
 func gateCodes(resp protocol.Response) []string {
 	var codes []string
 	for _, d := range resp.Diagnostics {
-		if d.Family == diag.FamilyMarker && (strings.HasPrefix(d.Code, "CTA") || strings.HasPrefix(d.Code, "PFN")) {
+		if d.Family == diagnostics.FamilyMarker && (strings.HasPrefix(d.Code, "CTA") || strings.HasPrefix(d.Code, "PFN")) {
 			codes = append(codes, d.Code)
 		}
 	}
@@ -149,7 +149,7 @@ export const bad = createValidate<string>(undefined, loose);
 		t.Run(name, func(t *testing.T) {
 			resp := scanExternal(t, runtypesDTS, files)
 			codes := gateCodes(resp)
-			if len(codes) != 1 || codes[0] != diag.CodeCompTimeArgsWidenedConst {
+			if len(codes) != 1 || codes[0] != diagnostics.CodeCompTimeArgsWidenedConst {
 				t.Fatalf("expected exactly one CTA004 gate, got %v", codes)
 			}
 		})
@@ -185,7 +185,7 @@ withValidator<string>(isString);
 		t.Run(name, func(t *testing.T) {
 			resp := scanExternal(t, pureFunctionDts, files)
 			codes := gateCodes(resp)
-			if len(codes) != 1 || codes[0] != diag.CodePureFunctionExternalHandle {
+			if len(codes) != 1 || codes[0] != diagnostics.CodePureFunctionExternalHandle {
 				t.Fatalf("expected exactly one PFN002, got %v", codes)
 			}
 		})
@@ -223,7 +223,7 @@ func TestExternalModule_PureFnNamedLocalRejected(t *testing.T) {
 			code := "import {withValidator} from 'ts-runtypes';\n" + body + "\n"
 			resp := scanExternal(t, pureFunctionDts, map[string]string{"call.ts": code})
 			codes := gateCodes(resp)
-			if len(codes) != 1 || codes[0] != diag.CodePureFunctionNotLiteral {
+			if len(codes) != 1 || codes[0] != diagnostics.CodePureFunctionNotLiteral {
 				t.Fatalf("expected exactly one PFN001, got %v", codes)
 			}
 		})

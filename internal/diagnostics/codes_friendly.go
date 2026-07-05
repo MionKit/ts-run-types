@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // FriendlyText mirror-file codes (FTxxx). Since the per-family mirror split,
 // a source type enriches into TWO generated files — this group covers the

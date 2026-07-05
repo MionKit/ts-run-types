@@ -1,7 +1,7 @@
 package typefunctions
 
 import (
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -60,25 +60,25 @@ func (m rootCodeMap) codeFor(leaf *protocol.RunType) string {
 // the emit files.
 
 var prepareForJsonCodes = map[DiagSlot]string{
-	SlotNeverRoot:                  diag.CodePJNeverRoot,
-	SlotNonSerializableRoot:        diag.CodePJNonSerializableRoot,
-	SlotFunctionRoot:               diag.CodePJFunctionRoot,
-	SlotArrayElement:               diag.CodePJArrayElement,
-	SlotFunctionPropDropped:        diag.CodePJFunctionPropDropped,
-	SlotMethodDropped:              diag.CodePJMethodDropped,
-	SlotStaticDropped:              diag.CodePJStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodePJSymbolKeyedDropped,
-	SlotUnionMemberDropped:         diag.CodePJUnionMemberDropped,
-	SlotNonSerializablePropDropped: diag.CodePJNonSerializablePropDrop,
+	SlotNeverRoot:                  diagnostics.CodePJNeverRoot,
+	SlotNonSerializableRoot:        diagnostics.CodePJNonSerializableRoot,
+	SlotFunctionRoot:               diagnostics.CodePJFunctionRoot,
+	SlotArrayElement:               diagnostics.CodePJArrayElement,
+	SlotFunctionPropDropped:        diagnostics.CodePJFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodePJMethodDropped,
+	SlotStaticDropped:              diagnostics.CodePJStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodePJSymbolKeyedDropped,
+	SlotUnionMemberDropped:         diagnostics.CodePJUnionMemberDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodePJNonSerializablePropDrop,
 }
 
 func (PrepareForJsonEmitter) DiagCodeFor(slot DiagSlot) string { return prepareForJsonCodes[slot] }
 
 var prepareForJsonRootCodes = rootCodeMap{
-	never:           diag.CodePJNeverRoot,
-	nonSerializable: diag.CodePJNonSerializableRoot,
-	function:        diag.CodePJFunctionRoot,
-	symbol:          diag.CodePJSymbolRoot,
+	never:           diagnostics.CodePJNeverRoot,
+	nonSerializable: diagnostics.CodePJNonSerializableRoot,
+	function:        diagnostics.CodePJFunctionRoot,
+	symbol:          diagnostics.CodePJSymbolRoot,
 }
 
 func (PrepareForJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -86,16 +86,16 @@ func (PrepareForJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var prepareForJsonSafeCodes = map[DiagSlot]string{
-	SlotNeverRoot:                  diag.CodePJSNeverRoot,
-	SlotNonSerializableRoot:        diag.CodePJSNonSerializableRoot,
-	SlotFunctionRoot:               diag.CodePJSFunctionRoot,
-	SlotArrayElement:               diag.CodePJSArrayElement,
-	SlotFunctionPropDropped:        diag.CodePJSFunctionPropDropped,
-	SlotMethodDropped:              diag.CodePJSMethodDropped,
-	SlotStaticDropped:              diag.CodePJSStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodePJSSymbolKeyedDropped,
-	SlotUnionMemberDropped:         diag.CodePJSUnionMemberDropped,
-	SlotNonSerializablePropDropped: diag.CodePJSNonSerializablePropDrop,
+	SlotNeverRoot:                  diagnostics.CodePJSNeverRoot,
+	SlotNonSerializableRoot:        diagnostics.CodePJSNonSerializableRoot,
+	SlotFunctionRoot:               diagnostics.CodePJSFunctionRoot,
+	SlotArrayElement:               diagnostics.CodePJSArrayElement,
+	SlotFunctionPropDropped:        diagnostics.CodePJSFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodePJSMethodDropped,
+	SlotStaticDropped:              diagnostics.CodePJSStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodePJSSymbolKeyedDropped,
+	SlotUnionMemberDropped:         diagnostics.CodePJSUnionMemberDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodePJSNonSerializablePropDrop,
 }
 
 func (PrepareForJsonSafeEmitter) DiagCodeFor(slot DiagSlot) string {
@@ -103,10 +103,10 @@ func (PrepareForJsonSafeEmitter) DiagCodeFor(slot DiagSlot) string {
 }
 
 var prepareForJsonSafeRootCodes = rootCodeMap{
-	never:           diag.CodePJSNeverRoot,
-	nonSerializable: diag.CodePJSNonSerializableRoot,
-	function:        diag.CodePJSFunctionRoot,
-	symbol:          diag.CodePJSSymbolRoot,
+	never:           diagnostics.CodePJSNeverRoot,
+	nonSerializable: diagnostics.CodePJSNonSerializableRoot,
+	function:        diagnostics.CodePJSFunctionRoot,
+	symbol:          diagnostics.CodePJSSymbolRoot,
 }
 
 func (PrepareForJsonSafeEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -114,25 +114,25 @@ func (PrepareForJsonSafeEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string 
 }
 
 var restoreFromJsonCodes = map[DiagSlot]string{
-	SlotNeverRoot:                  diag.CodeRJNeverRoot,
-	SlotNonSerializableRoot:        diag.CodeRJNonSerializableRoot,
-	SlotFunctionRoot:               diag.CodeRJFunctionRoot,
-	SlotArrayElement:               diag.CodeRJArrayElement,
-	SlotFunctionPropDropped:        diag.CodeRJFunctionPropDropped,
-	SlotMethodDropped:              diag.CodeRJMethodDropped,
-	SlotStaticDropped:              diag.CodeRJStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodeRJSymbolKeyedDropped,
-	SlotUnionMemberDropped:         diag.CodeRJUnionMemberDropped,
-	SlotNonSerializablePropDropped: diag.CodeRJNonSerializablePropDrop,
+	SlotNeverRoot:                  diagnostics.CodeRJNeverRoot,
+	SlotNonSerializableRoot:        diagnostics.CodeRJNonSerializableRoot,
+	SlotFunctionRoot:               diagnostics.CodeRJFunctionRoot,
+	SlotArrayElement:               diagnostics.CodeRJArrayElement,
+	SlotFunctionPropDropped:        diagnostics.CodeRJFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodeRJMethodDropped,
+	SlotStaticDropped:              diagnostics.CodeRJStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodeRJSymbolKeyedDropped,
+	SlotUnionMemberDropped:         diagnostics.CodeRJUnionMemberDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodeRJNonSerializablePropDrop,
 }
 
 func (RestoreFromJsonEmitter) DiagCodeFor(slot DiagSlot) string { return restoreFromJsonCodes[slot] }
 
 var restoreFromJsonRootCodes = rootCodeMap{
-	never:           diag.CodeRJNeverRoot,
-	nonSerializable: diag.CodeRJNonSerializableRoot,
-	function:        diag.CodeRJFunctionRoot,
-	symbol:          diag.CodeRJSymbolRoot,
+	never:           diagnostics.CodeRJNeverRoot,
+	nonSerializable: diagnostics.CodeRJNonSerializableRoot,
+	function:        diagnostics.CodeRJFunctionRoot,
+	symbol:          diagnostics.CodeRJSymbolRoot,
 }
 
 func (RestoreFromJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -140,25 +140,25 @@ func (RestoreFromJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var stringifyJsonCodes = map[DiagSlot]string{
-	SlotNeverRoot:                  diag.CodeSJNeverRoot,
-	SlotNonSerializableRoot:        diag.CodeSJNonSerializableRoot,
-	SlotFunctionRoot:               diag.CodeSJFunctionRoot,
-	SlotArrayElement:               diag.CodeSJArrayElement,
-	SlotFunctionPropDropped:        diag.CodeSJFunctionPropDropped,
-	SlotMethodDropped:              diag.CodeSJMethodDropped,
-	SlotStaticDropped:              diag.CodeSJStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodeSJSymbolKeyedDropped,
-	SlotUnionMemberDropped:         diag.CodeSJUnionMemberDropped,
-	SlotNonSerializablePropDropped: diag.CodeSJNonSerializablePropDrop,
+	SlotNeverRoot:                  diagnostics.CodeSJNeverRoot,
+	SlotNonSerializableRoot:        diagnostics.CodeSJNonSerializableRoot,
+	SlotFunctionRoot:               diagnostics.CodeSJFunctionRoot,
+	SlotArrayElement:               diagnostics.CodeSJArrayElement,
+	SlotFunctionPropDropped:        diagnostics.CodeSJFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodeSJMethodDropped,
+	SlotStaticDropped:              diagnostics.CodeSJStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodeSJSymbolKeyedDropped,
+	SlotUnionMemberDropped:         diagnostics.CodeSJUnionMemberDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodeSJNonSerializablePropDrop,
 }
 
 func (StringifyJsonEmitter) DiagCodeFor(slot DiagSlot) string { return stringifyJsonCodes[slot] }
 
 var stringifyJsonRootCodes = rootCodeMap{
-	never:           diag.CodeSJNeverRoot,
-	nonSerializable: diag.CodeSJNonSerializableRoot,
-	function:        diag.CodeSJFunctionRoot,
-	symbol:          diag.CodeSJSymbolRoot,
+	never:           diagnostics.CodeSJNeverRoot,
+	nonSerializable: diagnostics.CodeSJNonSerializableRoot,
+	function:        diagnostics.CodeSJFunctionRoot,
+	symbol:          diagnostics.CodeSJSymbolRoot,
 }
 
 func (StringifyJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -166,26 +166,26 @@ func (StringifyJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var toBinaryCodes = map[DiagSlot]string{
-	SlotNeverRoot:                  diag.CodeTBNeverRoot,
-	SlotNonSerializableRoot:        diag.CodeTBNonSerializableRoot,
-	SlotFunctionRoot:               diag.CodeTBFunctionRoot,
-	SlotArrayElement:               diag.CodeTBArrayElement,
-	SlotNonSerializableElem:        diag.CodeTBNonSerializableElem,
-	SlotFunctionPropDropped:        diag.CodeTBFunctionPropDropped,
-	SlotMethodDropped:              diag.CodeTBMethodDropped,
-	SlotStaticDropped:              diag.CodeTBStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodeTBSymbolKeyedDropped,
-	SlotUnionMemberDropped:         diag.CodeTBUnionMemberDropped,
-	SlotNonSerializablePropDropped: diag.CodeTBNonSerializablePropDrop,
+	SlotNeverRoot:                  diagnostics.CodeTBNeverRoot,
+	SlotNonSerializableRoot:        diagnostics.CodeTBNonSerializableRoot,
+	SlotFunctionRoot:               diagnostics.CodeTBFunctionRoot,
+	SlotArrayElement:               diagnostics.CodeTBArrayElement,
+	SlotNonSerializableElem:        diagnostics.CodeTBNonSerializableElem,
+	SlotFunctionPropDropped:        diagnostics.CodeTBFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodeTBMethodDropped,
+	SlotStaticDropped:              diagnostics.CodeTBStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodeTBSymbolKeyedDropped,
+	SlotUnionMemberDropped:         diagnostics.CodeTBUnionMemberDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodeTBNonSerializablePropDrop,
 }
 
 func (ToBinaryEmitter) DiagCodeFor(slot DiagSlot) string { return toBinaryCodes[slot] }
 
 var toBinaryRootCodes = rootCodeMap{
-	never:           diag.CodeTBNeverRoot,
-	nonSerializable: diag.CodeTBNonSerializableRoot,
-	function:        diag.CodeTBFunctionRoot,
-	symbol:          diag.CodeTBSymbolRoot,
+	never:           diagnostics.CodeTBNeverRoot,
+	nonSerializable: diagnostics.CodeTBNonSerializableRoot,
+	function:        diagnostics.CodeTBFunctionRoot,
+	symbol:          diagnostics.CodeTBSymbolRoot,
 }
 
 func (ToBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -193,26 +193,26 @@ func (ToBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var fromBinaryCodes = map[DiagSlot]string{
-	SlotNeverRoot:                  diag.CodeFBNeverRoot,
-	SlotNonSerializableRoot:        diag.CodeFBNonSerializableRoot,
-	SlotFunctionRoot:               diag.CodeFBFunctionRoot,
-	SlotArrayElement:               diag.CodeFBArrayElement,
-	SlotNonSerializableElem:        diag.CodeFBNonSerializableElem,
-	SlotFunctionPropDropped:        diag.CodeFBFunctionPropDropped,
-	SlotMethodDropped:              diag.CodeFBMethodDropped,
-	SlotStaticDropped:              diag.CodeFBStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodeFBSymbolKeyedDropped,
-	SlotUnionMemberDropped:         diag.CodeFBUnionMemberDropped,
-	SlotNonSerializablePropDropped: diag.CodeFBNonSerializablePropDrop,
+	SlotNeverRoot:                  diagnostics.CodeFBNeverRoot,
+	SlotNonSerializableRoot:        diagnostics.CodeFBNonSerializableRoot,
+	SlotFunctionRoot:               diagnostics.CodeFBFunctionRoot,
+	SlotArrayElement:               diagnostics.CodeFBArrayElement,
+	SlotNonSerializableElem:        diagnostics.CodeFBNonSerializableElem,
+	SlotFunctionPropDropped:        diagnostics.CodeFBFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodeFBMethodDropped,
+	SlotStaticDropped:              diagnostics.CodeFBStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodeFBSymbolKeyedDropped,
+	SlotUnionMemberDropped:         diagnostics.CodeFBUnionMemberDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodeFBNonSerializablePropDrop,
 }
 
 func (FromBinaryEmitter) DiagCodeFor(slot DiagSlot) string { return fromBinaryCodes[slot] }
 
 var fromBinaryRootCodes = rootCodeMap{
-	never:           diag.CodeFBNeverRoot,
-	nonSerializable: diag.CodeFBNonSerializableRoot,
-	function:        diag.CodeFBFunctionRoot,
-	symbol:          diag.CodeFBSymbolRoot,
+	never:           diagnostics.CodeFBNeverRoot,
+	nonSerializable: diagnostics.CodeFBNonSerializableRoot,
+	function:        diagnostics.CodeFBFunctionRoot,
+	symbol:          diagnostics.CodeFBSymbolRoot,
 }
 
 func (FromBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -220,23 +220,23 @@ func (FromBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var validateCodes = map[DiagSlot]string{
-	SlotNonSerializableRoot:        diag.CodeVLNonSerializableRoot,
-	SlotFunctionPropDropped:        diag.CodeVLFunctionPropDropped,
-	SlotMethodDropped:              diag.CodeVLMethodDropped,
-	SlotStaticDropped:              diag.CodeVLStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodeVLSymbolKeyedDropped,
-	SlotUnionMemberDropped:         diag.CodeVLUnionMemberDropped,
-	SlotNonSerializablePropDropped: diag.CodeVLNonSerializablePropDrop,
-	SlotRootAnyUnknown:             diag.CodeVLRootAnyUnknown,
+	SlotNonSerializableRoot:        diagnostics.CodeVLNonSerializableRoot,
+	SlotFunctionPropDropped:        diagnostics.CodeVLFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodeVLMethodDropped,
+	SlotStaticDropped:              diagnostics.CodeVLStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodeVLSymbolKeyedDropped,
+	SlotUnionMemberDropped:         diagnostics.CodeVLUnionMemberDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodeVLNonSerializablePropDrop,
+	SlotRootAnyUnknown:             diagnostics.CodeVLRootAnyUnknown,
 }
 
 func (ValidateEmitter) DiagCodeFor(slot DiagSlot) string { return validateCodes[slot] }
 
 var validateRootCodes = rootCodeMap{
 	never:           "", // validate validates Never as "no inhabitants" — handled by existing never arm, not unsupported
-	nonSerializable: diag.CodeVLNonSerializableRoot,
+	nonSerializable: diagnostics.CodeVLNonSerializableRoot,
 	function:        "", // validate validates function-kinds as `typeof === 'function'` — supported
-	symbol:          diag.CodeVLSymbolRoot,
+	symbol:          diagnostics.CodeVLSymbolRoot,
 }
 
 func (ValidateEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -244,22 +244,22 @@ func (ValidateEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var validationErrorsCodes = map[DiagSlot]string{
-	SlotNonSerializableRoot:        diag.CodeVENonSerializableRoot,
-	SlotFunctionPropDropped:        diag.CodeVEFunctionPropDropped,
-	SlotMethodDropped:              diag.CodeVEMethodDropped,
-	SlotStaticDropped:              diag.CodeVEStaticDropped,
-	SlotSymbolKeyedDropped:         diag.CodeVESymbolKeyedDropped,
-	SlotNonSerializablePropDropped: diag.CodeVENonSerializablePropDrop,
-	SlotRootAnyUnknown:             diag.CodeVERootAnyUnknown,
+	SlotNonSerializableRoot:        diagnostics.CodeVENonSerializableRoot,
+	SlotFunctionPropDropped:        diagnostics.CodeVEFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodeVEMethodDropped,
+	SlotStaticDropped:              diagnostics.CodeVEStaticDropped,
+	SlotSymbolKeyedDropped:         diagnostics.CodeVESymbolKeyedDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodeVENonSerializablePropDrop,
+	SlotRootAnyUnknown:             diagnostics.CodeVERootAnyUnknown,
 }
 
 func (ValidationErrorsEmitter) DiagCodeFor(slot DiagSlot) string { return validationErrorsCodes[slot] }
 
 var validationErrorsRootCodes = rootCodeMap{
 	never:           "",
-	nonSerializable: diag.CodeVENonSerializableRoot,
+	nonSerializable: diagnostics.CodeVENonSerializableRoot,
 	function:        "",
-	symbol:          diag.CodeVESymbolRoot,
+	symbol:          diagnostics.CodeVESymbolRoot,
 }
 
 func (ValidationErrorsEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -267,25 +267,25 @@ func (ValidationErrorsEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var hasUnknownKeysCodes = map[DiagSlot]string{
-	SlotFunctionPropDropped: diag.CodeHUKFunctionPropDropped,
+	SlotFunctionPropDropped: diagnostics.CodeHUKFunctionPropDropped,
 }
 
 func (HasUnknownKeysEmitter) DiagCodeFor(slot DiagSlot) string { return hasUnknownKeysCodes[slot] }
 
 var stripUnknownKeysCodes = map[DiagSlot]string{
-	SlotFunctionPropDropped: diag.CodeSUKFunctionPropDropped,
+	SlotFunctionPropDropped: diagnostics.CodeSUKFunctionPropDropped,
 }
 
 func (StripUnknownKeysEmitter) DiagCodeFor(slot DiagSlot) string { return stripUnknownKeysCodes[slot] }
 
 var unknownKeyErrorsCodes = map[DiagSlot]string{
-	SlotFunctionPropDropped: diag.CodeUKEFunctionPropDropped,
+	SlotFunctionPropDropped: diagnostics.CodeUKEFunctionPropDropped,
 }
 
 func (UnknownKeyErrorsEmitter) DiagCodeFor(slot DiagSlot) string { return unknownKeyErrorsCodes[slot] }
 
 var unknownKeysToUndefinedCodes = map[DiagSlot]string{
-	SlotFunctionPropDropped: diag.CodeUKUFunctionPropDropped,
+	SlotFunctionPropDropped: diagnostics.CodeUKUFunctionPropDropped,
 }
 
 func (UnknownKeysToUndefinedEmitter) DiagCodeFor(slot DiagSlot) string {
@@ -293,7 +293,7 @@ func (UnknownKeysToUndefinedEmitter) DiagCodeFor(slot DiagSlot) string {
 }
 
 var unknownKeysToUndefinedWireCodes = map[DiagSlot]string{
-	SlotFunctionPropDropped: diag.CodeUKWFunctionPropDropped,
+	SlotFunctionPropDropped: diagnostics.CodeUKWFunctionPropDropped,
 }
 
 func (UnknownKeysToUndefinedWireEmitter) DiagCodeFor(slot DiagSlot) string {

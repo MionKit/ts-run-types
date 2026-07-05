@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // Docs prose for the website diagnostics page, keyed by code. This is the
 // single Go-side source for the human-written explanation of each

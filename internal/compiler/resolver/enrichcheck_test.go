@@ -7,7 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -84,10 +84,10 @@ func setupEnrichFixture(t *testing.T, extra map[string]string) *resolver.Resolve
 }
 
 // enrichDiagnostics filters a response down to the FamilyEnrich entries.
-func enrichDiagnostics(response protocol.Response) []diag.Diagnostic {
-	var out []diag.Diagnostic
+func enrichDiagnostics(response protocol.Response) []diagnostics.Diagnostic {
+	var out []diagnostics.Diagnostic
 	for _, diagnostic := range response.Diagnostics {
-		if diagnostic.Family == diag.FamilyEnrich {
+		if diagnostic.Family == diagnostics.FamilyEnrich {
 			out = append(out, diagnostic)
 		}
 	}
@@ -106,7 +106,7 @@ func TestCheckEnrich_SinglePassFindings(t *testing.T) {
 	}
 	found := enrichDiagnostics(response)
 
-	byCode := map[string][]diag.Diagnostic{}
+	byCode := map[string][]diagnostics.Diagnostic{}
 	for _, diagnostic := range found {
 		byCode[diagnostic.Code] = append(byCode[diagnostic.Code], diagnostic)
 		if diagnostic.Site.FilePath != "mirror.ts" {
@@ -122,11 +122,11 @@ func TestCheckEnrich_SinglePassFindings(t *testing.T) {
 	// one trailing annotation-less carcass attributed to the nearest-before
 	// MockData const (MD021), and one unknown field per family.
 	for code, want := range map[string]int{
-		diag.CodeFriendlyTodo:         1,
-		diag.CodeFriendlyOrphanConst:  1,
-		diag.CodeMockOrphanConst:      1,
-		diag.CodeFriendlyUnknownField: 1,
-		diag.CodeMockUnknownField:     1,
+		diagnostics.CodeFriendlyTodo:         1,
+		diagnostics.CodeFriendlyOrphanConst:  1,
+		diagnostics.CodeMockOrphanConst:      1,
+		diagnostics.CodeFriendlyUnknownField: 1,
+		diagnostics.CodeMockUnknownField:     1,
 	} {
 		if len(byCode[code]) != want {
 			t.Errorf("code %s: got %d findings, want %d (all: %+v)", code, len(byCode[code]), want, found)
@@ -136,17 +136,17 @@ func TestCheckEnrich_SinglePassFindings(t *testing.T) {
 	// Positions: cross-check against the fixture text itself.
 	lineIndex := mirror.NewLineIndex(enrichMirror)
 	todoLine, todoCol := lineIndex.At(strings.Index(enrichMirror, mirror.TodoTag))
-	if got := byCode[diag.CodeFriendlyTodo][0].Site; got.StartLine != todoLine || got.StartCol != todoCol {
+	if got := byCode[diagnostics.CodeFriendlyTodo][0].Site; got.StartLine != todoLine || got.StartCol != todoCol {
 		t.Errorf("FT020 site = (%d,%d), want (%d,%d)", got.StartLine, got.StartCol, todoLine, todoCol)
 	}
 	nopeLine, nopeCol := lineIndex.At(strings.Index(enrichMirror, "nope:"))
-	if got := byCode[diag.CodeFriendlyUnknownField][0].Site; got.StartLine != nopeLine || got.StartCol != nopeCol {
+	if got := byCode[diagnostics.CodeFriendlyUnknownField][0].Site; got.StartLine != nopeLine || got.StartCol != nopeCol {
 		t.Errorf("FT002 site = (%d,%d), want (%d,%d) — the `nope` key node", got.StartLine, got.StartCol, nopeLine, nopeCol)
 	}
-	if args := byCode[diag.CodeFriendlyUnknownField][0].Args; len(args) != 1 || args[0] != "nope" {
+	if args := byCode[diagnostics.CodeFriendlyUnknownField][0].Args; len(args) != 1 || args[0] != "nope" {
 		t.Errorf("FT002 args = %v, want [nope]", args)
 	}
-	if severity := byCode[diag.CodeFriendlyTodo][0].Severity; severity != diag.SeverityError {
+	if severity := byCode[diagnostics.CodeFriendlyTodo][0].Severity; severity != diagnostics.SeverityError {
 		t.Errorf("FT020 severity = %v, want Error", severity)
 	}
 
@@ -197,9 +197,9 @@ func TestCheckEnrich_BreadcrumbDrift(t *testing.T) {
 	if response.Error != "" {
 		t.Fatalf("scan error: %s", response.Error)
 	}
-	var ge002 []diag.Diagnostic
+	var ge002 []diagnostics.Diagnostic
 	for _, diagnostic := range enrichDiagnostics(response) {
-		if diagnostic.Code == diag.CodeGenSourceMissing {
+		if diagnostic.Code == diagnostics.CodeGenSourceMissing {
 			ge002 = append(ge002, diagnostic)
 		}
 	}

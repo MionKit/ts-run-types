@@ -7,7 +7,7 @@ import (
 	// in-process resolver test doesn't go through main.go, which is
 	// where the binary normally blank-imports this aggregator.
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -42,18 +42,18 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	var found *diag.Diagnostic
+	var found *diagnostics.Diagnostic
 	for i := range resp.Diagnostics {
-		if resp.Diagnostics[i].Code == diag.CodeFMTSampleMismatch {
+		if resp.Diagnostics[i].Code == diagnostics.CodeFMTSampleMismatch {
 			found = &resp.Diagnostics[i]
 			break
 		}
 	}
 	if found == nil {
-		t.Fatalf("expected an %s diagnostic, got %+v", diag.CodeFMTSampleMismatch, resp.Diagnostics)
+		t.Fatalf("expected an %s diagnostic, got %+v", diagnostics.CodeFMTSampleMismatch, resp.Diagnostics)
 	}
-	if found.Severity != diag.SeverityError {
-		t.Errorf("severity: got %d want %d (error)", found.Severity, diag.SeverityError)
+	if found.Severity != diagnostics.SeverityError {
+		t.Errorf("severity: got %d want %d (error)", found.Severity, diagnostics.SeverityError)
 	}
 	// First arg is the offending sample.
 	if len(found.Args) == 0 || found.Args[0] != "not-a-number" {
@@ -81,7 +81,7 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	for i := range resp.Diagnostics {
-		if resp.Diagnostics[i].Code == diag.CodeFMTSampleMismatch {
+		if resp.Diagnostics[i].Code == diagnostics.CodeFMTSampleMismatch {
 			t.Fatalf("expected no FMT001 for all-valid samples, got %+v", resp.Diagnostics[i])
 		}
 	}

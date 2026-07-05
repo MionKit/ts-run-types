@@ -19,7 +19,7 @@ import (
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/enrichment"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
@@ -35,12 +35,12 @@ const (
 	mapKindMock
 )
 
-// PositionedFinding pairs an enrichment.Finding with the diag.Site its Path
+// PositionedFinding pairs an enrichment.Finding with the diagnostics.Site its Path
 // resolved to (the property NAME node inside the const's object literal, or
 // the const's name when the path could not be located).
 type PositionedFinding struct {
 	enrichment.Finding
-	Site diag.Site
+	Site diagnostics.Site
 }
 
 // CheckSourceFile walks sourceFile's variable statements, runs the paired
@@ -179,7 +179,7 @@ func objectLiteralInitializer(declaration *ast.Node) *ast.Node {
 // findingSite anchors a finding: the property NAME node its dotted Path
 // resolves to inside the const's literal, falling back to the const's name
 // (then the whole declaration) when the path can't be located.
-func findingSite(filePath string, sourceFile *ast.SourceFile, declaration, literal *ast.Node, path string) diag.Site {
+func findingSite(filePath string, sourceFile *ast.SourceFile, declaration, literal *ast.Node, path string) diagnostics.Site {
 	if node := locatePathNode(literal, path); node != nil {
 		return nodeTokenSite(filePath, sourceFile, node)
 	}
@@ -193,14 +193,14 @@ func findingSite(filePath string, sourceFile *ast.SourceFile, declaration, liter
 // first real character) rather than node.Pos(), which includes leading trivia
 // — a property key preceded by a newline would otherwise anchor to the end of
 // the previous line.
-func nodeTokenSite(filePath string, sourceFile *ast.SourceFile, node *ast.Node) diag.Site {
+func nodeTokenSite(filePath string, sourceFile *ast.SourceFile, node *ast.Node) diagnostics.Site {
 	if sourceFile == nil || node == nil {
-		return diag.Site{}
+		return diagnostics.Site{}
 	}
 	start := scanner.GetTokenPosOfNode(node, sourceFile, false)
 	startLine, startCol := textpos.LineCol(sourceFile, start)
 	endLine, endCol := textpos.LineCol(sourceFile, node.End())
-	return diag.Site{FilePath: filePath, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
+	return diagnostics.Site{FilePath: filePath, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
 }
 
 // locatePathNode resolves a finding's dotted Path (`name.$errors.minLength`)

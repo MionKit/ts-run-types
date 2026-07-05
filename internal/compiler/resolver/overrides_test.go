@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -143,7 +143,7 @@ func TestOverride_DuplicateConflictEmitsOVR001(t *testing.T) {
 			t.Fatalf("scanFiles: %s", resp.Error)
 		}
 		for _, d := range resp.Diagnostics {
-			if d.Code == diag.CodeDuplicateOverride {
+			if d.Code == diagnostics.CodeDuplicateOverride {
 				return true
 			}
 		}
@@ -232,7 +232,7 @@ overrideValidate<string>(null);
 	})
 	resp2 := r2.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
 	for _, d := range resp2.Diagnostics {
-		if d.Code == diag.CodeOverrideValidateCrossFamily {
+		if d.Code == diagnostics.CodeOverrideValidateCrossFamily {
 			t.Fatalf("a null override arg must register no override (got OVR010)")
 		}
 	}
@@ -262,10 +262,10 @@ overrideValidate<string>((v) => typeof v === 'string');
 export const isString = createValidate<string>();
 `,
 	})
-	if valCodes[diag.CodeOverrideValidateCrossFamily] == 0 {
+	if valCodes[diagnostics.CodeOverrideValidateCrossFamily] == 0 {
 		t.Fatalf("expected OVR010 for a validate override, got %+v", valCodes)
 	}
-	if valCodes[diag.CodeOverrideMissingCfn] != 0 {
+	if valCodes[diagnostics.CodeOverrideMissingCfn] != 0 {
 		t.Fatalf("happy path tripped OVR002: %+v", valCodes)
 	}
 
@@ -276,10 +276,10 @@ overrideJsonEncoder<{id: number}>((v) => '{"id":' + (v as {id: number}).id + '}'
 export const enc = createJsonEncoder<{id: number}>();
 `,
 	})
-	if jsonCodes[diag.CodeOverrideValidateCrossFamily] != 0 {
+	if jsonCodes[diagnostics.CodeOverrideValidateCrossFamily] != 0 {
 		t.Fatalf("OVR010 should fire only for validate overrides, got %+v", jsonCodes)
 	}
-	if jsonCodes[diag.CodeOverrideMissingCfn] != 0 {
+	if jsonCodes[diagnostics.CodeOverrideMissingCfn] != 0 {
 		t.Fatalf("json happy path tripped OVR002: %+v", jsonCodes)
 	}
 }
@@ -351,7 +351,7 @@ export const isNode = createValidate<Node>();
 		t.Fatalf("recursive-type override is not a redirect:\n%s", validateSources)
 	}
 	for _, d := range resp.Diagnostics {
-		if d.Code == diag.CodeOverrideMissingCfn {
+		if d.Code == diagnostics.CodeOverrideMissingCfn {
 			t.Fatalf("recursive override tripped OVR002 (missing cfn): %+v", resp.Diagnostics)
 		}
 	}
