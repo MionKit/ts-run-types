@@ -9,11 +9,13 @@
 //   --provenance      add npm provenance (real npm publish in CI; needs
 //                     id-token:write + NPM_TOKEN).
 
-import '../env/load.mjs'; // load .env (dev) so a local `npm publish` sees NPM_TOKEN
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {loadEnv} from '../lib/env.mjs';
+
+loadEnv(); // load .env (dev) so a local `npm publish` sees NPM_TOKEN
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TARBALLS = path.join(REPO_ROOT, 'tarballs');

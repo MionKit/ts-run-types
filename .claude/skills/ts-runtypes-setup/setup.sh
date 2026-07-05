@@ -293,15 +293,15 @@ build_vite_plugin() {
 # shared image. Non-fatal - this just gives the dev a filled-in starting point.
 setup_env() {
   if [ "$CHECK_ONLY" = 1 ]; then
-    bash "$REPO_DIR/scripts/env/check.sh" || true
+    node "$REPO_DIR/scripts/rt.mjs" env || true
     return 0
   fi
   if [ -f "$REPO_DIR/.env" ]; then
     ok ".env present"
   else
-    ( cd "$REPO_DIR" && bash scripts/env/check.sh --create-env )
+    ( cd "$REPO_DIR" && node scripts/rt.mjs env --create-env )
   fi
-  bash "$REPO_DIR/scripts/env/check.sh" || true
+  node "$REPO_DIR/scripts/rt.mjs" env || true
 }
 
 main() {

@@ -43,7 +43,8 @@ import {createServer} from 'vite';
 // the benchmark container this file is mounted ALONE (no sibling loader) and gets
 // its env via `podman run -e`, so a failing import is a harmless no-op there.
 try {
-  await import('../../env/load.mjs');
+  const {loadEnv} = await import('../../lib/env.mjs');
+  loadEnv();
 } catch {}
 
 // The benchmark runs on Node >= 26, which ships Temporal natively — so the timed

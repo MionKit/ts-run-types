@@ -1,44 +1,42 @@
 #!/usr/bin/env node
 // rt — the internal RunTypes repo CLI. A single zero-dependency Node ESM
-// dispatcher over the area scripts under scripts/ (core, website, bench,
+// dispatcher over the area modules under scripts/ (core, website, bench,
 // container, env, release). INTERNAL tooling for maintainers — NOT a public CLI
 // for RunTypes. Run as `pnpm rt <area> <command>` (or `node scripts/rt.mjs …`).
 //
-// rt is a DISPATCHER, never a reimplementation: every leaf spawns the same
-// bash/node/vitest/pnpm that the area script defines, with stdio inherited and
-// the child's exit code forwarded. The folders mirror the commands.
-// See docs/todos/scripts-audit-and-internal-cli-consolidation.md.
+// THE entry point: loadEnv() runs once here, then dispatch imports the area
+// modules IN-PROCESS (they inherit the loaded process.env) or spawns the tools
+// they drive (go/podman/pnpm/vitest/git/npm) with stdio inherited. Leaves throw a
+// CliError on failure (never process.exit); this file catches it, prints, and sets
+// process.exitCode. See docs/todos/scripts-shell-to-mjs-migration.md.
 import {spawnSync} from 'node:child_process';
-import {fileURLToPath} from 'node:url';
-import path from 'node:path';
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import {loadEnv} from './lib/env.mjs';
+import {CliError, reportCliError} from './lib/proc.mjs';
 
 // ── spawn helpers ──────────────────────────────────────────────────────────
 // Run one command to completion (stdio inherited); return its exit code.
 function exec(cmd, args = [], extraEnv) {
   const env = extraEnv ? {...process.env, ...extraEnv} : process.env;
-  const result = spawnSync(cmd, args, {stdio: 'inherit', cwd: repoRoot, env});
+  const result = spawnSync(cmd, args, {stdio: 'inherit', env});
   if (result.error) {
     console.error(`rt: failed to launch ${cmd}: ${result.error.message}`);
     return 1;
   }
   return typeof result.status === 'number' ? result.status : 1;
 }
-// Run one command and EXIT with its code — the transparent-proxy leaf.
-const proxy = (cmd, args = [], extraEnv) => process.exit(exec(cmd, args, extraEnv));
-// Run [cmd, args, env?] steps in order; first non-zero short-circuits.
-function steps(list) {
-  for (const step of list) {
-    const code = exec(step[0], step[1] ?? [], step[2]);
-    if (code !== 0) process.exit(code);
-  }
-  process.exit(0);
+// Run one command; a non-zero code throws a code-only CliError (the child already
+// printed its own error). Success returns and dispatch completes with exit 0.
+function proxy(cmd, args = [], extraEnv) {
+  const code = exec(cmd, args, extraEnv);
+  if (code !== 0) throw new CliError('', code);
 }
-// Build the engine first (or exit with its failure), then continue in-process.
+// Run [cmd, args, env?] steps in order; first non-zero short-circuits (throws).
+function steps(list) {
+  for (const step of list) proxy(step[0], step[1] ?? [], step[2]);
+}
+// Build the engine first (throws on its failure), then continue in-process.
 function ensureBuilt() {
-  const code = exec('bash', ['scripts/core/build.sh', 'all']);
-  if (code !== 0) process.exit(code);
+  proxy('bash', ['scripts/core/build.sh', 'all']);
 }
 const hasFlag = (args, ...names) => args.some((a) => names.includes(a));
 function takeFlag(args, flag, {valued = false} = {}) {
@@ -48,8 +46,7 @@ function takeFlag(args, flag, {valued = false} = {}) {
   return {value: args[i + 1], rest: [...args.slice(0, i), ...args.slice(i + 2)]};
 }
 const die = (msg, code = 1) => {
-  console.error(`rt: ${msg}`);
-  process.exit(code);
+  throw new CliError(`rt: ${msg}`, code);
 };
 
 // ── core: the engine (Go resolver + TS marker/plugin) ──────────────────────
@@ -78,13 +75,12 @@ function runCodegen(args) {
   const names = which === 'all' ? Object.keys(CODEGEN) : [which];
   for (const name of names) if (!CODEGEN[name]) die(`unknown codegen target '${name}'. Try: all | ${Object.keys(CODEGEN).join(' | ')} [--check]`);
   for (const name of names) {
-    if (exec('pnpm', ['run', CODEGEN[name].script]) !== 0) process.exit(1);
-    if (CODEGEN[name].fmt.length && exec('pnpm', ['exec', 'oxfmt', '--write', ...CODEGEN[name].fmt]) !== 0) process.exit(1);
+    proxy('pnpm', ['run', CODEGEN[name].script]);
+    if (CODEGEN[name].fmt.length) proxy('pnpm', ['exec', 'oxfmt', '--write', ...CODEGEN[name].fmt]);
   }
-  if (!check) process.exit(0);
+  if (!check) return;
   const outputs = names.flatMap((name) => CODEGEN[name].outputs);
   if (exec('git', ['diff', '--exit-code', '--', ...outputs]) !== 0) die('codegen drift — a committed Go→TS mirror is stale. Run `rt core codegen all` and commit.');
-  process.exit(0);
 }
 
 function runCore(args) {
@@ -119,7 +115,7 @@ function runWebsite(args) {
     return proxy('bash', ['scripts/website/build.sh', target, ...skip.rest], skip.value ? {RT_WEBSITE_SKIP_PLAYGROUND: '1'} : undefined);
   }
   if (sub === 'preview') {
-    if (exec('bash', ['scripts/website/site.sh', 'generate']) !== 0) process.exit(1);
+    proxy('bash', ['scripts/website/site.sh', 'generate']);
     return proxy('node', ['scripts/website/serve.mjs', ...rest]);
   }
   if (sub === 'check') return proxy('bash', ['scripts/website/site.sh', hasFlag(rest, '--docs') ? 'verify-docs' : 'smoke']);
@@ -170,9 +166,15 @@ function runRelease(args) {
     console.log('rt release would run, in order:');
     for (const [cmd, a] of plan) console.log(`  ${cmd} ${a.join(' ')}`);
     console.log('(website deploy to Cloudflare Pages stays CI-only — see publish.yml)');
-    return process.exit(0);
+    return;
   }
   steps(plan);
+}
+
+// In-process env leaf (env/check.mjs). Migrated leaves import + call their main().
+async function runEnv(args) {
+  const {main} = await import('./env/check.mjs');
+  main(args);
 }
 
 // ── dispatch ────────────────────────────────────────────────────────────────
@@ -207,23 +209,32 @@ fmt        format (oxfmt + prettier + gofmt); --check is read-only
 clean      clean build outputs; --deep also wipes node_modules
 `;
 
-const [verb, ...rest] = process.argv.slice(2);
-switch (verb) {
-  case 'core': runCore(rest); break;
-  case 'website': runWebsite(rest); break;
-  case 'bench': runBench(rest); break;
-  case 'release': runRelease(rest); break;
-  case 'container': proxy('bash', ['scripts/container/image.sh', ...rest]); break;
-  case 'env': proxy('bash', ['scripts/env/check.sh', ...rest]); break;
-  case 'verify': steps([['bash', ['scripts/core/build.sh', 'all']], ['pnpm', ['run', 'lint']], ['pnpm', ['run', 'check-format']]]); break;
-  case 'fmt': proxy('pnpm', ['run', hasFlag(rest, '--check') ? 'check-format' : 'format']); break;
-  case 'clean': proxy('pnpm', ['run', hasFlag(rest, '--deep') ? 'fresh-start' : 'clean']); break;
-  case undefined:
-  case 'help':
-  case '-h':
-  case '--help':
-    process.stdout.write(HELP);
-    break;
-  default:
-    die(`unknown command '${verb}'. Run \`pnpm rt --help\`.`, 2);
+async function dispatch(argv) {
+  const [verb, ...rest] = argv;
+  switch (verb) {
+    case 'core': return runCore(rest);
+    case 'website': return runWebsite(rest);
+    case 'bench': return runBench(rest);
+    case 'release': return runRelease(rest);
+    case 'container': return proxy('bash', ['scripts/container/image.sh', ...rest]);
+    case 'env': return runEnv(rest);
+    case 'verify': return steps([['bash', ['scripts/core/build.sh', 'all']], ['pnpm', ['run', 'lint']], ['pnpm', ['run', 'check-format']]]);
+    case 'fmt': return proxy('pnpm', ['run', hasFlag(rest, '--check') ? 'check-format' : 'format']);
+    case 'clean': return proxy('pnpm', ['run', hasFlag(rest, '--deep') ? 'fresh-start' : 'clean']);
+    case undefined:
+    case 'help':
+    case '-h':
+    case '--help':
+      process.stdout.write(HELP);
+      return;
+    default:
+      die(`unknown command '${verb}'. Run \`pnpm rt --help\`.`, 2);
+  }
+}
+
+loadEnv();
+try {
+  await dispatch(process.argv.slice(2));
+} catch (err) {
+  reportCliError(err);
 }

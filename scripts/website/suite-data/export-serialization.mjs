@@ -27,7 +27,6 @@
 // Single-file orchestrator on purpose — see the matching header
 // comment in export-validation-suite.mjs.
 
-import '../../env/load.mjs'; // load .env (dev) so RT_BENCH_* knobs apply when run directly
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,6 +40,9 @@ import {createServer} from 'vite';
 // default is the constants object); matches the package's "./vite" export.
 import runtypesPlugin from '../../../packages/ts-runtypes-devtools/dist/vite.js';
 import {ResolverClient} from '../../../packages/ts-runtypes-devtools/dist/resolver-client.js';
+import {loadEnv} from '../../lib/env.mjs';
+
+loadEnv(); // load .env (dev) so RT_BENCH_* knobs apply when run directly
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
