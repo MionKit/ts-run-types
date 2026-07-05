@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
@@ -80,6 +81,14 @@ export const _reg = registerPureFnFactory('rt::asJSONString', function () { retu
 		}
 		if len(found.Args) == 0 || found.Args[0] != "rt::newRunTypeErr" {
 			t.Errorf("expected args[0]=rt::newRunTypeErr (the missing key), got %v", found.Args)
+		}
+		// Site attribution: the diagnostic must anchor at the createGetValidationErrors
+		// call site in a.ts (not be reported file-less).
+		if !strings.Contains(found.Site.FilePath, "a.ts") {
+			t.Errorf("expected site anchored at a.ts, got FilePath=%q", found.Site.FilePath)
+		}
+		if found.Site.StartLine == 0 || found.Site.StartCol == 0 {
+			t.Errorf("expected populated line/col at the call site, got line=%d col=%d", found.Site.StartLine, found.Site.StartCol)
 		}
 	}
 

@@ -10,7 +10,7 @@ import "strconv"
 // RTValidationError and is invisible to consumers reading `.path`/`.format`.
 //
 // Emitted INLINE rather than via a pure fn: the pf_formatErr pure fn
-// lives in the marker package's run-types-pure-fns.ts, which isn't part
+// lives in the marker package's pure-fns-utils.ts, which isn't part
 // of a consumer's program (nothing imports it), so a getPureFn lookup
 // would resolve to undefined at runtime. The inline object literal has
 // no such dependency.

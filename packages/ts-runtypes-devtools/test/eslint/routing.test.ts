@@ -30,7 +30,7 @@ describe('severity-tier routing (compiler families)', () => {
         code: 'PFE9012',
         family: Family.PureFn,
         severity: Severity.Error,
-        args: ['rt::newRunTypeErr', 'rt', 'newRunTypeErr', 'packages/ts-runtypes/src/run-types-pure-fns.ts'],
+        args: ['rt::newRunTypeErr', 'rt', 'newRunTypeErr', 'packages/ts-runtypes/src/runtypes/pure-fns-utils.ts'],
       })
     );
     expect(report.ruleName).toBe('error');

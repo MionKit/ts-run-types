@@ -7,12 +7,12 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// unknownKeysPureFnFilePath is the source path the resolver expects for
-// the pf_getUnknownKeysFromArray / pf_hasUnknownKeysFromArray
-// pure-fn registrations. Same file as the validationErrors pure-fns
-// (run-types-pure-fns.ts) — the dependency check uses this for integrity
-// validation.
-const unknownKeysPureFnFilePath = "packages/ts-runtypes/src/run-types-pure-fns.ts"
+// unknownKeysPureFnFilePath is the source path the resolver reports as the
+// pf_getUnknownKeysFromArray / pf_hasUnknownKeysFromArray registrations'
+// expected home (the `{3}` arg in the PFE9012 message). Same file as the
+// validationErrors pure-fns (pure-fns-utils.ts). Repo-relative hint only — the
+// whole-program PFE9012 check matches by key, not by this path.
+const unknownKeysPureFnFilePath = "packages/ts-runtypes/src/runtypes/pure-fns-utils.ts"
 
 // objectKeysContext captures the data needed to emit the
 // callCheckUnknownProperties call for an object/interface — the

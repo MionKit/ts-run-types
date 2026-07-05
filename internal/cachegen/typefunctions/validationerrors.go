@@ -26,12 +26,12 @@ import (
 // (ref: packages/run-types/src/nodes/**).
 type ValidationErrorsEmitter struct{}
 
-// validationErrorsPureFnFilePath is the source path the resolver expects for
-// the `pf_newRunTypeErr` pure-fn registration. The JS side registers
-// the factory in run-types-pure-fns.ts (the same file validate uses for
-// its own pure-fn deps), and the Go-side integrity check on
-// PureFnDependencies resolves it through the same path.
-const validationErrorsPureFnFilePath = "packages/ts-runtypes/src/run-types-pure-fns.ts"
+// validationErrorsPureFnFilePath is the source path the resolver reports as the
+// `pf_newRunTypeErr` pure-fn registration's expected home (the `{3}` arg in the
+// PFE9012 message). The JS side registers the factory in pure-fns-utils.ts (the
+// same file validate uses for its own pure-fn deps). It is a repo-relative hint
+// only — the whole-program PFE9012 check matches by key, not by this path.
+const validationErrorsPureFnFilePath = "packages/ts-runtypes/src/runtypes/pure-fns-utils.ts"
 
 // Args returns the three parameters the inner validationErrors function takes.
 // Mirrors `rtErrorArgs` (ref: packages/run-types/src/constants.functions.ts:47):
