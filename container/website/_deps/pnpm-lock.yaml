@@ -44,9 +44,15 @@ importers:
       mermaid:
         specifier: 11.14.0
         version: 11.14.0
+      monaco-editor:
+        specifier: 0.52.2
+        version: 0.52.2
       nuxt:
         specifier: 4.4.2
         version: 4.4.2(@babel/core@7.29.0)(@babel/plugin-syntax-jsx@7.28.6(@babel/core@7.29.0))(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(@parcel/watcher@2.5.6)(@types/node@25.7.0)(@vue/compiler-sfc@3.5.34)(better-sqlite3@12.8.0)(cac@6.7.14)(db0@0.3.4(better-sqlite3@12.8.0))(eslint@9.39.4(jiti@2.7.0))(ioredis@5.10.1)(lightningcss@1.32.0)(magicast@0.5.2)(optionator@0.9.4)(rollup-plugin-visualizer@7.0.1(rollup@4.60.3))(rollup@4.60.3)(srvx@0.11.15)(terser@5.47.1)(typescript@5.9.3)(vite@7.3.3(@types/node@25.7.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(yaml@2.9.0))(yaml@2.9.0)
+      prettier:
+        specifier: 3.8.2
+        version: 3.8.2
       shiki:
         specifier: 3.23.0
         version: 3.23.0
@@ -5886,6 +5892,9 @@ packages:
   mocked-exports@0.1.1:
     resolution: {integrity: sha512-aF7yRQr/Q0O2/4pIXm6PZ5G+jAd7QS4Yu8m+WEeEHGnbo+7mE36CbLSDQiXYV8bVL3NfmdeqPJct0tUlnjVSnA==}
 
+  monaco-editor@0.52.2:
+    resolution: {integrity: sha512-GEQWEZmfkOGLdd3XK8ryrfWz3AIP8YymVXiPHEdewrUq7mh0qrKrfHLNCXcbB6sTnMLnOZ3ztSiKcciFUkIJwQ==}
+
   motion-dom@12.38.0:
     resolution: {integrity: sha512-pdkHLD8QYRp8VfiNLb8xIBJis1byQ9gPT3Jnh2jqfFtAsWUA3dEepDlsWe/xMpO8McV+VdpKVcp+E+TGJEtOoA==}
 
@@ -6507,6 +6516,11 @@ packages:
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
+
+  prettier@3.8.2:
+    resolution: {integrity: sha512-8c3mgTe0ASwWAJK+78dpviD+A8EqhndQPUBpNUIPt6+xWlIigCwfN01lWr9MAede4uqXGTEKeQWTvzb3vjia0Q==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   prettier@3.8.3:
     resolution: {integrity: sha512-7igPTM53cGHMW8xWuVTydi2KO233VFiTNyF5hLJqpilHfmn8C8gPf+PS7dUT64YcXFbiMGZxS9pCSxL/Dxm/Jw==}
@@ -14315,6 +14329,8 @@ snapshots:
 
   mocked-exports@0.1.1: {}
 
+  monaco-editor@0.52.2: {}
+
   motion-dom@12.38.0:
     dependencies:
       motion-utils: 12.36.0
@@ -15323,6 +15339,8 @@ snapshots:
       tunnel-agent: 0.6.0
 
   prelude-ls@1.2.1: {}
+
+  prettier@3.8.2: {}
 
   prettier@3.8.3: {}
 

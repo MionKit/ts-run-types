@@ -1,4 +1,4 @@
-import {defineConfig} from 'vitest/config';
+import {configDefaults, defineConfig} from 'vitest/config';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import runtypesPlugin from 'runtypes-devtools/vite';
@@ -60,6 +60,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // test/playground/** is the relocated playground engine suite — it runs as
+    // its own project (no runtypes-devtools transform, no marker setup files),
+    // so keep it out of this one to avoid a double-run.
+    exclude: [...configDefaults.exclude, 'test/playground/**'],
     // Generating + validating the deepest mock cases (e.g. a 3-D string array,
     // MOCK_ITERATIONS times) takes a few seconds; under the full suite's
     // parallel CPU contention that occasionally crossed vitest's tight 5 s

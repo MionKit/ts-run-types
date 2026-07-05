@@ -1,5 +1,6 @@
 // Headless engine: everything needed to resolve + execute a type's build
-// functions in the browser, with no UI. Import from `runtypes-playground/core`.
+// functions in the browser, with no UI. Imported by the playground Vue
+// components and by the Node test suite.
 export {
   run,
   versions,
@@ -17,6 +18,8 @@ export {
 } from './engine.ts';
 export {loadResolver} from './wasmLoader.ts';
 export {formatsEditorModule, schemaEditorModule} from './markerDts.ts';
+export {setRuntypesPackageSources} from './packageSources.ts';
+export type {PackageSourcesOverlay} from './packageSources.ts';
 export type {
   RunResult,
   RunTypeNode,

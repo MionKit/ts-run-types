@@ -64,18 +64,6 @@ importers:
         specifier: 8.0.16
         version: 8.0.16(@types/node@26.1.0)(jiti@2.6.1)(yaml@2.9.0)
 
-  packages/runtypes-playground:
-    dependencies:
-      monaco-editor:
-        specifier: 0.52.2
-        version: 0.52.2
-      prettier:
-        specifier: 3.8.2
-        version: 3.8.2
-      ts-runtypes:
-        specifier: workspace:*
-        version: link:../ts-runtypes
-
   packages/ts-runtypes:
     devDependencies:
       runtypes-devtools:
@@ -1197,9 +1185,6 @@ packages:
 
   minimist@1.2.7:
     resolution: {integrity: sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==}
-
-  monaco-editor@0.52.2:
-    resolution: {integrity: sha512-GEQWEZmfkOGLdd3XK8ryrfWz3AIP8YymVXiPHEdewrUq7mh0qrKrfHLNCXcbB6sTnMLnOZ3ztSiKcciFUkIJwQ==}
 
   mute-stream@0.0.8:
     resolution: {integrity: sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==}
@@ -2569,8 +2554,6 @@ snapshots:
       brace-expansion: 1.1.14
 
   minimist@1.2.7: {}
-
-  monaco-editor@0.52.2: {}
 
   mute-stream@0.0.8: {}
 

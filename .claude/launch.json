@@ -1,11 +1,4 @@
 {
   "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "playground-demo",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "runtypes-playground", "run", "demo"],
-      "port": 5173
-    }
-  ]
+  "configurations": []
 }

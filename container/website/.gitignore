@@ -56,3 +56,7 @@ logs
 # A fresh clone shows the "data not generated yet" fallback until you regenerate.
 /public/suite-data/
 /public/bench-data/
+
+# Host-vendored ts-runtypes runtime source for the playground (build-playground.sh);
+# in-project so Vite dev can serve it. Reproducible, never committed.
+/app/playground/.vendor/
