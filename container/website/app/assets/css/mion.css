@@ -504,14 +504,22 @@ h2[data-slot="title"] {
   }
 }
 
-/* Home "Tree-shaken to the bone" — one row, three columns: the pitch (card),
-   the call-site before/after (2-tab code-group), and the generated module.
-   Equal height; code panels flex-fill like the other home grids. */
+/* Home "Tree-shaken to the bone" — two rows: the pitch (card) spans the full
+   width on top, then three code panels below (source, transformed, generated
+   module), one per column. Equal height; code panels flex-fill like the other
+   home grids. */
 .rt-treeshake-cols {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 1rem;
   align-items: stretch;
+}
+
+/* Card leads as a full-width first row; the three code panels flow into row 2.
+   As a full-width lead-in its copy reads better centered. */
+.rt-treeshake-cols > .rt-feature-card {
+  grid-column: 1 / -1;
+  text-align: center;
 }
 
 .rt-treeshake-cols > * {
@@ -797,5 +805,22 @@ body.rt-wide-page [class~="lg:grid-cols-10"]:has(> div[class~="lg:col-span-2"]) 
 .tsgo-badge strong {
   color: var(--color-green-400);
   font-weight: 700;
+}
+
+/* Serialization bench page — compact "what each column is" cards. Docus renders
+   each card as .group with the title in a <p> and the body in the following
+   <div> (see the Nuxt UI Card slots). Primary-colour title, smaller caption body. */
+.rt-bench-strategies .group > p {
+  color: var(--ui-primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 0.35rem;
+}
+
+.rt-bench-strategies .group > div {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--ui-text-muted, var(--color-gray-400));
 }
 

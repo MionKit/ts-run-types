@@ -210,7 +210,7 @@ Get back a traversable RunType node — the same graph the library walks interna
 <code-import path="packages/examples/src/_homepage/reflection-value.ts" lang="ts" commentStart="// start-value" commentEnd="// end-value" />
 
 ::::card{class="rt-feature-card"}
-### Or infer it from a value
+### Infer types from a values
 You don't have to write the type out. Hand `getRunType` any value and it reflects that value's static type, so `getRunType(order)` returns the same node as `getRunType<Order>()`. Reach for it when you already hold the data and just want its shape.
 ::::
 :::
@@ -493,7 +493,9 @@ type Order = {
 
 const isUser = createValidate<User>();
 ```
+::::
 
+::::code-group
 ```ts [Transformed]
 import {__rt_a1b_Xk7} from 'virtual:rt/a1b_Xk7.js';
 
