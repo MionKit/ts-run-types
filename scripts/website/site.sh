@@ -54,7 +54,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../container/lib.sh"
 
 # The image owner this script delegates `ensure` to (single source of truth).
-PODMAN_WEBSITE_SH="$SCRIPT_DIR/../container/image.sh"
+PODMAN_WEBSITE_MJS="$SCRIPT_DIR/../container/image.mjs"
 
 PORT="${RT_WEBSITE_PORT:-3000}"
 # Agent mode (`dev --isAgent`): reserved port so an agent-driven server never
@@ -91,7 +91,7 @@ DOCDATA_DIR="${RT_WEBSITE_DOCDATA:-$ROOT_DIR/.docdata}"
 
 # Make the shared image ready before a run by delegating to its owner. Honors
 # RT_WEBSITE_USE_LOCAL / RT_WEBSITE_IMAGE / RT_WEBSITE_REMOTE_IMAGE via the inherited env.
-ensure_image() { bash "$PODMAN_WEBSITE_SH" ensure; }
+ensure_image() { node "$PODMAN_WEBSITE_MJS" ensure; }
 
 # Staged playground assets (resolver WASM + ts-runtypes source overlay) the
 # /playground page's Vue component fetches from /playground-app/. Built on the HOST

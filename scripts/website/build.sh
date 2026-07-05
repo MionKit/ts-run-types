@@ -104,7 +104,7 @@ require_bench_artifacts() {
 if [ -n "$SKIP_BENCH" ]; then require_bench_artifacts; fi
 
 step "1/5  shared website+benchmark podman image"
-bash "$SCRIPT_DIR/../container/image.sh" ensure
+node "$SCRIPT_DIR/../container/image.mjs" ensure
 
 step "2/5  Go resolver binary (+ marker/plugin dist)"
 bash "$SCRIPT_DIR/bench-data/bench.sh" prep

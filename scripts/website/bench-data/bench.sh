@@ -57,7 +57,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 BENCH_DIR="$ROOT_DIR/container/benchmarks"
-MANAGER_SH="$SCRIPT_DIR/../../container/image.sh"
+MANAGER_MJS="$SCRIPT_DIR/../../container/image.mjs"
 
 ENGINE="${RT_BENCH_ENGINE:-podman}"
 # The benchmark half of the shared website+benchmark image (built by image.sh).
@@ -138,7 +138,7 @@ run_manager() {
     if [ -n "${RT_BENCH_CA_CERT:-}" ];       then export RT_WEBSITE_CA_CERT="$RT_BENCH_CA_CERT"; fi
     if [ -n "${RT_BENCH_BUILD_NETWORK:-}" ]; then export RT_WEBSITE_BUILD_NETWORK="$RT_BENCH_BUILD_NETWORK"; fi
     if [ -n "${RT_BENCH_USE_LOCAL:-}" ];     then export RT_WEBSITE_USE_LOCAL=1; fi
-    bash "$MANAGER_SH" "$@"
+    node "$MANAGER_MJS" "$@"
   )
 }
 
