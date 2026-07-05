@@ -1,4 +1,9 @@
-package purefns
+// Package purefunctions extracts `registerPureFnFactory(...)` call sites
+// into the pure-fn cache: it walks marker-branded calls, strips TS types
+// from the factory body (byte-compatible BodyHash), enforces the purity
+// rules (PFE9006–9011), records cross-fn deps, and renders the
+// virtual:runtypes-pure-fns module rows the plugin serves.
+package purefunctions
 
 import (
 	"github.com/microsoft/typescript-go/shim/ast"

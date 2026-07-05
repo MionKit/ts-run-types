@@ -1,4 +1,4 @@
-package purefns
+package purefunctions
 
 import (
 	"github.com/microsoft/typescript-go/shim/ast"

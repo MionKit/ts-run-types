@@ -21,7 +21,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
-	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
@@ -149,7 +149,7 @@ type Resolver struct {
 	// Program). The OpDump path used to re-extract EVERY program file on
 	// EVERY dump; with the cache only never-seen files pay the AST walk.
 	// Dropped on SetProgram / Reset together with the Program.
-	pureFnFileCache *purefns.FileCache
+	pureFnFileCache *purefunctions.FileCache
 	// verdictsByChecker memoizes marker.DetectAny by parameter type
 	// pointer, one memo per pool checker. The scanner runs DetectAny for
 	// every parameter of every resolved call signature — five spec checks
@@ -173,7 +173,7 @@ type Resolver struct {
 	// overrideEntries holds the cfn pure-fn entries the override pass extracted
 	// (one `cfn::<hash>` per distinct override body), merged into the pure-fn
 	// module emission so the type-fn redirects resolve their `cfn::` dep.
-	overrideEntries []purefns.Entry
+	overrideEntries []purefunctions.Entry
 	// overrideDiagnostics holds OVR0xx diagnostics from the override pass
 	// (OVR001 duplicate-override, OVR010 validate cross-family), surfaced on
 	// every scan response for the current Program.
@@ -275,7 +275,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		opts:              opts,
 		pureFnHashes:      map[string]string{},
 		scannedFiles:      map[string]struct{}{},
-		pureFnFileCache:   purefns.NewFileCache(),
+		pureFnFileCache:   purefunctions.NewFileCache(),
 		verdictsByChecker: map[*checker.Checker]map[*checker.Type]markerVerdict{},
 		rtStore:           newRTStore(opts, prog.IsIncremental()),
 	}, nil
@@ -293,7 +293,7 @@ func NewServer(opts Options) *Resolver {
 		opts:              opts,
 		pureFnHashes:      map[string]string{},
 		scannedFiles:      map[string]struct{}{},
-		pureFnFileCache:   purefns.NewFileCache(),
+		pureFnFileCache:   purefunctions.NewFileCache(),
 		verdictsByChecker: map[*checker.Checker]map[*checker.Type]markerVerdict{},
 		// Server mode has no Program yet (installed later via setSources, always
 		// an inferred/non-incremental project), so caching is override-only.
@@ -327,7 +327,7 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.cache.SetFS(prog.FS)
 	resolver.sites = resolver.sites[:0]
 	resolver.scannedFiles = map[string]struct{}{}
-	resolver.pureFnFileCache = purefns.NewFileCache()
+	resolver.pureFnFileCache = purefunctions.NewFileCache()
 	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
 	resolver.overridesBuilt = false
 	resolver.overrideEntries = nil
@@ -359,7 +359,7 @@ func (resolver *Resolver) Reset() {
 	resolver.sites = resolver.sites[:0]
 	resolver.pureFnHashes = map[string]string{}
 	resolver.scannedFiles = map[string]struct{}{}
-	resolver.pureFnFileCache = purefns.NewFileCache()
+	resolver.pureFnFileCache = purefunctions.NewFileCache()
 	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
 	resolver.overridesBuilt = false
 	resolver.overrideEntries = nil

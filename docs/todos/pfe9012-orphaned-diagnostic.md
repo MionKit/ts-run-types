@@ -6,7 +6,7 @@
 
 ## What was found
 
-`purefns.ValidatePureFnDependencies` (with its `Index` support type, `internal/compiled/purefns/index.go`) was the ONLY producer of the `PFE9012` / `diag.CodeMissingPureFnDep` diagnostic — and it had **zero production callers**. It was built in commit `68cd944e` (2026-05-16, "perf(purefn): defer pure-fn dep validation; one walk per file via Index") whose message explicitly deferred the wiring: *"Out of scope: plumbing collected Walker.PureFnDependencies … into the resolver. The validation API is ready; wiring the data through is a follow-up."* That follow-up never happened — no docs/todos entry, no ROADMAP mention, and `deadcode` reports the whole call path unreachable from every `cmd/` main.
+`purefns.ValidatePureFnDependencies` (with its `Index` support type, then at `internal/compiled/purefns/index.go`) was the ONLY producer of the `PFE9012` / `diag.CodeMissingPureFnDep` diagnostic — and it had **zero production callers**. It was built in commit `68cd944e` (2026-05-16, "perf(purefn): defer pure-fn dep validation; one walk per file via Index") whose message explicitly deferred the wiring: *"Out of scope: plumbing collected Walker.PureFnDependencies … into the resolver. The validation API is ready; wiring the data through is a follow-up."* That follow-up never happened — no docs/todos entry, no ROADMAP mention, and `deadcode` reports the whole call path unreachable from every `cmd/` main.
 
 The refactor deleted the unwired API (`index.go` + its tests) as dead code — recoverable from git at the commit that carries this file. What remains inconsistent:
 

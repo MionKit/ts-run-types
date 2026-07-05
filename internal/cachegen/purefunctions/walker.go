@@ -1,4 +1,4 @@
-package purefns
+package purefunctions
 
 import (
 	"sort"

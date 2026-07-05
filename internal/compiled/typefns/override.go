@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
-	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -77,7 +77,7 @@ func overrideHashForTag(runType *protocol.RunType, tag string) string {
 // Mirrors collectJsonCompositeEntry's arg assembly; the redirect is never
 // disk-cached (it is trivial to re-derive and the cfn key is content-addressed).
 func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, cfnHash string, opts RenderOpts) *entrymod.Entry {
-	cfnKey := purefns.OverrideNamespace + "::" + cfnHash
+	cfnKey := purefunctions.OverrideNamespace + "::" + cfnHash
 	factoryBody := "return utl.usePureFn(" + quoteJS(cfnKey) + ")"
 	codeArg := "undefined"
 	if opts.EmitMode.EmitsCode() {
@@ -115,7 +115,7 @@ func AssertOverrideCfn(graph entrymod.Graph, diagSink *[]diag.Diagnostic) {
 	if diagSink == nil {
 		return
 	}
-	cfnPrefix := purefns.OverrideNamespace + "::"
+	cfnPrefix := purefunctions.OverrideNamespace + "::"
 	keys := make([]string, 0, len(graph))
 	for key := range graph {
 		keys = append(keys, key)
