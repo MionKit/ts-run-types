@@ -7,7 +7,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -101,12 +101,12 @@ func TestAssertCompositeSoftDeps_MissingPrimitiveFails(t *testing.T) {
 		Key: "jd1_obj1", Kind: virtualmodules.KindTypeFn, FamilyTag: "jdPR",
 		ArgsText: "'jd1_obj1'", SoftDeps: []string{rjKey},
 	})
-	var sink []diag.Diagnostic
+	var sink []diagnostics.Diagnostic
 	AssertCompositeSoftDeps(graph, &sink)
-	if len(sink) != 1 || sink[0].Code != diag.CodeCompositeMissingPrimitive {
-		t.Fatalf("expected one %s diagnostic, got %+v", diag.CodeCompositeMissingPrimitive, sink)
+	if len(sink) != 1 || sink[0].Code != diagnostics.CodeCompositeMissingPrimitive {
+		t.Fatalf("expected one %s diagnostic, got %+v", diagnostics.CodeCompositeMissingPrimitive, sink)
 	}
-	if sink[0].Severity != diag.SeverityError {
+	if sink[0].Severity != diagnostics.SeverityError {
 		t.Fatalf("invariant breach must be Error severity, got %v", sink[0].Severity)
 	}
 

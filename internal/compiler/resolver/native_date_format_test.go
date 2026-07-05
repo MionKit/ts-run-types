@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -18,7 +18,7 @@ import (
 // scanNativeDate builds a getRunTypeId<TypeFormat<Date, 'nativeDate', P>>()
 // snippet and returns the emitted validate source, the scanned RunTypes,
 // and any FMT002 diagnostics.
-func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diag.Diagnostic) {
+func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diagnostics.Diagnostic) {
 	t.Helper()
 	code := `import {createValidate} from 'ts-runtypes';
 ` + typeFormatBrandDecl + `
@@ -34,9 +34,9 @@ export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>(
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	var diags []diag.Diagnostic
+	var diags []diagnostics.Diagnostic
 	for _, d := range resp.Diagnostics {
-		if d.Code == diag.CodeFMTInvalidParams {
+		if d.Code == diagnostics.CodeFMTInvalidParams {
 			diags = append(diags, d)
 		}
 	}

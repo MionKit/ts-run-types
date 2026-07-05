@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // messages.go is the single source of the USER-FACING wording for every
 // diagnostic code: the single-line Headline (mandatory; `{0}`, `{1}`

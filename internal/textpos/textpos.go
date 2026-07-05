@@ -1,5 +1,5 @@
 // Package textpos converts byte offsets in a parsed source file into
-// 1-based line/column coordinates and diag.Site spans. Shared by the
+// 1-based line/column coordinates and diagnostics.Site spans. Shared by the
 // resolver and the purefns extractor (which must not import the
 // resolver); diag itself stays ast-free, so the helpers live here.
 package textpos
@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 )
 
 // LineCol returns (1-based line, 1-based column) for byte offset pos
@@ -29,14 +29,14 @@ func LineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
 	return idx + 1, pos - int(lineMap[idx]) + 1
 }
 
-// NodeSite builds a 1-based diag.Site spanning node's start/end.
+// NodeSite builds a 1-based diagnostics.Site spanning node's start/end.
 // filePath is caller-supplied: the resolver reports request-normalized
 // paths while the purefns extractor uses the SourceFile's own name.
-func NodeSite(filePath string, sourceFile *ast.SourceFile, node *ast.Node) diag.Site {
+func NodeSite(filePath string, sourceFile *ast.SourceFile, node *ast.Node) diagnostics.Site {
 	if sourceFile == nil || node == nil {
-		return diag.Site{}
+		return diagnostics.Site{}
 	}
 	startLine, startCol := LineCol(sourceFile, node.Pos())
 	endLine, endCol := LineCol(sourceFile, node.End())
-	return diag.Site{FilePath: filePath, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
+	return diagnostics.Site{FilePath: filePath, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
 }

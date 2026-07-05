@@ -11,7 +11,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -31,13 +31,13 @@ type RenderOpts struct {
 	// by the walker at RTThrow / silent-skip sites. Nil disables
 	// diagnostic emission entirely — keeps tests that don't care about
 	// the per-call-site fan-out quiet.
-	DiagSink *[]diag.Diagnostic
+	DiagSink *[]diagnostics.Diagnostic
 	// ProvenanceSites maps each cached RunType ID to the set of marker
 	// call sites that reference it. EmitDiagnostic uses this to fan out
 	// one Diagnostic per call site so the user gets actionable file:line:col
 	// coordinates — without it, a RTThrow would record a diagnostic
 	// with empty Site and the warning would be useless in the editor.
-	ProvenanceSites map[string][]diag.Site
+	ProvenanceSites map[string][]diagnostics.Site
 	// InlineMode selects the child-inlining policy (constants.InlineMode):
 	// default (and the zero value) inlines UNNAMED non-circular compounds
 	// into their parents and keeps named types external; allInternal
@@ -765,7 +765,7 @@ func leafKindLabel(leaf *protocol.RunType) string {
 //	'<message>' // alwaysThrowMessage
 //
 // See docs/ARCHITECTURE.md (disk cache format v10).
-func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCode string, kindLabel string, provenance []diag.Site) string {
+func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCode string, kindLabel string, provenance []diagnostics.Site) string {
 	args := []string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
@@ -785,7 +785,7 @@ func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCod
 // the runtime throws this string as-is — no diagnostic catalog ships in the
 // marker package. The site suffix is omitted for orphaned entries (no known
 // call site).
-func buildAlwaysThrowMessage(diagCode, kindLabel string, provenance []diag.Site) string {
+func buildAlwaysThrowMessage(diagCode, kindLabel string, provenance []diagnostics.Site) string {
 	message := "[" + diagCode + "] " + rootThrowHeadline(diagCode, kindLabel)
 	if len(provenance) > 0 {
 		site := provenance[0]

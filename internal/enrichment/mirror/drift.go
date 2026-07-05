@@ -9,7 +9,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
@@ -104,7 +104,7 @@ func CheckBreadcrumbDrift(mirrorFile, contents string, fs vfspkg.FS) []DriftFind
 	// GE002 — the source no longer exists (deleted → orphaned mirror).
 	if !fsFileExists(fs, resolvedSource) {
 		return []DriftFinding{{
-			Code:    diag.CodeGenSourceMissing,
+			Code:    diagnostics.CodeGenSourceMissing,
 			Args:    []string{breadcrumb.Spec, resolvedSource},
 			Message: fmt.Sprintf("breadcrumb source %q resolves to a non-existent file (%s) — orphaned mirror; delete it or re-run gen", breadcrumb.Spec, resolvedSource),
 			Start:   breadcrumb.Start,
@@ -123,7 +123,7 @@ func CheckBreadcrumbDrift(mirrorFile, contents string, fs vfspkg.FS) []DriftFind
 			continue
 		}
 		findings = append(findings, DriftFinding{
-			Code:    diag.CodeGenTypeMissing,
+			Code:    diagnostics.CodeGenTypeMissing,
 			Args:    []string{resolvedSource, typeName},
 			Message: fmt.Sprintf("source %s no longer declares type %q — re-run gen", resolvedSource, typeName),
 			Start:   breadcrumb.Start,
@@ -184,10 +184,10 @@ func resolveBreadcrumbFS(fs vfspkg.FS, mirrorFile, spec string) string {
 // CLI reports (and exits on). Severity ownership stays with the diag catalog;
 // this is the read-side bridge for the text/JSON reports.
 func EnrichSeverity(code string) enrichment.Severity {
-	switch diag.Definitions[code].Severity {
-	case diag.SeverityError:
+	switch diagnostics.Definitions[code].Severity {
+	case diagnostics.SeverityError:
 		return enrichment.Error
-	case diag.SeverityWarning:
+	case diagnostics.SeverityWarning:
 		return enrichment.Warning
 	default:
 		return enrichment.Info

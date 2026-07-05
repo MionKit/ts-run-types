@@ -1,4 +1,4 @@
-// Package diag is the centralised catalog of every non-fatal diagnostic the
+// Package diagnostics is the centralised catalog of every non-fatal diagnostic the
 // Go binary can emit. Every diagnostic the resolver, pure-fn extractor, and
 // RT compiler surface flows through one of the typed constructors in this
 // package, so the full set of user-visible messages — codes, severities,
@@ -9,7 +9,7 @@
 // values as `as const` literal-union enums. The full set of definitions is
 // registered via the codes_*.go files via init() so consumers can look up
 // any code's Family/Severity/Template at runtime.
-package diag
+package diagnostics
 
 import (
 	"fmt"

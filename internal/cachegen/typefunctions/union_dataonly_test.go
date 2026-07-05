@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -89,13 +89,13 @@ func TestDataOnlyUnion_ReindexesGapFree(t *testing.T) {
 // provenance site for `rootID` so EmitDiagnostic actually fans out (it skips
 // when no call site is known). Returns the rendered module + the captured
 // diagnostics.
-func renderWithDiag(t *testing.T, dump protocol.Dump, familyKey, rootID string) (string, []diag.Diagnostic) {
+func renderWithDiag(t *testing.T, dump protocol.Dump, familyKey, rootID string) (string, []diagnostics.Diagnostic) {
 	t.Helper()
-	var sink []diag.Diagnostic
+	var sink []diagnostics.Diagnostic
 	opts := RenderOpts{
 		EmitMode:        "both",
 		DiagSink:        &sink,
-		ProvenanceSites: map[string][]diag.Site{rootID: {{FilePath: "/x.ts", StartLine: 1, StartCol: 1}}},
+		ProvenanceSites: map[string][]diagnostics.Site{rootID: {{FilePath: "/x.ts", StartLine: 1, StartCol: 1}}},
 	}
 	return joinEntries(t, FamilyByKey(familyKey).Collect(dump, opts, nil)), sink
 }
@@ -104,22 +104,22 @@ func renderWithDiag(t *testing.T, dump protocol.Dump, familyKey, rootID string) 
 // DataOnly union-member-drop code. validationErrors is absent: its union arm
 // delegates to validate, so the user sees VL014 from the validate render.
 var dropWarnFamilies = map[string]string{
-	"validate":           diag.CodeVLUnionMemberDropped,
-	"prepareForJson":     diag.CodePJUnionMemberDropped,
-	"prepareForJsonSafe": diag.CodePJSUnionMemberDropped,
-	"stringifyJson":      diag.CodeSJUnionMemberDropped,
-	"restoreFromJson":    diag.CodeRJUnionMemberDropped,
-	"toBinary":           diag.CodeTBUnionMemberDropped,
-	"fromBinary":         diag.CodeFBUnionMemberDropped,
+	"validate":           diagnostics.CodeVLUnionMemberDropped,
+	"prepareForJson":     diagnostics.CodePJUnionMemberDropped,
+	"prepareForJsonSafe": diagnostics.CodePJSUnionMemberDropped,
+	"stringifyJson":      diagnostics.CodeSJUnionMemberDropped,
+	"restoreFromJson":    diagnostics.CodeRJUnionMemberDropped,
+	"toBinary":           diagnostics.CodeTBUnionMemberDropped,
+	"fromBinary":         diagnostics.CodeFBUnionMemberDropped,
 }
 
-func findCode(sink []diag.Diagnostic, code string) (diag.Diagnostic, bool) {
+func findCode(sink []diagnostics.Diagnostic, code string) (diagnostics.Diagnostic, bool) {
 	for _, d := range sink {
 		if d.Code == code {
 			return d, true
 		}
 	}
-	return diag.Diagnostic{}, false
+	return diagnostics.Diagnostic{}, false
 }
 
 // A genuine drop (Date | symbol — one member survives) raises a per-family
@@ -134,7 +134,7 @@ func TestDataOnlyUnion_DropEmitsWarning(t *testing.T) {
 			t.Errorf("[%s] expected union-member-drop warning %s; sink=%+v", fam, wantCode, sink)
 			continue
 		}
-		if got.Severity != diag.SeverityWarning {
+		if got.Severity != diagnostics.SeverityWarning {
 			t.Errorf("[%s] %s severity = %v, want Warning", fam, wantCode, got.Severity)
 		}
 		if len(got.Args) == 0 || !strings.Contains(got.Args[0], "symbol") {

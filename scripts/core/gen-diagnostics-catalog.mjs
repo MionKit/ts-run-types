@@ -1,9 +1,9 @@
 // Generate every diagnostic-catalog artifact from the Go dump.
 //
-// internal/diag is the single source of truth for the whole catalog: which
+// internal/diagnostics is the single source of truth for the whole catalog: which
 // codes exist, their severities, the user-facing wording (headline + detail
-// in internal/diag/messages.go), and the docs prose (summary, fix, example
-// in internal/diag/prose.go). `go run ./cmd/gen-diag-catalog` dumps it all
+// in internal/diagnostics/messages.go), and the docs prose (summary, fix, example
+// in internal/diagnostics/prose.go). `go run ./cmd/gen-diag-catalog` dumps it all
 // as JSON; this script fans that dump out into the two generated artifacts:
 //
 //   1. packages/runtypes-devtools/src/diagnosticCatalog.generated.ts — the
@@ -14,7 +14,7 @@
 //      the website diagnostics page data.
 //
 // Both outputs are committed so consumers build without the Go toolchain.
-// Run `pnpm run gen:diag-catalog` after changing internal/diag.
+// Run `pnpm run gen:diag-catalog` after changing internal/diagnostics.
 
 import {execFileSync} from 'node:child_process';
 import {writeFileSync} from 'node:fs';
@@ -101,8 +101,8 @@ const goRecords = JSON.parse(goDump);
 
 const missingHeadlines = goRecords.filter((record) => !record.headline).map((record) => record.code);
 if (missingHeadlines.length) {
-  // internal/diag's TestEveryCodeHasHeadline pins this; fail loudly if it slips.
-  throw new Error(`gen-diag-catalog: codes with no headline in internal/diag/messages.go: ${missingHeadlines.join(', ')}`);
+  // internal/diagnostics's TestEveryCodeHasHeadline pins this; fail loudly if it slips.
+  throw new Error(`gen-diag-catalog: codes with no headline in internal/diagnostics/messages.go: ${missingHeadlines.join(', ')}`);
 }
 
 // ── Artifact 1: the front-end message dictionary ────────────────────────────
@@ -133,8 +133,8 @@ const entries = goRecords
 const generatedTs = `// GENERATED FILE — DO NOT EDIT. Run \`pnpm run gen:diag-catalog\` to refresh.
 //
 // The message dictionary for every diagnostic code the Go binary can emit,
-// exported from the authoritative catalog in internal/diag (wording lives in
-// internal/diag/messages.go). The wire carries only code + args; the render
+// exported from the authoritative catalog in internal/diagnostics (wording lives in
+// internal/diagnostics/messages.go). The wire carries only code + args; the render
 // helpers in ./diagnosticCatalog.ts substitute \`{0}\`, \`{1}\`, … placeholders
 // against the args array to produce the final text.
 
@@ -181,7 +181,7 @@ codes.sort((left, right) => {
 
 const output = {
   $generated:
-    'by scripts/core/gen-diagnostics-catalog.mjs from internal/diag. Do not edit; run `pnpm run gen:diag-catalog`.',
+    'by scripts/core/gen-diagnostics-catalog.mjs from internal/diagnostics. Do not edit; run `pnpm run gen:diag-catalog`.',
   subsystems: SUBSYSTEMS.map(({key, label, description}) => ({key, label, description})),
   codes,
 };

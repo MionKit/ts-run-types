@@ -7,7 +7,7 @@ package purefunctions
 
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 )
 
 // CheckPurity runs the package's purity rules against an inline
@@ -21,7 +21,7 @@ import (
 // should run comptimeargs.CheckLiteralFunction first to enforce the
 // inline-shape rule (PFN001) before invoking this; the purity walker
 // itself does not validate the outer node's kind.
-func CheckPurity(sourceFile *ast.SourceFile, fnNode *ast.Node) []diag.Diagnostic {
+func CheckPurity(sourceFile *ast.SourceFile, fnNode *ast.Node) []diagnostics.Diagnostic {
 	return checkPurity(sourceFile, fnNode)
 }
 
@@ -30,20 +30,20 @@ func CheckPurity(sourceFile *ast.SourceFile, fnNode *ast.Node) []diag.Diagnostic
 // without importing diag themselves. Constants are re-exported so PFE9xxx
 // code references stay short.
 type (
-	Diagnostic = diag.Diagnostic
+	Diagnostic = diagnostics.Diagnostic
 )
 
 const (
-	CodeBodyHashCollision = diag.CodeBodyHashCollision
-	CodeDestructuredParam = diag.CodeDestructuredParam
+	CodeBodyHashCollision = diagnostics.CodeBodyHashCollision
+	CodeDestructuredParam = diagnostics.CodeDestructuredParam
 
-	CodePurityThis          = diag.CodePurityThis
-	CodePurityAwait         = diag.CodePurityAwait
-	CodePurityYield         = diag.CodePurityYield
-	CodePurityDynamicImport = diag.CodePurityDynamicImport
-	CodePurityForbidden     = diag.CodePurityForbidden
-	CodePurityClosure       = diag.CodePurityClosure
+	CodePurityThis          = diagnostics.CodePurityThis
+	CodePurityAwait         = diagnostics.CodePurityAwait
+	CodePurityYield         = diagnostics.CodePurityYield
+	CodePurityDynamicImport = diagnostics.CodePurityDynamicImport
+	CodePurityForbidden     = diagnostics.CodePurityForbidden
+	CodePurityClosure       = diagnostics.CodePurityClosure
 
-	CodeMissingPureFnDep    = diag.CodeMissingPureFnDep
-	CodePurityDepNotLiteral = diag.CodePurityDepNotLiteral
+	CodeMissingPureFnDep    = diagnostics.CodeMissingPureFnDep
+	CodePurityDepNotLiteral = diagnostics.CodePurityDepNotLiteral
 )

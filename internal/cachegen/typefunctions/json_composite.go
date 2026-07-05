@@ -8,7 +8,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -394,7 +394,7 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText s
 // primitive as real, noop short-form, or alwaysThrow — and the unguarded
 // `.fn` read would crash at runtime, so it surfaces as an Error diagnostic
 // at collect time instead. Deterministic order via sorted keys.
-func AssertCompositeSoftDeps(graph virtualmodules.Graph, diagSink *[]diag.Diagnostic) {
+func AssertCompositeSoftDeps(graph virtualmodules.Graph, diagSink *[]diagnostics.Diagnostic) {
 	if diagSink == nil {
 		return
 	}
@@ -415,7 +415,7 @@ func AssertCompositeSoftDeps(graph virtualmodules.Graph, diagSink *[]diag.Diagno
 			if target, ok := graph[dep]; ok && target != nil && target.Kind != virtualmodules.KindMissing {
 				continue
 			}
-			*diagSink = append(*diagSink, diag.New(diag.CodeCompositeMissingPrimitive, diag.Site{}, entry.Key, dep))
+			*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeCompositeMissingPrimitive, diagnostics.Site{}, entry.Key, dep))
 		}
 	}
 }

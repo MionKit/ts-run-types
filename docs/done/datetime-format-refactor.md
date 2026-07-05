@@ -47,7 +47,7 @@ End-to-end flow for an existing parameterised format (verified in code):
 | Type alias the user writes | `packages/ts-go-run-types/src/formats/string/stringFormats.ts` |
 | Brand carrier (`__rtFormatName` + `__rtFormatParams`) | `src/runtypes/typeFormat.ts:36` |
 | Go scanner lifts brand → `FormatAnnotation` | `internal/cachegen/runtype/typeid/formats.go` |
-| Param validation → diagnostic | emitter's `ValidateParams(...)` (e.g. `internal/cachegen/typefunctions/formats/string/stringformat.go:321`), codes in `internal/diag/codes_runtype.go:122` (`FMT001/002/003`) |
+| Param validation → diagnostic | emitter's `ValidateParams(...)` (e.g. `internal/cachegen/typefunctions/formats/string/stringformat.go:321`), codes in `internal/diagnostics/codes_runtype.go:122` (`FMT001/002/003`) |
 | `isType` codegen | emitter's `EmitIsTypeCheck(...)` |
 | `getTypeErrors` codegen | emitter's `EmitTypeErrorsCheck(...)` |
 | pure-fn dependency wiring | `pureFnAlias(...)` in `internal/cachegen/typefunctions/formats/string/shared.go` |

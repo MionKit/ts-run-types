@@ -1,7 +1,7 @@
 package typefunctions
 
 import (
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -71,7 +71,7 @@ func emitClassSerializerWarning(className string, ctx *EmitContext) {
 	if className == "" {
 		return
 	}
-	ctx.walker.EmitDiagnostic(diag.CodeCLSStructuralFallback, className)
+	ctx.walker.EmitDiagnostic(diagnostics.CodeCLSStructuralFallback, className)
 }
 
 // wrapPrepareWithClassSerializer wraps the structural prepareForJson body

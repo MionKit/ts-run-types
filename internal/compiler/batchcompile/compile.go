@@ -33,7 +33,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -52,7 +52,7 @@ type Options struct {
 type Result struct {
 	EmittedFiles []string // absolute paths of the .js files written
 	Caches       []string // generated cache-module basenames
-	Diagnostics  []diag.Diagnostic
+	Diagnostics  []diagnostics.Diagnostic
 }
 
 // Run executes the compile. See the package doc for the two-pass model.

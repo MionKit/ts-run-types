@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -99,7 +99,7 @@ func TestF2b_CallableInArrayElementAlwaysThrows(t *testing.T) {
 		}
 		// The array root surfaces the same function code as an Error-severity build
 		// diagnostic (a callable interface at a propagating slot must fail).
-		if got, ok := findCode(sink, code); ok && got.Severity != diag.SeverityError {
+		if got, ok := findCode(sink, code); ok && got.Severity != diagnostics.SeverityError {
 			t.Errorf("[%s] %s severity = %v, want Error", fam, code, got.Severity)
 		}
 	}

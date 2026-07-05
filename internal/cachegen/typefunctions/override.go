@@ -7,7 +7,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -111,7 +111,7 @@ func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, 
 // miss is an emitter bug — the unguarded usePureFn would throw at runtime — so
 // it surfaces as an OVR002 Error at collect time. Mirrors AssertCompositeSoftDeps.
 // Deterministic order via sorted keys.
-func AssertOverrideCfn(graph virtualmodules.Graph, diagSink *[]diag.Diagnostic) {
+func AssertOverrideCfn(graph virtualmodules.Graph, diagSink *[]diagnostics.Diagnostic) {
 	if diagSink == nil {
 		return
 	}
@@ -133,7 +133,7 @@ func AssertOverrideCfn(graph virtualmodules.Graph, diagSink *[]diag.Diagnostic) 
 			if target, ok := graph[dep]; ok && target != nil && target.Kind != virtualmodules.KindMissing {
 				continue
 			}
-			*diagSink = append(*diagSink, diag.New(diag.CodeOverrideMissingCfn, diag.Site{}, entry.Key, dep))
+			*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeOverrideMissingCfn, diagnostics.Site{}, entry.Key, dep))
 		}
 	}
 }

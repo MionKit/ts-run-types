@@ -1,6 +1,6 @@
 package typefunctions
 
-import "github.com/mionkit/ts-runtypes/internal/diag"
+import "github.com/mionkit/ts-runtypes/internal/diagnostics"
 
 // Runtime alwaysThrow message wording.
 //
@@ -32,18 +32,18 @@ func registerRootThrow(verb, suffix string, codes ...string) {
 
 func init() {
 	registerRootThrow("encode", "to JSON",
-		diag.CodePJNeverRoot, diag.CodePJNonSerializableRoot, diag.CodePJFunctionRoot, diag.CodePJArrayElement, diag.CodePJSymbolRoot,
-		diag.CodePJSNeverRoot, diag.CodePJSNonSerializableRoot, diag.CodePJSFunctionRoot, diag.CodePJSArrayElement, diag.CodePJSSymbolRoot)
+		diagnostics.CodePJNeverRoot, diagnostics.CodePJNonSerializableRoot, diagnostics.CodePJFunctionRoot, diagnostics.CodePJArrayElement, diagnostics.CodePJSymbolRoot,
+		diagnostics.CodePJSNeverRoot, diagnostics.CodePJSNonSerializableRoot, diagnostics.CodePJSFunctionRoot, diagnostics.CodePJSArrayElement, diagnostics.CodePJSSymbolRoot)
 	registerRootThrow("decode", "from JSON",
-		diag.CodeRJNeverRoot, diag.CodeRJNonSerializableRoot, diag.CodeRJFunctionRoot, diag.CodeRJArrayElement, diag.CodeRJSymbolRoot)
+		diagnostics.CodeRJNeverRoot, diagnostics.CodeRJNonSerializableRoot, diagnostics.CodeRJFunctionRoot, diagnostics.CodeRJArrayElement, diagnostics.CodeRJSymbolRoot)
 	registerRootThrow("stringify", "to a JSON string",
-		diag.CodeSJNeverRoot, diag.CodeSJNonSerializableRoot, diag.CodeSJFunctionRoot, diag.CodeSJArrayElement, diag.CodeSJSymbolRoot)
+		diagnostics.CodeSJNeverRoot, diagnostics.CodeSJNonSerializableRoot, diagnostics.CodeSJFunctionRoot, diagnostics.CodeSJArrayElement, diagnostics.CodeSJSymbolRoot)
 	registerRootThrow("serialise", "to binary",
-		diag.CodeTBNeverRoot, diag.CodeTBNonSerializableRoot, diag.CodeTBFunctionRoot, diag.CodeTBArrayElement, diag.CodeTBNonSerializableElem, diag.CodeTBSymbolRoot)
+		diagnostics.CodeTBNeverRoot, diagnostics.CodeTBNonSerializableRoot, diagnostics.CodeTBFunctionRoot, diagnostics.CodeTBArrayElement, diagnostics.CodeTBNonSerializableElem, diagnostics.CodeTBSymbolRoot)
 	registerRootThrow("deserialise", "from binary",
-		diag.CodeFBNeverRoot, diag.CodeFBNonSerializableRoot, diag.CodeFBFunctionRoot, diag.CodeFBArrayElement, diag.CodeFBNonSerializableElem, diag.CodeFBSymbolRoot)
+		diagnostics.CodeFBNeverRoot, diagnostics.CodeFBNonSerializableRoot, diagnostics.CodeFBFunctionRoot, diagnostics.CodeFBArrayElement, diagnostics.CodeFBNonSerializableElem, diagnostics.CodeFBSymbolRoot)
 	registerRootThrow("validate", "",
-		diag.CodeVLNonSerializableRoot, diag.CodeVLSymbolRoot, diag.CodeVENonSerializableRoot, diag.CodeVESymbolRoot)
+		diagnostics.CodeVLNonSerializableRoot, diagnostics.CodeVLSymbolRoot, diagnostics.CodeVENonSerializableRoot, diagnostics.CodeVESymbolRoot)
 }
 
 // rootThrowHeadline renders the runtime throw headline for a root-throw code:

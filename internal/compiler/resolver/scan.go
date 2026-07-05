@@ -13,7 +13,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
@@ -108,7 +108,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // (scripts/export-{serialization,validation}-suite.mjs) depend on this
 // invariant — they assume scanFiles' work scales with marker-reachable
 // type complexity, NOT with the file's total declaration count.
-func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
+func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
 	// Build the override map BEFORE any id is assigned: every structural id must
 	// fold the `overrideX<T>(pureFn)` suffix, and the map is whole-program (an
 	// override anywhere shifts ids everywhere). One-time per Program.
@@ -132,9 +132,9 @@ func (resolver *Resolver) parallelScanEnabled() bool {
 // fallback the parallel path returns to on planning failures and
 // single-group requests, so its semantics (including the partial-scan +
 // error behavior on an unresolvable file) stay the contract for both.
-func (resolver *Resolver) dispatchScanFilesSerial(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
+func (resolver *Resolver) dispatchScanFilesSerial(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
 	var sites []protocol.Site
-	var diagnostics []diag.Diagnostic
+	var diagnostics []diagnostics.Diagnostic
 	state := resolver.scanStateFor(resolver.checker)
 	for _, file := range files {
 		sourceFile, err := resolver.sourceFile(file)
@@ -281,7 +281,7 @@ func (resolver *Resolver) commitPending(pending pendingCall) protocol.Site {
 // Diagnostics always flow — they're independent of Site emission. Every
 // checker read in here goes through state.scanChecker, so the analysis
 // can run on any pool checker; only commitPending touches the cache.
-func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []diag.Diagnostic, bool) {
+func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []diagnostics.Diagnostic, bool) {
 	signature := checker.Checker_getResolvedSignature(state.scanChecker, call, nil, 0)
 	if signature == nil {
 		return pendingCall{}, nil, false
@@ -305,7 +305,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	// PureFunction validation runs regardless of whether the trailing
 	// slot is InjectRunTypeId — registerPureFnFactory and any other
 	// non-injection branded function must be validated too.
-	var diagnostics []diag.Diagnostic
+	var diags []diagnostics.Diagnostic
 	var injectionTypeArgument *checker.Type
 	var injectionMatched bool
 	var injectionFnKeys []string
@@ -361,7 +361,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 				continue
 			}
 			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok {
-				diagnostics = append(diagnostics, diagnostic)
+				diags = append(diags, diagnostic)
 			}
 		case marker.KindPureFunction:
 			if paramIndex >= argsCount {
@@ -371,11 +371,11 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 			if argumentNode == nil {
 				continue
 			}
-			diagnostics = append(diagnostics, state.checkPureFunction(file, argumentNode)...)
+			diags = append(diags, state.checkPureFunction(file, argumentNode)...)
 		}
 	}
 	if !injectionMatched {
-		return pendingCall{}, diagnostics, false
+		return pendingCall{}, diags, false
 	}
 	// NESTED-BUILDER SKIP: a value-first builder call nested inside another
 	// marker call (e.g. `string({...})` inside `object({...})`) is reflected by
@@ -388,14 +388,14 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	// past them and a `string()` inside `optional()` inside `object()` still
 	// skips via the `object` ancestor.
 	if state.enclosedByInjectionMarker(call) {
-		return pendingCall{}, diagnostics, false
+		return pendingCall{}, diags, false
 	}
 	// Guard against a `Temporal.*` type that silently resolved to `any`
 	// because the consumer's tsconfig lib doesn't load the Temporal
 	// namespace — otherwise the emitted validator accepts anything. Emitted
 	// for the injection call regardless of what the type argument resolved
 	// to (it inspects the written syntax, not the resolved type).
-	diagnostics = append(diagnostics, detectTemporalNotLoaded(state.scanChecker, file, call)...)
+	diags = append(diags, detectTemporalNotLoaded(state.scanChecker, file, call)...)
 	typeArgument := injectionTypeArgument
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body — `T` is the wrapper's own
@@ -406,18 +406,18 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		// breadcrumb.
 		sourceFile := ast.GetSourceFileOfNode(call)
 		if sourceFile == nil {
-			return pendingCall{}, diagnostics, false
+			return pendingCall{}, diags, false
 		}
-		diagnostics = append(diagnostics, diag.New(
-			diag.CodeMarkerFreeTypeParameter,
+		diags = append(diags, diagnostics.New(
+			diagnostics.CodeMarkerFreeTypeParameter,
 			textpos.NodeSite(file, sourceFile, call),
 		))
-		return pendingCall{}, diagnostics, false
+		return pendingCall{}, diags, false
 	}
 	// Caller has already placed an argument at (or past) the id slot.
 	// Never override an explicit pass-through — leave the call untouched.
 	if argsCount > lastIndex {
-		return pendingCall{}, diagnostics, false
+		return pendingCall{}, diags, false
 	}
 	// REFLECT-FORM CHECKS: only fire when T was inferred from a value
 	// argument (no explicit type-argument list) AND at least one value
@@ -442,7 +442,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		if argZero != nil && argZero.Kind == ast.KindCallExpression &&
 			!builders.IsSchemaLeafCall(state.scanChecker, state.resolver.markerModule(), argZero, state.resolver.marker.FS) {
 			if diagnostic, ok := state.resolver.markerDiagFunctionCallArg(file, argZero); ok {
-				diagnostics = append(diagnostics, diagnostic)
+				diags = append(diags, diagnostic)
 			}
 		}
 		// REFLECT-FORM ANNOTATION HONORING: when the argument is a
@@ -479,13 +479,13 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	if options.Any() {
 		resolvedKind := typeid.KindOf(state.scanChecker, typeArgument)
 		if options.Has("noLiterals") && resolvedKind != protocol.KindLiteral {
-			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoLiteralsNoop); ok {
-				diagnostics = append(diagnostics, diagnostic)
+			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoLiteralsNoop); ok {
+				diags = append(diags, diagnostic)
 			}
 		}
 		if options.Has("noIsArrayCheck") && resolvedKind != protocol.KindArray {
-			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoArrayNoop); ok {
-				diagnostics = append(diagnostics, diagnostic)
+			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoArrayNoop); ok {
+				diags = append(diags, diagnostic)
 			}
 		}
 	}
@@ -542,7 +542,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		trailingComma: trailingComma,
 		typeArgument:  typeArgument,
 		owner:         state.scanChecker,
-	}, diagnostics, true
+	}, diags, true
 }
 
 // computeSiteFn resolves both injection payloads for a createX call site in
@@ -820,7 +820,7 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 // (imported / exported — the literal is reachable as a value); purity violations
 // emit PFE9006–PFE9011. Inline-shape failure short-circuits — there is nothing
 // to walk for purity when the arg isn't a usable function literal.
-func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []diag.Diagnostic {
+func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []diagnostics.Diagnostic {
 	fnNode, shapeResult := comptimeargs.CheckLiteralFunction(state.scanChecker, argumentNode)
 	if !shapeResult.Ok {
 		failingNode := shapeResult.FailingNode
@@ -831,11 +831,11 @@ func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []
 		if sourceFile == nil {
 			return nil
 		}
-		code := diag.CodePureFunctionNotLiteral
+		code := diagnostics.CodePureFunctionNotLiteral
 		if shapeResult.Kind == comptimeargs.FailExternalHandle {
-			code = diag.CodePureFunctionExternalHandle
+			code = diagnostics.CodePureFunctionExternalHandle
 		}
-		return []diag.Diagnostic{diag.New(
+		return []diagnostics.Diagnostic{diagnostics.New(
 			code,
 			textpos.NodeSite(file, sourceFile, failingNode),
 		)}
@@ -850,10 +850,10 @@ func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []
 // checkCompTimeArgs validates the argument node passes the CompTimeArgs
 // literal-only rules and returns a CTA0xx diagnostic when it doesn't.
 // Returns (_, false) when validation succeeded.
-func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (diag.Diagnostic, bool) {
+func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (diagnostics.Diagnostic, bool) {
 	result := comptimeargs.CheckLiteral(state.scanChecker, argumentNode, 0, state.isBuilderCallPredicate())
 	if result.Ok {
-		return diag.Diagnostic{}, false
+		return diagnostics.Diagnostic{}, false
 	}
 	failingNode := result.FailingNode
 	if failingNode == nil {
@@ -861,18 +861,18 @@ func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (d
 	}
 	sourceFile := ast.GetSourceFileOfNode(failingNode)
 	if sourceFile == nil {
-		return diag.Diagnostic{}, false
+		return diagnostics.Diagnostic{}, false
 	}
 	site := textpos.NodeSite(file, sourceFile, failingNode)
 	switch result.Kind {
 	case comptimeargs.FailDepthExceeded:
-		return diag.New(diag.CodeCompTimeArgsDepthExceeded, site), true
+		return diagnostics.New(diagnostics.CodeCompTimeArgsDepthExceeded, site), true
 	case comptimeargs.FailForbiddenConstruct:
-		return diag.New(diag.CodeCompTimeArgsForbiddenConstruct, site, result.Reason), true
+		return diagnostics.New(diagnostics.CodeCompTimeArgsForbiddenConstruct, site, result.Reason), true
 	case comptimeargs.FailWidenedConst:
-		return diag.New(diag.CodeCompTimeArgsWidenedConst, site, result.Reason), true
+		return diagnostics.New(diagnostics.CodeCompTimeArgsWidenedConst, site, result.Reason), true
 	default:
-		return diag.New(diag.CodeCompTimeArgsNonLiteral, site), true
+		return diagnostics.New(diagnostics.CodeCompTimeArgsNonLiteral, site), true
 	}
 }
 
@@ -881,16 +881,16 @@ func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (d
 // to the whole call expression. Used by the no-op ValidateOption check
 // to report MKR004 / MKR005 — the option survives downstream
 // (always-emit invariant), so this is purely advisory.
-func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, lastIndex, argsCount int, code string) (diag.Diagnostic, bool) {
+func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, lastIndex, argsCount int, code string) (diagnostics.Diagnostic, bool) {
 	sourceFile := ast.GetSourceFileOfNode(call)
 	if sourceFile == nil {
-		return diag.Diagnostic{}, false
+		return diagnostics.Diagnostic{}, false
 	}
 	anchor := call
 	if optionsNode := optionsArgumentAt(call, lastIndex, argsCount); optionsNode != nil {
 		anchor = optionsNode
 	}
-	return diag.New(code, textpos.NodeSite(file, sourceFile, anchor)), true
+	return diagnostics.New(code, textpos.NodeSite(file, sourceFile, anchor)), true
 }
 
 // isBuilderCallPredicate returns the closure comptimeargs.CheckLiteral uses to
@@ -912,14 +912,14 @@ func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
 // for no reason. The recommended replacement is the static form using
 // `ReturnType<typeof fn>`. Returns (_, false) when the call's source file
 // can't be located (defensive — shouldn't happen during scanFiles).
-func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.Node) (diag.Diagnostic, bool) {
+func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.Node) (diagnostics.Diagnostic, bool) {
 	sourceFile := ast.GetSourceFileOfNode(callArg)
 	if sourceFile == nil {
-		return diag.Diagnostic{}, false
+		return diagnostics.Diagnostic{}, false
 	}
 	fnName := callExpressionName(callArg)
-	return diag.New(
-		diag.CodeMarkerFunctionCallArg,
+	return diagnostics.New(
+		diagnostics.CodeMarkerFunctionCallArg,
 		textpos.NodeSite(file, sourceFile, callArg),
 		fnName,
 	), true

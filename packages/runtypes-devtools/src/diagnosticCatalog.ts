@@ -4,14 +4,14 @@
 // Args) over the wire; the message templates live in the GENERATED
 // dictionary (./diagnosticCatalog.generated.ts, emitted by
 // `pnpm run gen:diag-catalog` from the authoritative Go catalog in
-// internal/diag/messages.go). This module owns the render step shared by
+// internal/diagnostics/messages.go). This module owns the render step shared by
 // the Vite plugin's diagnostics (`this.warn`/`this.error`), the lint
 // plugin, and the runtime alwaysThrow factory: resolve `{0}`, `{1}`, …
 // placeholders in the headline/detail templates against the args array.
 // The wire stays small; messages can be arbitrarily rich (multi-line,
 // code examples) for free. See docs/UNSUPPORTED-KINDS.md "Wire format".
 //
-// Wording changes go in internal/diag/messages.go, never here — regenerate
+// Wording changes go in internal/diagnostics/messages.go, never here — regenerate
 // with `pnpm run gen:diag-catalog`.
 
 import {DIAGNOSTIC_CATALOG} from './diagnosticCatalog.generated.ts';

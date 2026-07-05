@@ -14,7 +14,7 @@ the rule, and how to fix it.
 We emit ~95 distinct diagnostic codes today
 ([`packages/vite-plugin-runtypes/src/diagnosticCatalog.ts`](../../packages/vite-plugin-runtypes/src/diagnosticCatalog.ts)
 + Go-side codes under
-[`internal/diag/`](../../internal/diag/)). They cover the marker scanner
+[`internal/diagnostics/`](../../internal/diagnostics/)). They cover the marker scanner
 (`MKR0xx`), `CompTimeArgs` literal validation (`CTA0xx`), pure-function purity
 (`PFN001` + `PFE90xx`), format constraints (`FMT0xx`), and the per-family
 "will throw at runtime" diagnostics for JSON / binary / validate
@@ -40,7 +40,7 @@ as a bug in their type or an intentional projection. Surfacing the contract
 
 The list below is the seed — the agent's first job is to harden it by
 exhaustively walking the diagnostic-catalog files and matching every code on
-both sides (TS-side `diagnosticCatalog.ts` and Go-side `internal/diag/codes_*.go`)
+both sides (TS-side `diagnosticCatalog.ts` and Go-side `internal/diagnostics/codes_*.go`)
 to confirm we cover every code emitted today.
 
 ### A. TS-side catalog
@@ -71,7 +71,7 @@ Approximate code families today:
 
 ### B. Go-side codes
 
-Source: [`internal/diag/codes_*.go`](../../internal/diag/) (marker / purefn /
+Source: [`internal/diagnostics/codes_*.go`](../../internal/diagnostics/) (marker / purefn /
 runtype / temporal). These are the constants the resolver ATTACHES to
 diagnostics it ships back over the wire; the TS-side catalog rehydrates them
 into messages. The website doc should be the single source of truth on what
@@ -180,7 +180,7 @@ is most likely.
 
 ## Sketched approach
 
-1. **Catalog read.** Walk `diagnosticCatalog.ts` + `internal/diag/codes_*.go`;
+1. **Catalog read.** Walk `diagnosticCatalog.ts` + `internal/diagnostics/codes_*.go`;
    produce a single CSV-like table of `<code>, <family>, <severity>,
    <headline>`. Sanity-check that every TS-side code has a Go-side
    counterpart (or is purely plugin-emitted) and vice versa.

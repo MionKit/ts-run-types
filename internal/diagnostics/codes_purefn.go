@@ -1,4 +1,4 @@
-package diag
+package diagnostics
 
 // Pure-function extractor codes (PFE9xxx). Private namespace avoids
 // collision with TypeScript's own diagnostic ranges (TS2xxx / TS6xxx).

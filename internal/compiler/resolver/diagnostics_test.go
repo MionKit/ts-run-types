@@ -5,15 +5,15 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // runtypeDiagsOf is the analogue of filterDiagsByFamily for runtype
 // diagnostics — keeps the assertions terse without forcing a map lookup
 // per test.
-func runtypeDiagsOf(diagnostics []diag.Diagnostic) []diag.Diagnostic {
-	return filterDiagsByFamily(diagnostics, diag.FamilyRunType)
+func runtypeDiagsOf(diags []diagnostics.Diagnostic) []diagnostics.Diagnostic {
+	return filterDiagsByFamily(diags, diagnostics.FamilyRunType)
 }
 
 // TestDiag_RunTypeRTThrow_NeverAtRoot pins the end-to-end runtype
@@ -40,18 +40,18 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	if len(runtypeDiags) == 0 {
 		t.Fatalf("expected at least one runtype diagnostic, got 0 (%+v)", resp.Diagnostics)
 	}
-	var found *diag.Diagnostic
+	var found *diagnostics.Diagnostic
 	for i := range runtypeDiags {
-		if runtypeDiags[i].Code == diag.CodePJNeverRoot {
+		if runtypeDiags[i].Code == diagnostics.CodePJNeverRoot {
 			found = &runtypeDiags[i]
 			break
 		}
 	}
 	if found == nil {
-		t.Fatalf("expected a %s diagnostic, got %+v", diag.CodePJNeverRoot, runtypeDiags)
+		t.Fatalf("expected a %s diagnostic, got %+v", diagnostics.CodePJNeverRoot, runtypeDiags)
 	}
-	if found.Severity != diag.SeverityError {
-		t.Errorf("severity: got %d want %d", found.Severity, diag.SeverityError)
+	if found.Severity != diagnostics.SeverityError {
+		t.Errorf("severity: got %d want %d", found.Severity, diagnostics.SeverityError)
 	}
 	if !strings.Contains(found.Site.FilePath, "a.ts") {
 		t.Errorf("site filePath: got %q, expected to contain 'a.ts'", found.Site.FilePath)
@@ -82,15 +82,15 @@ export const _ = createJsonEncoder<() => void>(undefined, {strategy: 'mutate'});
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	runtypeDiags := runtypeDiagsOf(resp.Diagnostics)
-	var found *diag.Diagnostic
+	var found *diagnostics.Diagnostic
 	for i := range runtypeDiags {
-		if runtypeDiags[i].Code == diag.CodePJFunctionRoot {
+		if runtypeDiags[i].Code == diagnostics.CodePJFunctionRoot {
 			found = &runtypeDiags[i]
 			break
 		}
 	}
 	if found == nil {
-		t.Fatalf("expected a %s diagnostic, got %+v", diag.CodePJFunctionRoot, runtypeDiags)
+		t.Fatalf("expected a %s diagnostic, got %+v", diagnostics.CodePJFunctionRoot, runtypeDiags)
 	}
 }
 
@@ -121,7 +121,7 @@ export const _b = createBinaryEncoder<never>();
 	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
 		codes[d.Code] = true
 	}
-	for _, expected := range []string{diag.CodePJNeverRoot, diag.CodeSJNeverRoot, diag.CodeTBNeverRoot} {
+	for _, expected := range []string{diagnostics.CodePJNeverRoot, diagnostics.CodeSJNeverRoot, diagnostics.CodeTBNeverRoot} {
 		if !codes[expected] {
 			t.Errorf("expected diagnostic code %s in %v", expected, codes)
 		}
@@ -187,9 +187,9 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	// property is dropped (the object still serializes); an Error would wrongly
 	// claim the factory throws at runtime when it serializes fine (F3).
 	runtype := runtypeDiagsOf(resp.Diagnostics)
-	var drop *diag.Diagnostic
+	var drop *diagnostics.Diagnostic
 	for i := range runtype {
-		if runtype[i].Code == diag.CodePJNonSerializablePropDrop {
+		if runtype[i].Code == diagnostics.CodePJNonSerializablePropDrop {
 			drop = &runtype[i]
 			break
 		}
@@ -197,7 +197,7 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if drop == nil {
 		t.Fatalf("expected PJ015 drop warning for the dropped never property, got %+v", runtype)
 	}
-	if drop.Severity != diag.SeverityWarning {
+	if drop.Severity != diagnostics.SeverityWarning {
 		t.Errorf("PJ015 severity = %v, want Warning (a dropped property serializes fine)", drop.Severity)
 	}
 	if len(drop.Args) != 1 || drop.Args[0] != "bad" {
@@ -205,7 +205,7 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	}
 	// The PJ001 root error must NOT fire — the property is dropped, not failed.
 	for i := range runtype {
-		if runtype[i].Code == diag.CodePJNeverRoot {
+		if runtype[i].Code == diagnostics.CodePJNeverRoot {
 			t.Errorf("PJ001 (root never error) must not fire for a dropped never property, got %+v", runtype[i])
 		}
 	}
@@ -237,7 +237,7 @@ export const _b = createBinaryEncoder<symbol>();
 		codes[d.Code] = true
 	}
 	// Each family emits its own Symbol-unsupported code.
-	for _, want := range []string{diag.CodeVLSymbolRoot, diag.CodePJSymbolRoot, diag.CodeSJSymbolRoot, diag.CodeTBSymbolRoot} {
+	for _, want := range []string{diagnostics.CodeVLSymbolRoot, diagnostics.CodePJSymbolRoot, diagnostics.CodeSJSymbolRoot, diagnostics.CodeTBSymbolRoot} {
 		if !codes[want] {
 			t.Errorf("expected diagnostic %s to fire for symbol at root, got %v", want, codes)
 		}
@@ -265,7 +265,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	}
 	src := familyEntrySources(resp, "prepareForJson")
 	// never under prepareForJson → PJ001; leaf kind label "Never".
-	wantMessage := "[" + diag.CodePJNeverRoot + "] Cannot encode `Never` to JSON."
+	wantMessage := "[" + diagnostics.CodePJNeverRoot + "] Cannot encode `Never` to JSON."
 	if !strings.Contains(src, wantMessage) {
 		t.Errorf("expected rendered alwaysThrow message %q embedded in init(), got:\n%s", wantMessage, src)
 	}
@@ -295,10 +295,10 @@ export const _ = createValidate<User>();
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	var found *diag.Diagnostic
+	var found *diagnostics.Diagnostic
 	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
 		switch d.Code {
-		case diag.CodeVLFunctionPropDropped, diag.CodeVLMethodDropped:
+		case diagnostics.CodeVLFunctionPropDropped, diagnostics.CodeVLMethodDropped:
 			d := d
 			found = &d
 		}
@@ -309,8 +309,8 @@ export const _ = createValidate<User>();
 	if found == nil {
 		t.Fatalf("expected VL010 or VL011 diagnostic, got %+v", resp.Diagnostics)
 	}
-	if found.Severity != diag.SeverityWarning {
-		t.Errorf("severity: got %d want %d", found.Severity, diag.SeverityWarning)
+	if found.Severity != diagnostics.SeverityWarning {
+		t.Errorf("severity: got %d want %d", found.Severity, diagnostics.SeverityWarning)
 	}
 	if len(found.Args) != 1 || found.Args[0] != "onClick" {
 		t.Errorf("args: got %v, expected [\"onClick\"]", found.Args)
@@ -338,9 +338,9 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	var neverDiags []diag.Diagnostic
+	var neverDiags []diagnostics.Diagnostic
 	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
-		if d.Code == diag.CodePJNeverRoot {
+		if d.Code == diagnostics.CodePJNeverRoot {
 			neverDiags = append(neverDiags, d)
 		}
 	}

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -218,13 +218,13 @@ type Walker struct {
 	// without provenance threading). The renderer sets it from
 	// RenderOpts.DiagSink so the dispatcher can collect everything in
 	// a single response.Diagnostics slice.
-	DiagSink *[]diag.Diagnostic
+	DiagSink *[]diagnostics.Diagnostic
 	// rootProvenance is the list of marker call sites that reference
 	// the root RunType being walked. EmitDiagnostic fans out one
 	// Diagnostic per site so the user gets one entry per actionable
 	// call (per user direction: dedup is one-per-call-site, not
 	// one-per-typeid).
-	rootProvenance []diag.Site
+	rootProvenance []diagnostics.Site
 	// diagSeen prevents a single walk from emitting the same diagnostic
 	// code twice — without this, a deep tree with multiple unsupported
 	// leaves of the same kind would surface duplicate diagnostics for
@@ -389,7 +389,7 @@ func (w *Walker) EmitDiagnostic(code string, args ...string) {
 		return
 	}
 	for _, site := range w.rootProvenance {
-		*w.DiagSink = append(*w.DiagSink, diag.New(code, site, args...))
+		*w.DiagSink = append(*w.DiagSink, diagnostics.New(code, site, args...))
 	}
 }
 

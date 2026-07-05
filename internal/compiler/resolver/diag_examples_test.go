@@ -4,12 +4,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // TestDiagExamples_TriggerTheirCode is the standardized error-example suite.
-// internal/diag/prose.go gives diagnostic codes an Example: a complete
+// internal/diagnostics/prose.go gives diagnostic codes an Example: a complete
 // TypeScript snippet (import + type + marker call) meant to trigger exactly
 // that code. This test feeds each Example through the real scan pipeline and
 // asserts the code fires at its registered severity, so a shipped example can
@@ -20,8 +20,8 @@ import (
 // simple type-only trigger (internal invariants, etc.) carry no Example and
 // are skipped here.
 func TestDiagExamples_TriggerTheirCode(t *testing.T) {
-	codes := make([]string, 0, len(diag.Definitions))
-	for code, definition := range diag.Definitions {
+	codes := make([]string, 0, len(diagnostics.Definitions))
+	for code, definition := range diagnostics.Definitions {
 		if definition.Example != "" {
 			codes = append(codes, code)
 		}
@@ -32,7 +32,7 @@ func TestDiagExamples_TriggerTheirCode(t *testing.T) {
 	}
 
 	for _, code := range codes {
-		definition := diag.Definitions[code]
+		definition := diagnostics.Definitions[code]
 		t.Run(code, func(t *testing.T) {
 			r := setupInline(t, map[string]string{"example.ts": definition.Example})
 			resp := r.Dispatch(protocol.Request{
@@ -44,7 +44,7 @@ func TestDiagExamples_TriggerTheirCode(t *testing.T) {
 				t.Fatalf("scanFiles: %s\n--- example ---\n%s", resp.Error, definition.Example)
 			}
 
-			var found *diag.Diagnostic
+			var found *diagnostics.Diagnostic
 			seen := map[string]bool{}
 			for i := range resp.Diagnostics {
 				seen[resp.Diagnostics[i].Code] = true

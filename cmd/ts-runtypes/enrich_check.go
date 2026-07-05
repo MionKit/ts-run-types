@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/enrichment"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/astcheck"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
@@ -159,20 +159,20 @@ func tagCode(kind mirror.TagKind, family mirror.MirrorFamily) string {
 	if family == mirror.FamilyMock {
 		switch kind {
 		case mirror.TagOrphan:
-			return diag.CodeMockOrphanConst
+			return diagnostics.CodeMockOrphanConst
 		case mirror.TagOrphanChild:
-			return diag.CodeMockOrphanField
+			return diagnostics.CodeMockOrphanField
 		default:
-			return diag.CodeMockTodo
+			return diagnostics.CodeMockTodo
 		}
 	}
 	switch kind {
 	case mirror.TagOrphan:
-		return diag.CodeFriendlyOrphanConst
+		return diagnostics.CodeFriendlyOrphanConst
 	case mirror.TagOrphanChild:
-		return diag.CodeFriendlyOrphanField
+		return diagnostics.CodeFriendlyOrphanField
 	default:
-		return diag.CodeFriendlyTodo
+		return diagnostics.CodeFriendlyTodo
 	}
 }
 

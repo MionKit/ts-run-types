@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/jsquote"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -123,7 +123,7 @@ func validateSamples(ctx formats.EmitContext, source, flags string, samples []st
 	}
 	for _, sample := range samples {
 		if !compiled.MatchString(sample) {
-			ctx.EmitDiagnostic(diag.CodeFMTSampleMismatch, sample, source)
+			ctx.EmitDiagnostic(diagnostics.CodeFMTSampleMismatch, sample, source)
 		}
 	}
 }

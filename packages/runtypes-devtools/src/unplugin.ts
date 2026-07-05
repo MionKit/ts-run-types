@@ -461,7 +461,7 @@ function surfaceDiagnostics(
 //     Related: /abs/path(line,col): related message
 //
 // The user-facing headline is resolved from the generated catalog
-// (`./diagnosticCatalog.generated.ts`, sourced from internal/diag) — the
+// (`./diagnosticCatalog.generated.ts`, sourced from internal/diagnostics) — the
 // wire only carries the diagnostic code + optional positional args. Severity
 // is numeric on the wire — switch on it to pick the human label since
 // the canonical line format requires the word, not the digit.

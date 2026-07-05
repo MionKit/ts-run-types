@@ -61,7 +61,7 @@ export function snapshot(value: unknown): string {
   return text.length > MAX_SNAPSHOT ? text.slice(0, MAX_SNAPSHOT) + '…' : text;
 }
 
-// alwaysThrow messages are rendered by the Go binary as `[CODE] …` (internal/diag).
+// alwaysThrow messages are rendered by the Go binary as `[CODE] …` (internal/diagnostics).
 function isControlledThrow(message: string): boolean {
   return /^\[[A-Z][A-Z0-9]*\]/.test(message);
 }

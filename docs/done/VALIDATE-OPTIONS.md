@@ -182,7 +182,7 @@ variant body is cheap to re-render, so this is fine.
 
 ## 8. Build-time diagnostics
 
-[internal/diag/codes_marker.go](../internal/diag/codes_marker.go):
+[internal/diagnostics/codes_marker.go](../internal/diagnostics/codes_marker.go):
 
 - **`MKR004`** (`CodeValidateOptionsNoLiteralsNoop`) — `noLiterals: true`
   requested on a non-literal type. Warning severity.

@@ -8,7 +8,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
-	"github.com/mionkit/ts-runtypes/internal/diag"
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
@@ -68,15 +68,15 @@ type SourceFileLookup interface {
 // Not safe for concurrent use (same constraint as the package).
 type FileCache struct {
 	entries map[string][]Entry
-	diags   map[string][]diag.Diagnostic
+	diags   map[string][]diagnostics.Diagnostic
 }
 
 // NewFileCache returns an empty per-Program extraction memo.
 func NewFileCache() *FileCache {
-	return &FileCache{entries: map[string][]Entry{}, diags: map[string][]diag.Diagnostic{}}
+	return &FileCache{entries: map[string][]Entry{}, diags: map[string][]diagnostics.Diagnostic{}}
 }
 
-func (cache *FileCache) get(filePath string) ([]Entry, []diag.Diagnostic, bool) {
+func (cache *FileCache) get(filePath string) ([]Entry, []diagnostics.Diagnostic, bool) {
 	if cache == nil {
 		return nil, nil, false
 	}
@@ -87,7 +87,7 @@ func (cache *FileCache) get(filePath string) ([]Entry, []diag.Diagnostic, bool) 
 	return entries, cache.diags[filePath], true
 }
 
-func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag.Diagnostic) {
+func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diagnostics.Diagnostic) {
 	if cache == nil {
 		return
 	}
@@ -129,9 +129,9 @@ func (cache *FileCache) put(filePath string, entries []Entry, diagnostics []diag
 // The per-Program FileCache is optional: cached files skip the AST walk +
 // purity checks entirely, fresh files are extracted and stored. A nil cache
 // degrades to a plain uncached walk.
-func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string, cache *FileCache) ([]Entry, []diag.Diagnostic) {
+func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string, cache *FileCache) ([]Entry, []diagnostics.Diagnostic) {
 	var entries []Entry
-	var diagnostics []diag.Diagnostic
+	var diags []diagnostics.Diagnostic
 	seen := map[string]int{} // key → index in entries (the winner)
 
 	for _, filePath := range files {
@@ -144,18 +144,18 @@ func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Op
 			fileEntries, fileDiags = extractFromSourceFile(typeChecker, markerOpts, sourceFile)
 			cache.put(filePath, fileEntries, fileDiags)
 		}
-		diagnostics = append(diagnostics, fileDiags...)
+		diags = append(diags, fileDiags...)
 		for _, entry := range fileEntries {
 			if winnerIdx, dup := seen[entry.Key()]; dup {
 				winner := entries[winnerIdx]
 				if winner.BodyHash == entry.BodyHash {
 					continue // idempotent re-registration
 				}
-				diagnostics = append(diagnostics, diag.NewWithRelated(
-					diag.CodeBodyHashCollision,
+				diags = append(diags, diagnostics.NewWithRelated(
+					diagnostics.CodeBodyHashCollision,
 					siteFromFile(entry.sourceFile, entry.callPos),
 					[]string{entry.Key()},
-					diag.Related{
+					diagnostics.Related{
 						Site:    siteFromFile(winner.sourceFile, winner.callPos),
 						Message: "First registered here with bodyHash=" + winner.BodyHash,
 					},
@@ -170,8 +170,8 @@ func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Op
 	sort.SliceStable(entries, func(i, j int) bool {
 		return entries[i].Key() < entries[j].Key()
 	})
-	sort.SliceStable(diagnostics, func(i, j int) bool {
-		a, b := diagnostics[i].Site, diagnostics[j].Site
+	sort.SliceStable(diags, func(i, j int) bool {
+		a, b := diags[i].Site, diags[j].Site
 		if a.FilePath != b.FilePath {
 			return a.FilePath < b.FilePath
 		}
@@ -180,7 +180,7 @@ func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Op
 		}
 		return a.StartCol < b.StartCol
 	})
-	return entries, diagnostics
+	return entries, diags
 }
 
 // extractFromFile walks a single source file resolved from lookup and
@@ -193,7 +193,7 @@ func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Op
 // caller folds entries into a shared map and surfaces collisions there.
 // A nil/missing source file yields (nil, nil); the caller decides
 // whether that is an error.
-func extractFromFile(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, filePath string) ([]Entry, []diag.Diagnostic) {
+func extractFromFile(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, filePath string) ([]Entry, []diagnostics.Diagnostic) {
 	sourceFile := lookup.SourceFile(filePath)
 	if sourceFile == nil {
 		return nil, nil
@@ -205,9 +205,9 @@ func extractFromFile(typeChecker *checker.Checker, markerOpts marker.Options, lo
 // table, walk every CallExpression, dispatch to extractOne. Called by
 // the ExtractFromProgramCached loop body (which already holds a
 // *SourceFile in hand) and by the lookup-driven extractFromFile above.
-func extractFromSourceFile(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile) ([]Entry, []diag.Diagnostic) {
+func extractFromSourceFile(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile) ([]Entry, []diagnostics.Diagnostic) {
 	var entries []Entry
-	var diagnostics []diag.Diagnostic
+	var diagnostics []diagnostics.Diagnostic
 	findCalls(sourceFile, func(call *ast.Node) {
 		entry, diags := extractOne(typeChecker, markerOpts, sourceFile, call)
 		diagnostics = append(diagnostics, diags...)
@@ -324,7 +324,7 @@ func paramHasMarker(typeChecker *checker.Checker, markerOpts marker.Options, par
 // The returned Entry carries internal-only fields (sourceFile, callPos)
 // that the caller uses for cross-file collision reporting; these never
 // reach the wire.
-func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node) (*Entry, []diag.Diagnostic) {
+func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node) (*Entry, []diagnostics.Diagnostic) {
 	callExpr := call.AsCallExpression()
 	if callExpr == nil {
 		return nil, nil
@@ -344,7 +344,7 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 	if args[1].Kind == ast.KindNullKeyword {
 		return nil, nil
 	}
-	var diags []diag.Diagnostic
+	var diags []diagnostics.Diagnostic
 
 	idLit, idResult := comptimeargs.ResolveLiteralString(typeChecker, args[0])
 	factoryFn, factoryResult := comptimeargs.CheckLiteralFunction(typeChecker, args[1])
@@ -378,8 +378,8 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 		paramDecl := paramNode.AsParameterDeclaration()
 		nameNode := paramDecl.Name()
 		if nameNode == nil || nameNode.Kind != ast.KindIdentifier {
-			diags = append(diags, diag.New(
-				diag.CodeDestructuredParam,
+			diags = append(diags, diagnostics.New(
+				diagnostics.CodeDestructuredParam,
 				siteFromNode(sourceFile, paramNode),
 				namespace+"::"+functionName,
 			))
@@ -440,20 +440,20 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 	return entry, diags
 }
 
-// siteFromNode builds a 1-based diag.Site for the node's start/end.
-func siteFromNode(sourceFile *ast.SourceFile, node *ast.Node) diag.Site {
+// siteFromNode builds a 1-based diagnostics.Site for the node's start/end.
+func siteFromNode(sourceFile *ast.SourceFile, node *ast.Node) diagnostics.Site {
 	return textpos.NodeSite(sourceFile.FileName(), sourceFile, node)
 }
 
 // siteFromFile reproduces a site from a previously-captured file + pos pair,
 // used when the winner of a collision lives in a different file from the
 // duplicate.
-func siteFromFile(sourceFile *ast.SourceFile, pos int) diag.Site {
+func siteFromFile(sourceFile *ast.SourceFile, pos int) diagnostics.Site {
 	if sourceFile == nil {
-		return diag.Site{}
+		return diagnostics.Site{}
 	}
 	line, col := textpos.LineCol(sourceFile, pos)
-	return diag.Site{
+	return diagnostics.Site{
 		FilePath:  sourceFile.FileName(),
 		StartLine: line,
 		StartCol:  col,
