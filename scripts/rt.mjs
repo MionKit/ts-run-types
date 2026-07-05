@@ -163,10 +163,10 @@ async function runBench(args) {
 function runRelease(args) {
   const [sub, ...rest] = args;
   const map = {
-    preflight: ['bash', ['scripts/release/preflight.sh']],
-    npm: ['bash', ['scripts/release/publish.sh']],
+    preflight: ['node', ['scripts/release/preflight.mjs']],
+    npm: ['node', ['scripts/release/publish.mjs']],
     website: ['node', ['scripts/website/build.mjs', 'generate']],
-    unpublish: ['bash', ['scripts/release/unpublish.sh']],
+    unpublish: ['node', ['scripts/release/unpublish.mjs']],
     bump: ['node', ['scripts/release/bump-version.mjs']],
     dists: ['pnpm', ['-r', 'run', 'build']],
     binaries: ['node', ['scripts/release/build-binaries.mjs']],
@@ -177,9 +177,9 @@ function runRelease(args) {
   // Umbrella (no sub): preflight -> npm publish -> website build. Deploy is CI-only.
   const preflightOnly = hasFlag(args, '--preflight-only');
   const noWebsite = hasFlag(args, '--no-website');
-  const plan = [['bash', ['scripts/release/preflight.sh']]];
+  const plan = [['node', ['scripts/release/preflight.mjs']]];
   if (!preflightOnly) {
-    plan.push(['bash', ['scripts/release/publish.sh']]);
+    plan.push(['node', ['scripts/release/publish.mjs']]);
     if (!noWebsite) plan.push(['node', ['scripts/website/build.mjs', 'generate']]);
   }
   if (hasFlag(args, '--dry-run')) {

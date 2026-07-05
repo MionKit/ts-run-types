@@ -11,6 +11,7 @@ import {spawnSync} from 'node:child_process';
 import {accessSync, constants} from 'node:fs';
 import {arch} from 'node:os';
 import {delimiter, join} from 'node:path';
+import {createInterface} from 'node:readline/promises';
 import {styleText} from 'node:util';
 import {REPO_ROOT} from './env.mjs';
 
@@ -109,6 +110,17 @@ export function which(cmd) {
 
 // Small async sleep for poll loops (fetch-based smoke waits).
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Interactive line prompt (the `read -rp "…" VAR` replacement); returns the trimmed
+// answer. Opens + closes a fresh readline interface per call.
+export async function prompt(question) {
+  const rl = createInterface({input: process.stdin, output: process.stdout});
+  try {
+    return (await rl.question(question)).trim();
+  } finally {
+    rl.close();
+  }
+}
 
 // Host architecture as a Go/OCI arch string (amd64 | arm64) — the `uname -m` case
 // the shell scripts ran (x86_64|amd64 -> amd64, arm64|aarch64 -> arm64, else amd64).
