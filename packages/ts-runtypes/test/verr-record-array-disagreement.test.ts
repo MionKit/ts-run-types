@@ -11,7 +11,7 @@
 // did not.
 //
 // Drives the full vite-plugin pipeline, complementing the Go emitter test in
-// internal/compiled/typefns/index_sig_array_reject_test.go.
+// internal/cachegen/typefunctions/index_sig_array_reject_test.go.
 
 import {describe, test, expect} from 'vitest';
 import {createValidate, createGetValidationErrors} from 'ts-runtypes';

@@ -103,7 +103,7 @@ The variant fan-out itself (§4) is independent and stays.
 
 ## 4. Variant fan-out in the emitter
 
-[internal/compiled/typefns/module.go](../internal/compiled/typefns/module.go):
+[internal/cachegen/typefunctions/module.go](../internal/cachegen/typefunctions/module.go):
 
 - **`collectValidateVariants(sites, enable)`** — groups `dump.Sites` by
   `(typeid, canonical-suffix)`, deduplicating option tuples. Only
@@ -115,7 +115,7 @@ The variant fan-out itself (§4) is independent and stays.
   variantOptions []string`. Cache key shape:
   `<tag><suffix>_<id>` (e.g. `valNA_<id>`); variant factory's printed
   name follows: `g_valNA_<id>`.
-- **`Walker.VariantOptions`** ([walker.go](../internal/compiled/typefns/walker.go))
+- **`Walker.VariantOptions`** ([walker.go](../internal/cachegen/typefunctions/walker.go))
   — new field; renderer primes it on the variant walker only.
   Emitters read via `EmitContext.HasVariantOption(name)`.
 - **`Walker.InnerPrefix` stays plain** for variant walkers. Child dep-
@@ -126,18 +126,18 @@ The variant fan-out itself (§4) is independent and stays.
 ## 5. Variant bodies
 
 - **`noIsArrayCheck`**: drops the leading `Array.isArray(v)` guard at
-  the array's emit root. [istype.go](../internal/compiled/typefns/istype.go)
-  + [typeerrors.go](../internal/compiled/typefns/typeerrors.go) — the
+  the array's emit root. [istype.go](../internal/cachegen/typefunctions/istype.go)
+  + [typeerrors.go](../internal/cachegen/typefunctions/typeerrors.go) — the
   legacy `hasFlag(rt.Flags, "noIsArrayCheck")` is gone, replaced by
   `ctx.HasVariantOption("noIsArrayCheck")`.
 - **`noLiterals`**: new
-  [`emitLiteralBaseKind`](../internal/compiled/typefns/istype.go)
+  [`emitLiteralBaseKind`](../internal/cachegen/typefunctions/istype.go)
   helper emits the base-kind validator (`typeof v === 'string'`,
   `Number.isFinite(v)`, etc.) instead of the literal-exact check.
   Symbol-flavoured literals propagate `CodeNS` (unsupported leaf)
   so the alwaysThrow path fires, matching the plain `KindSymbol`
   arm's design.
-- **`rootCodeMap.codeFor`** ([diag_codes.go](../internal/compiled/typefns/diag_codes.go))
+- **`rootCodeMap.codeFor`** ([diag_codes.go](../internal/cachegen/typefunctions/diag_codes.go))
   — extended to recognise a `KindLiteral` with the `symbol` flag and
   route it to the symbol-root diag code, so the alwaysThrow factory
   wires correctly when `noLiterals` lands on a symbol literal.
@@ -151,7 +151,7 @@ that's tested.
 
 ## 6. Disk cache stays plain-only
 
-[renderEntryWithDeps](../internal/compiled/typefns/module.go) — all
+[renderEntryWithDeps](../internal/cachegen/typefunctions/module.go) — all
 three `writeCachedEntry` call sites (unsupported / noop / normal) are
 wrapped in `if variantSuffix == ""`. The disk-cache layout key is
 `(runType.ID, settings.Tag)` with no variant dimension; persisting

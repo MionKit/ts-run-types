@@ -6,7 +6,7 @@ import (
 	// Register the concrete format emitters (stringFormat, …) — the
 	// in-process resolver test doesn't go through main.go, which is
 	// where the binary normally blank-imports this aggregator.
-	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )

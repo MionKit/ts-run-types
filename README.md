@@ -57,7 +57,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | [internal/marker](internal/marker/)                                  | `InjectRunTypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
 | [internal/cachegen/runtype/](internal/cachegen/runtype/)             | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup; JSON/TS-module renderers.                |
 | [internal/cachegen/runtype/typeid/](internal/cachegen/runtype/typeid/) | Structural-id computer mirroring the reference `_createTypeId`; deterministic, cycle-aware.                         |
-| [internal/compiled/typefns/](internal/compiled/typefns/)             | Per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …).                                             |
+| [internal/cachegen/typefunctions/](internal/cachegen/typefunctions/)             | Per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …).                                             |
 | [internal/cachegen/hashid](internal/cachegen/hashid/)                                  | quickHash rolling hash → short alphanumeric id dictionary; configurable length.                                |
 | [internal/constants](internal/constants/)                            | Cross-package constants (cache module settings). Mirrored to TS via `cmd/gen-ts-constants`.                    |
 | [internal/protocol](internal/protocol/)                              | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                     |

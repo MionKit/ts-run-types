@@ -244,7 +244,7 @@ Tests don't need to change.
 The bulk of the `ValidateOptions` refactor is independent of this fix
 and stays as-is:
 
-- The variant fan-out in [module.go](../internal/compiled/typefns/module.go)
+- The variant fan-out in [module.go](../internal/cachegen/typefunctions/module.go)
   (`collectValidateVariants`, the per-(typeid, variant) inner loop,
   variant cache-key construction).
 - The `ValidateVariantSuffix` table in

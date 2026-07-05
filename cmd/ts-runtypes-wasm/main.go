@@ -29,7 +29,7 @@ import (
 	// Blank-import the format-emitter aggregator so every concrete format
 	// registers before the resolver hands out RunTypes — same as the native
 	// binary's main.
-	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/marker"
 	"github.com/mionkit/ts-runtypes/internal/protocol"

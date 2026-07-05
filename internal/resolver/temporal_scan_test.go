@@ -3,7 +3,7 @@ package resolver_test
 import (
 	"testing"
 
-	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
+	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

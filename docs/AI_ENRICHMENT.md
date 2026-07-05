@@ -183,7 +183,7 @@ interface RTValidationError {
 
 The `rt$errors` key is **`error.format.formatPath.at(-1)`**, and `type` is the base
 type-shape failure (a `RTValidationError` with no `.format`). The Go format emitters
-([`internal/compiled/typefns/formats/`](../internal/compiled/typefns/formats/))
+([`internal/cachegen/typefunctions/formats/`](../internal/cachegen/typefunctions/formats/))
 write one independent `if (fail) push(...)` per constraint, with the constraint
 name and value known at emit time:
 
@@ -1043,7 +1043,7 @@ production graph. No special registration-gating mechanism required.
   *absent* for date bounds. For `$[val]` to resolve uniformly to the declared
   bound, always carry the raw param value and stop overloading `val` with messages.
   A small, localized change to the format-error emit in
-  [`internal/compiled/typefns/formats/emit.go`](../internal/compiled/typefns/formats/emit.go).
+  [`internal/cachegen/typefunctions/formats/emit.go`](../internal/cachegen/typefunctions/formats/emit.go).
 - **No new emit family.** Unlike `validate`/`json`/`binary`, this feature adds **no**
   runtime codegen and nothing on the hot Vite path. The `gen` skeleton emitter is a
   one-shot CLI walk; there is no per-build emitter, no id-routing, and no registry.

@@ -121,7 +121,7 @@ The original two-mode measurement that drove the design (`precalculate` vs `dyna
 3. **`createDataViewSerializer(cacheKey, {size, grow})`** — thread the `grow` flag
    through (default `true`). The measure-pass and caller-size paths pass `grow:false`.
 
-### B. Go emitter — reserve for the inline writes (`internal/compiled/typefns/`)
+### B. Go emitter — reserve for the inline writes (`internal/cachegen/typefunctions/`)
 
 Today the emitter writes scalars + framing **inline** to `Ser.view` / `Ser.index`
 (numbers `setFloat64`, null/bool/void `setUint8`, union tags, optional bitmaps,

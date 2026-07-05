@@ -2,7 +2,7 @@
 // object (not a string) with the SAME min/max bound params the string
 // date/time formats use (./dateTimeParams.ts), so a Date field and a
 // string-date field read identically. Validation is emitted on the Go
-// side (internal/compiled/typefns/formats/datetime/nativeDate.go) inside
+// side (internal/cachegen/typefunctions/formats/datetime/nativeDate.go) inside
 // validate / getValidationErrors; serialization needs no new work — Date already
 // round-trips through the default serialisers.
 //

@@ -113,12 +113,12 @@ Each currently special-cases `entry["regexp"]` / `literalMap["regexp"]`; all
 become dead once no `KindLiteral` regexp node is produced:
 - [`module.go`](../internal/cachegen/runtype/module.go) `footerLiteralExpr` (+ the
   `hasRegexp` guard)
-- [`istype.go`](../internal/compiled/typefns/istype.go) (~1420, ~1468)
-- [`typeerrors.go`](../internal/compiled/typefns/typeerrors.go) (~597)
-- [`json_prepare.go`](../internal/compiled/typefns/json_prepare.go),
-  [`json_prepare_safe.go`](../internal/compiled/typefns/json_prepare_safe.go),
-  [`json_compat.go`](../internal/compiled/typefns/json_compat.go),
-  [`binary_from.go`](../internal/compiled/typefns/binary_from.go)
+- [`istype.go`](../internal/cachegen/typefunctions/istype.go) (~1420, ~1468)
+- [`typeerrors.go`](../internal/cachegen/typefunctions/typeerrors.go) (~597)
+- [`json_prepare.go`](../internal/cachegen/typefunctions/json_prepare.go),
+  [`json_prepare_safe.go`](../internal/cachegen/typefunctions/json_prepare_safe.go),
+  [`json_compat.go`](../internal/cachegen/typefunctions/json_compat.go),
+  [`binary_from.go`](../internal/cachegen/typefunctions/binary_from.go)
 - protocol: the `"regexp"` literal marker noted in
   [`protocol.go`](../internal/protocol/protocol.go) `Flags` (free-form field stays;
   the regexp usage goes away).

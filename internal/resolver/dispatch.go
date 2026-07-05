@@ -15,9 +15,9 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 	"github.com/mionkit/ts-runtypes/internal/compiled/transform"
-	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/program"
@@ -39,49 +39,49 @@ type familyAddedFlag struct {
 // nodes.
 var familyAddedFlags = []familyAddedFlag{
 	{key: "validationErrors",
-		anySupported: typefns.FamilyByKey("validationErrors").AnySupported,
+		anySupported: typefunctions.FamilyByKey("validationErrors").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedValidationErrors = added }},
 	{key: "prepareForJson",
-		anySupported: typefns.FamilyByKey("prepareForJson").AnySupported,
+		anySupported: typefunctions.FamilyByKey("prepareForJson").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedPrepareForJson = added }},
 	{key: "restoreFromJson",
-		anySupported: typefns.FamilyByKey("restoreFromJson").AnySupported,
+		anySupported: typefunctions.FamilyByKey("restoreFromJson").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedRestoreFromJson = added }},
 	{key: "stringifyJson",
-		anySupported: typefns.FamilyByKey("stringifyJson").AnySupported,
+		anySupported: typefunctions.FamilyByKey("stringifyJson").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedStringifyJson = added }},
 	{key: "prepareForJsonSafe",
-		anySupported: typefns.FamilyByKey("prepareForJsonSafe").AnySupported,
+		anySupported: typefunctions.FamilyByKey("prepareForJsonSafe").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedPrepareForJsonSafe = added }},
 	{key: "hasUnknownKeys",
-		anySupported: typefns.FamilyByKey("hasUnknownKeys").AnySupported,
+		anySupported: typefunctions.FamilyByKey("hasUnknownKeys").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedHasUnknownKeys = added }},
 	{key: "stripUnknownKeys",
-		anySupported: typefns.FamilyByKey("stripUnknownKeys").AnySupported,
+		anySupported: typefunctions.FamilyByKey("stripUnknownKeys").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedStripUnknownKeys = added }},
 	{key: "unknownKeyErrors",
-		anySupported: typefns.FamilyByKey("unknownKeyErrors").AnySupported,
+		anySupported: typefunctions.FamilyByKey("unknownKeyErrors").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeyErrors = added }},
 	{key: "unknownKeysToUndefined",
-		anySupported: typefns.FamilyByKey("unknownKeysToUndefined").AnySupported,
+		anySupported: typefunctions.FamilyByKey("unknownKeysToUndefined").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefined = added }},
 	{key: "unknownKeysToUndefinedWire",
-		anySupported: typefns.FamilyByKey("unknownKeysToUndefinedWire").AnySupported,
+		anySupported: typefunctions.FamilyByKey("unknownKeysToUndefinedWire").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefinedWire = added }},
 	{key: "toBinary",
-		anySupported: typefns.FamilyByKey("toBinary").AnySupported,
+		anySupported: typefunctions.FamilyByKey("toBinary").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedToBinary = added }},
 	{key: "fromBinary",
-		anySupported: typefns.FamilyByKey("fromBinary").AnySupported,
+		anySupported: typefunctions.FamilyByKey("fromBinary").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedFromBinary = added }},
 	// NOT the registry generic: FormatTransformEmitter.Supports is true for
 	// everything (identity is a valid transform), so the added-flag gates on
 	// an actual value-transforming format instead.
 	{key: "formatTransform",
-		anySupported: typefns.AnyFormatTransformSupported,
+		anySupported: typefunctions.AnyFormatTransformSupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedFormatTransform = added }},
 	{key: "validate",
-		anySupported: typefns.FamilyByKey("validate").AnySupported,
+		anySupported: typefunctions.FamilyByKey("validate").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedValidate = added }},
 }
 
@@ -136,7 +136,7 @@ func elapsedMs(start time.Time) float64 {
 // fan-out preserved), JSON composites, pure fns, the cross-family fixpoint,
 // the global dangling-dep cascade, and missing stubs for demanded keys that
 // didn't survive. Returns the rendered modules keyed by module BASENAME.
-func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns.RenderOpts, pureFnGraph entrymod.Graph, metrics *protocol.Metrics) (map[string]string, error) {
+func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph entrymod.Graph, metrics *protocol.Metrics) (map[string]string, error) {
 	var graph entrymod.Graph
 	if resolver.opts.ModuleMode == constants.ModuleModeAllModules {
 		graph = runtype.CollectEntriesPerNode(dump)
@@ -153,7 +153,7 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 	}
 	// Composites collect AFTER the family merge so each one can read its
 	// primitives' rendered IsNoop flags and elide dead identity bindings.
-	graph.Merge(typefns.CollectJsonCompositeEntries(dump, rtOpts, graph))
+	graph.Merge(typefunctions.CollectJsonCompositeEntries(dump, rtOpts, graph))
 	graph.Merge(pureFnGraph)
 
 	// Link the reflection RunType bundle into the guarded fn entries of
@@ -165,11 +165,11 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 	// `utl.getRT(key).fn` — assert every referenced primitive actually
 	// rendered (post-fixpoint) so an invariant breach fails the build
 	// instead of crashing at runtime.
-	typefns.AssertCompositeSoftDeps(graph, rtOpts.DiagSink)
+	typefunctions.AssertCompositeSoftDeps(graph, rtOpts.DiagSink)
 	// Same invariant for cfn redirects: every `utl.usePureFn('cfn::…')` must
 	// have its module in the graph or the build fails (OVR002) instead of
 	// throwing at runtime.
-	typefns.AssertOverrideCfn(graph, rtOpts.DiagSink)
+	typefunctions.AssertOverrideCfn(graph, rtOpts.DiagSink)
 
 	// Dropping an entry whose same-family dep never rendered mirrors the
 	// pre-migration dangling cascade; the demanded roots that fall out (or
@@ -208,8 +208,8 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 // registry order: first error wins, RenderMs recorded (values overlap
 // wall-clock; their sum exceeds elapsed time), shard diagnostics appended
 // (== the sequential order), and Facts shards merged into the dispatch opts.
-func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefns.RenderOpts, metrics *protocol.Metrics) ([]entrymod.Graph, error) {
-	families := typefns.Families
+func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]entrymod.Graph, error) {
+	families := typefunctions.Families
 	graphs := make([]entrymod.Graph, len(families))
 	if !resolver.parallelRenderEnabled() || len(families) < 2 {
 		for familyIndex, spec := range families {
@@ -228,10 +228,10 @@ func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefns.Ren
 	}
 	results := make([]familyResult, len(families))
 	familyDiagnostics := make([][]diag.Diagnostic, len(families))
-	factShards := make([]*typefns.FactsTable, len(families))
+	factShards := make([]*typefunctions.FactsTable, len(families))
 	var waitGroup sync.WaitGroup
 	for familyIndex, spec := range families {
-		factShards[familyIndex] = typefns.NewFactsTable()
+		factShards[familyIndex] = typefunctions.NewFactsTable()
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
@@ -277,9 +277,9 @@ func (resolver *Resolver) parallelRenderEnabled() bool {
 // the reverse lookup the cross-family fixpoint needs to route a missing
 // `<fnHash>_<id>` dep to the family that renders it. Cross-family edges always
 // target plain (no-variant) entries, so plain hashes suffice.
-var familyByPlainHash = func() map[string]typefns.FamilySpec {
-	out := make(map[string]typefns.FamilySpec, len(typefns.Families))
-	for _, spec := range typefns.Families {
+var familyByPlainHash = func() map[string]typefunctions.FamilySpec {
+	out := make(map[string]typefunctions.FamilySpec, len(typefunctions.Families))
+	for _, spec := range typefunctions.Families {
 		op, ok := operations.ByFamilyTag(spec.Settings.Tag)
 		if !ok {
 			continue
@@ -303,7 +303,7 @@ var familyByPlainHash = func() map[string]typefns.FamilySpec {
 // rendered set grows monotonically toward the (finite) session type set. The
 // guard cap is defensive — hitting it leaves the remaining edges to the stub
 // pass, which preserves the build (runtime degrades to identity fallback).
-func (resolver *Resolver) resolveCrossFamilyEdges(graph entrymod.Graph, dump protocol.Dump, rtOpts typefns.RenderOpts) {
+func (resolver *Resolver) resolveCrossFamilyEdges(graph entrymod.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
 	seedDump := protocol.Dump{RunTypes: dump.RunTypes}
 	for iteration := 0; iteration < 8; iteration++ {
 		missingByFamily := map[string]map[string]bool{}
@@ -350,7 +350,7 @@ func (resolver *Resolver) resolveCrossFamilyEdges(graph entrymod.Graph, dump pro
 			}
 			sort.Strings(ids)
 			before := len(graph)
-			graph.Merge(typefns.FamilyByKey(key).Collect(seedDump, rtOpts, ids))
+			graph.Merge(typefunctions.FamilyByKey(key).Collect(seedDump, rtOpts, ids))
 			if len(graph) > before {
 				progressed = true
 			}
@@ -694,7 +694,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// diagnostics but drops the module payload (lint pass).
 		renderEntries := request.IncludeEntryModules || request.IncludeRtDiagnostics
 		var rtDiagnostics []diag.Diagnostic
-		var rtOpts typefns.RenderOpts
+		var rtOpts typefunctions.RenderOpts
 		if renderEntries {
 			rtOptsStart := time.Now()
 			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())

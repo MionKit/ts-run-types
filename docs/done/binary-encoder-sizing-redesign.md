@@ -17,11 +17,11 @@ return, decoder-accepts-serializer, `createBinarySizer` kept,
 **Phase 2 — compile-time format-aware estimate (DONE, this change).**
 
 - Format `BinarySize` hint: `formats.BinarySizer` capability +
-  `BinarySizeHint{Fixed}` ([formats/registry.go](../../internal/compiled/typefns/formats/registry.go)),
+  `BinarySizeHint{Fixed}` ([formats/registry.go](../../internal/cachegen/typefunctions/formats/registry.go)),
   implemented by numberFormat (1/2/4/8) and bigintFormat (8) from the SAME
   `integerType`/`bigIntType` logic `EmitToBinary` uses.
 - Per-type estimator: `EstimateBinarySize`
-  ([binary_size_estimate.go](../../internal/compiled/typefns/binary_size_estimate.go))
+  ([binary_size_estimate.go](../../internal/cachegen/typefunctions/binary_size_estimate.go))
   — memoized by type id, cycle-safe, format-aware, capped per subtree at
   `maxBytes`. Unit-tested in `binary_size_estimate_test.go`.
 - Global config: `sizeBias` (0.8), `sizeItems` (100), `sizeStringBytes` (32),

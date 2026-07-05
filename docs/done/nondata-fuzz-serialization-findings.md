@@ -18,7 +18,7 @@ the stripped-member work) which are fixed too.
 | **F1** | `binaryEncode`/`binaryDecode` mis-applied the index-sig encoder to NAMED properties on objects mixing both | **FIXED** — named props emit first, the index-sig loop skips declared keys via the shared `publishSiblingNamedKeysForIndexSig` + `siblingNamedSkipCode`. Pinned by `binaryIndexSig.smoke.test.ts`. |
 | **K2** | A stripped-valued prop in a UNION member failed the whole union (a standalone object drops it) | **FIXED** — `buildMergedProps` drops the full `isStrippedUnionMember` set + emits the drop warning. Pinned by `TestDataOnlyUnion_ObjectMemberStrippedProp`. |
 | **F2** | Callable interface: function to `validate`, object to the serializers | **FIXED (product)** — `objectHasCallSignature` makes the serializers + validate treat it function-like everywhere (typeof-function at root, dropped at a property). Pinned by `callable_interface_dataonly_test.go`. Re-enabling fuzz GENERATION is deferred (see F2b). |
-| **F2b** | A callable interface at a NON-ROOT propagating position (array element, Map/Record value, tuple slot, intersection) produced an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site (`no id injected`). The serializers latch the callable OBJECTLITERAL as the unsupported leaf, but `DiagCodeForLeaf` had no objectLiteral arm → returned "" → the entry was SILENTLY SKIPPED, leaving a dangling dep that cascaded to a `KindMissing` stub; a JSON composite then bound it with an unguarded `getRT(key).fn`. | **FIXED (emit)** — `callableLeafSubstitute` ([kinds.go](../../internal/compiled/typefns/kinds.go)) maps the callable objectLiteral leaf to its call-signature child at the alwaysThrow site ([module.go](../../internal/compiled/typefns/module.go)), so it renders a controlled alwaysThrow with the family's FUNCTION code (an Error-severity build diagnostic), exactly like a bare function. Pinned by `TestF2b_CallableInArrayElementAlwaysThrows`. Generation re-enable still deferred (G2/G3). |
+| **F2b** | A callable interface at a NON-ROOT propagating position (array element, Map/Record value, tuple slot, intersection) produced an UNCONTROLLED wire error (`reading 'fn'`) + an unresolved binary site (`no id injected`). The serializers latch the callable OBJECTLITERAL as the unsupported leaf, but `DiagCodeForLeaf` had no objectLiteral arm → returned "" → the entry was SILENTLY SKIPPED, leaving a dangling dep that cascaded to a `KindMissing` stub; a JSON composite then bound it with an unguarded `getRT(key).fn`. | **FIXED (emit)** — `callableLeafSubstitute` ([kinds.go](../../internal/cachegen/typefunctions/kinds.go)) maps the callable objectLiteral leaf to its call-signature child at the alwaysThrow site ([module.go](../../internal/cachegen/typefunctions/module.go)), so it renders a controlled alwaysThrow with the family's FUNCTION code (an Error-severity build diagnostic), exactly like a bare function. Pinned by `TestF2b_CallableInArrayElementAlwaysThrows`. Generation re-enable still deferred (G2/G3). |
 | **G2** | The soak's `O5 … Too many unknown keys` throw (the `MAX_UNKNOWN_KEYS = 10` DoS guard in [`pure-fns-utils.ts`](../../packages/ts-runtypes/src/runtypes/pure-fns-utils.ts)) on an index-signature / `Record` shape with dropped sibling members. (The original "bigint / DataView at the index VALUE position" framing was imprecise — the value position serialises fine; the symptom was an unknown-keys MISCOUNT from a value carrying keys a dropped member declared.) | **NOT REPRODUCING** — does not surface across extensive multi-seed soaking after the generation hardening + the G3–G6 fixes (the same dropped-member class). The guard is a controlled throw; no miscount remains. Re-open with a seed if it recurs. |
 | **G3** | NEW (soak): an `invalid union index` error on a discriminated union whose members share a property NAME where one member's version is DataOnly-stripped (`{kind:'t1'; f0:Set} \| {kind:'t2'; f0:Promise}`). A value from the stripped member carries the key; binary set its optional-prop bitmap bit while the multi-candidate dispatch matched no arm and wrote no bytes, desyncing the decoder. | **FIXED** — see "G3 / G4" below. |
 | **G4** | NEW (soak): the same stripped-merged-prop shape with a `Date` survivor (`{kind:'t1'; f2:Date} \| {kind:'t2'; f2:Uint8Array}`) threw an UNCONTROLLED error (`.toISOString` / `.getTime` is not a function): the merged Date codec was applied to the stripped member's foreign-typed value. | **FIXED** — see "G3 / G4" below. |
@@ -77,11 +77,11 @@ and remains a real finding to triage.
 
 ## Where the code lives
 
-- Binary emitter (index signatures, the F1 site) — [`internal/compiled/typefns/binary_to.go`](../../internal/compiled/typefns/binary_to.go), [`binary_from.go`](../../internal/compiled/typefns/binary_from.go)
-- JSON object/index-sig emit (the correct reference + the absorption path) — [`internal/compiled/typefns/json_prepare.go`](../../internal/compiled/typefns/json_prepare.go)
-- Union flat layout + merged-prop emit (the K2 site) — [`internal/compiled/typefns/union_flat_layout.go`](../../internal/compiled/typefns/union_flat_layout.go), [`union_flat.go`](../../internal/compiled/typefns/union_flat.go)
-- Validate root arms (the F2 site) — [`internal/compiled/typefns/validate.go`](../../internal/compiled/typefns/validate.go)
-- Diagnostic severities (the F3 site) — [`internal/compiled/typefns/diag_codes.go`](../../internal/compiled/typefns/diag_codes.go), [`internal/diag/codes_runtype.go`](../../internal/diag/codes_runtype.go)
+- Binary emitter (index signatures, the F1 site) — [`internal/cachegen/typefunctions/binary_to.go`](../../internal/cachegen/typefunctions/binary_to.go), [`binary_from.go`](../../internal/cachegen/typefunctions/binary_from.go)
+- JSON object/index-sig emit (the correct reference + the absorption path) — [`internal/cachegen/typefunctions/json_prepare.go`](../../internal/cachegen/typefunctions/json_prepare.go)
+- Union flat layout + merged-prop emit (the K2 site) — [`internal/cachegen/typefunctions/union_flat_layout.go`](../../internal/cachegen/typefunctions/union_flat_layout.go), [`union_flat.go`](../../internal/cachegen/typefunctions/union_flat.go)
+- Validate root arms (the F2 site) — [`internal/cachegen/typefunctions/validate.go`](../../internal/cachegen/typefunctions/validate.go)
+- Diagnostic severities (the F3 site) — [`internal/cachegen/typefunctions/diag_codes.go`](../../internal/cachegen/typefunctions/diag_codes.go), [`internal/diag/codes_runtype.go`](../../internal/diag/codes_runtype.go)
 - Fuzz harness + runner + generator + product mock — [`typeFuzzHarness.ts`](../../packages/ts-runtypes/test/fuzz/typeFuzzHarness.ts), [`typeFuzzRunner.ts`](../../packages/ts-runtypes/test/fuzz/typeFuzzRunner.ts), [`typeGen.ts`](../../packages/ts-runtypes/test/fuzz/typeGen.ts), [`mockType.ts`](../../packages/ts-runtypes/src/mocking/mockType.ts)
 
 ---
@@ -114,8 +114,8 @@ does NOT have this bug, so it is the reference for correct behavior.
 
 ### Proposed fix
 
-In the binary index-signature emit ([`binary_to.go`](../../internal/compiled/typefns/binary_to.go) /
-[`binary_from.go`](../../internal/compiled/typefns/binary_from.go)): encode the
+In the binary index-signature emit ([`binary_to.go`](../../internal/cachegen/typefunctions/binary_to.go) /
+[`binary_from.go`](../../internal/cachegen/typefunctions/binary_from.go)): encode the
 declared named properties with their own per-property encoders first, then iterate
 only the REMAINING keys for the index signature (skip any key that names a declared
 property). Mirror whatever `json_prepare.go` does for the same mixed shape. Pin
@@ -130,13 +130,13 @@ property inside a union member fails the entire union instead. The drop is not
 applied consistently between the two code paths.
 
 - Standalone `{b: symbol}` → `b` is absorbed (dropped) → serializes as `{}`
-  ([`json_prepare.go:396-407`](../../internal/compiled/typefns/json_prepare.go), `AbsorbUnsupported`).
+  ([`json_prepare.go:396-407`](../../internal/cachegen/typefunctions/json_prepare.go), `AbsorbUnsupported`).
 - Union `X | {b: symbol}` → fails: `buildMergedProps` only filters FUNCTION-LIKE
-  props ([`union_flat_layout.go:177`](../../internal/compiled/typefns/union_flat_layout.go)),
+  props ([`union_flat_layout.go:177`](../../internal/cachegen/typefunctions/union_flat_layout.go)),
   so a `symbol` / `Promise` / non-serializable-valued prop survives into the merge,
   emits `CodeNS`, and `emitMergedPropPrepare` returns false
-  ([`union_flat.go:154-162`](../../internal/compiled/typefns/union_flat.go)), which
-  alwaysThrows the whole union ([`union_flat.go:110-115`](../../internal/compiled/typefns/union_flat.go)).
+  ([`union_flat.go:154-162`](../../internal/cachegen/typefunctions/union_flat.go)), which
+  alwaysThrows the whole union ([`union_flat.go:110-115`](../../internal/cachegen/typefunctions/union_flat.go)).
 
 This was found by code review during the fuzz work, not auto-flagged by the lane
 (the lane has no independent model, and the resolver's own tiering treats it as a
@@ -161,7 +161,7 @@ both and it cannot be round-trip-fuzzed.
 - **seed 2643544942** — `interface N0 { (a0: DataView): 1; p0?(a0: string): … }`, `type T = N0`.
   - `validate<N0>(() => {})` is `true`; `validate<N0>({})` is `false` (validate uses
     the function-at-root `typeof === 'function'` guard, see
-    [`validate.go`](../../internal/compiled/typefns/validate.go) ~lines 459-468).
+    [`validate.go`](../../internal/cachegen/typefunctions/validate.go) ~lines 459-468).
   - `jsonEncode<N0>({})` serializes `{}` (the serializers treat `N0` as an object and
     drop the call signature / method, emitting VL010/VL011-family member-drop warnings).
 
@@ -188,21 +188,21 @@ tuple slot, intersection) it left the entry SILENTLY SKIPPED, which a downstream
 JSON composite then bound with an unguarded `getRT(key).fn`:
 
 1. The serializer guard returns `CodeNS`, so the walker latches the callable
-   **objectLiteral** as `UnsupportedLeaf` ([walker.go](../../internal/compiled/typefns/walker.go)).
-2. The alwaysThrow site ([module.go](../../internal/compiled/typefns/module.go)) calls
+   **objectLiteral** as `UnsupportedLeaf` ([walker.go](../../internal/cachegen/typefunctions/walker.go)).
+2. The alwaysThrow site ([module.go](../../internal/cachegen/typefunctions/module.go)) calls
    `DiagCodeForLeaf(leaf)`, but `rootCodeMap.codeFor`
-   ([diag_codes.go](../../internal/compiled/typefns/diag_codes.go)) maps only
+   ([diag_codes.go](../../internal/cachegen/typefunctions/diag_codes.go)) maps only
    `KindFunction`/`KindMethod`/`KindCallSignature` to the family `function` code —
    no `KindObjectLiteral` arm → returns `""` → the entry is silently skipped (no
    factory, no alwaysThrow).
 3. A container that hard-depends on the skipped entry (e.g. the array's pjs)
    cascades to a `KindMissing` stub; the JSON composite
-   ([json_composite.go](../../internal/compiled/typefns/json_composite.go)) binds
+   ([json_composite.go](../../internal/cachegen/typefunctions/json_composite.go)) binds
    `const pjsFn = utl.getRT(<key>).fn` on that stub → `reading 'fn'` at runtime.
    Binary has no composite, so the stub surfaces as `no id injected`.
 
 **Fix:** `callableLeafSubstitute(leaf, refTable)`
-([kinds.go](../../internal/compiled/typefns/kinds.go)) maps a callable-interface
+([kinds.go](../../internal/cachegen/typefunctions/kinds.go)) maps a callable-interface
 objectLiteral leaf to its call-signature child; `module.go` substitutes before
 `DiagCodeForLeaf`, so the family's FUNCTION code fires and the entry renders a
 controlled alwaysThrow (Error-severity diagnostic), exactly like a bare function.
@@ -262,7 +262,7 @@ in every property emitter + the binary/safe object pre-filters:
 The runner still tiers serialize-vs-fail from ACTUAL encoder behaviour (the
 robust default), but the resolver no longer over-reports Errors on dropped
 properties, so a future diagnostics-assisted tier is now sound. Pinned by
-`internal/compiled/typefns/property_dataonly_test.go`, the updated
+`internal/cachegen/typefunctions/property_dataonly_test.go`, the updated
 `runtype-diagnostics.test.ts`, the `TestDiag_PropertyAbsorbsUnsupportedChild_NeverProp`
 resolver test, and the `Int8Array in interface` serialization fixture.
 
@@ -295,7 +295,7 @@ key was present, without checking the value matched it:
 
 ### Fix
 
-`FlatMergedProp.HasStrippedCandidate` ([union_flat_layout.go](../../internal/compiled/typefns/union_flat_layout.go))
+`FlatMergedProp.HasStrippedCandidate` ([union_flat_layout.go](../../internal/cachegen/typefunctions/union_flat_layout.go))
 records when a sibling member declared the prop with a stripped type (always
 implies `!Required`). When set, every encode family guards the surviving codec
 with `mergedPropSurvivingGuard` (the OR of the surviving candidates' validate
@@ -314,7 +314,7 @@ Pinned by `union_flat_stripped_prop_test.go` + `unionStrippedSibling.smoke.test.
 `Set<Map<string, Record<string, {kind:'t0'} | {kind:'t1'}>>>` threw `invalid
 union index` on JSON decode (and dropped the value on binary). The flat-union
 encoder ALWAYS wraps object members in a `[-1, …]` envelope (for decode
-disambiguation), but `isJsonCompatible` ([json_compat.go](../../internal/compiled/typefns/json_compat.go))
+disambiguation), but `isJsonCompatible` ([json_compat.go](../../internal/cachegen/typefunctions/json_compat.go))
 reported a union of JSON-compatible OBJECT members as compatible (= "no
 transform"). The Map/Set clone fast-path (`Array.from(v)`,
 `emitNativeIterablePrepareForJsonSafe`) trusted that and skipped the envelope on
@@ -337,7 +337,7 @@ with its envelope. Pinned by the `union of object members (envelopes)` case in
 `{p0?: ArrayBuffer; p1: boolean; [k:number]:"red"}` round-tripped differently on
 the JSON-clone vs binary wires: the clone kept `"p0":{}` while every other family
 dropped it. The clone encoder
-(`buildSafeIndexSignatureObject`, [json_prepare_safe.go](../../internal/compiled/typefns/json_prepare_safe.go))
+(`buildSafeIndexSignatureObject`, [json_prepare_safe.go](../../internal/cachegen/typefunctions/json_prepare_safe.go))
 built its index for-in "skip declared keys" set from the KEPT props only, so the
 DROPPED `p0` fell through to the index arm and was copied back into the clone.
 Binary already skipped it via `collectSiblingNamedKeys` (which keys on the NAME,

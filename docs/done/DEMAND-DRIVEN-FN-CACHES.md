@@ -21,7 +21,7 @@ demand-scoped on its own:
 
 - The JSON and binary **union decoders discriminate members at runtime via
   `val_<member>.fn(value)`** — see `unionMemberValidateCheck` in
-  `internal/compiled/typefns/json_prepare.go`. The call is guarded
+  `internal/cachegen/typefunctions/json_prepare.go`. The call is guarded
   `(val_<member>?.fn(v) ?? true)`, so a **missing** `val_<member>` silently
   evaluates to `true` → the first union member always matches → wrong
   round-trip values (no error, just corrupt data).
@@ -65,7 +65,7 @@ a `createX<T>()` call.
 
 Root cause, two facts in the code:
 
-1. `internal/compiled/typefns/module.go` (`RenderFnModule`) iterates
+1. `internal/cachegen/typefunctions/module.go` (`RenderFnModule`) iterates
    `for _, runType := range dump.RunTypes { renderRoot(runType) }` — it emits a
    factory for every interned type the emitter `Supports`. Call sites
    (`dump.Sites`) are consulted **only** by `collectValidateVariants`, and only to
@@ -209,7 +209,7 @@ per-site `fnId` assertions; do not delete it.
   string. Byte-offset Buffer path unchanged.
 
 **Phase 4 — demand-driven emission (the fix)**
-- `internal/compiled/typefns/module.go`: replace the
+- `internal/cachegen/typefunctions/module.go`: replace the
   `for _, runType := range dump.RunTypes` seed with a worklist seeded by the
   sites whose `FnId` maps to the emitter's family (+ option variants), then
   transitively pull in referenced child factories via the `RTDependencies`
@@ -296,7 +296,7 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
   **carried to Slice D** (matters once `it` is scoped).
 - [x] A8 `packages/vite-plugin-runtypes/src/protocol.ts`: `Site.fnId?`.
 - [x] A9 `rewrite.ts` `buildInsertion`: `[id, fnId]` tuple when `fnId` present.
-- [x] A10 `internal/compiled/typefns/module.go`: `collectFamilyDemand` +
+- [x] A10 `internal/cachegen/typefunctions/module.go`: `collectFamilyDemand` +
   worklist-seed + transitive closure; back-compat all-emit path; gated by
   `MigratedFamilies` (currently `{te}`).
 - [x] A11 `createRTFunctions.ts`: `createValidate`/`createGetValidationErrors` read the

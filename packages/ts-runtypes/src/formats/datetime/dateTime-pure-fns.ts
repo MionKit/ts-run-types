@@ -3,7 +3,7 @@
 // `utl.getPureFn('rtFormats::<name>')`. Moved out of
 // ../string/string-formats-pure-fns.ts so the whole date-ish surface
 // lives together; the Go path constant `dateTimePureFnFilePath` in
-// internal/compiled/typefns/formats/datetime/shared.go MUST match this
+// internal/cachegen/typefunctions/formats/datetime/shared.go MUST match this
 // file's location or the pure-fn extractor won't ship these bodies.
 //
 // Importing this file from ../index.ts (the `ts-runtypes/
@@ -212,7 +212,7 @@ registerPureFnFactory('rtFormats::isTimeString_mmss', function (utl: RTUtils) {
 // precomputed numbers on the SAME scale, so a min/max check is a plain
 // `key(value) >= bakedMin` / `<= relativeNowKey(spec)`.
 //
-// Scales (must match internal/compiled/typefns/formats/datetime/literals.go):
+// Scales (must match internal/cachegen/typefunctions/formats/datetime/literals.go):
 //   - date / dateTime / native Date → epoch milliseconds (UTC)
 //   - time                          → milliseconds-of-day
 // Canonical fills for partial layouts: missing year → 2000, missing day → 1.

@@ -6,13 +6,13 @@ Scope: pure validation-family work (one emitter term + tests). Does not touch JS
 ## What shipped
 
 - **Root cause.** The `validate` object emitter (`emitObjectValidate`,
-  [internal/compiled/typefns/validate.go](../../internal/compiled/typefns/validate.go))
+  [internal/cachegen/typefunctions/validate.go](../../internal/cachegen/typefunctions/validate.go))
   splices a plain-object brand guard —
   `!Array.isArray(v) && Object.prototype.toString.call(v) === '[object Object]'` —
   onto the shape gate when the object is empty, all-optional, **or carries an
   index signature** (`!hasContributingChild || allOptional || hasIndexSig`). The
   `validationErrors` emitter (`emitObjectValidationErrors`,
-  [internal/compiled/typefns/validationerrors.go](../../internal/compiled/typefns/validationerrors.go))
+  [internal/cachegen/typefunctions/validationerrors.go](../../internal/cachegen/typefunctions/validationerrors.go))
   tracked only `allOptional` + `hasContributingChild` and was **missing the
   `hasIndexSig` term** — it never even computed it. For a `Record<K, V>` the
   index-signature child is a contributing, non-optional child, so the guard was
@@ -27,7 +27,7 @@ Scope: pure validation-family work (one emitter term + tests). Does not touch JS
 
 - **Tests.**
   - Go emitter regression
-    ([internal/compiled/typefns/index_sig_array_reject_test.go](../../internal/compiled/typefns/index_sig_array_reject_test.go)):
+    ([internal/cachegen/typefunctions/index_sig_array_reject_test.go](../../internal/cachegen/typefunctions/index_sig_array_reject_test.go)):
     renders `Record<string, number>` and `Record<string, Date>` through both
     families and asserts BOTH carry the brand guard (fails without the fix).
   - JS end-to-end regression
