@@ -110,7 +110,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 	// Object branch — write sentinel discriminator + merged bitmap +
 	// merged prop values.
 	if len(layout.ObjectMembers) > 0 {
-		sentinelWrite := sentinelLiteral(width)
+		var sentinelWrite string
 		if width == "Uint16" {
 			sentinelWrite = reserveExpr(ser, "2", ser+".view.setUint16("+ser+".index, "+sentinel+", 1, ("+ser+".index += 2))")
 		} else {

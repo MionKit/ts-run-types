@@ -762,11 +762,7 @@ func emitUnionValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode 
 		// the same way; we do a textual strip because the object
 		// emit always starts with `(typeof <v> === 'object' && <v> !== null`.
 		objGuard := "typeof " + v + " === 'object' && " + v + " !== null"
-		objClauseParts := make([]string, 0, len(objectChecks))
-		for _, oc := range objectChecks {
-			objClauseParts = append(objClauseParts, oc)
-		}
-		objChain := strings.Join(objClauseParts, " || ")
+		objChain := strings.Join(objectChecks, " || ")
 		// Keep the children's inner guards in place — pre-mature
 		// optimization to strip them is fragile against varying child
 		// shapes (interface vs index sig vs class). The actual
