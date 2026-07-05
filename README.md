@@ -235,9 +235,15 @@ Round-trip serialization (`pnpm rt bench serialization`) also reports `serializa
 
 ```
 cmd/ts-runtypes/                CLI entry point
-internal/                        Go pipeline (program, resolver, marker,
-                                  compiled/runtype, compiled/typefns, compiled/purefns,
-                                  protocol, constants, diag, cache, entrymod, hashid, testfixtures)
+internal/                        Go pipeline in three areas:
+internal/compiler/                 source transformers (program, marker, builders,
+                                    comptimeargs, resolver, sourcerewrite,
+                                    virtualmodules, batchcompile)
+internal/cachegen/                 cache generation (runtype, typefunctions,
+                                    purefunctions, operations, diskcache, hashid)
+internal/enrichment/               FriendlyText / MockData codegen (astcheck, cldr, mirror)
+                                  shared: protocol, constants, diag, textpos,
+                                  jsquote, testfixtures
 packages/ts-runtypes/        ts-runtypes — marker type + helpers
 packages/runtypes-devtools/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
