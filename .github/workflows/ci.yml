@@ -75,7 +75,7 @@ jobs:
         run: pnpm exec vitest run test/fuzz
       # enrichRace self-skips unless RT_FUZZ_RACE=1 (scripts audit §3.4); the
       # test/fuzz run above never sets it, so the concurrency coverage rides here.
-      # Equivalent to `pnpm rt core fuzz race`.
+      # Equivalent to `pnpm run rt core fuzz race`.
       - name: Concurrent CLI race fuzz (RT_FUZZ_RACE gate)
         run: RT_FUZZ_RACE=1 pnpm exec vitest run enrichRace
 
@@ -99,7 +99,7 @@ jobs:
         run: pnpm run check:builds
       # The committed Go→TS mirrors have no other CI drift gate and can silently
       # rot (scripts audit §3.3): regenerate + format them and fail on any diff.
-      # Equivalent to `pnpm rt core codegen all --check`.
+      # Equivalent to `pnpm run rt core codegen all --check`.
       - name: Codegen drift (Go→TS mirrors must be in sync)
         run: |
           pnpm run gen:ts-constants
@@ -159,15 +159,15 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
       - name: Build the resolver + linux binaries for the container mounts
-        run: pnpm rt core build all linux-go linux-extract
+        run: pnpm run rt core build all linux-go linux-extract
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Website serves-a-page smoke
-        run: pnpm rt website check
+        run: pnpm run rt website check
       # RT_BENCH_NO_TYPIA stays until the prebuilt image BAKES typia's .ttsc plugin (a
       # local image change + republish); a no-.ttsc image would otherwise recompile
       # it ~200s here. Drop this once that image is live.
       - name: Benchmark competitor-build smoke
         env:
           RT_BENCH_NO_TYPIA: '1'
-        run: pnpm rt bench smoke
+        run: pnpm run rt bench smoke

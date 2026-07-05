@@ -107,7 +107,7 @@ jobs:
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Build binary + benchmarks + static site
-        run: pnpm rt website build
+        run: pnpm run rt website build
       - name: Upload static artifact
         uses: actions/upload-artifact@v7
         with:
