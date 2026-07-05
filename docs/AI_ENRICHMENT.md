@@ -530,7 +530,7 @@ wrong label for generation.
 
 - **The `gen` codegen emitter lives in Go.** It walks the `RunType` graph — a giant
   `switch` over `RunType.kind`, the same emitter pattern as
-  [`serialize.go`](../internal/compiled/runtype/serialize.go) and the typefns
+  [`serialize.go`](../internal/cachegen/runtype/serialize.go) and the typefns
   families — and **emits new mirror files under `enrichDir` or appends to existing
   ones**. Keeping it Go-side reuses that walk; doing it in JS would mean shipping the graph to Node and
   re-implementing the kind-switch — duplicating the emitter for nothing. Because
@@ -1035,7 +1035,7 @@ production graph. No special registration-gating mechanism required.
   cross-file `import type` / value imports) **requires** `declFile` (+ `declName`) on
   the resolved type — not deferred. The binary already reads this internally
   (`symbol.Declarations → GetSourceFileOfNode()`; `declarationPos` in
-  [`serialize.go`](../internal/compiled/runtype/serialize.go)) but does not serialize
+  [`serialize.go`](../internal/cachegen/runtype/serialize.go)) but does not serialize
   it — it's the "location" slot the protocol reserves but never populates. It's also
   what `describe` wants for prompt context, so it pays for itself.
 - **`$[val]` enrichment.** `format.val` is overloaded — the param for

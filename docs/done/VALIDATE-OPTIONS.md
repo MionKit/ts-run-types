@@ -62,7 +62,7 @@ resolution block shrank dramatically. Removed:
 
 What's left is `cache.AssignID(typeArgument)`. `SerializeArrayWithFlags`
 was deleted entirely from
-[serialize.go](../internal/compiled/runtype/serialize.go).
+[serialize.go](../internal/cachegen/runtype/serialize.go).
 
 ## 3. Schema-form options ride on the builder's Site (DONE)
 

@@ -159,7 +159,7 @@ encode arm rather than being recognized as "optional boolean". Places to check:
   atomic boolean + an optional flag on the property?
 - The union vs atomic decision for `boolean` (which is `true | false`) — is a bare
   `boolean` kept atomic while `boolean | undefined` collapses to a literal union?
-  See the runtype builders / union normalization and `internal/compiled/runtype/`.
+  See the runtype builders / union normalization and `internal/cachegen/runtype/`.
 - The JSON encoder (`pjs`) and binary encoder (`tb`) emit arms in
   `internal/compiled/typefns/` — confirm whether they receive a union node here
   and whether an "optional atomic" fast path exists / is being missed.
@@ -418,7 +418,7 @@ projection (`StripUndefined`) and the union emitters, all of which predate compa
 ### Detail + verbatim evidence
 
 **A — optional union → discriminated-union envelope (the seed, generalized).**
-`StripUndefined` ([typeid.go:550-566](../../internal/compiled/runtype/typeid/typeid.go)):
+`StripUndefined` ([typeid.go:550-566](../../internal/cachegen/runtype/typeid/typeid.go)):
 
 ```go
 parts := tsType.Distributed()          // boolean|undefined → {false, true, undefined}
@@ -427,7 +427,7 @@ if len(kept) == 1 { return kept[0] }   // only the single-member case is handled
 return tsType                          // ← returns the ORIGINAL union, undefined included
 ```
 
-`appendProperty` ([serialize.go:1213](../../internal/compiled/runtype/serialize.go)) then serializes that 3-member union as the property's child. Proof by contrast (all from `bin/ts-runtypes`):
+`appendProperty` ([serialize.go:1213](../../internal/cachegen/runtype/serialize.go)) then serializes that 3-member union as the property's child. Proof by contrast (all from `bin/ts-runtypes`):
 
 - `active: boolean` (required): `val` = `typeof v.active === 'boolean'`, 1 `val` entry, **no** `pj`/`rj`, `tb` writes 1 byte (`setUint8(!!v.active)`).
 - `x?: string` (single-member optional): `val` = `v.x === undefined || typeof v.x === 'string'`, **no** envelope, **no** `pj`/`rj`.
@@ -497,7 +497,7 @@ risks.
 
 ### Step 1 — Fix A (keystone): strip `undefined` from multi-member optional unions ✅ spike-validated
 
-**Change** `StripUndefined` ([typeid.go:550](../../internal/compiled/runtype/typeid/typeid.go)) to take the checker and finish the job:
+**Change** `StripUndefined` ([typeid.go:550](../../internal/cachegen/runtype/typeid/typeid.go)) to take the checker and finish the job:
 
 ```go
 func StripUndefined(typeChecker *checker.Checker, tsType *checker.Type) *checker.Type {
@@ -512,8 +512,8 @@ func StripUndefined(typeChecker *checker.Checker, tsType *checker.Type) *checker
 ```
 
 Thread the checker at all **4 call sites** (both already hold one):
-`appendProperty` ([serialize.go:1215](../../internal/compiled/runtype/serialize.go), `cache.typeChecker`), `projectSignature` (:1252),
-`projectTuple` (:869), and the id computer ([typeid.go:428](../../internal/compiled/runtype/typeid/typeid.go), `computer.typeChecker`).
+`appendProperty` ([serialize.go:1215](../../internal/cachegen/runtype/serialize.go), `cache.typeChecker`), `projectSignature` (:1252),
+`projectTuple` (:869), and the id computer ([typeid.go:428](../../internal/cachegen/runtype/typeid/typeid.go), `computer.typeChecker`).
 Both the serializer AND the id computer must change together (the structural id must
 match the projected node — see the recursion comment at typeid.go:417) — the shared
 signature change covers both.
@@ -574,7 +574,7 @@ acceptable (the decode side already omits it; encoders assume validated input �
 
 ### Step 3 — Fix C: collapse `{true,false}` → `boolean` in genuine unions
 
-In `finalizeUnion` ([union_safeorder.go:23](../../internal/compiled/runtype/union_safeorder.go)) or the serialize union
+In `finalizeUnion` ([union_safeorder.go:23](../../internal/cachegen/runtype/union_safeorder.go)) or the serialize union
 case (serialize.go:660): when the members include BOTH boolean literals, replace the
 two `KindLiteral` children with one interned `KindBoolean`. After Step 1 the optional
 case is already handled, so this only affects genuine **required** unions

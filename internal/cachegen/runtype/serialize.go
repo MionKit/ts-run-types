@@ -28,7 +28,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/hashid"
-	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -1540,7 +1540,7 @@ func parseNumberLiteral(text string) any {
 // the same member, which would leak checker identity into member names,
 // structural ids, and wire ids. The property INDEX in the `_pr_` scheme
 // keeps same-name symbol members distinct within one parent. Mirrored in
-// internal/compiled/runtype/typeid (typeid can't import its parent) —
+// internal/cachegen/runtype/typeid (typeid can't import its parent) —
 // keep them in sync.
 func stableMemberName(name string) string {
 	if len(name) < 2 || name[0] != 0xFE || name[1] != '@' {

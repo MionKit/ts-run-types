@@ -72,7 +72,7 @@ type checker. Format params reach the scanner by one of two routes:
 
 Because the regex is not in the type, the Go scanner recovers it from the
 **call-site AST**: `formatPatternFromSymbol` in
-[`internal/compiled/runtype/typeid/formats.go`](../internal/compiled/runtype/typeid/formats.go)
+[`internal/cachegen/runtype/typeid/formats.go`](../internal/cachegen/runtype/typeid/formats.go)
 walks from `pattern: typeof p` to `p`'s declaration and reads the
 `registerFormatPattern({regexp: /…/ | source: '…'})` argument. The
 `CompTimeArgs<…>` marker forces a literal at the call site precisely so this
@@ -173,7 +173,7 @@ mockSamples, message?}` shape, all string literals, still wrapped in
    `{maxLength: 5}` from a format's params; teach the stringFormat path to read
    the full bundle — `pattern.source`, `pattern.flags`, `pattern.mockSamples`,
    `pattern.message` — from the resolved type the same way
-   (`internal/compiled/runtype/typeid/formats.go`). All four matter: source/flags
+   (`internal/cachegen/runtype/typeid/formats.go`). All four matter: source/flags
    build the validator, mockSamples feed `createMockType`, message feeds
    diagnostics. The call-AST reader (`formatPatternFromSymbol`) can be kept as a
    fallback for the value-first builder path, or removed once the type path is
@@ -212,7 +212,7 @@ mockSamples, message?}` shape, all string literals, still wrapped in
   all ride the type.
 - ✅ All built-in patterns authored as `{source, flags?, mockSamples}`.
 - ✅ The scanner recovers stringFormat patterns from the **type**
-  (`formatPatternFromType` in `internal/compiled/runtype/typeid/formats.go`); the
+  (`formatPatternFromType` in `internal/cachegen/runtype/typeid/formats.go`); the
   AST reader stays as the value-first fallback.
 - ✅ The benchmark's `alpha` / `alphaNumeric` / `numeric` / `alpha_withLength`
   (and domain/email/url) compile and validate for RunTypes through

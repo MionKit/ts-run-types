@@ -9,7 +9,7 @@
 // two-property brand object — `__rtFormatName` + `__rtFormatParams` —
 // instead of deepkit's TypeAnnotation tag. Both sides of the wire
 // agree on the same brand shape: the tsgo-backed format scanner in
-// `internal/compiled/runtype/typeid/formats.go` looks for exactly
+// `internal/cachegen/runtype/typeid/formats.go` looks for exactly
 // these two sentinel properties and lifts them into the RunType's
 // FormatAnnotation field.
 
@@ -39,7 +39,7 @@ export type TypeFormatParams = Record<string, unknown>;
 // keep the type ergonomic while still carrying the metadata the scanner
 // lifts off the widened intersection. (tsgo widens the optional props to
 // `Name | undefined` / `Params | undefined`; the scanner strips the
-// `undefined` — see internal/compiled/runtype/typeid/formats.go.)
+// `undefined` — see internal/cachegen/runtype/typeid/formats.go.)
 //
 // `BrandName` follows the standard convention: pass it (`String<P,
 // 'UserId'>`) to opt INTO a nominal brand — a REQUIRED `__rtFormatBrand`

@@ -180,7 +180,7 @@ Two of three legs work; one does not:
 3. **But the reflection RunType is not in the runtime cache for a JSON-only
    site.** The kind-4 reflection bundle (`virtual:rt/runtypes.js`) is populated
    only by reflection-root sites, defined as `site.FnId == ""`
-   (`internal/compiled/runtype/entries.go` `reflectionRoots`).
+   (`internal/cachegen/runtype/entries.go` `reflectionRoots`).
    `createJsonEncoder` / `createJsonDecoder` sites carry a `FnId` (the composite
    fnHash), so they are excluded. A file that only calls
    `createJsonEncoder<undefined>()` and never reflects on the type emits **no**

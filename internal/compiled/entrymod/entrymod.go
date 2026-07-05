@@ -9,7 +9,7 @@
 // so they ship as ROWS of THE single data-bundle module
 // (`virtual:rt/runtypes.js`, KindRunTypeBundle) aliased by one facade module
 // per reflection root (KindRunTypeFacade) — see
-// internal/compiled/runtype.CollectEntries.
+// internal/cachegen/runtype.CollectEntries.
 //
 // Module shape (every kind):
 //

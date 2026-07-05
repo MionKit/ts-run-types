@@ -46,7 +46,7 @@ End-to-end flow for an existing parameterised format (verified in code):
 |---|---|
 | Type alias the user writes | `packages/ts-go-run-types/src/formats/string/stringFormats.ts` |
 | Brand carrier (`__rtFormatName` + `__rtFormatParams`) | `src/runtypes/typeFormat.ts:36` |
-| Go scanner lifts brand → `FormatAnnotation` | `internal/compiled/runtype/typeid/formats.go` |
+| Go scanner lifts brand → `FormatAnnotation` | `internal/cachegen/runtype/typeid/formats.go` |
 | Param validation → diagnostic | emitter's `ValidateParams(...)` (e.g. `internal/compiled/typefns/formats/string/stringformat.go:321`), codes in `internal/diag/codes_runtype.go:122` (`FMT001/002/003`) |
 | `isType` codegen | emitter's `EmitIsTypeCheck(...)` |
 | `getTypeErrors` codegen | emitter's `EmitTypeErrorsCheck(...)` |
@@ -212,7 +212,7 @@ Optional convenience aliases: `FormatDatePast = FormatDate<{max:'now'}>`, `Forma
 ### 4b. Go emitter
 
 **New file:** `internal/compiled/typefns/formats/datetime/nativeDate.go`
-- `Name() "nativeDate"`, `Kind() protocol.KindClass` (Date is a builtin class, not a string). Registry dispatch is keyed on `(Kind, Name)` (`registry.go:141`), and `LookupForRunType` keys off `rt.Kind` + `rt.FormatAnnotation.Name` (`registry.go:177`) — so the emitter is reachable as long as the scanner attaches a `FormatAnnotation{Name:"nativeDate"}` to the Date-kinded RunType. **Main unknown to resolve at implementation time:** confirm `internal/compiled/runtype/typeid/formats.go` lifts the `__rtFormatName`/`__rtFormatParams` brand off a `Date & {…}` intersection (it already lifts the brand off `string & {…}`; the intersection mechanism should be identical) AND that the host `istype.go`/`typeerrors.go` walk calls `formats.LookupForRunType` for `KindClass` builtins, not only for string/number kinds. If the class arm doesn't currently consult the format registry, add that lookup there.
+- `Name() "nativeDate"`, `Kind() protocol.KindClass` (Date is a builtin class, not a string). Registry dispatch is keyed on `(Kind, Name)` (`registry.go:141`), and `LookupForRunType` keys off `rt.Kind` + `rt.FormatAnnotation.Name` (`registry.go:177`) — so the emitter is reachable as long as the scanner attaches a `FormatAnnotation{Name:"nativeDate"}` to the Date-kinded RunType. **Main unknown to resolve at implementation time:** confirm `internal/cachegen/runtype/typeid/formats.go` lifts the `__rtFormatName`/`__rtFormatParams` brand off a `Date & {…}` intersection (it already lifts the brand off `string & {…}`; the intersection mechanism should be identical) AND that the host `istype.go`/`typeerrors.go` walk calls `formats.LookupForRunType` for `KindClass` builtins, not only for string/number kinds. If the class arm doesn't currently consult the format registry, add that lookup there.
 - `EmitIsTypeCheck`: base check `v instanceof Date && !isNaN(v.getTime())`, then `&& v.getTime() >= <minMs>` / `<= <maxMs>` reusing `relativeNowMs` for relative bounds. No string parsing needed (it's already a Date).
 - `EmitTypeErrorsCheck`: mirror with `formatErrorPush`.
 - `ValidateParams`: reuse `validateBound(..., dateTimeKind)` from Phase 1 (`bounds.go`) — shared logic, no duplication.
@@ -303,7 +303,7 @@ of two object members (the `Date` interface + the sentinel-bearing brand
 object), so it flows through `collapseIntersection`. The previous code
 sent that case to the object×object merge, losing both the `Date`
 identity and the brand. Fix: `splitBuiltinClassBrand` in
-`internal/compiled/runtype/intersection_collapse.go` detects a recognised
+`internal/cachegen/runtype/intersection_collapse.go` detects a recognised
 builtin-class member (Date/Map/Set/RegExp) alongside a format-brand
 member, projects the class (reusing `projectClass` → `SubKindDate` +
 `ClassRef`) and lifts the `FormatAnnotation`. The host `istype`/
