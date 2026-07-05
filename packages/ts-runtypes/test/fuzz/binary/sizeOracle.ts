@@ -40,10 +40,18 @@ function violation(oracle: SizeOracleId, compiled: CompiledType, ctx: SizeCtx, m
   return {oracle, type: compiled.title, seed: ctx.seed, message, value: snapshot(value)};
 }
 
-/** Force a cold start: an empty history makes the `dynamic` strategy seed the
- *  buffer from the compile-time estimate (the seed under test), not a warmed mean. **/
+/** Force a TRUE cold start — reset BOTH pieces of the serializer's warm module
+ *  state so a checked encode behaves like a fresh process's first-ever encode:
+ *   - `sizeHistory` empty       -> the `dynamic` strategy seeds the buffer from the
+ *     compile-time estimate (the seed under test), not a warmed mean.
+ *   - `stringBytesCache` empty  -> every string write reserves WORST-CASE UTF-8
+ *     (`MAX_VARINT + 3*charLength`), as a cold cache must. A warm cache reserves the
+ *     exact cached byte length instead, which is TIGHTER — so leaving it warm lets a
+ *     later "cold" encode fit a buffer a true cold start would have grown, silently
+ *     masking an under-allocation AND making the negative lane non-deterministic
+ *     (first encode grows, the rest don't). See docs/done/flaky-binary-size-estimate-fuzz.md. **/
 function coldStart(): void {
-  setSerializationOptions({sizeHistory: new Map()});
+  setSerializationOptions({sizeHistory: new Map(), stringBytesCache: new Map()});
 }
 
 function errMsg(err: unknown): string {
