@@ -203,9 +203,10 @@ jobs:
         run: podman --version
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
-      # Identical to `pnpm run website:build` locally - produces container/website/.output.
+      # The container-only prod build (not the full data pipeline) - produces
+      # container/website/.output.
       - name: Production build inside the container
-        run: bash scripts/website/site.sh build
+        run: pnpm rt website container-build
       - name: Upload build output
         uses: actions/upload-artifact@v7
         with:
