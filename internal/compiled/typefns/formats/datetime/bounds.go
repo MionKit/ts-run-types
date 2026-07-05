@@ -23,17 +23,6 @@ const (
 	dateTimeKind
 )
 
-func (kind boundKind) label() string {
-	switch kind {
-	case dateKind:
-		return "date"
-	case timeKind:
-		return "time"
-	default:
-		return "dateTime"
-	}
-}
-
 // relativeDuration captures which component groups an ISO-8601 duration
 // uses. We only need presence (to apply the per-kind restriction) and
 // the parsed quantities (to evaluate the offset at runtime via the JS

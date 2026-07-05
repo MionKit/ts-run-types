@@ -102,25 +102,6 @@ func IsTemporalSubKind(subKind ReflectionSubKind) bool {
 	return ok
 }
 
-// temporalByFormatName is the reverse lookup (FormatName → info) for the
-// orderable Temporal types, built once.
-var temporalByFormatName = func() map[string]TemporalInfo {
-	out := make(map[string]TemporalInfo)
-	for _, info := range temporalTypes {
-		if info.Orderable {
-			out[info.FormatName] = info
-		}
-	}
-	return out
-}()
-
-// TemporalInfoByFormatName returns the orderable Temporal entry for a
-// FormatAnnotation.Name (e.g. "temporalPlainDate"), or ok=false.
-func TemporalInfoByFormatName(formatName string) (TemporalInfo, bool) {
-	info, ok := temporalByFormatName[formatName]
-	return info, ok
-}
-
 // OrderableTemporalInfos returns every Temporal type that supports min/max
 // bounds, sorted by SubKind. Used by the format emitter to register one
 // emitter per orderable type.

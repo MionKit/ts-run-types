@@ -45,15 +45,6 @@ func New(baseDir string, fingerprint string) *Store {
 	return &Store{root: filepath.Join(baseDir, fingerprint)}
 }
 
-// Root returns the absolute root directory this store writes into. Used
-// by tests and CLI-level diagnostics. Empty when the store is nil.
-func (s *Store) Root() string {
-	if s == nil {
-		return ""
-	}
-	return s.root
-}
-
 // ReadRT loads the cached entry for (typeID, fnTag). Returns (nil,
 // false, nil) for a miss (file absent, malformed, wrong format, or
 // stale header). Real I/O errors other than ENOENT are surfaced so a

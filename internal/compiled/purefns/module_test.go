@@ -86,7 +86,7 @@ func TestCollectEntries_RenderedModuleShape(t *testing.T) {
 		{Namespace: "b", FunctionName: "y", Code: "return utl.usePureFn('a::x')();", BodyHash: "h2",
 			ParamNames: []string{}, PureFnDependencies: []string{"a::x"}},
 	})
-	modules, err := entrymod.Render(graph)
+	modules, err := entrymod.RenderGrouped(graph, nil)
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
