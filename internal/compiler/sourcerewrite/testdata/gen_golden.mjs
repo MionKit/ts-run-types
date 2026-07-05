@@ -1,8 +1,8 @@
 // gen_golden.mjs — generates golden testdata for the Go `transform` package by
 // driving the REAL JS rewrite from the built runtypes-devtools dist. The Go
-// port (internal/compiled/transform) must reproduce these byte-for-byte.
+// port (internal/compiler/sourcerewrite) must reproduce these byte-for-byte.
 //
-// Run from the repo root:  node internal/compiled/transform/testdata/gen_golden.mjs
+// Run from the repo root:  node internal/compiler/sourcerewrite/testdata/gen_golden.mjs
 //
 // Each case writes testdata/<name>.json = {file, code, sites, replacements,
 // expectedCode, expectedMap}. Sites/replacements carry UTF-8 BYTE offsets
