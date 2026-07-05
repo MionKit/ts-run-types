@@ -12,7 +12,7 @@ Each section shows:
 
 Two sections — **Literal** and **Enum** — also call out TypeScript quirks where the call shape changes the resulting `Kind` in surprising ways.
 
-> **Marker test coverage rule.** Every scenario below has paired tests in [`internal/resolver/atomic_test.go`](../internal/resolver/atomic_test.go) and [`packages/vite-plugin-runtypes/test/atomic.test.ts`](../packages/vite-plugin-runtypes/test/atomic.test.ts) — one per call form. See `CLAUDE.md`.
+> **Marker test coverage rule.** Every scenario below has paired tests in [`internal/compiler/resolver/atomic_test.go`](../internal/compiler/resolver/atomic_test.go) and [`packages/vite-plugin-runtypes/test/atomic.test.ts`](../packages/vite-plugin-runtypes/test/atomic.test.ts) — one per call form. See `CLAUDE.md`.
 
 ---
 

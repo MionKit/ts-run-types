@@ -29,7 +29,7 @@ knobs, and behaviour that matches the mental model users already have from `tsc`
    ([program.go](../../internal/compiler/program/program.go)), read from the fully parsed
    config so an `incremental`/`composite` inherited through `extends` counts. The
    resolver's enable+locate decision lives in `cacheLocation`
-   ([resolver.go](../../internal/resolver/resolver.go)), fed by the new
+   ([resolver.go](../../internal/compiler/resolver/resolver.go)), fed by the new
    `Options.CacheFollowsIncremental`: incremental/composite → cache on, else off.
    `New` passes `prog.IsIncremental()`; `NewServer` (inline-server, no Program)
    passes `false`, so the inline / server modes stay cache-off as before.
@@ -91,7 +91,7 @@ Everything that used `cacheDir: false` for hermetic runs was migrated:
 
 ## Coverage
 
-- Go: `TestCacheLocation` ([cache_location_test.go](../../internal/resolver/cache_location_test.go))
+- Go: `TestCacheLocation` ([cache_location_test.go](../../internal/compiler/resolver/cache_location_test.go))
   pins the enable+locate decision; `TestNormalizeCacheDir` + the updated
   `buildconfig_test.go` cover the CLI translation and the removed key.
 - JS: the disk-cache suite exercises the `RT_CACHE_DIR` force-on path end-to-end;

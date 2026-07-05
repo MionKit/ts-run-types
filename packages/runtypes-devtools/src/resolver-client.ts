@@ -339,7 +339,7 @@ abstract class ResolverClientBase implements ResolverConnection {
   }
 
   // reset wipes ALL resolver state (cache, sites, Program, overlay) — see
-  // internal/resolver/resolver.go:Reset for the contract. The caller must
+  // internal/compiler/resolver/resolver.go:Reset for the contract. The caller must
   // call setSources before the next scanFiles.
   async reset(): Promise<void> {
     const resp = await this.transport.request({op: 'reset'});

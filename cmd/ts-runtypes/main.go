@@ -26,10 +26,10 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/batchcompile"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 const usage = `ts-runtypes — compile-time type resolver for runtypes

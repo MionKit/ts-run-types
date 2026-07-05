@@ -2,7 +2,7 @@
 
 Status: **implemented** on branch `claude/agitated-sutherland-3af6ce` (2026-07-04).
 Scope: `internal/cachegen/typefunctions/noop_types.go` (predicate arm) +
-`internal/resolver/noop_predicate_test.go` (corpus pin). No runtime / emitter
+`internal/compiler/resolver/noop_predicate_test.go` (corpus pin). No runtime / emitter
 change — output was already correct (the tripwire self-heals by shipping the
 live body); this removes the stderr noise and closes the predicate drift.
 

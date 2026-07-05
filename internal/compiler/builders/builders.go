@@ -11,7 +11,7 @@
 // any user wrapper that returns a `RunType<…>`.
 //
 // This is a leaf package: it imports only the AST/checker shims and
-// internal/compiler/marker (for DeclaredInModule). It must not import internal/resolver
+// internal/compiler/marker (for DeclaredInModule). It must not import internal/compiler/resolver
 // or internal/compiler/comptimeargs — both depend on it.
 package builders
 

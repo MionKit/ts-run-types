@@ -43,10 +43,10 @@
 >   (both say "inline it", but PFN002 names the import/export cause).
 >
 > Code: `internal/compiler/comptimeargs/comptimeargs.go` (cross-module trace, widened-const
-> guard, import/export rejection), `internal/resolver/scan.go` (option-bag
+> guard, import/export rejection), `internal/compiler/resolver/scan.go` (option-bag
 > cross-module read, CTA004/PFN002 mapping), `internal/diag/codes_marker.go`.
 > Tests: `internal/compiler/comptimeargs/external_test.go`,
-> `internal/resolver/external_module_test.go`,
+> `internal/compiler/resolver/external_module_test.go`,
 > `packages/ts-runtypes/test/external-module*.ts`,
 > `packages/runtypes-devtools/test/pure-fns-cache.test.ts` (PFN002). Docs:
 > `diagnosticCatalog.ts` (+ regenerated catalog JSON), `docs/ARCHITECTURE.md`,
@@ -112,7 +112,7 @@ the other module. Cover, at minimum:
   structural id / fnId as its inline-defined twin.
 
 Suggested homes: Go resolver-level fixtures (two-file `setupInline` overlays,
-[internal/resolver/inline_test.go](../../internal/resolver/inline_test.go)) for
+[internal/compiler/resolver/inline_test.go](../../internal/compiler/resolver/inline_test.go)) for
 scan/id/fnId convergence, plus a JS plugin or marker-package test for runtime
 round-trips (real `ts-runtypes` imports across files).
 
@@ -171,7 +171,7 @@ text: "inline the function at the call site, or bind it to a module-private
 
 ## Test plan
 
-- **Go (`internal/resolver`)** — two-file overlays for each matrix row;
+- **Go (`internal/compiler/resolver`)** — two-file overlays for each matrix row;
   convergence asserts (imported vs inline → same id / fnId). New reject tests
   for an exported pure-fn (PFN002) and an imported pure-fn (PFN001/PFN002).
 - **Go (`internal/compiler/comptimeargs`)** — reflection-free `CheckLiteralFunction`

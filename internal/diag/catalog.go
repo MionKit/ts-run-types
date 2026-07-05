@@ -130,7 +130,7 @@ type Diagnostic struct {
 // until written.
 //
 // Example is more than docs: the standardized suite in
-// internal/resolver/diag_examples_test.go feeds every non-empty Example
+// internal/compiler/resolver/diag_examples_test.go feeds every non-empty Example
 // through the real scan pipeline and asserts this code fires, so a shipped
 // example can never drift from the diagnostic it claims to demonstrate.
 type Definition struct {

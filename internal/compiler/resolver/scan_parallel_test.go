@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Parallel-scan equivalence suite. Every fixture-bearing test follows the

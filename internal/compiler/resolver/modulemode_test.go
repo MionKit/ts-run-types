@@ -6,9 +6,9 @@ import (
 
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // modulemode_test.go covers the --module-mode grouping layer: allSingle

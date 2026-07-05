@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Parallel-render equivalence suite (track B). Renders are checker-free

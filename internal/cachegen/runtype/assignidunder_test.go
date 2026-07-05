@@ -9,7 +9,7 @@ import (
 
 // The full cross-checker projection path (real types materialized by two
 // pool checkers deduping to one wire id) is exercised end-to-end by the
-// parallel-scan equivalence tests in internal/resolver. These tests pin
+// parallel-scan equivalence tests in internal/compiler/resolver. These tests pin
 // the AssignIDUnder primitive itself: fast-path routing, bound-state
 // restore, computer memoization, and lifecycle on Clear/Rebind.
 

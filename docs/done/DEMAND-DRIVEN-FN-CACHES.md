@@ -139,7 +139,7 @@ factory in the cache (distinct key + distinct body). This is the pipeline to
 lift and generalise:
 
 1. **extract** — `extractValidateOptions(call, lastIndex, argsCount)` reads the
-   object literal in the slot before the id (`internal/resolver/scan.go:438`).
+   object literal in the slot before the id (`internal/compiler/resolver/scan.go:438`).
 2. **record** — `Site.Options = options.Names()` (`scan.go:350`).
 3. **registry** — `constants.ValidateOptions` + `ValidateVariantSuffix(names)` →
    `NL`/`NA`/`NLA` (`constants.go:141`); mirrored to TS as
@@ -173,7 +173,7 @@ const-trace robustness), and `ValidateVariantSuffix` → one case of the shared
 
 **Alignment checkpoint — `createJsonEncoder`/`createJsonDecoder`.** These do NOT
 use the template today (strategy is runtime-only). The test
-`TestResolver_EncoderOptionsShareTypeID` (`internal/resolver/atomic_test.go:1077`)
+`TestResolver_EncoderOptionsShareTypeID` (`internal/compiler/resolver/atomic_test.go:1077`)
 pins "all strategy shapes share one type-id; runtime dispatches by family
 prefix". Under "precise immediately" the **invariant stays** (strategy must not
 fold into the type-id — it selects the family, not the id) but the dispatch
@@ -193,7 +193,7 @@ per-site `fnId` assertions; do not delete it.
   `export type InjectTypeFnArgs<T, Fn extends string> = …` (phantom brand).
 
 **Phase 2 — scanner emits demand**
-- `internal/resolver/scan.go`: when the trailing slot is `InjectTypeFnArgs`,
+- `internal/compiler/resolver/scan.go`: when the trailing slot is `InjectTypeFnArgs`,
   read `Fn` + the relevant `CompTimeArgs` literal (ValidateOptions / strategy),
   compute the `fnId`, and record it on the Site. `protocol.Site` gains
   `FnId string` (empty ⇒ reflection-only `InjectRunTypeId` site).
@@ -290,7 +290,7 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
   (the `te`/leaf runtimes use the injected `fnId` directly; only the JSON
   strategy→families map needs mirroring).
 - [x] A5 `internal/protocol/protocol.go`: `Site.FnId string`.
-- [x] A6 `internal/resolver/scan.go`: detect `InjectTypeFnArgs`; `computeFnId`
+- [x] A6 `internal/compiler/resolver/scan.go`: detect `InjectTypeFnArgs`; `computeFnId`
   (+ `extractStrategyOption`) → `Site.FnId`; `enclosedByInjectionMarker` updated.
 - [ ] A7 Preserve schema-overload demand (`rt.id`); recursive-schema test —
   **carried to Slice D** (matters once `it` is scoped).
@@ -304,7 +304,7 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [x] A12 Go overlay (`inline_test.go`) declares `InjectTypeFnArgs` +
   `createValidate`/`createGetValidationErrors`; emitter tests demand via `createValidate`.
 - [x] A13 `go test ./internal/...` green; `pnpm test` green (85 files / 5856).
-- [x] A14 Regression `internal/resolver/demand_scope_test.go`: `verr_` scoped to
+- [x] A14 Regression `internal/compiler/resolver/demand_scope_test.go`: `verr_` scoped to
   `createGetValidationErrors`; reflection/`createValidate` files emit no `verr_`; `it`
   stays all-emit (guarded by `TestDemandScope_ItStaysAllEmit`).
 

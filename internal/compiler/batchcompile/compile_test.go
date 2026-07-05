@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Minimal ambient marker declaration so `ts-runtypes` resolves in a bare temp

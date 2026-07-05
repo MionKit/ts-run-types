@@ -144,7 +144,7 @@ When porting a new mion RT function (e.g. `mockType`, a new serialiser):
 1. Implement the `Emitter` interface in `internal/cachegen/typefunctions/<family>.go`.
 2. Implement `LeafDiagCodeProvider.DiagCodeForLeaf` in `internal/cachegen/typefunctions/diag_codes.go` — one switch over the unsupported kinds returning per-family codes.
 3. Add the family's codes in `internal/diag/codes_runtype.go` and `packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts`.
-4. Wire the family's renderer in `internal/resolver/render.go` and `internal/resolver/dispatch.go`.
+4. Wire the family's renderer in `internal/compiler/resolver/render.go` and `internal/compiler/resolver/dispatch.go`.
 5. Add a new cache skeleton `.ts` under `packages/ts-go-run-types/src/caches/` (embedded via `src/caches/skeletons.go`) and register a `Skeleton<FnName>` constant in `internal/cachetpl/splice.go`.
 
 The walker, property-absorb mechanism, alwaysThrow renderer, and 8-arg init() shape all work without further changes.

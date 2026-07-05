@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
-	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
 // Optional-property structural-id tests. An optional property carries

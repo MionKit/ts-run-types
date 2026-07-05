@@ -2,7 +2,7 @@
 
 Status: **implemented** on branch `claude/agitated-sutherland-3af6ce` (2026-07-04).
 Scope: `internal/cachegen/typefunctions/noop_types.go` (predicate guard) +
-`internal/resolver/noop_predicate_test.go` (corpus pin). Found while pinning
+`internal/compiler/resolver/noop_predicate_test.go` (corpus pin). Found while pinning
 [noop-predicate-pj-mismatch.md](noop-predicate-pj-mismatch.md); confirmed to be a
 REAL runtime corruption (not just predicate hygiene) — see below.
 

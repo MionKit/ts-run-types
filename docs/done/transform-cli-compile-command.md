@@ -1,7 +1,7 @@
 # Transform architecture — CLI full-transform + incremental wire
 
 **Status:** **implemented** (2026-07-04). The **wire** half shipped in [transform-wire-modes](../done/transform-wire-modes.md); the **CLI** half (`ts-runtypes --compile`) is now built — see What shipped.
-**Related:** [`internal/compiler/batchcompile/compile.go`](../../internal/compiler/batchcompile/compile.go) (the pipeline), [`internal/compiler/sourcerewrite/compose.go`](../../internal/compiler/sourcerewrite/compose.go) (`ComposeMaps`), [`internal/compiler/sourcerewrite/transform.go`](../../internal/compiler/sourcerewrite/transform.go) (`Apply`), [`internal/resolver/dispatch.go`](../../internal/resolver/dispatch.go) (`OpTransform`, `OpGenerate`), [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go) (`--compile`)
+**Related:** [`internal/compiler/batchcompile/compile.go`](../../internal/compiler/batchcompile/compile.go) (the pipeline), [`internal/compiler/sourcerewrite/compose.go`](../../internal/compiler/sourcerewrite/compose.go) (`ComposeMaps`), [`internal/compiler/sourcerewrite/transform.go`](../../internal/compiler/sourcerewrite/transform.go) (`Apply`), [`internal/compiler/resolver/dispatch.go`](../../internal/compiler/resolver/dispatch.go) (`OpTransform`, `OpGenerate`), [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go) (`--compile`)
 
 ## What shipped
 

@@ -70,7 +70,7 @@ recovered out-of-band and stored as a **synthetic `KindLiteral` node**:
 
 - **Type-first** (`createValidate<typeof /abc/i>()`): the scanner **AST-harvests**
   the literal from the call's type argument —
-  [`scan.go`](../internal/resolver/scan.go) `resolveRegexLiteralSource` →
+  [`scan.go`](../internal/compiler/resolver/scan.go) `resolveRegexLiteralSource` →
   `traceRegexLiteral` (walks `typeof reg` → the `const reg = /abc/i` initializer) →
   `splitRegexLiteralText`.
 - **Value-first** (`regexp({source, flags})`): source+flags ride as literal type
@@ -97,7 +97,7 @@ recovered out-of-band and stored as a **synthetic `KindLiteral` node**:
   remove `RegexLiteralType` and `RegexFlagsOf`.
 
 ### Go scanner / id
-- [`scan.go`](../internal/resolver/scan.go): remove the `RegexLiteralFromType`
+- [`scan.go`](../internal/compiler/resolver/scan.go): remove the `RegexLiteralFromType`
   branch (1) and the `resolveRegexLiteralSource` branch (2) in the id-resolution
   block; delete `resolveRegexLiteralSource`, `traceRegexLiteral`,
   `splitRegexLiteralText`. RegExp then falls straight through to `AssignID` →
@@ -124,7 +124,7 @@ become dead once no `KindLiteral` regexp node is produced:
   the regexp usage goes away).
 
 ### Tests
-- Delete [`internal/resolver/regexp_brand_test.go`](../internal/resolver/regexp_brand_test.go).
+- Delete [`internal/compiler/resolver/regexp_brand_test.go`](../internal/compiler/resolver/regexp_brand_test.go).
 - **Keep** [`internal/cachegen/runtype/typeid/formats_regexp_test.go`](../internal/cachegen/runtype/typeid/formats_regexp_test.go)
   — it tests `registerFormatPattern({regexp: /…/})` recovery (the string-pattern
   path via `traceRegexpExpr`), not the RegExp-instance literal.

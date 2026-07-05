@@ -168,7 +168,7 @@ The list below is the seed — the agent's first job is to harden it by reading
 the four anchor files
 ([`internal/constants/constants.go`](../../internal/constants/constants.go),
 [`internal/cachegen/hashid/hashid.go`](../../internal/cachegen/hashid/hashid.go),
-[`internal/resolver/resolver.go`](../../internal/resolver/resolver.go),
+[`internal/compiler/resolver/resolver.go`](../../internal/compiler/resolver/resolver.go),
 [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go)) plus the runtime
 options in
 [`packages/ts-runtypes/src/runtypes/dataView.ts`](../../packages/ts-runtypes/src/runtypes/dataView.ts)
@@ -198,7 +198,7 @@ Source: [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go).
 
 ### B. `resolver.Options` fields with neither a CLI flag nor a tsconfig key
 
-Source: [`internal/resolver/resolver.go`](../../internal/resolver/resolver.go).
+Source: [`internal/compiler/resolver/resolver.go`](../../internal/compiler/resolver/resolver.go).
 
 - `Marker marker.Options` — selects which type alias the scanner treats as
   the id-injection sentinel. Zero values default to `InjectRunTypeId` from
