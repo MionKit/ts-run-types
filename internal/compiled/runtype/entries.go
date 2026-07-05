@@ -277,31 +277,12 @@ func closureRows(roots []string, nodes map[string]*protocol.RunType) []string {
 func collectRefDeps(runType *protocol.RunType) []string {
 	var deps []string
 	seen := make(map[string]bool)
-	add := func(child *protocol.RunType) {
-		if child == nil || child.Kind != protocol.KindRef || child.ID == "" || seen[child.ID] {
+	runType.EachRefSlot(func(child *protocol.RunType) {
+		if child.Kind != protocol.KindRef || child.ID == "" || seen[child.ID] {
 			return
 		}
 		seen[child.ID] = true
 		deps = append(deps, child.ID)
-	}
-	addAll := func(children []*protocol.RunType) {
-		for _, child := range children {
-			add(child)
-		}
-	}
-	add(runType.Child)
-	add(runType.Index)
-	add(runType.Return)
-	add(runType.IndexT)
-	addAll(runType.Parameters)
-	addAll(runType.Children)
-	addAll(runType.SafeUnionChildren)
-	addAll(runType.UnionDiscriminators)
-	addAll(runType.TypeMeta)
-	addAll(runType.TypeArguments)
-	addAll(runType.Arguments)
-	addAll(runType.ExtendsArguments)
-	addAll(runType.Implements)
-	addAll(runType.Extends)
+	})
 	return deps
 }

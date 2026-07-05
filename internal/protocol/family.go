@@ -124,39 +124,5 @@ func PopulateFamily(runType *RunType) {
 	}
 	runType.Family = FamilyOf(runType.Kind)
 	runType.NotSupported = IsNotSupportedKind(runType.Kind, runType.SubKind)
-
-	for _, child := range runType.Children {
-		PopulateFamily(child)
-	}
-	for _, typeArg := range runType.TypeArguments {
-		PopulateFamily(typeArg)
-	}
-	for _, parameter := range runType.Parameters {
-		PopulateFamily(parameter)
-	}
-	PopulateFamily(runType.Return)
-	PopulateFamily(runType.Child)
-	PopulateFamily(runType.Index)
-	PopulateFamily(runType.IndexT)
-	for _, decorator := range runType.TypeMeta {
-		PopulateFamily(decorator)
-	}
-	for _, safeChild := range runType.SafeUnionChildren {
-		PopulateFamily(safeChild)
-	}
-	for _, discriminator := range runType.UnionDiscriminators {
-		PopulateFamily(discriminator)
-	}
-	for _, extendArg := range runType.ExtendsArguments {
-		PopulateFamily(extendArg)
-	}
-	for _, impl := range runType.Implements {
-		PopulateFamily(impl)
-	}
-	for _, argument := range runType.Arguments {
-		PopulateFamily(argument)
-	}
-	for _, extend := range runType.Extends {
-		PopulateFamily(extend)
-	}
+	runType.EachRefSlot(PopulateFamily)
 }
