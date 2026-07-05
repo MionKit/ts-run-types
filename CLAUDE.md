@@ -145,8 +145,8 @@ Full description: [docs/ARCHITECTURE.md → Rewrite mechanics](docs/ARCHITECTURE
 - **Imports and `deps()` carry DIRECT dependencies only** — never the transitive closure (flattening was 6x wire / 4x render on real suites). Leaves-first, alphabetical within a level (Tarjan SCC for cycles), never self; `deps()` is a lazy thunk inlined into the slot so module cycles never hit TDZ.
 - Rewrite injects one deduped import block at offset 0 + the entry-module BINDING at each call site (`createValidate<T>(__rt_<fnHash>_<id>)`); ids derive from tuple slot 3 — no id strings on the wire.
 - Entry modules are content-addressed (ids embed binary version), immutable, never HMR-invalidated — EXCEPT the runtype data bundle, invalidated in `handleHotUpdate` when a scan reports `addedRunTypes`.
-- **Builtin classes project atomically** — Date / Map / Set / RegExp / Temporal stop at subKind + classRef (+ Map/Set element). Lib members are never walked or interned (`projectClass` in [internal/compiled/runtype/serialize.go](internal/compiled/runtype/serialize.go)); every consumer keys on subKind.
-- Types are **deduplicated twice** in [internal/compiled/runtype/](internal/compiled/runtype/) — pointer identity AND structural id — both collapse to a single cache entry.
+- **Builtin classes project atomically** — Date / Map / Set / RegExp / Temporal stop at subKind + classRef (+ Map/Set element). Lib members are never walked or interned (`projectClass` in [internal/cachegen/runtype/serialize.go](internal/cachegen/runtype/serialize.go)); every consumer keys on subKind.
+- Types are **deduplicated twice** in [internal/cachegen/runtype/](internal/cachegen/runtype/) — pointer identity AND structural id — both collapse to a single cache entry.
 - **Never store parent-relative data on a canonical node.** Cache entries are shared singletons (one per structural id); parent-scoped data lives on the parent (e.g. `RunType.UnionDiscriminators` on the union, not the property), or the consumer builds back-links at walk time.
 
 ## Two injection markers + demand-driven function caches

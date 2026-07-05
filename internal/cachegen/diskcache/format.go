@@ -8,7 +8,7 @@
 //   - File basename = the cache-module Tag (constants.CacheModules[…].Tag),
 //     e.g. "val.json" for validate, "verr.json" for validationErrors.
 //   - Filename never encodes the version. Version is folded into the typeID
-//     hash itself (see internal/compiled/runtype.Cache.uniqueDict), so
+//     hash itself (see internal/cachegen/runtype.Cache.uniqueDict), so
 //     cross-version typeIDs are already distinct paths.
 //   - <optsFingerprint> isolates caches across non-version build options
 //     (hashLength, emitCreateRTFn). Version is NOT in this fingerprint

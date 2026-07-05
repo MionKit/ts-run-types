@@ -3,7 +3,7 @@
 // OFF by default — `setRejectCircularRefs(true)` arms it. The Go resolver only
 // links a type's reflection RunType graph into a createX entry's dependency
 // closure when that type's graph contains a circular node (see
-// internal/compiled/runtype/entries.go), so the guard is pay-for-use: types
+// internal/cachegen/runtype/entries.go), so the guard is pay-for-use: types
 // with no possible cycle register no RunType and skip the walk entirely.
 //
 // The walk pairs a runtime VALUE with its RunType node (the same graph the

@@ -452,7 +452,7 @@ var JsonCompositeHostTags = func() map[string]string {
 //
 //	-ldflags "-X github.com/mionkit/ts-runtypes/internal/constants.Version=<v>"
 //
-// Embedded into the typeID hashing input (see internal/compiled/runtype.assignID)
+// Embedded into the typeID hashing input (see internal/cachegen/runtype.assignID)
 // so the same structural type gets a different short hash across binary versions —
 // any on-disk cache keyed by typeID is automatically version-isolated, no per-
 // version directory needed.

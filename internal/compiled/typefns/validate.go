@@ -1398,7 +1398,7 @@ func (ValidateEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, 
 
 // emitLiteral mirrors compileIsLiteral (literal.ts:88-105).
 // Branches on the runtime shape of rt.Literal as encoded by the Go-side
-// serializer (see internal/compiled/runtype/serialize.go:402-428):
+// serializer (see internal/cachegen/runtype/serialize.go:402-428):
 //
 //   - Flags=["bigint"], Literal=decimal string         → `v === 123n`
 //   - Flags=["symbol"], Literal={"symbol": "name"}     → typeof + .description

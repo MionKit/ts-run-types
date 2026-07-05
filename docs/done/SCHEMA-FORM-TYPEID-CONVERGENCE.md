@@ -68,7 +68,7 @@ export function string<const P extends StringParams = Record<string, never>>(
 ([packages/ts-go-run-types/src/runtypes/typeFormat.ts:38-51](../packages/ts-go-run-types/src/runtypes/typeFormat.ts)).
 
 The Go scanner detects those two sentinel properties in
-[internal/compiled/runtype/typeid/formats.go:31-58](../internal/compiled/runtype/typeid/formats.go)
+[internal/cachegen/runtype/typeid/formats.go:31-58](../internal/cachegen/runtype/typeid/formats.go)
 and attaches a `FormatAnnotation{Name: "stringFormat", Params: nil}`
 to the resolved RunType. **That annotation feeds into the structural
 hash**, so `RT.string()` and plain `string` get different ids — even

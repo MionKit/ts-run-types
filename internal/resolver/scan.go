@@ -9,7 +9,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/builders"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
-	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"

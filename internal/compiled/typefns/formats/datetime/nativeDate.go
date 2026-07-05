@@ -15,7 +15,7 @@ import (
 //
 // Kind is KindClass: the scanner lifts the format brand off the
 // `Date & {brand}` intersection (see splitBuiltinClassBrand in
-// internal/compiled/runtype/intersection_collapse.go) onto a KindClass /
+// internal/cachegen/runtype/intersection_collapse.go) onto a KindClass /
 // SubKindDate node, and the host istype/typeerrors class arm dispatches
 // here via formats.LookupForRunType keyed on (KindClass, "nativeDate").
 type nativeDateEmitter struct{}

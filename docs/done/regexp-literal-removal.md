@@ -76,9 +76,9 @@ recovered out-of-band and stored as a **synthetic `KindLiteral` node**:
 - **Value-first** (`regexp({source, flags})`): source+flags ride as literal type
   args on the `RegexLiteralType<S, F>` brand (`RegExp & {__rtRegexSource;
   __rtRegexFlags}`), read off the TYPE by
-  [`typeid/formats.go`](../internal/compiled/runtype/typeid/formats.go)
+  [`typeid/formats.go`](../internal/cachegen/runtype/typeid/formats.go)
   `RegexLiteralFromType`.
-- Both feed [`serialize.go`](../internal/compiled/runtype/serialize.go)
+- Both feed [`serialize.go`](../internal/cachegen/runtype/serialize.go)
   `SerializeRegexLiteral(source, flags)`, which registers a `KindLiteral` node with
   `Literal: {regexp: {source, flags}}` and structural id
   `<KindLiteral>:regexp:<source>|<flags>` (bypassing the `*checker.Type` path).
@@ -102,16 +102,16 @@ recovered out-of-band and stored as a **synthetic `KindLiteral` node**:
   block; delete `resolveRegexLiteralSource`, `traceRegexLiteral`,
   `splitRegexLiteralText`. RegExp then falls straight through to `AssignID` →
   `KindRegexp` ("any RegExp"), one id for all.
-- [`typeid/formats.go`](../internal/compiled/runtype/typeid/formats.go): remove
+- [`typeid/formats.go`](../internal/cachegen/runtype/typeid/formats.go): remove
   `RegexLiteralFromType` + the `regexSourceProp`/`regexFlagsProp` consts. **Keep**
   `traceRegexpExpr` / `splitRegexpLiteralText` (string-pattern — see below).
-- [`serialize.go`](../internal/compiled/runtype/serialize.go): remove
+- [`serialize.go`](../internal/cachegen/runtype/serialize.go): remove
   `SerializeRegexLiteral` + the synthetic `KindLiteral` regexp node.
 
 ### Go emitters (the `literal.regexp` branches — all regexp-INSTANCE-literal paths)
 Each currently special-cases `entry["regexp"]` / `literalMap["regexp"]`; all
 become dead once no `KindLiteral` regexp node is produced:
-- [`module.go`](../internal/compiled/runtype/module.go) `footerLiteralExpr` (+ the
+- [`module.go`](../internal/cachegen/runtype/module.go) `footerLiteralExpr` (+ the
   `hasRegexp` guard)
 - [`istype.go`](../internal/compiled/typefns/istype.go) (~1420, ~1468)
 - [`typeerrors.go`](../internal/compiled/typefns/typeerrors.go) (~597)
@@ -125,7 +125,7 @@ become dead once no `KindLiteral` regexp node is produced:
 
 ### Tests
 - Delete [`internal/resolver/regexp_brand_test.go`](../internal/resolver/regexp_brand_test.go).
-- **Keep** [`internal/compiled/runtype/typeid/formats_regexp_test.go`](../internal/compiled/runtype/typeid/formats_regexp_test.go)
+- **Keep** [`internal/cachegen/runtype/typeid/formats_regexp_test.go`](../internal/cachegen/runtype/typeid/formats_regexp_test.go)
   — it tests `registerFormatPattern({regexp: /…/})` recovery (the string-pattern
   path via `traceRegexpExpr`), not the RegExp-instance literal.
 - [`Atomic.ts`](../packages/ts-go-run-types/test/suites/validation/Atomic.ts):
@@ -177,7 +177,7 @@ never accepts a raw `RegExp` in the first place. The two things you can put behi
   literals (the `StringPatternArgs` shape), again not `RegExp`.
 
 The Go recovery for **both** is `formatPatternFromSymbol`
-([`typeid/formats.go`](../internal/compiled/runtype/typeid/formats.go), case (a) →
+([`typeid/formats.go`](../internal/cachegen/runtype/typeid/formats.go), case (a) →
 `formatPatternFromCall` → `traceRegexpExpr`) — the **format-annotation** path. It is
 completely independent of the regexp-INSTANCE harvest this doc proposes removing
 (`scan.go` `traceRegexLiteral`, `serialize.go` `SerializeRegexLiteral`,

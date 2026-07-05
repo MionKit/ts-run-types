@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

@@ -372,7 +372,7 @@ Each builder (and `object<const C>`) is a runtime identity returning the plain
 config (so it survives for Drizzle/OpenAPI), and `ModelType<C>` maps each field
 through `TypeFormat<Base, Name, ParamsOf<F>>` — structurally identical to the
 type-first `FormatString`/`FormatNumber`/`FormatDate`. The existing brand
-scanner (`internal/compiled/runtype/typeid/formats.go`) lifts it unchanged.
+scanner (`internal/cachegen/runtype/typeid/formats.go`) lifts it unchanged.
 Flat fields, and **nested value-first models composed inside a parent object**,
 both reflect + validate correctly. **Property modifiers** (optional / readonly)
 come from the `propMod({optional?, readonly?}, field)` wrapper (`optional(field)`
@@ -412,7 +412,7 @@ channel (`/…/` erases to `RegExp`), but the homomorphic `Omit`/`Pick` mapped
 type behind `ModelType` **preserves the property's value declaration**. So even
 though the reflected `pattern` property's _type_ is `RegExp`, its symbol's
 declaration is still the original `pattern: /…/` AST node. The format scanner
-(`formatPatternFromInitializer` in `internal/compiled/runtype/typeid/formats.go`)
+(`formatPatternFromInitializer` in `internal/cachegen/runtype/typeid/formats.go`)
 reads `{source, flags}` straight off that initializer. All three authoring forms
 work through the value channel:
 

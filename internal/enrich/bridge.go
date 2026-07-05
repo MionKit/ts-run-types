@@ -5,7 +5,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )

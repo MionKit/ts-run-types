@@ -242,7 +242,7 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 		// tuple `[number, string]` both reduce to `Tuple[<number>,<string>]`,
 		// collide on a single cache slot, and the (nondeterministically chosen)
 		// winner gives one of them the wrong validator. Mirrors the flag
-		// handling in internal/compiled/runtype/serialize.go:projectTuple.
+		// handling in internal/cachegen/runtype/serialize.go:projectTuple.
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 		elementInfos := tsType.TargetTupleType().ElementInfos()
 		ids := make([]string, 0, len(typeArguments))
@@ -450,7 +450,7 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 // stableMemberName strips the checker-instance symbol id off a late-bound
 // symbol-keyed member name ("\xFE@toPrimitive@5" → "\xFE@toPrimitive") so
 // structural ids never embed which checker (or which session) materialized
-// the member. Replicated from internal/compiled/runtype/serialize.go (the
+// the member. Replicated from internal/cachegen/runtype/serialize.go (the
 // typeid subpackage can't import its parent without an import cycle) —
 // keep them in sync.
 func stableMemberName(name string) string {
@@ -544,7 +544,7 @@ func (computer *Computer) fixedTupleParamIDs(tupleType *checker.Type) ([]string,
 }
 
 // isRestParam reports whether a parameter symbol's declaration carries `...`.
-// Replicated from internal/compiled/runtype/modifiers.go (the typeid subpackage
+// Replicated from internal/cachegen/runtype/modifiers.go (the typeid subpackage
 // can't import its parent without an import cycle).
 func isRestParam(symbol *ast.Symbol) bool {
 	declaration := symbol.ValueDeclaration

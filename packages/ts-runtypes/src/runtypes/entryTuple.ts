@@ -115,7 +115,7 @@ const RUN_TYPE_FIELD_KEYS = [
 export type RunTypeRowRecord = Pick<RunType, (typeof RUN_TYPE_FIELD_KEYS)[number]>;
 
 // The ref-bearing RunType fields, in the wire order of a bundle `rels` row.
-// ⚠️ MUST match Go's runtype.renderRelations (internal/compiled/runtype/module.go).
+// ⚠️ MUST match Go's runtype.renderRelations (internal/cachegen/runtype/module.go).
 // child/children lead — the most common fields — so the typical relRow is one
 // or two slots long. Each node's ref slots are patched from these by index at
 // registration (wireBundleRelations); the fields NOT here (classType, literal,

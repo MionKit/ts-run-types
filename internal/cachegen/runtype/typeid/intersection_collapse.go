@@ -152,7 +152,7 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 }
 
 // builtinClassNamesID is the id-side mirror of the serialize-side
-// builtinClassNames (internal/compiled/runtype/intersection_collapse.go).
+// builtinClassNames (internal/cachegen/runtype/intersection_collapse.go).
 // The two MUST list the same names so the structural id and the projected
 // node agree on which members are builtin-class bases.
 var builtinClassNamesID = map[string]bool{"Date": true, "Map": true, "Set": true, "RegExp": true}

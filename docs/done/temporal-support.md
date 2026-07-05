@@ -119,7 +119,7 @@ SubKindNonSerializable 2004
 
 A builtin class is encoded as `Kind=KindClass` + a `SubKind`, plus a
 `ClassRef{Builtin: "<name>"}` so the cache footer can wire
-`t.classType = globalThis.<name>` (`internal/compiled/runtype/module.go:281`).
+`t.classType = globalThis.<name>` (`internal/cachegen/runtype/module.go:281`).
 
 **Temporal needs new SubKind values** — one per type (eight), e.g.
 `SubKindTemporalInstant`, `SubKindTemporalPlainDate`, … Pick a fresh numeric
@@ -174,13 +174,13 @@ the Temporal class names** (preferably via one shared lookup table, see §5.1):
 
 | Site                                                                                            | Role                                        |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `internal/compiled/runtype/serialize.go:785` (`case "Date","Map","Set"` in `projectObjectType`) | promotes lib.d.ts interface → KindClass     |
-| `internal/compiled/runtype/serialize.go:899` (`case "Date"` in `projectClass`)                  | assigns `SubKind` + `ClassRef.Builtin`      |
-| `internal/compiled/runtype/typeid/typeid.go:228` (`case "Date"` in `Compute`)                   | structural-id prefix (SubKind)              |
-| `internal/compiled/runtype/typeid/typeid.go:454` (`case "Date","Map","Set"` in `KindOf`)        | kind classification                         |
+| `internal/cachegen/runtype/serialize.go:785` (`case "Date","Map","Set"` in `projectObjectType`) | promotes lib.d.ts interface → KindClass     |
+| `internal/cachegen/runtype/serialize.go:899` (`case "Date"` in `projectClass`)                  | assigns `SubKind` + `ClassRef.Builtin`      |
+| `internal/cachegen/runtype/typeid/typeid.go:228` (`case "Date"` in `Compute`)                   | structural-id prefix (SubKind)              |
+| `internal/cachegen/runtype/typeid/typeid.go:454` (`case "Date","Map","Set"` in `KindOf`)        | kind classification                         |
 | `internal/protocol/protocol.go:271` (`ClassRef.Builtin` doc + values)                           | wire field; doc lists allowed builtin names |
-| `internal/compiled/runtype/intersection_collapse.go` (`builtinClassNames`)                      | format-brand lift over a builtin (see §3)   |
-| `internal/compiled/runtype/typeid/intersection_collapse.go` (`builtinClassNamesID`)             | id-side mirror of the above                 |
+| `internal/cachegen/runtype/intersection_collapse.go` (`builtinClassNames`)                      | format-brand lift over a builtin (see §3)   |
+| `internal/cachegen/runtype/typeid/intersection_collapse.go` (`builtinClassNamesID`)             | id-side mirror of the above                 |
 | every emitter arm in §2.2 that has a `case protocol.SubKindDate:`                               | per-family behaviour                        |
 | JS `packages/ts-go-run-types/src/mocking/mockType.ts:170` (`subKind === RunTypeSubKind.date`)   | mock dispatch                               |
 
@@ -206,8 +206,8 @@ carrying optional format/bounds metadata on it.
 detects "builtin-class member + format-brand member" and projects the class +
 lifts the annotation, in BOTH:
 
-- `internal/compiled/runtype/intersection_collapse.go` → `splitBuiltinClassBrand`
-- `internal/compiled/runtype/typeid/intersection_collapse.go` → `splitBuiltinClassBrandID`
+- `internal/cachegen/runtype/intersection_collapse.go` → `splitBuiltinClassBrand`
+- `internal/cachegen/runtype/typeid/intersection_collapse.go` → `splitBuiltinClassBrandID`
 
 `builtinClassNames` / `builtinClassNamesID` already include `Date/Map/Set/RegExp`.
 **Adding Temporal class names to these two tables is what lets a
