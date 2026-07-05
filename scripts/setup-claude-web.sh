@@ -325,17 +325,17 @@ build_go_binary() {
 }
 
 # -----------------------------------------------------------------------------
-# 8. Build runtypes-devtools dist (consumers + the marker typecheck read it).
+# 8. Build ts-runtypes-devtools dist (consumers + the marker typecheck read it).
 # -----------------------------------------------------------------------------
 build_devtools() {
-  bold "runtypes-devtools dist"
+  bold "ts-runtypes-devtools dist"
   command -v pnpm >/dev/null 2>&1 || { err "pnpm missing"; FAILED=1; return 1; }
-  local dist="$REPO_DIR/packages/runtypes-devtools/dist/index.js"
-  if [ -f "$dist" ] && [ -z "$(find "$REPO_DIR/packages/runtypes-devtools/src" -type f -newer "$dist" -print -quit 2>/dev/null)" ]; then
+  local dist="$REPO_DIR/packages/ts-runtypes-devtools/dist/index.js"
+  if [ -f "$dist" ] && [ -z "$(find "$REPO_DIR/packages/ts-runtypes-devtools/src" -type f -newer "$dist" -print -quit 2>/dev/null)" ]; then
     ok "devtools dist up-to-date"; return 0
   fi
   [ "$CHECK_ONLY" = 1 ] && { warn "devtools dist missing or stale - re-run without --check"; return 0; }
-  ( cd "$REPO_DIR" && pnpm --filter runtypes-devtools run build ) && ok "devtools dist built" || { err "devtools build failed"; FAILED=1; }
+  ( cd "$REPO_DIR" && pnpm --filter ts-runtypes-devtools run build ) && ok "devtools dist built" || { err "devtools build failed"; FAILED=1; }
 }
 
 # -----------------------------------------------------------------------------
@@ -459,7 +459,7 @@ main "$@"
 #   5. tsgolint patches (idempotent).
 #   6. pnpm install --frozen-lockfile.
 #   7. Go resolver binary -> bin/ts-runtypes.
-#   8. runtypes-devtools dist.
+#   8. ts-runtypes-devtools dist.
 #   9. .env de-clobber - the dev .env's empty secret rows would shadow the
 #      GHCR_PAT the web env injects (lib-env.sh sources .env with `set -a`).
 #  10. GHCR login - the tsrt-website image is PRIVATE. NOTE: actually PULLING it

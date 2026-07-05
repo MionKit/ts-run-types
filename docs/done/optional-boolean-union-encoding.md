@@ -620,7 +620,7 @@ argument. Low priority; a docs note is an acceptable alternative.
 ### Test strategy
 
 - **Go unit** (`internal/cachegen/typefunctions/{union_flat_test.go, noop_types_test.go, union_flat_layout_test.go}`, plus a `StripUndefined` test): assert the collapsed child kind + the absence of envelope/dispatch. Reuse the paired-form-equivalence pattern (`TestAtomic_FormEquivalence`) so TS-form and schema-form agree for optional unions.
-- **JS plugin regression** (`packages/runtypes-devtools/test/`): assert the generated `pjs`/`sj`/`tb` for `active?: boolean` contain no `[` envelope / `fuEncErr` / discriminant; that `{active?: boolean}` emits no `pj`/`rj` module; and that the binary is 1 byte. Rebuild `bin/ts-runtypes` before `pnpm test`.
+- **JS plugin regression** (`packages/ts-runtypes-devtools/test/`): assert the generated `pjs`/`sj`/`tb` for `active?: boolean` contain no `[` envelope / `fuEncErr` / discriminant; that `{active?: boolean}` emits no `pj`/`rj` module; and that the binary is 1 byte. Rebuild `bin/ts-runtypes` before `pnpm test`.
 - **Fuzz**: extend the all-strategy round-trip fuzzer (`docs/todos/all-strategy-roundtrip-fuzzer.md`, `packages/ts-runtypes/test/fuzz/`) with optional-union shapes across every strategy.
 
 ### Recommended shipping order

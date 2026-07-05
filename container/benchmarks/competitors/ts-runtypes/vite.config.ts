@@ -1,5 +1,5 @@
 import {defineConfig} from 'vite';
-import runtypes from 'runtypes-devtools/vite';
+import runtypes from 'ts-runtypes-devtools/vite';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 

@@ -18,7 +18,7 @@ knobs, and behaviour that matches the mental model users already have from `tsc`
 ## What shipped
 
 1. **The user-facing cache surface is removed.** No plugin `cacheDir` option
-   (`PluginOptions` in [unplugin.ts](../../packages/runtypes-devtools/src/unplugin.ts)),
+   (`PluginOptions` in [unplugin.ts](../../packages/ts-runtypes-devtools/src/unplugin.ts)),
    no tsconfig `cacheDir` key (`tsRuntypesPlugin` in
    [config.go](../../cmd/ts-runtypes/config.go)), no `--cache-dir` flag
    ([main.go](../../cmd/ts-runtypes/main.go)). A tsconfig still carrying a
@@ -66,7 +66,7 @@ benchmark ([compiletime.mjs](../../container/benchmarks/compiletime/compiletime.
 forces the cache on at a wipeable path for cold-start measurement, and the
 serialization benchmark forces it off under a read-only mount. `RT_CACHE_DIR`
 flows through the plugin's spawned resolver child. The internal
-`ResolverClientOptions.cacheDir` ([resolver-client.ts](../../packages/runtypes-devtools/src/resolver-client.ts))
+`ResolverClientOptions.cacheDir` ([resolver-client.ts](../../packages/ts-runtypes-devtools/src/resolver-client.ts))
 is kept for the disk-cache end-to-end tests and forwards it as **per-spawn child
 env** so parallel test spawns stay isolated (the disk-cache suite runs several
 clients concurrently against different temp dirs). `resolver.Options.CacheDir`
@@ -77,14 +77,14 @@ clients concurrently against different temp dirs). `resolver.Options.CacheDir`
 Everything that used `cacheDir: false` for hermetic runs was migrated:
 
 - The marker package's [vitest.config.ts](../../packages/ts-runtypes/vitest.config.ts)
-  and the build tests ([build-split](../../packages/runtypes-devtools/test/build-split.test.ts),
-  [build-rollup](../../packages/runtypes-devtools/test/build-rollup.test.ts),
-  [build-sourcemap](../../packages/runtypes-devtools/test/build-sourcemap.test.ts))
+  and the build tests ([build-split](../../packages/ts-runtypes-devtools/test/build-split.test.ts),
+  [build-rollup](../../packages/ts-runtypes-devtools/test/build-rollup.test.ts),
+  [build-sourcemap](../../packages/ts-runtypes-devtools/test/build-sourcemap.test.ts))
   now rely on `incremental: false` in
   [tsconfig.test.json](../../packages/ts-runtypes/tsconfig.test.json) (it
   inherited `incremental: true` from the root), so they are cache-off with no knob.
-- [cache-disk.test.ts](../../packages/runtypes-devtools/test/cache-disk.test.ts)
-  and [tsconfig-config.test.ts](../../packages/runtypes-devtools/test/tsconfig-config.test.ts)
+- [cache-disk.test.ts](../../packages/ts-runtypes-devtools/test/cache-disk.test.ts)
+  and [tsconfig-config.test.ts](../../packages/ts-runtypes-devtools/test/tsconfig-config.test.ts)
   keep the internal `ResolverClientOptions.cacheDir` (now → child `RT_CACHE_DIR`).
 - [gen-serialization-bench.mjs](../../scripts/gen-serialization-bench.mjs)
   forwards `RT_BENCH_CACHE_DIR` to `RT_CACHE_DIR`.

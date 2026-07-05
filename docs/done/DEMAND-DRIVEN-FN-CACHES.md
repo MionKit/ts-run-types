@@ -1,6 +1,6 @@
 # Demand-driven function caches (`InjectTypeFnArgs` marker)
 
-> _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `runtypes-devtools`, and `reflectRunTypeId(value)` is now `getRunTypeId(value)`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
+> _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `ts-runtypes-devtools`, and `reflectRunTypeId(value)` is now `getRunTypeId(value)`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
 
 > **Superseded (historical).** The readable family/variant-tag fnId scheme described below (`CompFns`, `MigratedFamilies`, `ResolveFnId`/`DemandsForFnId`, readable tokens like `itNL`/`stripMutate`) was later replaced by an **opaque precomputed `fnHash`** scheme: the `internal/cachegen/operations` registry as the single source of truth, structured demand on `protocol.Site.Demand`, and Go-emitted JSON-composite cache entries. See [CLAUDE.md](../CLAUDE.md) → "Two injection markers + demand-driven function caches" for the current model. The demand-driven *behaviour* this doc designed is still accurate; only the identity/naming scheme changed.
 

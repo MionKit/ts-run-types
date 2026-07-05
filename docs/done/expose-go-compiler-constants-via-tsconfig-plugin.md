@@ -30,14 +30,14 @@ via `flag.Visit`, beats the tsconfig entry, which beats the built-in default):
 - `cmd/ts-runtypes/main.go` — wires the merge into the build path; warns on
   stderr for unknown plugin keys (`unknownPluginKeys`, known set derived from
   the struct's json tags by reflection so it can't drift).
-- `packages/runtypes-devtools` — the host plugin forwards a flag ONLY when the
+- `packages/ts-runtypes-devtools` — the host plugin forwards a flag ONLY when the
   user set the option explicitly, so an unset option falls through to tsconfig;
   `cacheDir:false` forwards an explicit disable.
 - Docs: a new [Configuration guide](../../container/website/content/2.guide/9.configuration.md),
   a README **Configuration** section, an ARCHITECTURE "Configuration surface"
   note, and the marker note in `unplugin.ts` corrected.
 - Tests: Go unit tests for the merge/precedence + unknown-key detection, and a
-  default-mode integration test (`packages/runtypes-devtools/test/tsconfig-config.test.ts`)
+  default-mode integration test (`packages/ts-runtypes-devtools/test/tsconfig-config.test.ts`)
   that drives `moduleMode` purely through tsconfig and proves flag-over-tsconfig
   precedence (both `getRunTypeId` shapes, with hash equivalence).
 

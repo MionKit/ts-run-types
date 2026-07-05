@@ -39,8 +39,8 @@ import {createServer} from 'vite';
 
 // The vite plugin's default export lives in the /vite entry (dist/index.js's
 // default is the constants object); matches the package's "./vite" export.
-import runtypesPlugin from '../../../packages/runtypes-devtools/dist/vite.js';
-import {ResolverClient} from '../../../packages/runtypes-devtools/dist/resolver-client.js';
+import runtypesPlugin from '../../../packages/ts-runtypes-devtools/dist/vite.js';
+import {ResolverClient} from '../../../packages/ts-runtypes-devtools/dist/resolver-client.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');

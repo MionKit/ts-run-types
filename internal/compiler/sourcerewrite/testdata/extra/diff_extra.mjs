@@ -6,7 +6,7 @@
 import {writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
-import {rewrite} from '../../../../../packages/runtypes-devtools/dist/rewrite.js';
+import {rewrite} from '../../../../../packages/ts-runtypes-devtools/dist/rewrite.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 

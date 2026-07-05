@@ -49,7 +49,7 @@ function main() {
 
   // Every workspace package.json + the root, so the lockstep stays exact. The
   // ts-runtypes-bin bump is load-bearing: pnpm writes that concrete version into
-  // runtypes-devtools' workspace:* dependency at pack time.
+  // ts-runtypes-devtools' workspace:* dependency at pack time.
   const dirs = [REPO_ROOT, ...fs.readdirSync(path.join(REPO_ROOT, 'packages')).map((name) => path.join(REPO_ROOT, 'packages', name))];
   for (const dir of dirs) {
     const file = path.join(dir, 'package.json');

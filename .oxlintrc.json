@@ -4,7 +4,7 @@
     "correctness": "error"
   },
   "plugins": ["typescript", "oxc", "unicorn"],
-  "jsPlugins": ["./packages/runtypes-devtools/dist/eslint/index.js"],
+  "jsPlugins": ["./packages/ts-runtypes-devtools/dist/eslint/index.js"],
   "rules": {
     "runtypes/no-enrichment-todo": "error",
     "runtypes/no-orphan-carcass": "error",

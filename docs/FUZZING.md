@@ -195,7 +195,7 @@ dependency on `createMockType`.
 
 The harness ([`typeFuzzHarness.ts`](../packages/ts-runtypes/test/fuzz/type/typeFuzzHarness.ts))
 reuses the vite-plugin test helpers
-([`helpers/inline.ts`](../packages/runtypes-devtools/test/helpers/inline.ts)):
+([`helpers/inline.ts`](../packages/ts-runtypes-devtools/test/helpers/inline.ts)):
 render the fixture → `--inline-server` `ResolverClient.setSources` (atop the
 `RUNTYPES_DTS` ambient overlay — a tiny inferred Program, no node_modules) →
 `scanFiles` → `evalEntryModules` executes the emitted virtual modules into their

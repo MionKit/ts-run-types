@@ -75,7 +75,7 @@ type enrichConfig struct {
 
 // tsRuntypesPlugin is the shape of the `ts-runtypes` entry under
 // compilerOptions.plugins[]. It is the single canonical config surface for the
-// Go compiler's project tunables; the host plugins (runtypes-devtools) forward
+// Go compiler's project tunables; the host plugins (ts-runtypes-devtools) forward
 // only host-specific knobs (binary path, cwd) plus any explicit per-build
 // override. Unknown keys are ignored.
 //

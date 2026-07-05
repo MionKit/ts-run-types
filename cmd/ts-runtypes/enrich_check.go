@@ -27,7 +27,7 @@ type fileFinding struct {
 
 // runCheck implements `ts-runtypes check <file.ts> [--json]` — the single-file
 // enrichment health report, and the CLI twin of the resolver's checkEnrich
-// pass (what the runtypes-devtools lint plugin surfaces in the editor):
+// pass (what the ts-runtypes-devtools lint plugin surfaces in the editor):
 //
 //   - tag hygiene: unfilled `@todo` scaffolds and stale `@rtOrphan` /
 //     `@rtOrphanChild` carcasses, reported under the mirror's family

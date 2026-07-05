@@ -11,7 +11,7 @@
 #   5. Applies the tsgolint patches to the working tree (idempotent).
 #   6. Runs `pnpm install --frozen-lockfile` if node_modules is stale.
 #   7. Builds the Go resolver binary at bin/ts-runtypes.
-#   8. Builds the runtypes-devtools dist (consumers depend on it).
+#   8. Builds the ts-runtypes-devtools dist (consumers depend on it).
 #
 # After this, the smoke checks (`pnpm rt dev smoke`,
 # `pnpm rt website check`, `pnpm rt bench smoke`) verify the binary +
@@ -268,23 +268,23 @@ build_go_binary() {
   ok "Go binary built"
 }
 
-# Build runtypes-devtools dist. The marker package's typecheck consumes the
+# Build ts-runtypes-devtools dist. The marker package's typecheck consumes the
 # plugin's published .d.ts so the dist must exist for tests + smokes to pass.
 build_vite_plugin() {
   command -v pnpm >/dev/null 2>&1 || return 0
-  local dist="$REPO_DIR/packages/runtypes-devtools/dist/index.js"
-  if [ -f "$dist" ] && [ -z "$(find "$REPO_DIR/packages/runtypes-devtools/src" -type f -newer "$dist" -print -quit 2>/dev/null)" ]; then
-    ok "runtypes-devtools dist up-to-date"
+  local dist="$REPO_DIR/packages/ts-runtypes-devtools/dist/index.js"
+  if [ -f "$dist" ] && [ -z "$(find "$REPO_DIR/packages/ts-runtypes-devtools/src" -type f -newer "$dist" -print -quit 2>/dev/null)" ]; then
+    ok "ts-runtypes-devtools dist up-to-date"
     return 0
   fi
   if [ "$CHECK_ONLY" = 1 ]; then
-    warn "runtypes-devtools dist missing or stale - re-run without --check"
+    warn "ts-runtypes-devtools dist missing or stale - re-run without --check"
     return 0
   fi
-  bold "Building runtypes-devtools"
-  ( cd "$REPO_DIR" && pnpm --filter runtypes-devtools run build ) \
-    || { err "runtypes-devtools build failed"; FAILED=1; return 1; }
-  ok "runtypes-devtools dist built"
+  bold "Building ts-runtypes-devtools"
+  ( cd "$REPO_DIR" && pnpm --filter ts-runtypes-devtools run build ) \
+    || { err "ts-runtypes-devtools build failed"; FAILED=1; return 1; }
+  ok "ts-runtypes-devtools dist built"
 }
 
 # Create the dev .env (from .env.sample) if missing, then report env-var status.

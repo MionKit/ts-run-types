@@ -68,7 +68,7 @@ function resolveDeserializedEntry<F extends AnyFn>(fnName: string, identityFn: F
   if (!isEntryTuple(args)) {
     if (schemaId === undefined) {
       throw new Error(
-        `${fnName}(): no id injected. runtypes-devtools must be active for ${fnName} to dispatch to a precompiled factory.`
+        `${fnName}(): no id injected. ts-runtypes-devtools must be active for ${fnName} to dispatch to a precompiled factory.`
       );
     }
     if (utils.hasRunType(schemaId)) return identityFn;

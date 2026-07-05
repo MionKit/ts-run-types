@@ -746,7 +746,7 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   if (!isEntryTuple(injected)) {
     if (schemaId === undefined) {
       throw new Error(
-        `${fnName}(): no id injected. runtypes-devtools must be active for ${fnName} to dispatch to a precompiled factory.`
+        `${fnName}(): no id injected. ts-runtypes-devtools must be active for ${fnName} to dispatch to a precompiled factory.`
       );
     }
     // Schema-form without an injected tuple (plugin inactive): the schema

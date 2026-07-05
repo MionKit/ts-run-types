@@ -7,7 +7,7 @@
 The oxc toolchain migration (oxlint + oxfmt + Vite 8/Vitest 4) shipped, but two
 pieces were deferred by design. This tracks them so they survive the session.
 
-## 1. `runtypes-devtools/rolldown` subpath export
+## 1. `ts-runtypes-devtools/rolldown` subpath export
 
 The plugin ships `/vite`, `/rollup`, `/webpack`, `/rspack`, `/esbuild` unplugin
 entries but **no `/rolldown`** — `unplugin@3.0.0` exposes no `.rolldown`
@@ -15,7 +15,7 @@ accessor, so the entry cannot be added yet.
 
 - **When:** bump `unplugin` once it ships a Rolldown adapter (`unplugin.rolldown`).
 - **Then:** add `src/rolldown.ts` (mirror `src/esbuild.ts`), the `./rolldown`
-  exports map entry in [`packages/runtypes-devtools/package.json`](../../packages/runtypes-devtools/package.json),
+  exports map entry in [`packages/ts-runtypes-devtools/package.json`](../../packages/ts-runtypes-devtools/package.json),
   a build-time entry, README + the website configuration page.
 - Vite 8 already runs on Rolldown internally, so the existing `/vite` entry
   covers Vite-8 users today; this is only for consumers using Rolldown directly.
@@ -45,7 +45,7 @@ hook accepts webpack plugins directly:
 
 ```js
 // next.config.js
-const RunTypes = require('runtypes-devtools/webpack');
+const RunTypes = require('ts-runtypes-devtools/webpack');
 module.exports = {
   webpack(config) {
     config.plugins.push(RunTypes.default({ /* plugin options */ }));
@@ -87,10 +87,10 @@ surface (from the official docs):
    writes real files under `.next/rt/`. Same content-addressed IDs as the
    in-memory bundle, so cache keys are stable.
 2. **Turbopack loader for call-site rewrites.** Ship a
-   `runtypes-devtools/turbopack-loader` module that: reads source, spawns (or
+   `ts-runtypes-devtools/turbopack-loader` module that: reads source, spawns (or
    RPCs into) the resolver binary for the byte-offset edits, applies them via
    the JS `EditBuffer`, returns rewritten code + map. Wired via
-   `turbopack.rules['*.{ts,tsx,js,jsx}']: { loaders: ['runtypes-devtools/turbopack-loader'], as: '*.js' }`
+   `turbopack.rules['*.{ts,tsx,js,jsx}']: { loaders: ['ts-runtypes-devtools/turbopack-loader'], as: '*.js' }`
    with a `{ not: 'foreign' }` condition so it skips `node_modules`.
 3. **`resolveAlias` for entry-module virtual IDs.** Map `virtual:rt/runtypes.js`
    → `.next/rt/runtypes.js` (and per-root facades likewise). The rewritten

@@ -8,7 +8,7 @@ delivered as a per-platform **optional dependency** named
 those declares `os` + `cpu`, so your package manager installs only the one
 matching your machine and silently skips the rest.
 
-You normally never install this directly — `runtypes-devtools` depends on it
+You normally never install this directly — `ts-runtypes-devtools` depends on it
 and calls `getExePath()` to locate the binary.
 
 ## API

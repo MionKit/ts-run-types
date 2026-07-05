@@ -25,7 +25,7 @@ return, decoder-accepts-serializer, `createBinarySizer` kept,
   — memoized by type id, cycle-safe, format-aware, capped per subtree at
   `maxBytes`. Unit-tested in `binary_size_estimate_test.go`.
 - Global config: `sizeBias` (0.8), `sizeItems` (100), `sizeStringBytes` (32),
-  `sizeMaxBytes` (65536) as constants + tsconfig plugin keys + `runtypes-devtools`
+  `sizeMaxBytes` (65536) as constants + tsconfig plugin keys + `ts-runtypes-devtools`
   options + `--size-*` CLI flags, folded into the disk fingerprint (bumped
   `v6`→`v7`).
 - Metadata: a trailing `binarySizeEstimate` slot on the `tb` entry tuple

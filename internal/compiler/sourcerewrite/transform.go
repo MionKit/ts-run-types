@@ -1,7 +1,7 @@
 // Package transform is the Go port of the Vite plugin's per-file rewrite +
 // source-map generation, moved compiler-side per docs/COMPILER-DRIVEN-TRANSFORM.md
 // (Phase 1). It reproduces, BYTE-FOR-BYTE, the output of the JS pipeline in
-// packages/runtypes-devtools/src/rewrite.ts (buildInsertion, buildImportBlock,
+// packages/ts-runtypes-devtools/src/rewrite.ts (buildInsertion, buildImportBlock,
 // makeByteToChar, the apply loop) and edit-buffer.ts (EditBuffer + Mappings +
 // VLQ encoder), so a later phase can return {code, map} from the daemon and the
 // existing Vite composite-map chain is unchanged.

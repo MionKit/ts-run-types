@@ -279,7 +279,7 @@ recommended path; recorded for completeness.
    constants (mirrored via `pnpm run gen:ts-constants`), wire them like the other
    primitive names rather than hard-coding strings in two places.
 5. **Rebuild + test.** Rebuild `bin/ts-runtypes` (plugin tests spawn it) and
-   rebuild `runtypes-devtools` dist, then run the JS + Go suites.
+   rebuild `ts-runtypes-devtools` dist, then run the JS + Go suites.
 
 ## Testing
 

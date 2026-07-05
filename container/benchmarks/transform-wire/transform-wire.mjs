@@ -16,7 +16,7 @@
 // eliding it is the cheap milestone-0 win that narrows the comparison.
 //
 // Reusable both ways: `node transform-wire/transform-wire.mjs` on the host (the
-// binary + built runtypes-devtools resolve locally) and in the bench container
+// binary + built ts-runtypes-devtools resolve locally) and in the bench container
 // (`scripts/website/bench-data/bench.sh transform-wire`), where the numbers are stable.
 // Median of N (default 5), a warm-up pass discarded, tiers interleaved.
 
@@ -38,10 +38,10 @@ const RESULTS_DIR = process.env.RT_BENCH_RESULTS_DIR ?? path.join(COMPETITOR_DIR
 const N = intEnv('RT_TRANSFORM_WIRE_N', 5);
 const QUICK = process.env.RT_BENCH_QUICK === '1';
 
-// runtypes-devtools ships per-file dist modules; import the transport + applier
+// ts-runtypes-devtools ships per-file dist modules; import the transport + applier
 // by ABSOLUTE path (Node's package `exports` gate never applies to file URLs),
 // so the bench uses the exact code the plugin ships without widening its API.
-const PKG_ROOT = argOf('--pkg') ?? path.join(COMPETITOR_DIR, 'node_modules', 'runtypes-devtools');
+const PKG_ROOT = argOf('--pkg') ?? path.join(COMPETITOR_DIR, 'node_modules', 'ts-runtypes-devtools');
 const distImport = (file) => import(pathToFileURL(path.join(PKG_ROOT, 'dist', file)).href);
 const {ResolverClient} = await distImport('resolver-client.js');
 const {applyEdits, sourceHash} = await distImport('apply-edits.js');

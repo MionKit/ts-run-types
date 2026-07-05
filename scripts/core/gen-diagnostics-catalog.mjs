@@ -6,7 +6,7 @@
 // in internal/diagnostics/prose.go). `go run ./cmd/gen-diag-catalog` dumps it all
 // as JSON; this script fans that dump out into the two generated artifacts:
 //
-//   1. packages/runtypes-devtools/src/diagnosticCatalog.generated.ts — the
+//   1. packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts — the
 //      front-end message dictionary (code → headline/detail templates) the
 //      bundler plugin, the lint plugin, and the runtime alwaysThrow factory
 //      render from. The binary ships only code + args over the wire.
@@ -22,7 +22,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const generatedTsPath = resolve(repoRoot, 'packages/runtypes-devtools/src/diagnosticCatalog.generated.ts');
+const generatedTsPath = resolve(repoRoot, 'packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts');
 const websiteJsonPath = resolve(repoRoot, 'container/website/app/components/content/diagnostics-catalog.json');
 
 // Subsystems group the code prefixes into the sections the page renders, in

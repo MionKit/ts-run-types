@@ -71,13 +71,13 @@
   "scripts": {
     "build": "tsc --build tsconfig.json",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "pretest": "pnpm --filter runtypes-devtools run build",
+    "pretest": "pnpm --filter ts-runtypes-devtools run build",
     "test": "vitest run",
     "dev:test": "vitest watch",
     "clean": "node ../../scripts/lib/rmrf.mjs dist .coverage tsconfig.tsbuildinfo",
     "fresh-start": "pnpm run clean && node ../../scripts/lib/rmrf.mjs node_modules"
   },
   "devDependencies": {
-    "runtypes-devtools": "workspace:*"
+    "ts-runtypes-devtools": "workspace:*"
   }
 }

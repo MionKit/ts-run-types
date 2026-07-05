@@ -17,7 +17,7 @@
 #                 src not newer than dist). Repairs by wiping tsbuildinfo and
 #                 running the package's `build` script — incremental tsc on its
 #                 own would trust the corrupt buildinfo and re-skip emit.
-#   plugin-dist   packages/runtypes-devtools/dist, same checks.
+#   plugin-dist   packages/ts-runtypes-devtools/dist, same checks.
 #   all           go + marker-dist + plugin-dist. Default when no args given.
 #                 NOT linux-go — that's bench-only; the bench script asks for it
 #                 explicitly so `pnpm test` doesn't pay the cross-compile cost.
@@ -49,7 +49,7 @@ GO_BIN="bin/ts-runtypes"
 GO_PKG="./cmd/ts-runtypes"
 EXTRACT_PKG="./cmd/extract-fn-bodies"
 MARKER_PKG_DIR="packages/ts-runtypes"
-PLUGIN_PKG_DIR="packages/runtypes-devtools"
+PLUGIN_PKG_DIR="packages/ts-runtypes-devtools"
 
 # Marker dist sentinels — the .d.ts files whose absence in a "fresh" dist is a
 # strong signal that declaration emit was interrupted. markers.d.ts in
@@ -279,7 +279,7 @@ check_plugin_dist() {
   info "Checking $PLUGIN_PKG_DIR/dist..."
   if dist_is_stale "$PLUGIN_PKG_DIR/dist" "$PLUGIN_PKG_DIR/src" "${PLUGIN_SENTINELS[@]}"; then
     info "$PLUGIN_PKG_DIR/dist is stale or incomplete - rebuilding clean"
-    rebuild_pkg_dist "$PLUGIN_PKG_DIR" "runtypes-devtools"
+    rebuild_pkg_dist "$PLUGIN_PKG_DIR" "ts-runtypes-devtools"
     if dist_is_stale "$PLUGIN_PKG_DIR/dist" "$PLUGIN_PKG_DIR/src" "${PLUGIN_SENTINELS[@]}"; then
       fail "$PLUGIN_PKG_DIR/dist still incomplete after rebuild (build script bug)."
     fi

@@ -1,6 +1,6 @@
 # Plan — DateTime format refactor: dedicated file, min/max params, relative `now±P`, and native `Date` formats
 
-> _Resurfaced historical doc. The feature has since been implemented; the "DRAFT, do not implement yet" status below is historical (see the "Implementation outcome" section). Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `runtypes-devtools`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
+> _Resurfaced historical doc. The feature has since been implemented; the "DRAFT, do not implement yet" status below is historical (see the "Implementation outcome" section). Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `ts-runtypes-devtools`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
 
 Status: **DRAFT for review — do not implement yet.**
 Branch: `claude/datetime-format-refactor-LSl3c`

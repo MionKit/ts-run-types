@@ -57,7 +57,7 @@ The shared literal validator rejects spread in both container kinds:
 
 - object spread (`{...x}`) → [internal/compiler/comptimeargs/comptimeargs.go:312](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadAssignment`)
 - array spread (`[...x]`) → [internal/compiler/comptimeargs/comptimeargs.go:330](../../internal/compiler/comptimeargs/comptimeargs.go) (`KindSpreadElement`)
-- diagnostic `CTA003` lists "spread" as a forbidden construct ([codes_marker.go:38](../../internal/diagnostics/codes_marker.go), user fix text in [diagnosticCatalog.ts:187](../../packages/runtypes-devtools/src/diagnosticCatalog.ts))
+- diagnostic `CTA003` lists "spread" as a forbidden construct ([codes_marker.go:38](../../internal/diagnostics/codes_marker.go), user fix text in [diagnosticCatalog.ts:187](../../packages/ts-runtypes-devtools/src/diagnosticCatalog.ts))
 - pinned by tests `TestComposerCTA_TupleSpreadRejected` / `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/compiler/resolver/comptimeargs_composer_test.go))
 
 `CheckLiteral` already const-traces a *whole* identifier
@@ -188,13 +188,13 @@ threaded into `eachOptionProperty` and its two callers (today they take only
 - **JS typesafety (`packages/ts-runtypes/test/typesafety.test.ts`)** — `object` spread
   infers the merged `Static`; `union`/`tuple` spread of a tuple operand preserves
   per-slot types.
-- **Vite plugin (`packages/runtypes-devtools/test`)** — one end-to-end spread case
+- **Vite plugin (`packages/ts-runtypes-devtools/test`)** — one end-to-end spread case
   through the real binary (build the binary first per SETUP.md).
 - Marker-coverage rule still applies where the site is reflection-shaped.
 
 ## Docs to update
 
-- [diagnosticCatalog.ts CTA003](../../packages/runtypes-devtools/src/diagnosticCatalog.ts) —
+- [diagnosticCatalog.ts CTA003](../../packages/ts-runtypes-devtools/src/diagnosticCatalog.ts) —
   reword: spread of a `const`-bound literal is now allowed; the "replace spread with a
   literal" fix becomes "spread a `const` fragment" and the remaining rejected cases
   (dynamic / non-container operand) stay.

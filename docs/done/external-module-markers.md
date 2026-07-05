@@ -48,7 +48,7 @@
 > Tests: `internal/compiler/comptimeargs/external_test.go`,
 > `internal/compiler/resolver/external_module_test.go`,
 > `packages/ts-runtypes/test/external-module*.ts`,
-> `packages/runtypes-devtools/test/pure-fns-cache.test.ts` (PFN002). Docs:
+> `packages/ts-runtypes-devtools/test/pure-fns-cache.test.ts` (PFN002). Docs:
 > `diagnosticCatalog.ts` (+ regenerated catalog JSON), `docs/ARCHITECTURE.md`,
 > website compiler-markers + pure-functions guides.
 
@@ -144,7 +144,7 @@ statement. Emit a new diagnostic (e.g. **PFN002**, Error severity) with fix
 text: "inline the function at the call site, or bind it to a module-private
 `const` that nothing exports." Wire the code into
 [internal/diagnostics/codes_marker.go](../../internal/diagnostics/codes_marker.go) and the
-[diagnosticCatalog.ts](../../packages/runtypes-devtools/src/diagnosticCatalog.ts).
+[diagnosticCatalog.ts](../../packages/ts-runtypes-devtools/src/diagnosticCatalog.ts).
 
 ## Design decisions to settle
 

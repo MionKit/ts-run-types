@@ -32,7 +32,7 @@ This isolation is the whole point:
 - **RunTypes is just another competitor.** Its `cases.ts` is a
   `CompetitorCases` map like everyone else's; the runner has no ts-go branch. The
   only thing special about it is *build* mechanics — its validators are generated
-  at build time by `runtypes-devtools` spawning the **Go binary**, so that
+  at build time by `ts-runtypes-devtools` spawning the **Go binary**, so that
   binary + the first-party packages are bind-mounted into its `node_modules` at run
   time (see [`scripts/website/bench-data/bench.sh`](../scripts/website/bench-data/bench.sh) `mount_args`).
 
@@ -261,7 +261,7 @@ and **typia** — measured on **tsgo** (the Go TypeScript both transform on), ov
   that produces no validators.
 - **full** — type-check + transform + emit the generated validators:
   - typia — `ttsc` (tsgo + the typia transform, emitting the inlined validators).
-  - ts-runtypes — `vite` + the `runtypes-devtools` plugin (the Go resolver, itself
+  - ts-runtypes — `vite` + the `ts-runtypes-devtools` plugin (the Go resolver, itself
     tsgo, generates the validators; the bundler emits them). RT's transform is not a
     tsgo plugin, so this is its real build path rather than a `tsgo` CLI call.
 

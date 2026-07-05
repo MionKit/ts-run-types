@@ -1,7 +1,7 @@
 import {configDefaults, defineConfig} from 'vitest/config';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import runtypesPlugin from 'runtypes-devtools/vite';
+import runtypesPlugin from 'ts-runtypes-devtools/vite';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PACKAGE_ROOT = resolve(HERE);
@@ -51,7 +51,7 @@ export default defineConfig({
       // and `tsconfig.test.json` sets `incremental: false`, so these test runs
       // are cache-off with no knob — they never pollute node_modules/.cache
       // with thousands of artifact files. The disk-cache feature has its own
-      // dedicated end-to-end suite (runtypes-devtools/test/cache-disk.test.ts,
+      // dedicated end-to-end suite (ts-runtypes-devtools/test/cache-disk.test.ts,
       // which forces the cache on at an os.tmpdir() path).
     }),
   ],
@@ -61,7 +61,7 @@ export default defineConfig({
     environment: 'node',
     include: ['test/**/*.test.ts'],
     // test/playground/** is the relocated playground engine suite — it runs as
-    // its own project (no runtypes-devtools transform, no marker setup files),
+    // its own project (no ts-runtypes-devtools transform, no marker setup files),
     // so keep it out of this one to avoid a double-run.
     exclude: [...configDefaults.exclude, 'test/playground/**'],
     // Generating + validating the deepest mock cases (e.g. a 3-D string array,
