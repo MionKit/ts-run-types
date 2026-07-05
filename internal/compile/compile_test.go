@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiled/transform"
+	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/resolver"
@@ -112,7 +112,7 @@ func TestCompile_EmitsJsWithComposedMap(t *testing.T) {
 		t.Errorf("map sources = %v, want [..foo.ts]", sm.Sources)
 	}
 	maxLine, sawCallLine := -1, false
-	for _, line := range transform.OriginalLines(sm.Mappings) {
+	for _, line := range sourcerewrite.OriginalLines(sm.Mappings) {
 		if line > maxLine {
 			maxLine = line
 		}

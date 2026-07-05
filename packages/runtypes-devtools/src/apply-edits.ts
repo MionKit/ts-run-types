@@ -1,6 +1,6 @@
 // apply-edits.ts — the FE half of 'edits'-mode transform. The Go resolver hands
 // back a flat edit list (importBlock + point/span edits, see
-// internal/compiled/transform/edits.go); this applies it with the in-house
+// internal/compiler/sourcerewrite/edits.go); this applies it with the in-house
 // EditBuffer and produces the {code, map} pair the bundler expects — the light
 // path that keeps the whole rewritten file + dense source map OFF the wire.
 //

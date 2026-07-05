@@ -37,7 +37,7 @@
 //	DEALINGS IN THE SOFTWARE.
 // ─────────────────────────────────────────────────────────────────────────
 
-package transform
+package sourcerewrite
 
 import (
 	"fmt"

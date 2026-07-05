@@ -14,7 +14,7 @@
 // Single source per file keeps this simple: A has one source (original.ts), B
 // has one source (rewritten.ts), so C has one source (original.ts) and every
 // source index is 0.
-package transform
+package sourcerewrite
 
 import (
 	"strings"

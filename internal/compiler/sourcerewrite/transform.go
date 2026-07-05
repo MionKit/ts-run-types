@@ -26,7 +26,7 @@
 // ([A-Za-z0-9_]); lines split on 0x0A. The VLQ alphabet and delta-encoding
 // match edit-buffer.ts exactly. The magic-string credit/license for the
 // source-map segment math carries over (see editbuffer.go).
-package transform
+package sourcerewrite
 
 import (
 	"sort"

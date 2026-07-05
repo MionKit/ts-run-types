@@ -9,7 +9,7 @@
 // See the transform.go package doc for the UTF-8 byte vs UTF-16 code-unit
 // rationale — Edit offsets are UTF-16 code units (what the JS string applier
 // indexes), converted here from the resolver's byte offsets via makeByteToChar.
-package transform
+package sourcerewrite
 
 import (
 	"hash/fnv"

@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/compiler"
-	"github.com/mionkit/ts-runtypes/internal/compiled/transform"
+	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -190,7 +190,7 @@ func composeEmittedMap(text, mapPath string, mapAByAbs map[string]*protocol.Sour
 	if mapA == nil {
 		return text // un-rewritten file: js → original already
 	}
-	composed := transform.ComposeMaps(mapA, &mapB)
+	composed := sourcerewrite.ComposeMaps(mapA, &mapB)
 	// Map A carried the ABSOLUTE source path; tsc convention is a path relative
 	// to the .map file (portable when the output dir moves). Match it.
 	if len(composed.Sources) == 1 && filepath.IsAbs(composed.Sources[0]) {

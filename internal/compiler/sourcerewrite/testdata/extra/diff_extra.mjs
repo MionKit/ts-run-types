@@ -2,7 +2,7 @@
 // emits testdata/extra/cases.json the Go differential test (extra_test.go)
 // consumes. Same byte-offset construction as gen_golden.mjs but covers more
 // multibyte / boundary permutations. Run from the repo root:
-//   node internal/compiled/transform/testdata/extra/diff_extra.mjs
+//   node internal/compiler/sourcerewrite/testdata/extra/diff_extra.mjs
 import {writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';

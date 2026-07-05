@@ -17,7 +17,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
-	"github.com/mionkit/ts-runtypes/internal/compiled/transform"
+	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/program"
@@ -827,7 +827,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 	case protocol.OpTransform:
 		// The compiler-driven transform: scan the requested files exactly as
 		// OpScanFiles does (sites + pure-fn replacements), then apply the
-		// rewrite + source-map generation IN GO (internal/compiled/transform)
+		// rewrite + source-map generation IN GO (internal/compiler/sourcerewrite)
 		// rather than handing offsets back to the JS plugin. Returns one
 		// TransformResult per file. The added* flags ride along so the thin
 		// Vite wrapper can still drive data-bundle HMR off this single call.
@@ -885,7 +885,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				// EditBuffer reproduces Apply's output byte-for-byte. The
 				// SourceHash lets the FE detect an upstream pre-plugin that
 				// edited the source out from under the resolver's byte offsets.
-				importBlock, edits := transform.ComputeEdits(source, fileSites, fileReplacements)
+				importBlock, edits := sourcerewrite.ComputeEdits(source, fileSites, fileReplacements)
 				if importBlock != "" && request.OutDir != "" {
 					// Files-mode: relativize the injected block's virtual:rt
 					// specifiers exactly as 'go' mode does to the whole file —
@@ -895,11 +895,11 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				transformed[file] = protocol.TransformResult{
 					ImportBlock: importBlock,
 					Edits:       edits,
-					SourceHash:  transform.SourceHash(source),
+					SourceHash:  sourcerewrite.SourceHash(source),
 				}
 				continue
 			}
-			code, sourceMap := transform.Apply(file, source, fileSites, fileReplacements)
+			code, sourceMap := sourcerewrite.Apply(file, source, fileSites, fileReplacements)
 			if request.OutDir != "" {
 				// Files-mode: rewrite the injected import block's virtual:rt
 				// specifiers to paths relative to this file (the generated
@@ -920,7 +920,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			// from the resolver's view and would otherwise clobber that edit
 			// silently. The plugin warns on mismatch; the transform itself is
 			// unaffected either way.
-			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap, SourceHash: transform.SourceHash(source)}
+			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap, SourceHash: sourcerewrite.SourceHash(source)}
 		}
 		combinedDiagnostics := append(append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
 		response := protocol.Response{
