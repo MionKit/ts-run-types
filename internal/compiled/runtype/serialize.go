@@ -1420,7 +1420,7 @@ func declarationPos(symbol *ast.Symbol) int {
 	if symbol == nil || symbol.ValueDeclaration == nil {
 		return 0
 	}
-	return int(symbol.ValueDeclaration.Pos())
+	return symbol.ValueDeclaration.Pos()
 }
 
 // uniqueSymbolDescription extracts the description argument of a

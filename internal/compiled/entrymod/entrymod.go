@@ -324,10 +324,7 @@ func RenderGrouped(graph Graph, grouping Grouping) (map[string]string, error) {
 	}
 	sort.Strings(keys)
 
-	order, err := levelOrder(graph, keys)
-	if err != nil {
-		return nil, err
-	}
+	order := levelOrder(graph, keys)
 
 	groupOf := make(map[string]string, len(graph))
 	bundles := make(map[string][]string)
@@ -375,7 +372,7 @@ type levels map[string]int
 // levelOrder computes per-key dependency levels over the whole graph: Tarjan
 // SCC condensation first (cycles collapse to one node), then
 // level(scc) = 1 + max(level(dep sccs)), leaves at 0.
-func levelOrder(graph Graph, keys []string) (levels, error) {
+func levelOrder(graph Graph, keys []string) levels {
 	// Tarjan SCC, iterative-friendly sizes here (entry graphs are small);
 	// recursion depth equals the longest dep chain, matching the existing
 	// renderer's DFS topo sort.
@@ -471,7 +468,7 @@ func levelOrder(graph Graph, keys []string) (levels, error) {
 	for key, scc := range sccOf {
 		out[key] = levelOf(scc)
 	}
-	return out, nil
+	return out
 }
 
 // sortedDeps returns entry's hard + soft deps deduped and alphabetically

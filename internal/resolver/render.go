@@ -97,9 +97,9 @@ func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
 // extractor and returns the per-entry graph (the OpDump path; OpScanFiles
 // reuses its own per-request extraction instead). Returns the wire-shaped
 // diagnostics from the in-place extraction alongside.
-func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entrymod.Graph, []diag.Diagnostic, error) {
+func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entrymod.Graph, []diag.Diagnostic) {
 	if resolver.Program == nil {
-		return entrymod.Graph{}, nil, nil
+		return entrymod.Graph{}, nil
 	}
 	// The override pass extracts the cfn pure-fn entries the type-fn redirects
 	// forward to; idempotent, so this is a cheap guard when scanning already ran.
@@ -123,5 +123,5 @@ func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entr
 	if metrics != nil {
 		metrics.PureFnsMs = elapsedMs(pureFnsStart)
 	}
-	return purefns.CollectEntries(entries), diagnostics, nil
+	return purefns.CollectEntries(entries), diagnostics
 }

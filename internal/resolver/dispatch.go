@@ -759,10 +759,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// once the render completes.
 		var rtDiagnostics []diag.Diagnostic
 		rtOpts := resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
-		pureFnGraph, pureFnsDiagnostics, pureFnsErr := resolver.collectProgramPureFns(metrics)
-		if pureFnsErr != nil {
-			return protocol.Response{Error: pureFnsErr.Error()}
-		}
+		pureFnGraph, pureFnsDiagnostics := resolver.collectProgramPureFns(metrics)
 		response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
 		modules, modulesErr := resolver.collectEntryModules(fullDump, rtOpts, pureFnGraph, metrics)
 		if modulesErr != nil {
@@ -790,10 +787,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		}
 		var genDiagnostics []diag.Diagnostic
 		genOpts := resolver.rtRenderOpts(&genDiagnostics, resolver.buildProvenanceSites())
-		genPureFnGraph, genPureFnsDiagnostics, genPureFnsErr := resolver.collectProgramPureFns(metrics)
-		if genPureFnsErr != nil {
-			return protocol.Response{Error: genPureFnsErr.Error()}
-		}
+		genPureFnGraph, genPureFnsDiagnostics := resolver.collectProgramPureFns(metrics)
 		genModules, genModulesErr := resolver.collectEntryModules(genDump, genOpts, genPureFnGraph, metrics)
 		if genModulesErr != nil {
 			return protocol.Response{Error: genModulesErr.Error()}
