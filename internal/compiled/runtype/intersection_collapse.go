@@ -212,7 +212,7 @@ func splitBuiltinClassBrand(typeChecker *checker.Checker, objectMembers []*check
 			annotation = found
 			continue
 		}
-		if isBuiltinClassMember(typeChecker, member) {
+		if isBuiltinClassMember(member) {
 			if classMember != nil {
 				return nil, nil // two builtin classes — ambiguous
 			}
@@ -227,7 +227,7 @@ func splitBuiltinClassBrand(typeChecker *checker.Checker, objectMembers []*check
 // (FormatTemporalX<P> lowers to `Temporal.X & {brand}`). projectClass and the
 // id computer both already special-case these, so lifting the brand off them
 // produces the correct class node + FormatAnnotation.
-func isBuiltinClassMember(typeChecker *checker.Checker, member *checker.Type) bool {
+func isBuiltinClassMember(member *checker.Type) bool {
 	if _, ok := typeid.TemporalInfoForType(member); ok {
 		return true
 	}

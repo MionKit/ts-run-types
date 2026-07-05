@@ -147,7 +147,7 @@ func Run(opts Options) (*Result, error) {
 	for outPath, text := range captured {
 		switch {
 		case strings.HasSuffix(outPath, ".js.map"):
-			final[outPath] = composeEmittedMap(text, outPath, cwd, mapAByAbs)
+			final[outPath] = composeEmittedMap(text, outPath, mapAByAbs)
 		case strings.HasSuffix(outPath, ".js"):
 			// The virtual:rt specifiers survived emit unresolved; relativize them
 			// against THIS output file's location to the cache dir. Same-line
@@ -180,12 +180,12 @@ func Run(opts Options) (*Result, error) {
 // user's original source. If the map's source file has no rewrite (a non-marker
 // file), or can't be parsed/correlated, the emitted map is returned unchanged
 // (it is already js → original for un-rewritten files).
-func composeEmittedMap(text, mapPath, cwd string, mapAByAbs map[string]*protocol.SourceMap) string {
+func composeEmittedMap(text, mapPath string, mapAByAbs map[string]*protocol.SourceMap) string {
 	var mapB protocol.SourceMap
 	if err := json.Unmarshal([]byte(text), &mapB); err != nil || len(mapB.Sources) == 0 {
 		return text
 	}
-	sourceAbs := resolveMapSource(mapB.Sources[0], mapPath, cwd)
+	sourceAbs := resolveMapSource(mapB.Sources[0], mapPath)
 	mapA := mapAByAbs[sourceAbs]
 	if mapA == nil {
 		return text // un-rewritten file: js → original already
@@ -208,7 +208,7 @@ func composeEmittedMap(text, mapPath, cwd string, mapAByAbs map[string]*protocol
 // resolveMapSource resolves a source-map `sources[0]` entry (relative to the map
 // file's directory) to an absolute, cleaned path so it can be matched against
 // the rewrite table (keyed by absolute source path).
-func resolveMapSource(source, mapPath, cwd string) string {
+func resolveMapSource(source, mapPath string) string {
 	if filepath.IsAbs(source) {
 		return filepath.Clean(source)
 	}

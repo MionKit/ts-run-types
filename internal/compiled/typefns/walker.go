@@ -612,7 +612,7 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) RTCod
 		return jc
 	}
 	if jc.Code != "" {
-		jc = w.handleCodeInterpolation(rt, jc, expectedCType)
+		jc = w.handleCodeInterpolation(jc, expectedCType)
 	}
 	w.popStack(jc)
 	return jc
@@ -851,7 +851,7 @@ func (w *Walker) argsList(includeDefaults bool) string {
 // double-wrap guard silently absorbed — a wrapped `ctxFn0(v)` re-entering a
 // parent reconciliation as "CodeRB" would re-wrap verbatim and drop the
 // value (`function(v){ctxFn0(v)}`, no return).
-func (w *Walker) handleCodeInterpolation(rt *protocol.RunType, child RTCode, parentCT CodeType) RTCode {
+func (w *Walker) handleCodeInterpolation(child RTCode, parentCT CodeType) RTCode {
 	code := child.Code
 	childCT := child.Type
 	isRoot := len(w.Stack) == 1

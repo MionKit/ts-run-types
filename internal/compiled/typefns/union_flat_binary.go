@@ -23,16 +23,16 @@ import (
 // This file relies on the FlatLayout struct + buildFlatLayout helper
 // in union_flat_layout.go (shared with the JSON family).
 
-// discriminatorWidth returns ("Uint8", 1) or ("Uint16", 2) depending on
-// the total number of members in the union. We use the same trick at
+// discriminatorWidth returns "Uint8" or "Uint16" depending on the total
+// number of members in the union. We use the same trick at
 // binary/toBinary.ts:376-380 — uint8 when index fits, uint16 otherwise.
 // The `-1` sentinel for the merged-object branch is encoded as the
 // max value (0xFF / 0xFFFF) so the decoder special-cases it.
-func discriminatorWidth(memberCount int) (string, int) {
+func discriminatorWidth(memberCount int) string {
 	if memberCount > 255 {
-		return "Uint16", 2
+		return "Uint16"
 	}
-	return "Uint8", 1
+	return "Uint8"
 }
 
 // sentinelLiteral returns the JS literal for the merged-object branch's
@@ -80,7 +80,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 	}
 
 	totalMembers := len(layout.AtomicMembers) + len(layout.ObjectMembers)
-	width, _ := discriminatorWidth(totalMembers)
+	width := discriminatorWidth(totalMembers)
 	sentinel := sentinelLiteral(width)
 
 	var clauses []string
@@ -254,7 +254,7 @@ func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des stri
 		return RTCode{Code: "", Type: CodeS}
 	}
 	totalMembers := len(layout.AtomicMembers) + len(layout.ObjectMembers)
-	width, _ := discriminatorWidth(totalMembers)
+	width := discriminatorWidth(totalMembers)
 	sentinel := sentinelLiteral(width)
 
 	decVar := ctx.NextLocalVar("dec")

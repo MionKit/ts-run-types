@@ -146,7 +146,7 @@ func walkDeclFiles(typeChecker *checker.Checker, cache *runtype.Cache, tsType *c
 	// Record this type's decl file when it is a NAMED type (alias or interface/
 	// class symbol with a declaration). AssignID projects it into the cache and
 	// returns the same structural id the closure emitter keys on.
-	if file := declFileForType(typeChecker, tsType); file != "" {
+	if file := declFileForType(tsType); file != "" {
 		id := cache.AssignID(tsType)
 		if id != "" {
 			out[id] = file
@@ -175,7 +175,7 @@ func walkDeclFiles(typeChecker *checker.Checker, cache *runtype.Cache, tsType *c
 // Prefers the alias symbol (`type User = …`) then the type's own symbol
 // (interface / class). Re-exports resolve naturally because the symbol's
 // declaration points at the original declaration node.
-func declFileForType(typeChecker *checker.Checker, tsType *checker.Type) string {
+func declFileForType(tsType *checker.Type) string {
 	if alias := checker.Type_alias(tsType); alias != nil {
 		if file := declFileForSymbol(alias.Symbol()); file != "" {
 			return file

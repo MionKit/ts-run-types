@@ -225,14 +225,14 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 
 	// Object-flavoured: tuple / array / promise / function / class / objectLiteral.
 	if flags&checker.TypeFlagsObject != 0 {
-		return computer.objectID(tsType, kind)
+		return computer.objectID(tsType)
 	}
 
 	// Fallback — kind only.
 	return strconv.Itoa(int(kind))
 }
 
-func (computer *Computer) objectID(tsType *checker.Type, kind protocol.ReflectionKind) string {
+func (computer *Computer) objectID(tsType *checker.Type) string {
 	if checker.IsTupleType(tsType) {
 		// Tuple — bracket-delimited child list per the reference algorithm, with
 		// each element's variadic FLAGS (rest / variadic) folded into the id.
