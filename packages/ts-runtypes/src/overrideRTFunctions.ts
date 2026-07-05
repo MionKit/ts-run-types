@@ -49,7 +49,7 @@ function overrideImpl(_pureFn: unknown, id?: unknown): void {
   }
   if (typeof console !== 'undefined') {
     console.warn(
-      '[ts-runtypes] overrideX(): no entry injected. The runtypes-devtools plugin ' +
+      '[ts-runtypes] overrideX(): no entry injected. The ts-runtypes-devtools plugin ' +
         'must be active for per-type overrides to take effect.'
     );
   }

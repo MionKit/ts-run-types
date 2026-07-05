@@ -53,7 +53,7 @@ setup-script field** (the web env holds a verbatim copy — see §8).
 ---
 
 ### Original spec (as investigated) follows below.
-**Related:** [`eslint.config.js`](../../eslint.config.js), [`.oxlintrc.json`](../../.oxlintrc.json), [`.prettierrc`](../../.prettierrc), root [`package.json`](../../package.json) scripts (`lint`, `lint:runtypes`, `format`, `check-format`, `lint-pre-committ`, lint-staged block), [`.husky/pre-commit`](../../.husky/pre-commit), [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml), [`.github/workflows/release-gate.yml`](../../.github/workflows/release-gate.yml), [`packages/runtypes-devtools/package.json`](../../packages/runtypes-devtools/package.json) (Vite peer/devDep), [`packages/runtypes-playground/package.json`](../../packages/runtypes-playground/package.json) (runtime Prettier), [`scripts/setup-claude-web.sh`](../../scripts/setup-claude-web.sh) (`SETUP_DATE` cache-bust), [`vitest.workspace.ts`](../../vitest.workspace.ts), [`docs/todos/oxlint-diagnostics-plugin.md`](oxlint-diagnostics-plugin.md)
+**Related:** [`eslint.config.js`](../../eslint.config.js), [`.oxlintrc.json`](../../.oxlintrc.json), [`.prettierrc`](../../.prettierrc), root [`package.json`](../../package.json) scripts (`lint`, `lint:runtypes`, `format`, `check-format`, `lint-pre-committ`, lint-staged block), [`.husky/pre-commit`](../../.husky/pre-commit), [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml), [`.github/workflows/release-gate.yml`](../../.github/workflows/release-gate.yml), [`packages/ts-runtypes-devtools/package.json`](../../packages/ts-runtypes-devtools/package.json) (Vite peer/devDep), [`packages/runtypes-playground/package.json`](../../packages/runtypes-playground/package.json) (runtime Prettier), [`scripts/setup-claude-web.sh`](../../scripts/setup-claude-web.sh) (`SETUP_DATE` cache-bust), [`vitest.workspace.ts`](../../vitest.workspace.ts), [`docs/todos/oxlint-diagnostics-plugin.md`](oxlint-diagnostics-plugin.md)
 
 ## 1. Goal
 
@@ -64,7 +64,7 @@ Migrate the JS half of the toolchain to the oxc suite end-to-end:
 2. **oxfmt** (the oxc formatter) replaces Prettier for **TypeScript** dev-time formatting, where it
    reproduces our style. Prettier stays for markdown AND for the playground's in-browser use (§3.3).
 3. **Vite 8+** (Rolldown-powered, oxc-based by default) replaces Vite 5 where the workspace builds or
-   tests with Vite — `runtypes-devtools` (devDep + peer range + its bundler test matrix), Vitest, the
+   tests with Vite — `ts-runtypes-devtools` (devDep + peer range + its bundler test matrix), Vitest, the
    playground `demo`/`build:site`, and eventually the two container apps.
 4. Every command that fronts these tools — `pnpm run lint`, `pnpm run format`, `pnpm run check-format`,
    the lint-staged / husky pre-commit entries, CI — is rewired and stays green with **stable script names**.
@@ -97,7 +97,7 @@ fact it **already has one** (§2.1), which this migration merges into the genera
 - **oxlint 1.68.0** (root devDep) is ALREADY installed and runs, but ONLY hosts the enrichment
   diagnostics plugin. [`.oxlintrc.json`](../../.oxlintrc.json) today:
   - `categories.correctness: off` (general rules deliberately silenced),
-  - `jsPlugins: ["./packages/runtypes-devtools/dist/eslint/index.js"]` (the built consumer plugin),
+  - `jsPlugins: ["./packages/ts-runtypes-devtools/dist/eslint/index.js"]` (the built consumer plugin),
   - four `runtypes/*` rules on (`no-enrichment-todo`, `no-orphan-carcass`, `enrichment-field`,
     `enrichment-drift`), `settings.runtypes.binary: ./bin/ts-runtypes`,
   - its own `ignorePatterns` (node_modules, third_party, `**/dist/**`, `**/test/**`,
@@ -108,7 +108,7 @@ fact it **already has one** (§2.1), which this migration merges into the genera
   `lint-pre-committ` (typo, double-t — see §5.5) = `eslint --quiet`, invoked by lint-staged on staged
   non-test package TS. The lint-staged `**/*.ts` block already runs `pnpm exec oxlint` (enrichment).
 - Type checking is a **separate** step (`pnpm run typecheck` → tsc/tsgo projects) and stays untouched.
-- **The enrichment `runtypes/*` rules self-gate** via [`prefilter.ts`](../../packages/runtypes-devtools/src/eslint/prefilter.ts)
+- **The enrichment `runtypes/*` rules self-gate** via [`prefilter.ts`](../../packages/ts-runtypes-devtools/src/eslint/prefilter.ts)
   (`referencesMarkerModule` / `looksLikeEnrichmentFile`) — they are cheap no-ops on non-enrich files, so
   they can live in the merged general config with no per-glob `overrides`.
 
@@ -126,14 +126,14 @@ fact it **already has one** (§2.1), which this migration merges into the genera
 
 ### 2.3 Vite / Vitest surfaces
 
-- `runtypes-devtools`: devDep `vite@5.4.10`, peer `vite >= 5.0.0` (optional), dep `unplugin@3.0.0`.
+- `ts-runtypes-devtools`: devDep `vite@5.4.10`, peer `vite >= 5.0.0` (optional), dep `unplugin@3.0.0`.
   Bundler entries: `/vite`, `/rollup`, `/webpack`, `/rspack`, `/esbuild` (**no `/rolldown` entry** — and
   unplugin 3.0.0 exposes no `.rolldown` accessor yet, see §3.2).
 - Root devDep `vitest@2.1.9` (bundles its own Vite 5.4.10) drives the whole JS suite. **There is NO root
   `vite` devDep** — Vite is vitest-bundled + hoisted.
 - Suite wiring: root [`vitest.config.ts`](../../vitest.config.ts) is minimal (coverage v8 provider only);
   **[`vitest.workspace.ts`](../../vitest.workspace.ts) lists the 3 projects** (ts-runtypes,
-  runtypes-devtools, runtypes-playground). `vitest run` runs all three. **This workspace-file form is
+  ts-runtypes-devtools, runtypes-playground). `vitest run` runs all three. **This workspace-file form is
   deprecated in Vitest 3 and removed in Vitest 4 → must migrate to `test.projects` (§3.2).**
 - `resolve.conditions: ['source']` + `ssr.resolve.conditions: ['source']` in
   [`packages/ts-runtypes/vitest.config.ts`](../../packages/ts-runtypes/vitest.config.ts) and
@@ -148,7 +148,7 @@ fact it **already has one** (§2.1), which this migration merges into the genera
   `container/website` (Nuxt/Docus — Vite is Nuxt-managed), `container/benchmarks` (Vite-driven bench
   harness + competitor deps under `_deps`).
 - 172 `.spec.ts` / `.test.ts` files total. The byte-offset canaries are
-  [`packages/runtypes-devtools/test/build-sourcemap.test.ts`](../../packages/runtypes-devtools/test/build-sourcemap.test.ts)
+  [`packages/ts-runtypes-devtools/test/build-sourcemap.test.ts`](../../packages/ts-runtypes-devtools/test/build-sourcemap.test.ts)
   (em-dash multibyte fixture + real `vite build`) and `rewrite.test.ts` (em-dash + emoji byte offsets).
 
 ### 2.4 CI / hooks (re-verified 2026-07-04 — the PR gate was restructured on main)
@@ -231,14 +231,14 @@ swap the engines underneath.** CI, husky, CLAUDE.md, and muscle memory all keep 
   service, not because we don't want them linted).
 - Remove `eslint`, `@eslint/js`, `typescript-eslint` from devDeps once green; delete
   [`eslint.config.js`](../../eslint.config.js). **Exception:** the
-  [`runtypes-devtools/eslint`](../../packages/runtypes-devtools/src/eslint/index.ts) subpath export (the
+  [`ts-runtypes-devtools/eslint`](../../packages/ts-runtypes-devtools/src/eslint/index.ts) subpath export (the
   consumer-facing plugin) is UNAFFECTED — it targets consumers' linters, has zero hard dependency on this
   repo's eslint package, and its built `dist/eslint/index.js` remains the `jsPlugins` entry (dogfooding host).
 - Editor: recommend `oxc.oxc-vscode` in `.vscode/extensions.json` if we keep one; drop any eslint recommendation.
 
 ### 3.2 Vite 8 (Rolldown) + Vitest 4
 
-- `runtypes-devtools`: bump devDep `vite` 5.4.10 → **8.0.16**; peer range `>=5.0.0` already spans 8 (keep),
+- `ts-runtypes-devtools`: bump devDep `vite` 5.4.10 → **8.0.16**; peer range `>=5.0.0` already spans 8 (keep),
   but the test matrix must actually exercise 8 (the devDep is what the tests run against).
 - Root `vitest` 2.1.9 → **4.1.8** (bundles Vite 8). **Add an explicit root `vite@8.0.16` devDep** so the
   playground's hoisted `demo`/`build:site` resolve Vite 8 deterministically (today there's no root vite dep).
@@ -254,20 +254,20 @@ swap the engines underneath.** CI, husky, CLAUDE.md, and muscle memory all keep 
   need a CI edit despite stable script names). `pnpm test` (release-gate, unsharded) must also stay green.
 - **Load-bearing invariant to re-verify under Rolldown:** the plugin declares `enforce: 'pre'` because the
   resolver returns **byte offsets into the ORIGINAL `.ts` source** — the transform must run before any
-  TS-strip ([`unplugin.ts` `enforce:'pre'` at ~line 325](../../packages/runtypes-devtools/src/unplugin.ts)).
+  TS-strip ([`unplugin.ts` `enforce:'pre'` at ~line 325](../../packages/ts-runtypes-devtools/src/unplugin.ts)).
   Under Vite 8 the TS transform is oxc-transform inside Rolldown, not esbuild.
   - **NOTE (new since the first draft):** the rewrite now has **two wire modes** via the `transformMode`
     option — **`'edits'` is the DEFAULT** (the resolver returns a raw edit list; the FE applies it with
-    byte↔char conversion in [`apply-edits.ts`](../../packages/runtypes-devtools/src/apply-edits.ts)),
+    byte↔char conversion in [`apply-edits.ts`](../../packages/ts-runtypes-devtools/src/apply-edits.ts)),
     and `'go'` (the resolver emits the transformed source + map). **Both modes still depend on
     `enforce:'pre'` seeing pristine source**, and `'edits'` mode adds a **source-drift detector** that
     fires when another `enforce:'pre'` plugin edited the file first. Under Vite 8 the Rolldown plugin
-    ordering / oxc-transform pipeline must keep runtypes-devtools first, or the drift path trips (extra
+    ordering / oxc-transform pipeline must keep ts-runtypes-devtools first, or the drift path trips (extra
     round-trip) or offsets break.
   - **Regression canaries** (running them under Vite 8 IS the gate):
-    [`build-sourcemap.test.ts`](../../packages/runtypes-devtools/test/build-sourcemap.test.ts) (multibyte
+    [`build-sourcemap.test.ts`](../../packages/ts-runtypes-devtools/test/build-sourcemap.test.ts) (multibyte
     + real `vite build`), `rewrite.test.ts` (byte↔char conversion), and
-    [`transform-modes.test.ts`](../../packages/runtypes-devtools/test/transform-modes.test.ts) (the
+    [`transform-modes.test.ts`](../../packages/ts-runtypes-devtools/test/transform-modes.test.ts) (the
     mode-parity corpus + source-drift guard, both modes e2e). The default `'edits'` path is the
     byte-offset-sensitive one — make sure it passes under Vite 8. Add an explicit Vite-8 assertion if the
     existing coverage is ambiguous. **Garbage output = ordering broke → escalate (the fix may belong in
@@ -275,7 +275,7 @@ swap the engines underneath.** CI, husky, CLAUDE.md, and muscle memory all keep 
 - Verify the Vite-specific hooks (`configResolved`, `handleHotUpdate`) and the files-mode watcher under the
   Rolldown dev server. These are stable Vite hooks; no change expected, but confirm.
 - **`/rolldown` subpath export is DEFERRED:** unplugin 3.0.0 exposes no `.rolldown` accessor, so a
-  `runtypes-devtools/rolldown` entry can't be added yet. Track as a follow-up: bump unplugin when it ships
+  `ts-runtypes-devtools/rolldown` entry can't be added yet. Track as a follow-up: bump unplugin when it ships
   Rolldown support, then add the export (+ README + website config-page updates). Do NOT block M2 on it.
 - Playground `demo`/`build:site` ride the workspace bump; smoke (`pnpm --filter runtypes-playground run demo`).
 - **Containers are follow-up milestones, not blockers:** `container/website` moves when Nuxt supports
@@ -328,7 +328,7 @@ be split into its own PR) so the whole migration lands together while staying re
   **Pick versions old enough to clear the gate, or wait — never bypass.** Re-derive the cutoff at
   implementation time (the gate is relative to install date).
 - All new/bumped deps (`oxfmt`, `vite`, `vitest`, root `vite`) are **exact-pinned** per policy
-  (`savePrefix: ''`); `runtypes-devtools` peerDeps stay ranges.
+  (`savePrefix: ''`); `ts-runtypes-devtools` peerDeps stay ranges.
 - **Check build-script requirements.** `vite@8` pulls Rolldown, whose native binding ships as
   per-platform `optionalDependencies` (`@rolldown/binding-*`); oxlint/oxfmt are native-binary packages too.
   If ANY needs a postinstall/build script, it must be added to `allowBuilds` in

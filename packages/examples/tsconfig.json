@@ -21,7 +21,7 @@
       "ts-runtypes": ["./../ts-runtypes/dist/index.d.ts"],
       "ts-runtypes/formats": ["./../ts-runtypes/dist/formats/index.d.ts"],
       "ts-runtypes/schema": ["./../ts-runtypes/dist/schema/index.d.ts"],
-      "runtypes-devtools/vite": ["./../runtypes-devtools/dist/vite.d.ts"]
+      "ts-runtypes-devtools/vite": ["./../ts-runtypes-devtools/dist/vite.d.ts"]
     }
   },
   "include": ["src"]

@@ -27,7 +27,7 @@ import {genValidValue, validValue, corruptValue, valueOracleSafe} from '../value
 import {compileType, openClient, renderFixture, type CompiledType, type WiredFns} from './typeFuzzHarness.ts';
 import {isValidTypeScript} from './tsValidate.ts';
 import {randomJunk} from '../value/fuzzRunner.ts';
-import type {ResolverClient} from '../../../../runtypes-devtools/src/resolver-client.ts';
+import type {ResolverClient} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import type {RunType} from '../../../src/runtypes/types.ts';
 import {
   checkBinaryStable,

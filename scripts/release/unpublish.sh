@@ -27,8 +27,8 @@ fi
 
 # ── Packages in reverse dependency order (dependents first, dependencies last) ──
 # Hardcoded to avoid a lerna dependency; the workspace publish graph is
-# ts-runtypes-bin <- runtypes-devtools <- ts-runtypes (see scripts/release/pack.mjs).
-PACKAGES="ts-runtypes runtypes-devtools ts-runtypes-bin"
+# ts-runtypes-bin <- ts-runtypes-devtools <- ts-runtypes (see scripts/release/pack.mjs).
+PACKAGES="ts-runtypes ts-runtypes-devtools ts-runtypes-bin"
 
 # ── Preview ──
 echo ""

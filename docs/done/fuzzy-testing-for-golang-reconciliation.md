@@ -25,7 +25,7 @@ The reconciler bugs the fuzzers SURFACED were fixed under their own records:
   minimal repro.
 
 - **Layer 2 — E2E reconcile test**
-  ([packages/runtypes-devtools/test/enrich-hmr-e2e.test.ts](../../packages/runtypes-devtools/test/enrich-hmr-e2e.test.ts)).
+  ([packages/ts-runtypes-devtools/test/enrich-hmr-e2e.test.ts](../../packages/ts-runtypes-devtools/test/enrich-hmr-e2e.test.ts)).
   Drives the real binary's `gen --update` over a temp project across consecutive edits,
   asserting the dev-loop contracts: types flow to the mirror ONLY (source untouched),
   the mirror converges, authored data survives, renames carry.

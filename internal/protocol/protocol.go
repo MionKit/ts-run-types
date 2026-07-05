@@ -408,7 +408,7 @@ type Request struct {
 	// @rtOrphanChild carcasses), FriendlyText/MockData content validity, and
 	// breadcrumb drift, appended to Response.Diagnostics as FamilyEnrich
 	// entries. Off by default so the rewrite pipeline pays nothing; the
-	// runtypes-devtools lint plugin is the consumer.
+	// ts-runtypes-devtools lint plugin is the consumer.
 	CheckEnrich bool `json:"checkEnrich,omitempty"`
 	// IncludeRtDiagnostics opts a scanFiles response into the RunType-family
 	// diagnostics (VL010, PJ001, … — emitted while RENDERING the demanded

@@ -15,7 +15,7 @@
 # competitor builds with vite into its own dist/, and runs as its own process
 # writing results/<name>.json. aggregate.mjs joins those into one table. The
 # ts-runtypes competitor additionally gets the host Go binary + the first-party
-# packages (ts-runtypes, runtypes-devtools) bind-mounted into ITS node_modules
+# packages (ts-runtypes, ts-runtypes-devtools) bind-mounted into ITS node_modules
 # so the plugin can rewrite createValidate<T>() at build time.
 #
 # Usage:
@@ -76,8 +76,8 @@ DOCDATA_DIR="${RT_BENCH_DOCDATA:-$ROOT_DIR/.docdata}"
 VOL_TTSC="${RT_BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
 
 MARKER_PKG="$ROOT_DIR/packages/ts-runtypes"
-PLUGIN_PKG="$ROOT_DIR/packages/runtypes-devtools"
-# The plugin (runtypes-devtools) eagerly imports getExePath from ts-runtypes-bin
+PLUGIN_PKG="$ROOT_DIR/packages/ts-runtypes-devtools"
+# The plugin (ts-runtypes-devtools) eagerly imports getExePath from ts-runtypes-bin
 # (dependency-free); mounted alongside the plugin so its `import 'ts-runtypes-bin'`
 # resolves. `unplugin` (the plugin's other runtime dep) is installed via the
 # ts-runtypes competitor _deps so its transitive tree resolves too.
@@ -202,7 +202,7 @@ mount_args() {
     case "$base" in node_modules|package.json|dist) continue ;; esac
     printf -- '-v\n%s:/bench/compiletime/%s:ro%s\n' "$f" "$base" "$MOUNT_OPTS"
   done
-  # The transform-wire runner (drives runtypes-devtools' ResolverClient over a
+  # The transform-wire runner (drives ts-runtypes-devtools' ResolverClient over a
   # synthetic corpus to compare 'go' vs 'edits' transform wire cost).
   for f in "$BENCH_DIR"/transform-wire/*; do
     [ -e "$f" ] || continue
@@ -218,7 +218,7 @@ mount_args() {
   local tsgo=/bench/competitors/ts-runtypes
   printf -- '-v\n%s:%s/bin/ts-runtypes:ro%s\n' "$LINUX_BIN" "$tsgo" "$MOUNT_OPTS"
   printf -- '-v\n%s:%s/node_modules/ts-runtypes:ro%s\n' "$MARKER_PKG" "$tsgo" "$MOUNT_OPTS"
-  printf -- '-v\n%s:%s/node_modules/runtypes-devtools:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
+  printf -- '-v\n%s:%s/node_modules/ts-runtypes-devtools:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
   [ -f "$BIN_PKG/lib/index.js" ] && printf -- '-v\n%s:%s/node_modules/ts-runtypes-bin:ro%s\n' "$BIN_PKG" "$tsgo" "$MOUNT_OPTS"
 
   # typia's native ttsc plugin is BAKED into the image's node_modules/.ttsc (see
@@ -372,7 +372,7 @@ cmd_serialization() {
     -v "$LINUX_BIN:$tsgo/bin/ts-runtypes:ro$MOUNT_OPTS" \
     -v "$LINUX_EXTRACT_BIN:$tsgo/bin/extract-fn-bodies:ro$MOUNT_OPTS" \
     -v "$MARKER_PKG:$tsgo/node_modules/ts-runtypes:ro$MOUNT_OPTS" \
-    -v "$PLUGIN_PKG:$tsgo/node_modules/runtypes-devtools:ro$MOUNT_OPTS" \
+    -v "$PLUGIN_PKG:$tsgo/node_modules/ts-runtypes-devtools:ro$MOUNT_OPTS" \
     -v "$SCRIPT_DIR/gen-serialization.mjs:$tsgo/gen-serialization.mjs:ro$MOUNT_OPTS" \
     -v "$out:/bench/bench-out$MOUNT_OPTS" \
     -e RT_BENCH_REPO_ROOT="$tsgo" \
@@ -380,10 +380,10 @@ cmd_serialization() {
     -e RT_BENCH_PACKAGE_ROOT="$tsgo/node_modules/ts-runtypes" \
     -e RT_BENCH_RT_OUTDIR="$tsgo/.rt-bench-runtypes" \
     -e RT_BENCH_BIN="$tsgo/bin/ts-runtypes" \
-    -e RT_BENCH_PLUGIN_ENTRY=runtypes-devtools/vite \
+    -e RT_BENCH_PLUGIN_ENTRY=ts-runtypes-devtools/vite \
     -e RT_EXTRACT_BIN="$tsgo/bin/extract-fn-bodies" \
     -e RT_BENCH_OUT_DIR=/bench/bench-out \
-    -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,runtypes-devtools \
+    -e RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,ts-runtypes-devtools \
     -e RT_BENCH_CACHE_DIR=false \
     -e RT_BENCH_QUICK="${RT_BENCH_QUICK:-}" \
     -w "$tsgo" "$IMAGE" \

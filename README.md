@@ -17,7 +17,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 ## How it works
 
 ```
-  app.ts ──▶ runtypes-devtools ──[scanFiles]──▶  ts-runtypes (Go)
+  app.ts ──▶ ts-runtypes-devtools ──[scanFiles]──▶  ts-runtypes (Go)
                        │                                 │
                        │                                 │ tsgo Checker
                        │                                 │
@@ -68,9 +68,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | Path                                                                                                         | Purpose                                                                                           |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | [packages/ts-runtypes](packages/ts-runtypes/)                                                       | `ts-runtypes` — `InjectRunTypeId<T>` marker type, `getRunTypeId` (static + value-first forms). |
-| [packages/runtypes-devtools](packages/runtypes-devtools/)                                              | Cross-bundler plugin (unplugin: Vite/Rollup/webpack/Rspack/esbuild): spawns the Go binary, writes cache modules to real files under `<outDir>/types/`, injects relative imports per file. |
-| [packages/runtypes-devtools/src/resolver-client.ts](packages/runtypes-devtools/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
-| [packages/runtypes-devtools/src/eslint/](packages/runtypes-devtools/src/eslint/) | OXlint / ESLint-v9 lint plugin (`runtypes-devtools/eslint`): compiler diagnostics live in the editor + the enrichment-hygiene commit gate. |
+| [packages/ts-runtypes-devtools](packages/ts-runtypes-devtools/)                                              | Cross-bundler plugin (unplugin: Vite/Rollup/webpack/Rspack/esbuild): spawns the Go binary, writes cache modules to real files under `<outDir>/types/`, injects relative imports per file. |
+| [packages/ts-runtypes-devtools/src/resolver-client.ts](packages/ts-runtypes-devtools/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
+| [packages/ts-runtypes-devtools/src/eslint/](packages/ts-runtypes-devtools/src/eslint/) | OXlint / ESLint-v9 lint plugin (`ts-runtypes-devtools/eslint`): compiler diagnostics live in the editor + the enrichment-hygiene commit gate. |
 | [internal/compiler/sourcerewrite/](internal/compiler/sourcerewrite/) | Applies the returned `Site[]` as byte-offset insertions (+ dedup import block + source map) in Go, via `OpTransform`. |
 
 ## Use
@@ -143,12 +143,12 @@ There is deliberately no `cacheDir` knob: the on-disk artifact cache (under `nod
 
 How the per-file rewrite crosses the resolver↔plugin wire. Both produce identical output; the choice is purely wire cost.
 
-- **`'edits'` (default)** — the resolver returns the raw edit list (import block + call-site splices + a source-content hash) and the plugin applies it, generating the source map itself. The wire is O(sites) instead of the whole rewritten file plus its map, so it wins the dev loop on large / many-marker files (measured 6-55× less inbound wire, growing with file size). It requires this plugin to see **pristine source**, so order `runtypes-devtools` first among any `enforce: 'pre'` plugins; if another plugin edits a file before it, the source hash catches the drift, the plugin re-syncs and warns, and it falls back to `'go'` if it still can't reconcile.
+- **`'edits'` (default)** — the resolver returns the raw edit list (import block + call-site splices + a source-content hash) and the plugin applies it, generating the source map itself. The wire is O(sites) instead of the whole rewritten file plus its map, so it wins the dev loop on large / many-marker files (measured 6-55× less inbound wire, growing with file size). It requires this plugin to see **pristine source**, so order `ts-runtypes-devtools` first among any `enforce: 'pre'` plugins; if another plugin edits a file before it, the source hash catches the drift, the plugin re-syncs and warns, and it falls back to `'go'` if it still can't reconcile.
 - **`'go'`** — the resolver applies the rewrite and returns the whole rewritten file plus its source map. Heavier wire, but the only path for a non-JS / plugin-free host, and the safe fallback. Pair it with `sourcesContent: false` to drop the embedded original source from the map (the bundler fills it when composing the chained map) — the heaviest single wire item, gone at no debuggability cost in a normal build.
 
 ## Linting (OXlint / ESLint)
 
-The same compiler serves a lint plugin, shipped as the `runtypes-devtools/eslint` subpath (no extra package). Point OXlint's `jsPlugins` (or an ESLint v9 flat config) at it and you get:
+The same compiler serves a lint plugin, shipped as the `ts-runtypes-devtools/eslint` subpath (no extra package). Point OXlint's `jsPlugins` (or an ESLint v9 flat config) at it and you get:
 
 - **`runtypes/error` / `runtypes/warn` / `runtypes/info`** — every compiler diagnostic (unsupported types, marker misuse, silently-dropped members), routed by its own severity, live in the editor via the oxc language server.
 - **`runtypes/no-enrichment-todo`, `runtypes/no-orphan-carcass`, `runtypes/enrichment-field`, `runtypes/enrichment-drift`** — the enrichment-file hygiene gate: unfilled `@todo` scaffolds, stale `@rtOrphan`/`@rtOrphanChild` carcasses, dead map entries, and mirrors whose source moved or vanished. `oxlint` exits non-zero on error findings, so the same config blocks dirty enrichment files at commit time (lint-staged) and in CI.
@@ -245,7 +245,7 @@ internal/enrichment/               FriendlyText / MockData codegen (astcheck, cl
                                   shared: protocol, constants, diag, textpos,
                                   jsquote, testfixtures
 packages/ts-runtypes/        ts-runtypes — marker type + helpers
-packages/runtypes-devtools/   Vite plugin, drives the binary
+packages/ts-runtypes-devtools/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design + factory reference
 docs/ROADMAP.md                  scope + known lossy mappings

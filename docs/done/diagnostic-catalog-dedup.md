@@ -1,7 +1,7 @@
 # Diagnostic catalog duplication — resolved by dropping the runtime copy
 
 **Status:** RESOLVED. The diagnostic catalog now lives in **one** place,
-the `runtypes-devtools` plugin, and is consumed only at build time. The
+the `ts-runtypes-devtools` plugin, and is consumed only at build time. The
 shipped marker package no longer carries a copy. This doc records why the
 duplication existed and how it was removed.
 
@@ -12,7 +12,7 @@ Go-emitted `Code` + positional args) used to be duplicated across two
 hand-maintained TS files that drifted (missing codes, divergent `FMT001`
 wording, different ordering):
 
-- a **build-time** copy in the plugin (`runtypes-devtools`), used to render
+- a **build-time** copy in the plugin (`ts-runtypes-devtools`), used to render
   diagnostics into the build log / IDE; and
 - a **runtime** copy in the marker package (`ts-runtypes`), used by the
   `alwaysThrow` factory to build the `Error` it throws.

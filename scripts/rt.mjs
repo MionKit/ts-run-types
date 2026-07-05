@@ -67,9 +67,9 @@ const FUZZ = {
 // Go→TS mirror -> pnpm gen script + committed outputs + which need oxfmt afterwards
 // (the Go generators emit unformatted TS; diag self-formats via prettier).
 const CODEGEN = {
-  constants: {script: 'gen:ts-constants', outputs: ['packages/runtypes-devtools/src/runtypes-constants.generated.ts'], fmt: ['packages/runtypes-devtools/src/runtypes-constants.generated.ts']},
+  constants: {script: 'gen:ts-constants', outputs: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts']},
   kind: {script: 'gen:run-type-kind', outputs: ['packages/ts-runtypes/src/runTypeKind.ts'], fmt: ['packages/ts-runtypes/src/runTypeKind.ts']},
-  diag: {script: 'gen:diag-catalog', outputs: ['packages/runtypes-devtools/src/diagnosticCatalog.generated.ts', 'container/website/app/components/content/diagnostics-catalog.json'], fmt: []},
+  diag: {script: 'gen:diag-catalog', outputs: ['packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts', 'container/website/app/components/content/diagnostics-catalog.json'], fmt: []},
 };
 
 function runCodegen(args) {

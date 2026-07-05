@@ -78,8 +78,8 @@ done < <(node -e "JSON.parse(require('fs').readFileSync('dist-binaries/publish-o
 
 # FE packages via `pnpm publish` (rewrites workspace:* → concrete versions, exactly
 # like the CI pack path in pack.mjs). ts-runtypes-bin was already published
-# in the loop above; only ts-runtypes + runtypes-devtools publish here.
-pnpm --filter ts-runtypes --filter runtypes-devtools publish \
+# in the loop above; only ts-runtypes + ts-runtypes-devtools publish here.
+pnpm --filter ts-runtypes --filter ts-runtypes-devtools publish \
   --no-git-checks --ignore-scripts --access public "${OTP_FLAG[@]}"
 
 echo ""

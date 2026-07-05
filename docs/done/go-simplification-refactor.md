@@ -26,7 +26,7 @@ The guide's sharpest caveat (Part 3, "the library caveat") is that a public libr
 
 - The only entry points are the `cmd/*` mains: `ts-runtypes`, `ts-runtypes-wasm`, `extract-fn-bodies`, `gen-diag-catalog`, `gen-run-type-kind`, `gen-ts-constants`.
 - **Every exported symbol in `internal/` is reachable-or-dead from those mains (+ tests).** `deadcode` run from the real mains gives a *true* dead-set for `internal/` — exported symbols included, no deprecation cycle needed.
-- The public-API deprecate-don't-delete rule is entirely a concern of the **JS packages** (`ts-runtypes`, `runtypes-devtools`, `ts-runtypes-bin`), which are **out of scope** here.
+- The public-API deprecate-don't-delete rule is entirely a concern of the **JS packages** (`ts-runtypes`, `ts-runtypes-devtools`, `ts-runtypes-bin`), which are **out of scope** here.
 
 Net: within this scope you can delete freely once a tool + Chesterton's-Fence check prove a symbol unused. That is exactly why the Go side is a good place to start.
 

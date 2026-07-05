@@ -27,7 +27,7 @@ const provenance = args.includes('--provenance');
 function rank(name) {
   if (name.startsWith('ts-runtypes-binary-')) return 0;
   if (name.startsWith('ts-runtypes-bin-')) return 1;
-  return 2; // FE packages (ts-runtypes, runtypes-devtools)
+  return 2; // FE packages (ts-runtypes, ts-runtypes-devtools)
 }
 
 // Authenticate to the public registry from NPM_TOKEN (set in .env locally, the

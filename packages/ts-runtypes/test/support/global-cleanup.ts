@@ -1,5 +1,5 @@
 // Vitest globalSetup — TEARDOWN only. No setup work happens here: the
-// runtypes-devtools plugin spawns the Go binary from its `configResolved` hook,
+// ts-runtypes-devtools plugin spawns the Go binary from its `configResolved` hook,
 // which fires BEFORE any globalSetup, so binary-related work can't live here
 // (see the root vitest.config.ts note). What this DOES own is cleanup.
 //

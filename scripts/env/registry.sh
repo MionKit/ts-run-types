@@ -122,7 +122,7 @@ RT_FUZZ_RACE_FANOUT|dev|-|enrich race fanout (default 6)
 # --- resolver knobs (the ts-runtypes Go binary) ---
 RT_CACHE_DIR|dev|-|Internal RT disk-cache override (tests/power users): path forces it on there, "" forces it off, unset follows the tsconfig incremental/composite setting
 
-# --- lint knobs (the runtypes-devtools OXlint/ESLint plugin) ---
+# --- lint knobs (the ts-runtypes-devtools OXlint/ESLint plugin) ---
 RT_LINT_PRESPAWN|dev|-|Set 0 to skip the lint plugin's load-time resolver pre-spawn (small hosts)
 
 # --- alignment-audit knobs (scripts/website/bench-data/bench.sh audit + the harness) ---

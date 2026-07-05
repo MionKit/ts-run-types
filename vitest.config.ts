@@ -4,12 +4,12 @@ import {defineConfig} from 'vitest/config';
 // project via `test.projects` below (Vitest 4 removed the standalone
 // `vitest.workspace.ts` file — project definitions must live inline in the
 // root config now). Loading them as projects is what makes their plugins
-// (notably runtypes-devtools installed in ts-runtypes/vitest.config.ts)
+// (notably ts-runtypes-devtools installed in ts-runtypes/vitest.config.ts)
 // actually apply at test time.
 //
 // The Go binary at bin/ts-runtypes is built by the root `pretest`
 // script (see package.json) — it MUST be in place before vitest boots,
-// because runtypes-devtools spawns it from its `configResolved`
+// because ts-runtypes-devtools spawns it from its `configResolved`
 // hook, which fires during project initialization (before
 // any vitest globalSetup would run). Don't add a globalSetup-based
 // rebuild here; it would be too late for the already-spawned child.
@@ -17,7 +17,7 @@ export default defineConfig({
   test: {
     projects: [
       'packages/ts-runtypes/vitest.config.ts',
-      'packages/runtypes-devtools/vitest.config.ts',
+      'packages/ts-runtypes-devtools/vitest.config.ts',
       // The playground engine suite (relocated from the dissolved
       // runtypes-playground package) — a standalone project co-located under
       // ts-runtypes/test/playground, excluded from the marker project above.

@@ -51,7 +51,15 @@ importers:
         specifier: 4.1.8
         version: 4.1.8(@types/node@26.1.0)(vite@8.0.16(@types/node@26.1.0)(jiti@2.6.1)(yaml@2.9.0))
 
-  packages/runtypes-devtools:
+  packages/ts-runtypes:
+    devDependencies:
+      ts-runtypes-devtools:
+        specifier: workspace:*
+        version: link:../ts-runtypes-devtools
+
+  packages/ts-runtypes-bin: {}
+
+  packages/ts-runtypes-devtools:
     dependencies:
       ts-runtypes-bin:
         specifier: workspace:*
@@ -63,14 +71,6 @@ importers:
       vite:
         specifier: 8.0.16
         version: 8.0.16(@types/node@26.1.0)(jiti@2.6.1)(yaml@2.9.0)
-
-  packages/ts-runtypes:
-    devDependencies:
-      runtypes-devtools:
-        specifier: workspace:*
-        version: link:../runtypes-devtools
-
-  packages/ts-runtypes-bin: {}
 
 packages:
 

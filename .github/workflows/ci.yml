@@ -105,13 +105,13 @@ jobs:
           pnpm run gen:ts-constants
           pnpm run gen:run-type-kind
           pnpm exec oxfmt --write \
-            packages/runtypes-devtools/src/runtypes-constants.generated.ts \
+            packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts \
             packages/ts-runtypes/src/runTypeKind.ts
           pnpm run gen:diag-catalog
           git diff --exit-code -- \
-            packages/runtypes-devtools/src/runtypes-constants.generated.ts \
+            packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts \
             packages/ts-runtypes/src/runTypeKind.ts \
-            packages/runtypes-devtools/src/diagnosticCatalog.generated.ts \
+            packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts \
             container/website/app/components/content/diagnostics-catalog.json
       - name: Lint + typecheck
         run: pnpm run lint

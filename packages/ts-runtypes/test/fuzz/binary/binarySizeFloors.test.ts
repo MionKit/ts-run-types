@@ -17,15 +17,15 @@
 import path from 'node:path';
 import {describe, it, expect} from 'vitest';
 import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, createMockType} from 'ts-runtypes';
-import {ResolverClient, type ResolverClientOptions} from '../../../../runtypes-devtools/src/resolver-client.ts';
+import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {
   RUNTYPES_DTS,
   evalEntryModules,
   instantiateRunTypes,
   BIN,
   hasBinary,
-} from '../../../../runtypes-devtools/test/helpers/inline.ts';
-import {Severity} from '../../../../runtypes-devtools/src/protocol.ts';
+} from '../../../../ts-runtypes-devtools/test/helpers/inline.ts';
+import {Severity} from '../../../../ts-runtypes-devtools/src/protocol.ts';
 import {setSerializationOptions} from '../../../src/runtypes/dataView.ts';
 import {binarySizeEstimateFromTuple} from '../../../src/runtypes/entryTuple.ts';
 import {withSeededRandom} from '../core/seededRng.ts';

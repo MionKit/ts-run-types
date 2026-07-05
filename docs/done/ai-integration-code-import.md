@@ -35,7 +35,7 @@ if the examples actually compile in CI.
 2. **`packages/examples` gets a `tsconfig.json`** (strict, `noEmit`) with
    `paths` mapping `ts-runtypes`, `ts-runtypes/formats`, `ts-runtypes/schema`
    to the marker package's `src/` (the source lane, mirroring the
-   `exports[".source"]` convention) and `runtypes-devtools/vite` to its built
+   `exports[".source"]` convention) and `ts-runtypes-devtools/vite` to its built
    dist (consumers read dist — no source condition there, per repo policy).
 3. **The root `typecheck` script gains the examples project** (`tsc -p
    packages/examples`), so `pnpm run lint` → `typecheck` → CI all gate on it.

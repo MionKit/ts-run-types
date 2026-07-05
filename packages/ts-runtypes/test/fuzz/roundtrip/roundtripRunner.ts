@@ -17,7 +17,7 @@ import {genValidValue, valueOracleSafe} from '../value/shapeValue.ts';
 import {isValidTypeScript} from '../type/tsValidate.ts';
 import {compileCodecs, openClient, renderFixture, type CompiledCodecs} from './roundtripHarness.ts';
 import {checkRoundtrip, snapshot, type RoundtripViolation} from './roundtripOracle.ts';
-import type {ResolverClient} from '../../../../runtypes-devtools/src/resolver-client.ts';
+import type {ResolverClient} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 
 export interface RoundtripFuzzOptions {
   seed?: number;

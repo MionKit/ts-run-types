@@ -6,7 +6,7 @@
 //
 // Two consumers share it — `ts-runtypes check` (cmd/ts-runtypes) and the
 // resolver's checkEnrich pass (internal/compiler/resolver), which serves the same
-// findings to the runtypes-devtools lint plugin. It must not import the
+// findings to the ts-runtypes-devtools lint plugin. It must not import the
 // resolver (the resolver imports it).
 package astcheck
 

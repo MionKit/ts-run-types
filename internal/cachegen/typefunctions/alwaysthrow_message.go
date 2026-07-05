@@ -15,7 +15,7 @@ import "github.com/mionkit/ts-runtypes/internal/diagnostics"
 // is intentionally tiny: the eight root-throw families share one formulaic
 // headline, "Cannot <verb> `<kind>` <suffix>.". The full build-time
 // diagnostic catalog (every code, headline + example, shown in the build log
-// and IDE) lives once in the runtypes-devtools plugin; the Go↔plugin wire
+// and IDE) lives once in the ts-runtypes-devtools plugin; the Go↔plugin wire
 // carries only the diagnostic code.
 
 // rootThrowWording maps each root-throw diag code to the (verb, suffix) of its

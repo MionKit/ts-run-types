@@ -13,7 +13,7 @@ import (
 // runtypesDTS mirrors internal/testfixtures/runtypes.d.ts — the fake
 // `ts-runtypes` module declaration. setupInline always
 // overlays it under the test cwd so caller snippets stay terse, the
-// same trick the FE helper uses (packages/runtypes-devtools/test/helpers/inline.ts:30).
+// same trick the FE helper uses (packages/ts-runtypes-devtools/test/helpers/inline.ts:30).
 const runtypesDTS = `declare module 'ts-runtypes' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};

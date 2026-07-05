@@ -121,7 +121,7 @@ upgrading the anchoring from "good lexical approximation" to parser-grade:
 ## Notes / left as-is (still benign, as PR #168 concluded)
 
 The JS pre-filter
-([prefilter.ts](../../packages/runtypes-devtools/src/eslint/prefilter.ts)) still
+([prefilter.ts](../../packages/ts-runtypes-devtools/src/eslint/prefilter.ts)) still
 does a raw `includes(MARKER_COMMENT_PREFIX)` — a false positive there only costs
 one resolver round trip that returns zero findings. Cheap by design; comment
 parsing was deliberately NOT added to the pre-filter.

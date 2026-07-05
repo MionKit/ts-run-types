@@ -1,5 +1,5 @@
 // gen_golden.mjs — generates golden testdata for the Go `transform` package by
-// driving the REAL JS rewrite from the built runtypes-devtools dist. The Go
+// driving the REAL JS rewrite from the built ts-runtypes-devtools dist. The Go
 // port (internal/compiler/sourcerewrite) must reproduce these byte-for-byte.
 //
 // Run from the repo root:  node internal/compiler/sourcerewrite/testdata/gen_golden.mjs
@@ -10,7 +10,7 @@
 import {writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
-import {rewrite} from '../../../../packages/runtypes-devtools/dist/rewrite.js';
+import {rewrite} from '../../../../packages/ts-runtypes-devtools/dist/rewrite.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 

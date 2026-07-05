@@ -17,9 +17,9 @@
 
 import path from 'node:path';
 import {createValidate, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
-import {ResolverClient} from '../../../../runtypes-devtools/src/resolver-client.ts';
-import {RUNTYPES_DTS, evalEntryModules, instantiateRunTypes} from '../../../../runtypes-devtools/test/helpers/inline.ts';
-import {Severity, type Diagnostic, type Site} from '../../../../runtypes-devtools/src/protocol.ts';
+import {ResolverClient} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
+import {RUNTYPES_DTS, evalEntryModules, instantiateRunTypes} from '../../../../ts-runtypes-devtools/test/helpers/inline.ts';
+import {Severity, type Diagnostic, type Site} from '../../../../ts-runtypes-devtools/src/protocol.ts';
 import {renderGenerated, describeType, type GeneratedType} from '../core/typeGen.ts';
 import {openClient, hasBinary, BIN} from '../type/typeFuzzHarness.ts';
 

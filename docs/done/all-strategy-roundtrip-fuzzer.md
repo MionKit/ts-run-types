@@ -38,7 +38,7 @@ A dedicated fuzz lane under [packages/ts-runtypes/test/fuzz/roundtrip/](../../pa
   seeded corpus (passes clean) + an opt-in soak via `FUZZ_ROUNDTRIP_SOAK_MS`.
 
 Hygiene: the inline-server overlay in
-[packages/runtypes-devtools/test/helpers/inline.ts](../../packages/runtypes-devtools/test/helpers/inline.ts)
+[packages/ts-runtypes-devtools/test/helpers/inline.ts](../../packages/ts-runtypes-devtools/test/helpers/inline.ts)
 gained `compact` in its JSON strategy unions (was stale).
 
 ## Bugs found and FIXED (pinned)

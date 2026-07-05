@@ -168,7 +168,7 @@ conditional for GHCR). Scope the publish secrets to the protected environments
 
 **npm — `NPM_TOKEN`:** an Automation access token (bypasses OTP, required for the
 10-package sequential publish). Publish scope must cover `ts-runtypes`,
-`runtypes-devtools`, `ts-runtypes-bin`, and all seven
+`ts-runtypes-devtools`, `ts-runtypes-bin`, and all seven
 `ts-runtypes-binary-<os>-<arch>` packages, or a platform-package publish 403s
 mid-sequence. The job also needs `permissions: id-token: write` (not a secret)
 for npm provenance.
@@ -241,7 +241,7 @@ write` already present.
   `scripts/e2e-test.mjs`, which does not exist; the real install is the inline
   `npm install` in the gate. Fix the description.
 - **e2e tooling pins** — `vite@5.4.10` / `vitest@2.1.9` live only in the
-  workflow YAML, divorced from the workspace pins and `runtypes-devtools`
+  workflow YAML, divorced from the workspace pins and `ts-runtypes-devtools`
   peerDeps. Move them into `e2e/package.json` so a workspace bump cannot silently
   diverge the release-install test.
 - **Unify bootstrap** — `benchmarks.yml` inlines Node 22 + its own setup;
