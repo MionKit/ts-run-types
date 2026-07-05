@@ -17,7 +17,7 @@
 # The WASM build is STALENESS-GATED so repeated dev/build starts do NOT recompile
 # when nothing changed (the common case is instant): a fast mtime pre-check over
 # the Go inputs (against a stamp), then a `go tool buildid` compare (same mechanism
-# as scripts/core/build.sh) that only recompiles on a real input change.
+# as scripts/core/build.mjs) that only recompiles on a real input change.
 # Gzip - the slow part on the ~37 MiB wasm - runs ONLY when the wasm bytes actually
 # changed. Output is git-ignored and reproducible; never committed.
 set -euo pipefail
@@ -90,7 +90,7 @@ build_wasm_if_stale() {
   # shellcheck disable=SC2064
   trap "rm -f '$tmp'" RETURN
   # No version ldflags: the asset is dev-only, and matching flags is what lets the
-  # buildid compare cache (see core/build.sh check_go). Keep it flagless.
+  # buildid compare cache (see core/build.mjs checkGo). Keep it flagless.
   GOOS=js GOARCH=wasm go build -o "$tmp" "$wasm_pkg" || die "wasm build failed."
 
   local disk_id ref_id
@@ -148,7 +148,7 @@ build_sources_if_stale() {
 vendor_runtime_if_stale() {
   # Keep the marker package's dist fresh vs its src (rebuilds only when stale; the
   # same tsc check `pnpm test` runs). Then vendor that dist into the site.
-  bash "$repo_root/scripts/core/build.sh" marker-dist >/dev/null 2>&1 || warn "ts-runtypes dist freshness check failed - vendoring whatever exists"
+  node "$repo_root/scripts/core/build.mjs" marker-dist >/dev/null 2>&1 || warn "ts-runtypes dist freshness check failed - vendoring whatever exists"
   local dist_src="$repo_root/packages/ts-runtypes/dist"
   [ -d "$dist_src" ] || { warn "packages/ts-runtypes/dist missing - run 'pnpm run build' first"; return 0; }
   # Re-sync only when a dist file is newer than the vendor dir's stamp (cp -R

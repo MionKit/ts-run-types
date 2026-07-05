@@ -52,7 +52,7 @@ The Go module graph resolves against the patched `typescript-go` working tree �
 go build -o bin/ts-runtypes ./cmd/ts-runtypes
 ```
 
-The Vite plugin spawns this binary at JS test time and at build time — **build it before `pnpm test`**. The root `pretest` script runs [`scripts/core/build.sh`](scripts/core/build.sh) which auto-rebuilds the Go binary, the marker package dist, and the vite plugin dist when any of them is stale or partially emitted.
+The Vite plugin spawns this binary at JS test time and at build time — **build it before `pnpm test`**. The root `pretest` script runs [`scripts/core/build.mjs`](scripts/core/build.mjs) which auto-rebuilds the Go binary, the marker package dist, and the vite plugin dist when any of them is stale or partially emitted.
 
 ### JS packages
 
@@ -128,7 +128,7 @@ The docs site documents the runtime packages: its `<code-import>` and `::twoslas
 
 `pnpm rt bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/container/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`RT_DOCDATA`), so doc-gen and content components consume results from there. (`RT_WEBSITE_DOCDATA` overrides the host dir.)
 
-Every runtime command in [`scripts/website/bench-data/bench.sh`](scripts/website/bench-data/bench.sh) self-syncs prereqs by delegating to [`scripts/core/build.sh`](scripts/core/build.sh) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit. It then readies the shared image (by delegating to `scripts/container/image.sh`), which under `*_USE_LOCAL` rebuilds when a **dependency** input changes (`container/website/Containerfile` or anything under `container/website/_deps/` or `container/benchmarks/_deps/`). All first-party source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm rt bench prep` remains available for explicit refresh.
+Every runtime command in [`scripts/website/bench-data/bench.sh`](scripts/website/bench-data/bench.sh) self-syncs prereqs by delegating to [`scripts/core/build.mjs`](scripts/core/build.mjs) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit. It then readies the shared image (by delegating to `scripts/container/image.sh`), which under `*_USE_LOCAL` rebuilds when a **dependency** input changes (`container/website/Containerfile` or anything under `container/website/_deps/` or `container/benchmarks/_deps/`). All first-party source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm rt bench prep` remains available for explicit refresh.
 
 macOS-specific knobs:
 

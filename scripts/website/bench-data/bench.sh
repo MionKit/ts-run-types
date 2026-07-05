@@ -122,9 +122,9 @@ require_engine() {
 }
 
 # Stale-build checks (Go host bin, Go linux cross-bin, marker dist, plugin dist)
-# are delegated to scripts/core/build.sh - the same script `pnpm test` uses.
+# are delegated to scripts/core/build.mjs - the same script `pnpm test` uses.
 ensure_artifacts() {
-  ( cd "$ROOT_DIR" && bash scripts/core/build.sh "$@" )
+  ( cd "$ROOT_DIR" && node scripts/core/build.mjs "$@" )
 }
 
 # Run a image.sh image command (build-image / login / push / pull / ensure) with
