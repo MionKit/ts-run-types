@@ -63,9 +63,11 @@ func TestUpdateDependencies_SkipsNoopChildren(t *testing.T) {
 }
 
 // AddPureFnDependency is record-only: it appends the triple and
-// dedupes. There is no build-time validation against the actual
-// `registerPureFnFactory` call — an unregistered dep surfaces at
-// runtime when `utl.getPureFn` throws.
+// dedupes. Build-time validation against the actual
+// `registerPureFnFactory` registrations is the (unwired) purefunctions
+// dep-validation API — see docs/todos/pfe9012-orphaned-diagnostic.md;
+// until wired, an unregistered dep surfaces at runtime when
+// `utl.getPureFn` throws.
 
 func TestAddPureFnDependency_RecordsTriple(t *testing.T) {
 	w := newTestWalker()

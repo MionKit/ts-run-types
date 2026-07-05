@@ -483,8 +483,11 @@ func (w *Walker) accessPath() []string {
 //
 // No source-file walk happens here — recording is O(1) and the deps
 // ride the wire (protocol.PureFnDep / entry SoftDeps) for the module
-// emitter. There is no build-time missing-dep check; a dep that never
-// registered surfaces at runtime when `utl.getPureFn` throws.
+// emitter. Build-time missing-dep validation
+// (purefunctions.ValidatePureFnDependencies → PFE9012) exists but is
+// not wired into the resolver yet — see
+// docs/todos/pfe9012-orphaned-diagnostic.md; until then a dep that
+// never registered surfaces at runtime when `utl.getPureFn` throws.
 func (w *Walker) AddPureFnDependency(namespace, fnName, filePath string) {
 	for _, dep := range w.PureFnDependencies {
 		if dep.Namespace == namespace && dep.FunctionName == fnName && dep.FilePath == filePath {
