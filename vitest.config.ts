@@ -18,7 +18,10 @@ export default defineConfig({
     projects: [
       'packages/ts-runtypes/vitest.config.ts',
       'packages/runtypes-devtools/vitest.config.ts',
-      'packages/runtypes-playground/vitest.config.ts',
+      // The playground engine suite (relocated from the dissolved
+      // runtypes-playground package) — a standalone project co-located under
+      // ts-runtypes/test/playground, excluded from the marker project above.
+      'packages/ts-runtypes/test/playground/vitest.config.ts',
     ],
     // Coverage is a root-level (cross-project) concern. Vitest 4 removed
     // `coverage.all`; the report now defaults to covered files only, so the

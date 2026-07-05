@@ -2,7 +2,7 @@
 //
 // The RESOLVER no longer reads a hand-written ambient `declare module` overlay
 // (it type-checks against the REAL ts-runtypes sources staged on the virtual
-// disk — see runtypesPackageSources.ts, which is faithful by construction and
+// disk — see packageSources.ts, which is faithful by construction and
 // can't drift). What remains here is used only by the in-editor Monaco language
 // service, which needs loose module stubs so a user's `import * as RT from
 // 'ts-runtypes/schema'` / `import type { Email } from 'ts-runtypes/formats'`
@@ -51,7 +51,7 @@ const FORMATS: FormatEntry[] = [
 
 // A loose `ts-runtypes/formats` module for the in-editor type checker (Monaco):
 // each format alias is just its base type and each builder returns `any`. The
-// RESOLVER type-checks against the REAL ts-runtypes sources (runtypesPackageSources.ts),
+// RESOLVER type-checks against the REAL ts-runtypes sources (packageSources.ts),
 // which carry the precise format brands; the editor only needs the names to
 // resolve so a user's `import { Email } from 'ts-runtypes/formats'` doesn't error.
 export function formatsEditorModule(): string {

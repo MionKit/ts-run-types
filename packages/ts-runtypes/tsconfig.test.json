@@ -37,5 +37,9 @@
     "customConditions": ["source"]
   },
   "include": ["src/**/*", "test/**/*", "vitest.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  // test/playground/** is the relocated playground engine suite: it imports the
+  // engine cross-tree from container/website (its own tsconfig) and a .mjs helper,
+  // so it is NOT part of the marker package's type-check. It runs as its own vitest
+  // project (see test/playground/vitest.config.ts).
+  "exclude": ["node_modules", "dist", "test/playground"]
 }

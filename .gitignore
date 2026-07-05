@@ -31,6 +31,11 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 # Cross-compiled per-platform binary packages, staged for publish by
 # scripts/build-binary-packages.mjs (assembled, never committed).
 /dist-binaries/
+# Host-built playground WASM cache: the raw .wasm (buildid oracle + Node test
+# resolver) + the ts-runtypes source overlay, produced by
+# container/website/scripts/build-playground.sh. Large + reproducible; the browser
+# copies are staged into container/website/public/playground-app/ (also ignored).
+/.cache/rt-wasm/
 
 # Consumer e2e fixture install artifacts (the fixture source IS tracked).
 /e2e/package-lock.json

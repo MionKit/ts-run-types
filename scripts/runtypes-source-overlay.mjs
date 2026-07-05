@@ -1,0 +1,61 @@
+// Builds the ts-runtypes source overlay the playground resolver type-checks user
+// snippets against: a `{ virtualPath -> content }` map staging the REAL package
+// sources onto the resolver's virtual disk as a `node_modules/ts-runtypes/` tree.
+//
+// Single source of truth for two consumers (they MUST produce byte-identical
+// overlays, or the browser playground and the Node tests would diverge):
+//   - container/website/scripts/build-playground.sh writes it to
+//     runtypes-sources.json for the browser to fetch.
+//   - packages/ts-runtypes/test/playground/nodeResolver.ts builds it in-memory
+//     and injects it via setRuntypesPackageSources().
+//
+// Ported from the former packages/runtypes-playground/src/core/runtypesPackageSources.ts
+// glob (query:'?raw'). A CUSTOM minimal package.json points the exports DIRECTLY
+// at the `.ts` sources (unconditional), so bare bundler resolution +
+// allowImportingTsExtensions finds them without a `source` custom condition.
+
+import {readdirSync, readFileSync, statSync} from 'node:fs';
+import {join, relative, sep} from 'node:path';
+
+// The virtual package.json — exports map points straight at the .ts sources.
+const VIRTUAL_PACKAGE_JSON = JSON.stringify(
+  {
+    name: 'ts-runtypes',
+    version: '0.0.0',
+    exports: {
+      '.': './src/index.ts',
+      './schema': './src/schema/index.ts',
+      './formats': './src/formats/index.ts',
+      './formats/temporal': './src/formats/datetime/temporalFormats.ts',
+    },
+  },
+  null,
+  2
+);
+
+function walkTsFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const abs = join(dir, entry);
+    if (statSync(abs).isDirectory()) {
+      out.push(...walkTsFiles(abs));
+    } else if (entry.endsWith('.ts') && !/\.(test|spec)\.ts$/.test(entry)) {
+      out.push(abs);
+    }
+  }
+  return out;
+}
+
+// buildRuntypesOverlay maps every non-test .ts under `srcDir`
+// (packages/ts-runtypes/src) to node_modules/ts-runtypes/src/<rel> and adds the
+// virtual package.json. Paths are POSIX-slashed so the overlay is identical on
+// every OS.
+export function buildRuntypesOverlay(srcDir) {
+  const out = {};
+  for (const abs of walkTsFiles(srcDir)) {
+    const rel = relative(srcDir, abs).split(sep).join('/');
+    out[`node_modules/ts-runtypes/src/${rel}`] = readFileSync(abs, 'utf8');
+  }
+  out['node_modules/ts-runtypes/package.json'] = VIRTUAL_PACKAGE_JSON;
+  return out;
+}

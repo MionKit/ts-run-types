@@ -14,7 +14,7 @@ import * as RT from 'ts-runtypes';
 import 'ts-runtypes/formats';
 import {loadResolver, type Resolver, type ResolverOptions, type ResolverVersions} from './wasmLoader.ts';
 import {ROOT_TYPE} from './markerDts.ts';
-import {runtypesPackageSources} from './runtypesPackageSources.ts';
+import {runtypesPackageSources} from './packageSources.ts';
 import {operationByKey, type Operation} from './operations.ts';
 
 export type {Operation, OperationKind} from './operations.ts';

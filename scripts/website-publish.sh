@@ -10,12 +10,12 @@
 #   2. Go resolver binary + marker/plugin dist  (benchmarks.sh prep)
 #   3. suite-data -> public/suite-data/         (pnpm run gen:suite-docs, host)
 #   4. all benchmark data -> bench-data/        (benchmarks.sh website-bench)
-#   5. playground bundle -> public/playground-app/ (build-playground.sh, host)
+#   5. playground assets -> public/playground-app/ (build-playground.sh, host)
 #   6. static Nuxt build -> .output/public      (website.sh generate)
 #
 # WHY this order: the Nuxt pages FETCH public/suite-data/ (test/validation pages)
 # and public/bench-data/ (benchmark pages) at runtime, and the /playground page
-# loads public/playground-app/ (the resolver WASM + Monaco web component) - all
+# loads public/playground-app/ (the resolver WASM + ts-runtypes source overlay) - all
 # three dirs are git-ignored, so stages 3-5 MUST regenerate them before the site
 # build (stage 6) bakes them into the static output. The data gens + the
 # playground WASM need the Go binary from stage 2, which needs the image from
@@ -127,7 +127,7 @@ fi
 # The playground bundle is independent of suite-data/bench-data (so it runs even
 # under --no-bench) but needs the stage-2 Go binary for its WASM. Staged into the
 # git-ignored public/playground-app/ that the /playground page loads.
-step "5/6  playground bundle -> container/website/public/playground-app/"
+step "5/6  playground assets -> container/website/public/playground-app/"
 bash "$SCRIPT_DIR/../container/website/scripts/build-playground.sh"
 
 step "6/6  Nuxt $TARGET -> container/website/.output"

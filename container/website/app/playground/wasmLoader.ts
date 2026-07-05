@@ -41,10 +41,16 @@ function globals(): ResolverGlobals {
 // The resolver ships gzip-compressed: Go wasm is ~37 MiB raw but ~8 MiB gzipped,
 // which keeps the deployed file under static-host per-file caps (e.g. Cloudflare
 // Pages' 25 MiB limit) and cuts the download ~4.5x. The browser inflates it (see
-// fetchWasmBytes). build-wasm.sh produces both the raw .wasm (used by the Node
-// test resolver) and this .gz (used here / in the deploy).
-const DEFAULT_WASM_URL = new URL('../../assets/ts-runtypes.wasm.gz', import.meta.url);
-const DEFAULT_WASM_EXEC_URL = new URL('../../assets/wasm_exec.js', import.meta.url);
+// fetchWasmBytes). The site's host-side build (container/website/scripts/build-playground.sh)
+// produces both the raw .wasm (used by the Node test resolver) and this .gz.
+//
+// The defaults are ABSOLUTE public URLs, never `new URL(..., import.meta.url)`:
+// the assets are host-staged into public/playground-app/ and fetched at runtime,
+// so the bundler must NOT treat them as module assets (it would try to bundle the
+// ~37 MiB file). A host mounted under a non-root base overrides these via
+// ResolverOptions (the Vue component joins them onto the app baseURL).
+const DEFAULT_WASM_URL = '/playground-app/ts-runtypes.wasm.gz';
+const DEFAULT_WASM_EXEC_URL = '/playground-app/wasm_exec.js';
 
 let loaderPromise: Promise<Resolver> | null = null;
 

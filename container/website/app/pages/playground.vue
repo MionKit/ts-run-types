@@ -29,15 +29,14 @@ useSeoMeta({
 }
 </style>
 
-<!-- Global (not scoped): the playground renders a light-DOM web component, which a
-     scoped :deep cannot reach. Gated by .rt-playground-page so it only affects this
-     page. Sizes the playground to fill the viewport between the global header/footer. -->
+<!-- Global (not scoped): the playground component's own styles are global (nested
+     under .rt-playground so its v-html'd code blocks are reachable), so the page
+     overrides them the same way rather than via scoped :deep. Gated by
+     .rt-playground-page so it only affects this page. Sizes the playground to fill
+     the viewport between the global header/footer. -->
 <style>
 .rt-playground-page .rt-playground-embed {
   margin: 0;
-}
-.rt-playground-page .rt-playground-embed__host {
-  min-height: 0;
 }
 .rt-playground-page .rt-playground .rtpg-layout {
   height: calc(100vh - 160px);

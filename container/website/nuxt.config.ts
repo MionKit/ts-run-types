@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { processCodeImports, exampleWatcherPlugin } from './server/utils/code-import'
 
 const isDev = process.env.NODE_ENV !== 'production'
@@ -6,6 +7,17 @@ const isDev = process.env.NODE_ENV !== 'production'
 // the container, so native watchers never fire. RT_WEBSITE_POLL=1 sets this env
 // (see scripts/website.sh) to make the watchers poll instead.
 const usePolling = process.env.CHOKIDAR_USEPOLLING === 'true'
+
+// The playground engine (app/playground) imports the ts-runtypes RUNTIME factories.
+// The compiled DIST is VENDORED into the project (git-ignored, host-synced by
+// container/website/scripts/build-playground.sh) rather than aliased to the
+// external repo-context mount, because Vite's dev server only serves modules inside
+// the project root. Vendoring the dist (not src) means Vite serves plain ESM with
+// no per-file TS transpile (which breaks on type-only re-exports in dev). Only
+// `ts-runtypes` and `ts-runtypes/formats` are aliased (exact-match regex); the
+// resolver's source OVERLAY is a separately fetched static asset. The relative path
+// resolves the same in the container and on a host.
+const rtDist = fileURLToPath(new URL('./app/playground/.vendor/ts-runtypes-dist', import.meta.url))
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -37,7 +49,16 @@ export default defineNuxtConfig({
   },
   vite: {
     server: usePolling ? { watch: { usePolling: true, interval: 300 } } : {},
-    plugins: isDev ? [exampleWatcherPlugin(usePolling)] : []
+    plugins: isDev ? [exampleWatcherPlugin(usePolling)] : [],
+    resolve: {
+      alias: [
+        { find: /^ts-runtypes\/formats$/, replacement: `${rtDist}/formats/index.js` },
+        { find: /^ts-runtypes$/, replacement: `${rtDist}/index.js` }
+      ]
+    },
+    // Monaco is loaded lazily (client-only) with a no-op worker stub, so Vite must
+    // not pre-bundle it (its optional worker entry points break optimizeDeps).
+    optimizeDeps: { exclude: ['monaco-editor'] }
   },
   nitro: {
     output: {

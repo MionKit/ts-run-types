@@ -9,15 +9,17 @@ import {
   setResolver,
   transformedSource,
   versions,
-} from '../src/core/index.ts';
+} from '../../../../container/website/app/playground/index.ts';
 import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
 // resolver, links the emitted entry modules in-process, hands the tuple to the
 // public ts-runtypes factory, and runs the live function - the same pipeline the
-// browser playground drives. They need the built WASM assets; run
-//   pnpm --filter runtypes-playground run build:wasm
-// first (the website/playground build does this). Without the assets, they skip.
+// browser playground drives. They need the host-built WASM assets in
+// .cache/rt-wasm/; run
+//   bash container/website/scripts/build-playground.sh
+// first (scripts/website.sh dev|build does this automatically). Without the
+// assets, they skip.
 
 const TYPE = `type MyType = {
   id: number;
@@ -56,7 +58,7 @@ const ready = assetsBuilt();
 if (!ready) {
   // eslint-disable-next-line no-console
   console.warn(
-    '[runtypes-playground] WASM assets not built - skipping engine tests. Run: pnpm --filter runtypes-playground run build:wasm'
+    '[playground] WASM assets not built - skipping engine tests. Run: bash container/website/scripts/build-playground.sh'
   );
 }
 const describeIf = ready ? describe : describe.skip;
