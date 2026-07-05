@@ -21,11 +21,11 @@ import {join} from 'node:path';
 import {ensureImage} from '../container/image.mjs';
 import {loadEnv, REPO_ROOT} from '../lib/env.mjs';
 import {die, note, reportCliError, run, warn, which} from '../lib/proc.mjs';
+import {main as benchMain} from './bench-data/bench.mjs';
 import {main as siteMain} from './site.mjs';
 
 const WEBSITE_DIR = join(REPO_ROOT, 'container/website');
 const OUTPUT_DIR = join(WEBSITE_DIR, '.output');
-const BENCH_SH = join(REPO_ROOT, 'scripts/website/bench-data/bench.sh');
 
 const step = (msg) => console.log(`\n========== website build  ${msg} ==========`);
 
@@ -81,7 +81,7 @@ export async function main(args) {
   ensureImage();
 
   step('2/5  Go resolver binary (+ marker/plugin dist)');
-  if (run('bash', [BENCH_SH, 'prep']) !== 0) die('website build: bench prep failed');
+  benchMain(['prep']);
 
   if (skipBench) {
     step('3+4/5  SKIPPED (--no-bench): reusing existing suite-data + bench-data');
@@ -94,7 +94,7 @@ export async function main(args) {
     node('scripts/website/suite-data/website-data.mjs');
 
     step('4/5  benchmarks -> container/website/public/bench-data/');
-    if (run('bash', [BENCH_SH, 'website-bench']) !== 0) die('website build: bench website-bench failed');
+    benchMain(['website-bench']);
   }
 
   // The playground bundle is independent of suite/bench data (runs even under

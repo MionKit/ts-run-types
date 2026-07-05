@@ -180,13 +180,13 @@ jobs:
       # Builds the Go resolver binary + the marker/plugin packages on the runner
       # (these are mounted into the pulled image at run time).
       - name: Prep ts-runtypes toolchain
-        run: bash scripts/website/bench-data/bench.sh prep
+        run: pnpm rt bench prep
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Run the benchmark (build + run, in the container)
-        run: bash scripts/website/bench-data/bench.sh bench
+        run: pnpm rt bench bench
       - name: Type-checking cost (TS type instantiations)
-        run: bash scripts/website/bench-data/bench.sh typecost
+        run: pnpm rt bench typecost
 
   website-build:
     name: static docs site build (podman)

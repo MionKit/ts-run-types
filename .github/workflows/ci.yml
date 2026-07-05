@@ -170,4 +170,4 @@ jobs:
       - name: Benchmark competitor-build smoke
         env:
           RT_BENCH_NO_TYPIA: '1'
-        run: bash scripts/website/bench-data/bench.sh smoke
+        run: pnpm rt bench smoke
