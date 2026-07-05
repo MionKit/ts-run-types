@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
@@ -142,10 +143,10 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmo
 
 // validateProgramPureFnDeps cross-checks the pure-fn dependencies aggregated
 // while rendering RT function entries (opts.PureFnDepSink) against the
-// program-wide pure-fn registration set, returning one PFE9012 diagnostic per
+// program-wide pure-fn registration set, returning PFE9012 diagnostics for any
 // dep whose `<namespace>::<fnName>` registration is missing from every scanned
-// source file. Empty deps (the common non-linting path, or a build that
-// renders no pure-fn-bearing family) or no Program short-circuits to nil.
+// source file. Empty uses (the common non-linting path, or a build that renders
+// no pure-fn-bearing family) or no Program short-circuits to nil.
 //
 // The index is a WHOLE-program extraction — a registration in ANY program file
 // satisfies the dep by key. This is the correctness pivot: the per-file scan
@@ -156,8 +157,14 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmo
 // FilePath hint drives only ValidatePureFnDependencies' lazy expansion, which
 // stays a no-op here because the whole program is already walked.
 //
-// The returned diagnostics are sorted by missing key so the response is
-// deterministic regardless of family-collect order (serial vs parallel).
+// Site attribution: each missing key fans out to one diagnostic per distinct
+// marker call site that demanded a type reaching it (collected from each use's
+// root provenance), so the squiggle lands on the user's createX<T>() call —
+// mirroring how the walker's RTThrow diagnostics fan out. A key whose uses
+// carry no provenance (only transitively-reached children) falls back to a
+// single file-less diagnostic. Output is sorted by (key, file, line, col) so
+// the response is deterministic regardless of family-collect order (serial vs
+// parallel).
 //
 // Guard: a program that compiles ZERO registerPureFnFactory calls has no pure-fn
 // registration mechanism in it at all — a stub / ambient-only setup (e.g.
@@ -170,8 +177,8 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmo
 // unimported format's rtFormats:: fn while the rt:: built-ins ARE present) still
 // fires. This keeps the static check faithful to runtime: validate only when the
 // program demonstrably wires the registrations the runtime would load.
-func (sess *Session) validateProgramPureFnDeps(deps []protocol.PureFnDep) []diagnostics.Diagnostic {
-	if len(deps) == 0 || sess.Program == nil {
+func (sess *Session) validateProgramPureFnDeps(uses []typefunctions.PureFnDepUse) []diagnostics.Diagnostic {
+	if len(uses) == 0 || sess.Program == nil {
 		return nil
 	}
 	entries, walkFiles, _ := sess.extractProgramPureFns(nil)
@@ -181,9 +188,54 @@ func (sess *Session) validateProgramPureFnDeps(deps []protocol.PureFnDep) []diag
 	// Override cfn registrations count too — they only add keys, never remove.
 	entries = append(entries, sess.overrideEntries...)
 	index := purefunctions.NewIndex(entries, walkFiles)
-	diags := purefunctions.ValidatePureFnDependencies(sess.checker, sess.marker, deps, index, sess.Program)
+
+	// Flatten to the bare deps for the validation core, and index each key's
+	// demanding call sites (deduped) so a miss can be anchored at them.
+	deps := make([]protocol.PureFnDep, 0, len(uses))
+	sitesByKey := map[string][]diagnostics.Site{}
+	seenSite := map[string]bool{}
+	for _, use := range uses {
+		deps = append(deps, use.Dep)
+		key := use.Dep.Namespace + "::" + use.Dep.FunctionName
+		for _, site := range use.Sites {
+			fingerprint := key + "\x00" + site.FilePath + "\x00" + strconv.Itoa(site.StartLine) + ":" + strconv.Itoa(site.StartCol)
+			if seenSite[fingerprint] {
+				continue
+			}
+			seenSite[fingerprint] = true
+			sitesByKey[key] = append(sitesByKey[key], site)
+		}
+	}
+
+	// The validation core returns one file-less diagnostic per missing key.
+	// Fan each out to its demanding call sites (or keep it file-less when the
+	// key was only reached transitively, with no site to point at).
+	missing := purefunctions.ValidatePureFnDependencies(sess.checker, sess.marker, deps, index, sess.Program)
+	var diags []diagnostics.Diagnostic
+	for _, diag := range missing {
+		sites := sitesByKey[pureFnDepDiagKey(diag)]
+		if len(sites) == 0 {
+			diags = append(diags, diag)
+			continue
+		}
+		for _, site := range sites {
+			anchored := diag
+			anchored.Site = site
+			diags = append(diags, anchored)
+		}
+	}
 	sort.SliceStable(diags, func(i, j int) bool {
-		return pureFnDepDiagKey(diags[i]) < pureFnDepDiagKey(diags[j])
+		if key := pureFnDepDiagKey(diags[i]); key != pureFnDepDiagKey(diags[j]) {
+			return key < pureFnDepDiagKey(diags[j])
+		}
+		left, right := diags[i].Site, diags[j].Site
+		if left.FilePath != right.FilePath {
+			return left.FilePath < right.FilePath
+		}
+		if left.StartLine != right.StartLine {
+			return left.StartLine < right.StartLine
+		}
+		return left.StartCol < right.StartCol
 	})
 	return diags
 }

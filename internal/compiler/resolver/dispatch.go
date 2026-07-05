@@ -228,7 +228,7 @@ func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.Re
 	}
 	results := make([]familyResult, len(families))
 	familyDiagnostics := make([][]diagnostics.Diagnostic, len(families))
-	familyPureFnDeps := make([][]protocol.PureFnDep, len(families))
+	familyPureFnDeps := make([][]typefunctions.PureFnDepUse, len(families))
 	factShards := make([]*typefunctions.FactsTable, len(families))
 	var waitGroup sync.WaitGroup
 	for familyIndex, spec := range families {
@@ -709,7 +709,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		// validated against the program registration set for PFE9012 once the
 		// collection finishes. Only wired when entries actually render, so a
 		// plain rewrite scan collects nothing and the validation short-circuits.
-		var rtPureFnDeps []protocol.PureFnDep
+		var rtPureFnDeps []typefunctions.PureFnDepUse
 		var rtOpts typefunctions.RenderOpts
 		if renderEntries {
 			rtOptsStart := time.Now()
@@ -779,7 +779,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		// across the whole collection, flushed into response.Diagnostics
 		// once the render completes.
 		var rtDiagnostics []diagnostics.Diagnostic
-		var rtPureFnDeps []protocol.PureFnDep
+		var rtPureFnDeps []typefunctions.PureFnDepUse
 		rtOpts := sess.rtRenderOpts(&rtDiagnostics, sess.buildProvenanceSites())
 		rtOpts.PureFnDepSink = &rtPureFnDeps
 		pureFnGraph, pureFnsDiagnostics := sess.collectProgramPureFns(metrics)
@@ -812,7 +812,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			Sites:    sess.stampSiteModules(sess.Sites()),
 		}
 		var genDiagnostics []diagnostics.Diagnostic
-		var genPureFnDeps []protocol.PureFnDep
+		var genPureFnDeps []typefunctions.PureFnDepUse
 		genOpts := sess.rtRenderOpts(&genDiagnostics, sess.buildProvenanceSites())
 		genOpts.PureFnDepSink = &genPureFnDeps
 		genPureFnGraph, genPureFnsDiagnostics := sess.collectProgramPureFns(metrics)
