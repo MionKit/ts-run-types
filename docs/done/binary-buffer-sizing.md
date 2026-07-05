@@ -23,7 +23,7 @@ allocate, the failure mode the fuzzer surfaced, and the change that fixed it.
 
 - Encoder entry + backstop loop — [`packages/ts-runtypes/src/createRTFBinary.ts`](../../packages/ts-runtypes/src/createRTFBinary.ts)
 - Serializer, prediction, in-place grow, sizing serializer — [`packages/ts-runtypes/src/runtypes/dataView.ts`](../../packages/ts-runtypes/src/runtypes/dataView.ts)
-- Go emitter that inlines scalar/framing writes — [`internal/compiled/typefns/binary_to.go`](../../internal/compiled/typefns/binary_to.go), [`union_flat_binary.go`](../../internal/compiled/typefns/union_flat_binary.go)
+- Go emitter that inlines scalar/framing writes — [`internal/cachegen/typefunctions/binary_to.go`](../../internal/cachegen/typefunctions/binary_to.go), [`union_flat_binary.go`](../../internal/cachegen/typefunctions/union_flat_binary.go)
 - Regression test (in-place grow) — [`packages/ts-runtypes/test/fuzz/binaryEncoderResize.test.ts`](../../packages/ts-runtypes/test/fuzz/binaryEncoderResize.test.ts)
 - Exact-sizing test (`{sizing: 'exact'}`) — [`packages/ts-runtypes/test/adapters/binaryExactSize.test.ts`](../../packages/ts-runtypes/test/adapters/binaryExactSize.test.ts)
 

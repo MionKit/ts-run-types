@@ -349,7 +349,7 @@ export const TEMPLATE_LITERAL = {
     // A key that fails the template-literal KEY pattern is reported as `never`
     // (the key is excess/disallowed), NOT `templateLiteral`. The `templateLiteral`
     // token only fires for a template-literal VALUE position. See the index-sig
-    // key-regex emit in internal/compiled/typefns/validationerrors.go (keyRegexVar
+    // key-regex emit in internal/cachegen/typefunctions/validationerrors.go (keyRegexVar
     // branch records `callRTErr('never', keyVar)`).
     getExpectedErrors: () => [
       // {foo: 1} — key 'foo' fails the template-literal pattern.

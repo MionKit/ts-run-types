@@ -1,7 +1,7 @@
 # Fix the all-stripped-union `unionJsonNoop` false positive
 
 Status: **implemented** on branch `claude/agitated-sutherland-3af6ce` (2026-07-04).
-Scope: `internal/compiled/typefns/noop_types.go` (predicate guard) +
+Scope: `internal/cachegen/typefunctions/noop_types.go` (predicate guard) +
 `internal/resolver/noop_predicate_test.go` (corpus pin). Found while pinning
 [noop-predicate-pj-mismatch.md](noop-predicate-pj-mismatch.md); confirmed to be a
 REAL runtime corruption (not just predicate hygiene) — see below.
@@ -9,12 +9,12 @@ REAL runtime corruption (not just predicate hygiene) — see below.
 ## The finding
 
 `unionJsonNoop` in
-[internal/compiled/typefns/noop_types.go](../../internal/compiled/typefns/noop_types.go)
+[internal/cachegen/typefunctions/noop_types.go](../../internal/cachegen/typefunctions/noop_types.go)
 returned `true` (identity) for a union in which EVERY member is
 DataOnly-stripped — e.g. `ArrayBuffer | SharedArrayBuffer` (both
 `SubKindNonSerializable`). But such a union is NOT the identity: its DataOnly
 projection is `never`, so `dataOnlyUnionMembers`
-([union_strip.go](../../internal/compiled/typefns/union_strip.go)) keeps the
+([union_strip.go](../../internal/cachegen/typefunctions/union_strip.go)) keeps the
 original member list, `buildFlatLayout` buckets the non-serializable members
 (the empty-layout noop arm never fires), and the union entry renders a live
 guard-chain that dispatches to per-member encoders which throw (PJ002 /

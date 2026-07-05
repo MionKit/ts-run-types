@@ -89,7 +89,7 @@ Notes that affect validation/serialization design:
 - `ZonedDateTime` carries an **IANA time zone id** in `[...]` and optionally a
   `[u-ca=calendar]` annotation; its string is the richest.
 - `Duration` is the same ISO-8601 duration grammar this repo **already parses**
-  for relative `now±P…` format bounds (`internal/compiled/typefns/formats/datetime/bounds.go`).
+  for relative `now±P…` format bounds (`internal/cachegen/typefunctions/formats/datetime/bounds.go`).
 - `instanceof` works per-type (`x instanceof Temporal.PlainDate`), giving the
   base validity check a direct analogue to `v instanceof Date`.
 
@@ -135,7 +135,7 @@ generated mirror):
 ### 2.2 The RT-function families (full list)
 
 Every family is rendered by a Go emitter under
-`internal/compiled/typefns/`; the cache module names/prefixes live in
+`internal/cachegen/typefunctions/`; the cache module names/prefixes live in
 `internal/constants/constants.go`. A new builtin class needs a deliberate arm
 (or an explicit "fall through to NonSerializable-style throw") in **each**:
 

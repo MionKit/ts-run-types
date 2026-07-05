@@ -1,7 +1,7 @@
 # Fix the `pj` noop-predicate false positive the renderer tripwire keeps catching
 
 Status: **implemented** on branch `claude/agitated-sutherland-3af6ce` (2026-07-04).
-Scope: `internal/compiled/typefns/noop_types.go` (predicate arm) +
+Scope: `internal/cachegen/typefunctions/noop_types.go` (predicate arm) +
 `internal/resolver/noop_predicate_test.go` (corpus pin). No runtime / emitter
 change — output was already correct (the tripwire self-heals by shipping the
 live body); this removes the stderr noise and closes the predicate drift.
@@ -17,7 +17,7 @@ to mirror the emitter
 ```
 
 Emitted from the protective tripwire in
-[internal/compiled/typefns/module.go](../../internal/compiled/typefns/module.go):
+[internal/cachegen/typefunctions/module.go](../../internal/cachegen/typefunctions/module.go):
 the `pj` (prepareForJson / mutate-encode) family's `IsNoopType` predicate
 returned TRUE (identity) for an objectLiteral whose compiled body is NOT the
 identity — a FALSE POSITIVE.
@@ -39,7 +39,7 @@ output matches the data-only projection the other strategies produce. That
 `delete` is REAL code — the object is NOT identity on encode.
 
 The predicate's `KindProperty` arm in `jsonNoopRecursive`
-([noop_types.go](../../internal/compiled/typefns/noop_types.go)) returned `true`
+([noop_types.go](../../internal/cachegen/typefunctions/noop_types.go)) returned `true`
 for EVERY `isStrippedUnionMember` value in BOTH json modes, so it missed the
 prepare-side `delete`. The restore / compact decoders read already-parsed JSON
 (the key is gone) and drop the slot with empty code, so they stay correctly

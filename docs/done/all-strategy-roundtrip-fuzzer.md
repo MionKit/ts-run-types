@@ -50,7 +50,7 @@ how the oracle isolated them.
    `direct`/`stringifyJson` emitter pushed a bare value then `Array.join(',')`,
    which coerces `null`/`undefined` to `''` — so `[null,null]` rendered as the
    invalid `[,]` and `(number | null)[]` dropped nulls. Fixed in
-   [internal/compiled/typefns/json_stringify.go](../../internal/compiled/typefns/json_stringify.go)
+   [internal/cachegen/typefunctions/json_stringify.go](../../internal/cachegen/typefunctions/json_stringify.go)
    (split `KindNull` from `KindNumber` to emit the constant `'null'`; gave
    `KindVoid` the same three-way branch as `KindUndefined`; extended
    `parentIsArrayLike` to Map/Set parents). Pinned in the serialization suite
@@ -59,7 +59,7 @@ how the oracle isolated them.
 2. **A Map mistaken for a `Record`.** A `Record<K,V>` validator accepted a Map /
    Set / Date (no own string keys → vacuous per-key check), so in a union a Map
    matched the Record candidate and serialized as `{}`. Fixed in
-   [internal/compiled/typefns/validate.go](../../internal/compiled/typefns/validate.go)
+   [internal/cachegen/typefunctions/validate.go](../../internal/cachegen/typefunctions/validate.go)
    (brand-guard index-signature objects). Pinned in
    [packages/ts-runtypes/test/indexSigUnionDispatch.test.ts](../../packages/ts-runtypes/test/indexSigUnionDispatch.test.ts).
 3. **`direct` wrote invalid JSON for an all-optional object with an index sig.**
@@ -73,7 +73,7 @@ how the oracle isolated them.
    sweep, but `for…in` enumerates every own string key regardless of the declared
    kind, so the dynamic keys were processed twice — double-wrapping a union value
    on encode and reading an already-decoded value on decode. Fixed in
-   [json_prepare.go](../../internal/compiled/typefns/json_prepare.go)
+   [json_prepare.go](../../internal/cachegen/typefunctions/json_prepare.go)
    (`emitObjectJsonChildren` dedups index-sig sweeps by value-type id). Pinned in
    `indexSigUnionDispatch.test.ts` (seeds 4178250116, 221169984, 3710949730).
 5. **"Too many unknown keys" + `.match` on undefined.** The strip decoder's
@@ -82,8 +82,8 @@ how the oracle isolated them.
    a string (a RegExp on the wire), `for…in` over the string enumerated its
    character indices, which overflowed the unknown-keys cap and ran format checks
    on the wrong operand. Fixed in
-   [unknownkeys_to_undefined.go](../../internal/compiled/typefns/unknownkeys_to_undefined.go)
-   + [unknownkeys_strip.go](../../internal/compiled/typefns/unknownkeys_strip.go)
+   [unknownkeys_to_undefined.go](../../internal/cachegen/typefunctions/unknownkeys_to_undefined.go)
+   + [unknownkeys_strip.go](../../internal/cachegen/typefunctions/unknownkeys_strip.go)
    (the sweep skips published sibling-named keys unconditionally). Pinned in
    `indexSigUnionDispatch.test.ts` (seeds 3063523037, 1095371430).
 
@@ -106,11 +106,11 @@ were not byte-for-byte stable across a round-trip.
   discriminant, the multi-candidate sub-wrap encoders select each candidate by the
   discriminant value (preserved across the round-trip) instead of re-validating —
   `detectFlatDiscriminant` + per-candidate `DiscValues` in
-  [union_flat_layout.go](../../internal/compiled/typefns/union_flat_layout.go),
+  [union_flat_layout.go](../../internal/cachegen/typefunctions/union_flat_layout.go),
   consumed by `mergedPropPrepareBody` / `emitMergedPropStringify` in
-  [union_flat.go](../../internal/compiled/typefns/union_flat.go) and
+  [union_flat.go](../../internal/cachegen/typefunctions/union_flat.go) and
   `emitMergedPropPrepareSafe` in
-  [json_prepare_safe.go](../../internal/compiled/typefns/json_prepare_safe.go).
+  [json_prepare_safe.go](../../internal/cachegen/typefunctions/json_prepare_safe.go).
   The decoder is unchanged; binary keeps its independent validate-dispatch as an
   oracle. Seed 84967679; pinned in
   [indexSigUnionDispatch.test.ts](../../packages/ts-runtypes/test/indexSigUnionDispatch.test.ts).

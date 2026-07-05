@@ -3,7 +3,7 @@ package resolver_test
 import (
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -136,7 +136,7 @@ func reachesCycle(rt *protocol.RunType, refTable map[string]*protocol.RunType, o
 // corpus and every predicate-bearing family (pj / rj / pjs / fmt), a verdict
 // of "noop" must agree with the ground truth — the gate-disabled,
 // fully-inlined compile collapsing to a noop body
-// (typefns.NoopPredicateAgreement). A
+// (typefunctions.NoopPredicateAgreement). A
 // sound-but-conservative miss (verdict false, body noop — e.g. absorbed
 // unsupported leaves) is logged, never fatal; the reverse direction IS the
 // data-corruption direction and fails the build.
@@ -153,25 +153,25 @@ func TestNoopPredicate_SoundAgainstEmitters(t *testing.T) {
 			refTable[rt.ID] = rt
 		}
 	}
-	emitters := map[string]typefns.Emitter{
-		"prepareForJson":             typefns.PrepareForJsonEmitter{},
-		"restoreFromJson":            typefns.RestoreFromJsonEmitter{},
-		"prepareForJsonSafe":         typefns.PrepareForJsonSafeEmitter{},
-		"formatTransform":            typefns.FormatTransformEmitter{},
-		"validate":                   typefns.ValidateEmitter{},
-		"validationErrors":           typefns.ValidationErrorsEmitter{},
-		"stringifyJson":              typefns.StringifyJsonEmitter{},
-		"compactForJson":             typefns.CompactForJsonEmitter{},
-		"compactFromJson":            typefns.CompactFromJsonEmitter{},
-		"toBinary":                   typefns.ToBinaryEmitter{},
-		"fromBinary":                 typefns.FromBinaryEmitter{},
-		"hasUnknownKeys":             typefns.HasUnknownKeysEmitter{},
-		"stripUnknownKeys":           typefns.StripUnknownKeysEmitter{},
-		"unknownKeyErrors":           typefns.UnknownKeyErrorsEmitter{},
-		"unknownKeysToUndefined":     typefns.UnknownKeysToUndefinedEmitter{},
-		"unknownKeysToUndefinedWire": typefns.UnknownKeysToUndefinedWireEmitter{},
+	emitters := map[string]typefunctions.Emitter{
+		"prepareForJson":             typefunctions.PrepareForJsonEmitter{},
+		"restoreFromJson":            typefunctions.RestoreFromJsonEmitter{},
+		"prepareForJsonSafe":         typefunctions.PrepareForJsonSafeEmitter{},
+		"formatTransform":            typefunctions.FormatTransformEmitter{},
+		"validate":                   typefunctions.ValidateEmitter{},
+		"validationErrors":           typefunctions.ValidationErrorsEmitter{},
+		"stringifyJson":              typefunctions.StringifyJsonEmitter{},
+		"compactForJson":             typefunctions.CompactForJsonEmitter{},
+		"compactFromJson":            typefunctions.CompactFromJsonEmitter{},
+		"toBinary":                   typefunctions.ToBinaryEmitter{},
+		"fromBinary":                 typefunctions.FromBinaryEmitter{},
+		"hasUnknownKeys":             typefunctions.HasUnknownKeysEmitter{},
+		"stripUnknownKeys":           typefunctions.StripUnknownKeysEmitter{},
+		"unknownKeyErrors":           typefunctions.UnknownKeyErrorsEmitter{},
+		"unknownKeysToUndefined":     typefunctions.UnknownKeysToUndefinedEmitter{},
+		"unknownKeysToUndefinedWire": typefunctions.UnknownKeysToUndefinedWireEmitter{},
 	}
-	facts := typefns.NewFactsTable()
+	facts := typefunctions.NewFactsTable()
 	checked, skippedCyclic, conservativeMisses := 0, 0, 0
 	for _, rt := range allTypes {
 		if rt == nil || rt.ID == "" {
@@ -182,7 +182,7 @@ func TestNoopPredicate_SoundAgainstEmitters(t *testing.T) {
 			continue
 		}
 		for familyName, emitter := range emitters {
-			verdict, groundTruth, comparable := typefns.NoopPredicateAgreement(emitter, rt, refTable, facts)
+			verdict, groundTruth, comparable := typefunctions.NoopPredicateAgreement(emitter, rt, refTable, facts)
 			if !comparable {
 				continue
 			}

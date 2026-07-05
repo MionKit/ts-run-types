@@ -29,7 +29,7 @@ This plan covers two deliverables, sharing one set of **static** params so a lat
 ### Resolved follow-up decisions
 1. **Native Date duration kind:** allow both date+time components (`dateTimeKind`). ✅
 2. **Absolute-bound codegen:** **bake a precomputed numeric epoch** at build time (fewer pure fns, faster). Relative bounds use a runtime pure fn. ✅
-3. **Go package layout:** new package `internal/compiled/typefns/formats/datetime/` for date / time / dateTime / nativeDate emitters + shared `bounds.go`. The three existing string emitters (`date.go`, `time.go`, `datetime.go`) **move** out of the `string` package into it. ✅
+3. **Go package layout:** new package `internal/cachegen/typefunctions/formats/datetime/` for date / time / dateTime / nativeDate emitters + shared `bounds.go`. The three existing string emitters (`date.go`, `time.go`, `datetime.go`) **move** out of the `string` package into it. ✅
 4. **Public subpath:** root re-export only via `@mionjs/ts-go-run-types/formats` (non-breaking). ✅
 5. **`now` alone** allowed (= current instant). ✅
 6. **Number bounds disallowed** — bounds are string-only (absolute literal or relative); no epoch-number mixing. ✅
@@ -47,15 +47,15 @@ End-to-end flow for an existing parameterised format (verified in code):
 | Type alias the user writes | `packages/ts-go-run-types/src/formats/string/stringFormats.ts` |
 | Brand carrier (`__rtFormatName` + `__rtFormatParams`) | `src/runtypes/typeFormat.ts:36` |
 | Go scanner lifts brand → `FormatAnnotation` | `internal/cachegen/runtype/typeid/formats.go` |
-| Param validation → diagnostic | emitter's `ValidateParams(...)` (e.g. `internal/compiled/typefns/formats/string/stringformat.go:321`), codes in `internal/diag/codes_runtype.go:122` (`FMT001/002/003`) |
+| Param validation → diagnostic | emitter's `ValidateParams(...)` (e.g. `internal/cachegen/typefunctions/formats/string/stringformat.go:321`), codes in `internal/diag/codes_runtype.go:122` (`FMT001/002/003`) |
 | `isType` codegen | emitter's `EmitIsTypeCheck(...)` |
 | `getTypeErrors` codegen | emitter's `EmitTypeErrorsCheck(...)` |
-| pure-fn dependency wiring | `pureFnAlias(...)` in `internal/compiled/typefns/formats/string/shared.go` |
+| pure-fn dependency wiring | `pureFnAlias(...)` in `internal/cachegen/typefunctions/formats/string/shared.go` |
 | JS runtime pure fns | `src/formats/string/string-formats-pure-fns.ts` |
-| Emitter registry | `internal/compiled/typefns/formats/registry.go` (Emitter / ParamValidator interfaces) |
+| Emitter registry | `internal/cachegen/typefunctions/formats/registry.go` (Emitter / ParamValidator interfaces) |
 | Go↔TS constants mirror | `internal/constants/constants.go` → `pnpm run gen:ts-constants` → `packages/vite-plugin-runtypes/src/runtypes-constants.generated.ts` |
 
-Current date/time emitters (`internal/compiled/typefns/formats/string/{date,time,datetime}.go`) only **select a pure-fn wrapper** for the requested layout and emit `cpf_isX(value)`. They take **no `min`/`max`** today. They each **already implement `ValidateParams`** — but only to check the `format` enum is a known layout (`date.go:61`, `time.go:49`, `datetime.go:75`). We **extend** those existing methods with min/max validation rather than adding new ones. `ValidateParams` is invoked centrally from `internal/compiled/typefns/istype.go:183`, which emits one `diag.CodeFMTInvalidParams` (`FMT002`) per returned message — so new bound checks surface through the exact same path. The error-push codegen helper is `formatErrCall(...)` in `internal/compiled/typefns/formats/string/shared.go:44` (will move/share with the new package). Registry dispatch is keyed on `(Kind, Name)` (`registry.go:141`).
+Current date/time emitters (`internal/cachegen/typefunctions/formats/string/{date,time,datetime}.go`) only **select a pure-fn wrapper** for the requested layout and emit `cpf_isX(value)`. They take **no `min`/`max`** today. They each **already implement `ValidateParams`** — but only to check the `format` enum is a known layout (`date.go:61`, `time.go:49`, `datetime.go:75`). We **extend** those existing methods with min/max validation rather than adding new ones. `ValidateParams` is invoked centrally from `internal/cachegen/typefunctions/istype.go:183`, which emits one `diag.CodeFMTInvalidParams` (`FMT002`) per returned message — so new bound checks surface through the exact same path. The error-push codegen helper is `formatErrCall(...)` in `internal/cachegen/typefunctions/formats/string/shared.go:44` (will move/share with the new package). Registry dispatch is keyed on `(Kind, Name)` (`registry.go:141`).
 
 Current TS surface (in `stringFormats.ts`):
 - `FormatStringDate<P>` — `format: DateFmt` only.
@@ -128,7 +128,7 @@ export interface FormatParams_DateTime extends MinMax<DateTimeBound> {
 
 ### 3b. Go: relative-duration + bound validation helpers
 
-**New file:** `internal/compiled/typefns/formats/datetime/bounds.go` (new `datetimefmt`-style package, or co-locate under `stringfmt` — see decision below).
+**New file:** `internal/cachegen/typefunctions/formats/datetime/bounds.go` (new `datetimefmt`-style package, or co-locate under `stringfmt` — see decision below).
 
 Responsibilities (pure Go, no codegen):
 - `parseRelative(spec string) (offset, kind, ok)` — parse `now`, `now±P…`, returning the ISO-8601 duration broken into date-part vs time-part components (split on `T`).
@@ -211,7 +211,7 @@ Optional convenience aliases: `FormatDatePast = FormatDate<{max:'now'}>`, `Forma
 
 ### 4b. Go emitter
 
-**New file:** `internal/compiled/typefns/formats/datetime/nativeDate.go`
+**New file:** `internal/cachegen/typefunctions/formats/datetime/nativeDate.go`
 - `Name() "nativeDate"`, `Kind() protocol.KindClass` (Date is a builtin class, not a string). Registry dispatch is keyed on `(Kind, Name)` (`registry.go:141`), and `LookupForRunType` keys off `rt.Kind` + `rt.FormatAnnotation.Name` (`registry.go:177`) — so the emitter is reachable as long as the scanner attaches a `FormatAnnotation{Name:"nativeDate"}` to the Date-kinded RunType. **Main unknown to resolve at implementation time:** confirm `internal/cachegen/runtype/typeid/formats.go` lifts the `__rtFormatName`/`__rtFormatParams` brand off a `Date & {…}` intersection (it already lifts the brand off `string & {…}`; the intersection mechanism should be identical) AND that the host `istype.go`/`typeerrors.go` walk calls `formats.LookupForRunType` for `KindClass` builtins, not only for string/number kinds. If the class arm doesn't currently consult the format registry, add that lookup there.
 - `EmitIsTypeCheck`: base check `v instanceof Date && !isNaN(v.getTime())`, then `&& v.getTime() >= <minMs>` / `<= <maxMs>` reusing `relativeNowMs` for relative bounds. No string parsing needed (it's already a Date).
 - `EmitTypeErrorsCheck`: mirror with `formatErrorPush`.
@@ -313,7 +313,7 @@ on `CodeE`/`CodeS`), so no host-emitter change was needed beyond a
 `baseKindGuard` entry for `KindClass` so the typeErrors bound check only
 runs on a valid Date.
 
-The `nativeDate` emitter (`internal/compiled/typefns/formats/datetime/
+The `nativeDate` emitter (`internal/cachegen/typefunctions/formats/datetime/
 nativeDate.go`) compares the Date's `getTime()` against baked absolute
 epochs / `cpf_relativeNowKey` relative bounds (dateTimeKind — both
 component groups allowed). `TypeFormatBase` was widened to include `Date`.

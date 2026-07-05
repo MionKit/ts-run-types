@@ -172,7 +172,7 @@ export function overrideJsonEncoder<T>(
 // …one per public op in the operations registry.
 ```
 
-Scanner work (`internal/marker/` + `internal/compiled/typefns/`):
+Scanner work (`internal/marker/` + `internal/cachegen/typefunctions/`):
 
 - Recognise the `overrideX<T>(fn, id)` call shape as a SECOND site kind on the
   same `(family, typeId)` axis the `createX` sites already use.

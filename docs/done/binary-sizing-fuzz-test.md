@@ -25,10 +25,10 @@ reserve is `MAX_VARINT + charLength*3`).
 
 - **Scalar number reserve → packed width.** The `KindNumber` arm reserves the format's
   `BinarySize().Fixed` (1/2/4) when a packed override is present, not the float64 worst
-  case ([binary_to.go](../../internal/compiled/typefns/binary_to.go)); `fixedWidthForKind`
+  case ([binary_to.go](../../internal/cachegen/typefunctions/binary_to.go)); `fixedWidthForKind`
   returns the packed width so a homogeneous packed-int array reserves `length*packedWidth`.
   The format-width helper is shared with the estimator (`formatFixedWidth`,
-  [binary_size_estimate.go](../../internal/compiled/typefns/binary_size_estimate.go)) so the
+  [binary_size_estimate.go](../../internal/cachegen/typefunctions/binary_size_estimate.go)) so the
   two can't drift.
 - **`serLength` reserve → exact varint width.** Reserves `varintLen(value)` (the width it's
   about to write, known at the call) instead of `MAX_VARINT`

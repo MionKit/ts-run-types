@@ -34,7 +34,7 @@ build time. So the **Go emitter now writes the complete throw message directly
 into the `alwaysThrow` entry** (`[CODE] Cannot <verb> \`<kind>\` <suffix>. (at
 site)`), and the runtime factory throws that string verbatim:
 
-- `internal/compiled/typefns/alwaysthrow_message.go` — the only diagnostic
+- `internal/cachegen/typefunctions/alwaysthrow_message.go` — the only diagnostic
   wording the Go binary owns: the 8 formulaic root-throw families (the only
   codes that ever become a runtime throw). This is emit-time wording, not a
   general catalog.

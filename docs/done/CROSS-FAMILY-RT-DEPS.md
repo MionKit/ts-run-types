@@ -12,7 +12,7 @@ Parent: `docs/DEMAND-DRIVEN-FN-CACHES.md` (Slice D prerequisite, item D0pre).
 The JSON/binary union decoders discriminate members at runtime via
 `val_<member>.fn(value)`, and `validationErrors` delegates child checks to `val_`. Today
 those references are emitted only as **closure-prologue runtime lookups** —
-`registerRTLookup("val_<member>")` (`internal/compiled/typefns/emitter.go:241`)
+`registerRTLookup("val_<member>")` (`internal/cachegen/typefunctions/emitter.go:241`)
 emits `const val_<member> = utl.getRT('val_<member>')` and relies on the `it`
 family being all-emit. They are **not** tracked as build-time dependency edges,
 so nothing triggers emission of `val_<member>`. That blocks demand-scoping `it`
@@ -37,7 +37,7 @@ step (parent plan Slice D) can follow those edges to compute the `it` demand.
 **Additive only** — must NOT change which entries any family emits today; all
 existing tests stay green.
 
-## Scope — `internal/compiled/typefns/` only
+## Scope — `internal/cachegen/typefunctions/` only
 
 Do NOT touch the resolver, dispatch, scanning, or `MigratedFamilies`. Do NOT
 change emission/demand behaviour. This is pure capture + plumbing + tests.
@@ -71,7 +71,7 @@ change emission/demand behaviour. This is pure capture + plumbing + tests.
    yet consumed by any emission decision. `RenderFnModule`'s output bytes must be
    identical to before for every family.
 
-### Tests (`internal/compiled/typefns/`)
+### Tests (`internal/cachegen/typefunctions/`)
 
 - Render a discriminated union (objectLiteral members with a literal
   discriminator prop) via `PrepareForJsonEmitter` (and `ToBinaryEmitter`); assert

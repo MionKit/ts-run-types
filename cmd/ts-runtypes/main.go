@@ -22,8 +22,8 @@ import (
 	// Blank-import the format-emitter aggregator so every concrete
 	// format (stringFormat, uuid, …) registers with the formats
 	// registry before the resolver starts handing out RunTypes.
+	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/compile"
-	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/marker"

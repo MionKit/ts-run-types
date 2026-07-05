@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
-	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
@@ -20,11 +20,11 @@ import (
 // emitted by the walker at RTThrow / silent-skip sites; provenance
 // (when non-nil) maps RT IDs to the marker call sites that reference
 // them, so EmitDiagnostic can fan out one Diagnostic per call site.
-func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[string][]diag.Site) typefns.RenderOpts {
+func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[string][]diag.Site) typefunctions.RenderOpts {
 	if resolver == nil {
-		return typefns.RenderOpts{}
+		return typefunctions.RenderOpts{}
 	}
-	return typefns.RenderOpts{
+	return typefunctions.RenderOpts{
 		Store:           resolver.rtStore,
 		Lookup:          resolver.cache,
 		DiagSink:        sink,
@@ -32,7 +32,7 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		EmitMode:        resolver.opts.EmitMode,
 		InlineMode:      resolver.opts.InlineMode,
 		RefTable:        resolver.fullRefTable(),
-		SizeEstimate: typefns.SizeEstimateConfig{
+		SizeEstimate: typefunctions.SizeEstimateConfig{
 			Bias:        resolver.opts.SizeBias,
 			Items:       resolver.opts.SizeItems,
 			StringBytes: resolver.opts.SizeStringBytes,
@@ -40,7 +40,7 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		},
 		// One predicate memo per dispatch, shared by every family collect
 		// (the predicates are emitter-independent).
-		Facts: typefns.NewFactsTable(),
+		Facts: typefunctions.NewFactsTable(),
 	}
 }
 

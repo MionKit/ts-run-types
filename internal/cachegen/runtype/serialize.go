@@ -361,7 +361,7 @@ func (cache *Cache) computerFor(typeChecker *checker.Checker) *typeid.Computer {
 // Two calls with the same kind deduplicate via the structural map.
 // Today only `KindSymbol` is needed; if other atomic kinds ever
 // require the same escape hatch, the switch grows in lockstep with
-// the RT emit switch in internal/compiled/typefns/istype.go.
+// the RT emit switch in internal/cachegen/typefunctions/istype.go.
 func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 	structural := strconv.Itoa(int(kind)) + ":atomic"
 	if id, ok := cache.byStructural[structural]; ok {

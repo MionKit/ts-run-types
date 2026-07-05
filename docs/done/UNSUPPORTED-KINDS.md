@@ -132,7 +132,7 @@ When a new TypeScript kind lands that the RT can't handle:
 
 1. In each affected emitter's kind switch, ensure the new kind's arm either is absent (falls through to the default `CodeNS`) or explicitly returns `RTCode{Code: "", Type: CodeNS}`.
 2. Register per-family codes in `internal/diag/codes_runtype.go` (one per family that has an emit).
-3. Add the kind → code mapping to each emitter's `DiagCodeForLeaf` switch in `internal/compiled/typefns/diag_codes.go`.
+3. Add the kind → code mapping to each emitter's `DiagCodeForLeaf` switch in `internal/cachegen/typefunctions/diag_codes.go`.
 4. Add the messages to `packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts`.
 
 No edits to walker, renderer, or skeleton files needed — the pipeline picks it up automatically.
@@ -141,8 +141,8 @@ No edits to walker, renderer, or skeleton files needed — the pipeline picks it
 
 When porting a new mion RT function (e.g. `mockType`, a new serialiser):
 
-1. Implement the `Emitter` interface in `internal/compiled/typefns/<family>.go`.
-2. Implement `LeafDiagCodeProvider.DiagCodeForLeaf` in `internal/compiled/typefns/diag_codes.go` — one switch over the unsupported kinds returning per-family codes.
+1. Implement the `Emitter` interface in `internal/cachegen/typefunctions/<family>.go`.
+2. Implement `LeafDiagCodeProvider.DiagCodeForLeaf` in `internal/cachegen/typefunctions/diag_codes.go` — one switch over the unsupported kinds returning per-family codes.
 3. Add the family's codes in `internal/diag/codes_runtype.go` and `packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts`.
 4. Wire the family's renderer in `internal/resolver/render.go` and `internal/resolver/dispatch.go`.
 5. Add a new cache skeleton `.ts` under `packages/ts-go-run-types/src/caches/` (embedded via `src/caches/skeletons.go`) and register a `Skeleton<FnName>` constant in `internal/cachetpl/splice.go`.

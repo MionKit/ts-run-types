@@ -99,7 +99,7 @@ results data and the website pages:
 
 - **Go pipeline.** New strategy in the operations registry
   ([internal/cachegen/operations](../../internal/cachegen/operations/)), the JSON composite emitter
-  ([internal/compiled/typefns/json_composite.go](../../internal/compiled/typefns/json_composite.go)),
+  ([internal/cachegen/typefunctions/json_composite.go](../../internal/cachegen/typefunctions/json_composite.go)),
   and a per-strategy tag in `constants.jsonCompositeTags`
   ([internal/constants/constants.go](../../internal/constants/constants.go)).
 - **Runtime.** Tuple build/restore in the json composite runtime +

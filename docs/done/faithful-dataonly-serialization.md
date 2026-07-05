@@ -194,7 +194,7 @@ which is heavier than deciding at build time where the kind is already known.
 
 The JSON composite emitter already renders one entry per `(typeId, strategy)`
 and is, by definition, the **root** frame. It already holds the root `RunType`
-(`collectJsonCompositeEntry(runType, …)` in `internal/compiled/typefns/json_composite.go`).
+(`collectJsonCompositeEntry(runType, …)` in `internal/cachegen/typefunctions/json_composite.go`).
 Make the wrap decision there.
 
 1. **Build-time predicate.** Add `rootNeedsDataOnlyWrap(runType, ctx) bool`,

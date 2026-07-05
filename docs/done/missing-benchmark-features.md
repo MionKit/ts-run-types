@@ -364,7 +364,7 @@ fixed-width `int*`/`uint*` formats) is **unverified**. If a `FormatNumber<{min, 
 still packs the full 8 bytes today, the real optimization is teaching the binary emitter
 to choose the narrowest width that covers `[min, max]`. Relevant code:
 [`packages/ts-runtypes/src/createRTFBinary.ts`](../../packages/ts-runtypes/src/createRTFBinary.ts),
-[`internal/compiled/typefns/binary_to.go`](../../internal/compiled/typefns/binary_to.go).
+[`internal/cachegen/typefunctions/binary_to.go`](../../internal/cachegen/typefunctions/binary_to.go).
 The benchmark above is the right way to measure it either way.
 
 ---

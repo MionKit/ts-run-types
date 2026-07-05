@@ -161,7 +161,7 @@ encode arm rather than being recognized as "optional boolean". Places to check:
   `boolean` kept atomic while `boolean | undefined` collapses to a literal union?
   See the runtype builders / union normalization and `internal/cachegen/runtype/`.
 - The JSON encoder (`pjs`) and binary encoder (`tb`) emit arms in
-  `internal/compiled/typefns/` — confirm whether they receive a union node here
+  `internal/cachegen/typefunctions/` — confirm whether they receive a union node here
   and whether an "optional atomic" fast path exists / is being missed.
 - Whether the recent JSON-composite / compact work changed how optional (or
   `undefined`-bearing) members are lowered.
@@ -564,8 +564,8 @@ prove common. `third_party` (Alt C) is never required.
 
 The decode emitters already early-out to identity (`union_flat.go:294`); the encode
 side does not. Add the symmetric guard to `emitUnionPrepareForJsonFlat`
-([union_flat.go:123](../../internal/compiled/typefns/union_flat.go)),
-`emitUnionPrepareForJsonSafe` ([json_prepare_safe.go:796](../../internal/compiled/typefns/json_prepare_safe.go)),
+([union_flat.go:123](../../internal/cachegen/typefunctions/union_flat.go)),
+`emitUnionPrepareForJsonSafe` ([json_prepare_safe.go:796](../../internal/cachegen/typefunctions/json_prepare_safe.go)),
 and the compact `cj` encoder: when `len(layout.ObjectMembers) == 0 && !layout.AtomicNeedsTuple`
 (⇒ every member is JSON-identity), return identity (`Code: ""`). Removes the empty-arm
 dispatch for `x?: 'a'|'b'` AND the required `status`/`currency`/`roles` cases (finding B).
@@ -592,7 +592,7 @@ unions prove common.
 ### Step 5 — Fix E: binary-specific union error string (trivial)
 
 Add `flatUnionEncodeBinaryErrorVar` (message `'Can not binary encode union: …'`) and
-use it at [union_flat_binary.go:187](../../internal/compiled/typefns/union_flat_binary.go) instead of the JSON `flatUnionEncodeErrorVar`.
+use it at [union_flat_binary.go:187](../../internal/cachegen/typefunctions/union_flat_binary.go) instead of the JSON `flatUnionEncodeErrorVar`.
 
 ### Step 6 — Fix F: the schema-form `RT.circular(self)` spurious CTA001 — ✅ DONE
 
@@ -606,7 +606,7 @@ and fixes F at the root. Empirically confirmed: the marker form emits zero diagn
 
 ### Step 7 — Fix G (polish): drop the `prepareForJsonSafe` root forwarder
 
-`buildSafeObjectLiteral` ([json_prepare_safe.go:564](../../internal/compiled/typefns/json_prepare_safe.go)) pre-hoists via `CreateFnInContext`,
+`buildSafeObjectLiteral` ([json_prepare_safe.go:564](../../internal/cachegen/typefunctions/json_prepare_safe.go)) pre-hoists via `CreateFnInContext`,
 producing `return ctxFn0(v)`. Return the accumulator as a raw `CodeRB` block and let the
 existing hoist path wrap only when the parent slot needs it. Batch with Step 2.
 
@@ -619,7 +619,7 @@ argument. Low priority; a docs note is an acceptable alternative.
 
 ### Test strategy
 
-- **Go unit** (`internal/compiled/typefns/{union_flat_test.go, noop_types_test.go, union_flat_layout_test.go}`, plus a `StripUndefined` test): assert the collapsed child kind + the absence of envelope/dispatch. Reuse the paired-form-equivalence pattern (`TestAtomic_FormEquivalence`) so TS-form and schema-form agree for optional unions.
+- **Go unit** (`internal/cachegen/typefunctions/{union_flat_test.go, noop_types_test.go, union_flat_layout_test.go}`, plus a `StripUndefined` test): assert the collapsed child kind + the absence of envelope/dispatch. Reuse the paired-form-equivalence pattern (`TestAtomic_FormEquivalence`) so TS-form and schema-form agree for optional unions.
 - **JS plugin regression** (`packages/runtypes-devtools/test/`): assert the generated `pjs`/`sj`/`tb` for `active?: boolean` contain no `[` envelope / `fuEncErr` / discriminant; that `{active?: boolean}` emits no `pj`/`rj` module; and that the binary is 1 byte. Rebuild `bin/ts-runtypes` before `pnpm test`.
 - **Fuzz**: extend the all-strategy round-trip fuzzer (`docs/todos/all-strategy-roundtrip-fuzzer.md`, `packages/ts-runtypes/test/fuzz/`) with optional-union shapes across every strategy.
 

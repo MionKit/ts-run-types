@@ -2,7 +2,7 @@
 
 **Status:** FIXED. Root cause pinned and fixed in `json_compat.go`
 (`isJsonCompatible` now resolves a raw ref before walking it). Regression test:
-`internal/compiled/typefns/json_compat_ref_test.go`. This was pre-existing
+`internal/cachegen/typefunctions/json_compat_ref_test.go`. This was pre-existing
 (reproduced on `main`); it surfaced while adding DataOnly union-drop FE coverage.
 
 ## The symptom
