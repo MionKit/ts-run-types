@@ -39,7 +39,7 @@ getRunTypeId(value);
 	assertNotSupportedFlag(t, r, root)
 }
 
-func assertNotSupportedFlag(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertNotSupportedFlag(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {

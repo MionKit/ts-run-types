@@ -1,6 +1,7 @@
 # Rename `resolver.Resolver` -> `resolver.Session`
 
-**Status:** proposed (small, mechanical, `internal/`-local)
+**Status:** DONE — the `*Resolver` type is now `*Session` and the method receiver is `sess`, across `internal/` + `cmd/`; the package, file names, and every wire/JS/disk-format name are unchanged. See the completion summary at the end.
+**Original status:** proposed (small, mechanical, `internal/`-local)
 **Scope:** the `*Resolver` type + its constructors' return type, every caller inside `internal/` and `cmd/`, and the doc references. Package name **stays `resolver`**; only the type is renamed. No protocol wire change, no external API change.
 **Goal:** kill the `resolver.Resolver` stutter and make call sites match what the type actually is — a **long-lived compiler session** that owns the tsgo Program, checker pool, cross-request `RunType` cache, per-file scope map, pureFn cache, disk cache handle, and overrides table. The rename makes the "keep this object around and call ops on it" character visible at every use.
 
@@ -128,3 +129,18 @@ Reviewer aid: the diff is best read with `--word-diff` since it is almost entire
 - `pnpm run lint` and `pnpm run check-format` green.
 - `pnpm rt core smoke` green.
 - Spot-check a `git log --oneline` post-rename to confirm no wire-protocol / disk-cache / JS-side files were touched.
+
+---
+
+## What shipped (completion summary)
+
+Done on `claude/orphaned-diagnostic-resolver-rename-m3kjam` as a single mechanical pass (the full type + receiver rename together, not split into two commits — the diff is a clean identifier swap and the gate is green).
+
+- **Type:** `type Resolver struct` → `type Session struct`; `New` / `NewServer` now return `*Session`; every `*Resolver` in the package became `*Session`; every external `*resolver.Resolver` became `*resolver.Session` (`cmd/ts-runtypes`, `cmd/ts-runtypes-wasm`, `batchcompile`, `cachegen/runtype`, `enrichment`, and the `resolver_test` helpers).
+- **Receiver:** the method receiver `resolver` → `sess` on all 50 methods, and the one `scanState` field that holds the session (`resolver *Resolver` → `sess *Session`) plus its `state.resolver.*` accesses, so the package has no `resolver`-named value shadowing the package name anymore. Comments that name the Go type (`Resolver owns a Program`, `see Resolver.verdictsByChecker`, `throwing the Resolver away`, the `New`/`NewServer` doc lines, the two test-helper doc lines) switched to `Session`.
+
+**Deliberately unchanged (per the plan's non-goals):**
+- The **package** `resolver` — every `resolver.New(...)` / `resolver.Options{...}` / `resolver.NewServer(...)` call site still reads as "acquire a session from the resolver package". The `resolver.New` / `resolver.SetProgram` error-message strings keep the package-qualified path.
+- Test function names (`TestResolver_*`) and setup-helper names (`setupParallelResolver`, `inlineResolver`, …) — they name the resolver subsystem/role, not the Go type.
+- The `ResolverOpts` field on batchcompile's Options (names the role), and the "Resolver offsets" comments in `sourcerewrite/transform.go` (the resolver binary's byte offsets, not the type).
+- Every wire-protocol name, JS-facing symbol, and disk-cache format tag. The rename is invisible outside Go.

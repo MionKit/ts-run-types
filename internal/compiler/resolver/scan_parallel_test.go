@@ -141,7 +141,7 @@ func parallelFixtureFiles() []string {
 
 // setupSerialResolver builds a multi-checker program whose resolver is
 // forced onto the serial scan path — the equivalence baseline.
-func setupSerialResolver(t testing.TB, sources map[string]string) *resolver.Resolver {
+func setupSerialResolver(t testing.TB, sources map[string]string) *resolver.Session {
 	t.Helper()
 	return setupInlineWith(t, sources, func(_ *program.Options, resolverOpts *resolver.Options) {
 		resolverOpts.DisableParallelScan = true
@@ -150,7 +150,7 @@ func setupSerialResolver(t testing.TB, sources map[string]string) *resolver.Reso
 
 // setupParallelResolver builds a multi-checker program with the default
 // (parallel-on) resolver options.
-func setupParallelResolver(t testing.TB, sources map[string]string) *resolver.Resolver {
+func setupParallelResolver(t testing.TB, sources map[string]string) *resolver.Session {
 	t.Helper()
 	return setupInlineWith(t, sources, nil)
 }
@@ -179,7 +179,7 @@ func responseJSON(t testing.TB, response protocol.Response) string {
 // stripCwd normalizes a resolver's absolute working directory out of a
 // response JSON string so two resolvers built over different temp dirs
 // compare equal. Dump-path sites carry absolute file names.
-func stripCwd(t testing.TB, target *resolver.Resolver, encoded string) string {
+func stripCwd(t testing.TB, target *resolver.Session, encoded string) string {
 	t.Helper()
 	cwd := target.Program.TS.GetCurrentDirectory()
 	return strings.ReplaceAll(encoded, cwd, "<root>")

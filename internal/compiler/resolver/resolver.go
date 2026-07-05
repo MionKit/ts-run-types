@@ -116,14 +116,14 @@ type Options struct {
 	SizeMaxBytes    int
 }
 
-// Resolver owns a Program and answers type queries against it. The serializer
+// Session owns a Program and answers type queries against it. The serializer
 // cache is shared across queries so type ids stay stable in a single dump.
 //
 // Program-less resolvers (built via NewServer) are valid: they accept the
 // setSources op to install a Program, then serve scanFiles / dump as normal.
 // Subsequent setSources calls swap the Program in place — the structural
 // type cache survives across swaps so dedup IDs stay stable.
-type Resolver struct {
+type Session struct {
 	Program      *program.Program
 	cache        *runtype.Cache
 	checker      *checker.Checker
@@ -199,14 +199,14 @@ type markerVerdict struct {
 // sits on the hot path. NOT safe for concurrent use: parallel scans must
 // pre-create every group's memo on the dispatch goroutine before fanning
 // out.
-func (resolver *Resolver) verdictsFor(scanChecker *checker.Checker) map[*checker.Type]markerVerdict {
-	if resolver.verdictsByChecker == nil {
-		resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
+func (sess *Session) verdictsFor(scanChecker *checker.Checker) map[*checker.Type]markerVerdict {
+	if sess.verdictsByChecker == nil {
+		sess.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
 	}
-	verdicts, ok := resolver.verdictsByChecker[scanChecker]
+	verdicts, ok := sess.verdictsByChecker[scanChecker]
 	if !ok {
 		verdicts = map[*checker.Type]markerVerdict{}
-		resolver.verdictsByChecker[scanChecker] = verdicts
+		sess.verdictsByChecker[scanChecker] = verdicts
 	}
 	return verdicts
 }
@@ -247,9 +247,9 @@ func newRTStore(opts Options, incremental bool) *diskcache.Store {
 	return diskcache.New(baseDir, fp)
 }
 
-// New builds a Resolver against prog. Defaults to hashid's default length when
+// New builds a Session against prog. Defaults to hashid's default length when
 // HashLength is zero.
-func New(prog *program.Program, opts Options) (*Resolver, error) {
+func New(prog *program.Program, opts Options) (*Session, error) {
 	if prog == nil || prog.TS == nil {
 		return nil, errors.New("resolver.New: program is nil")
 	}
@@ -266,7 +266,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		HashLength: opts.HashLength,
 	})
 	cache.SetFS(prog.FS)
-	return &Resolver{
+	return &Session{
 		Program:           prog,
 		cache:             cache,
 		checker:           typeChecker,
@@ -281,11 +281,11 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 	}, nil
 }
 
-// NewServer builds a Resolver with no Program. Callers (the --inline-server
+// NewServer builds a Session with no Program. Callers (the --inline-server
 // CLI path) install one later via the setSources op. The cache is created
 // up front with a nil checker; Rebind is called on first SetProgram.
-func NewServer(opts Options) *Resolver {
-	return &Resolver{
+func NewServer(opts Options) *Session {
+	return &Session{
 		cache: runtype.NewCache(nil, runtype.Options{
 			HashLength: opts.HashLength,
 		}),
@@ -305,7 +305,7 @@ func NewServer(opts Options) *Resolver {
 // leases a new one from prog, rebinds the cache, and resets the sites slice
 // (positions are tied to the old source text). The cache's structural dedup
 // table survives the swap so equivalent types reuse their ids.
-func (resolver *Resolver) SetProgram(prog *program.Program) error {
+func (sess *Session) SetProgram(prog *program.Program) error {
 	if prog == nil || prog.TS == nil {
 		return errors.New("resolver.SetProgram: program is nil")
 	}
@@ -314,32 +314,32 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 		releaseLease()
 		return errors.New("resolver.SetProgram: no checker available")
 	}
-	if resolver.releaseLease != nil {
-		resolver.releaseLease()
+	if sess.releaseLease != nil {
+		sess.releaseLease()
 	}
-	resolver.Program = prog
+	sess.Program = prog
 	// Keep the marker's package.json FS in sync with the current program's overlay
 	// (setSources installs a fresh program + FS each call).
-	resolver.marker.FS = prog.FS
-	resolver.checker = typeChecker
-	resolver.releaseLease = releaseLease
-	resolver.cache.Rebind(typeChecker)
-	resolver.cache.SetFS(prog.FS)
-	resolver.sites = resolver.sites[:0]
-	resolver.scannedFiles = map[string]struct{}{}
-	resolver.pureFnFileCache = purefunctions.NewFileCache()
-	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
-	resolver.overridesBuilt = false
-	resolver.overrideEntries = nil
-	resolver.overrideDiagnostics = nil
-	resolver.overrideArgSpansByFile = nil
+	sess.marker.FS = prog.FS
+	sess.checker = typeChecker
+	sess.releaseLease = releaseLease
+	sess.cache.Rebind(typeChecker)
+	sess.cache.SetFS(prog.FS)
+	sess.sites = sess.sites[:0]
+	sess.scannedFiles = map[string]struct{}{}
+	sess.pureFnFileCache = purefunctions.NewFileCache()
+	sess.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
+	sess.overridesBuilt = false
+	sess.overrideEntries = nil
+	sess.overrideDiagnostics = nil
+	sess.overrideArgSpansByFile = nil
 	return nil
 }
 
 // Reset wipes ALL user-supplied resolver state: every interned Type, the
 // sites list, the Program, the checker lease, and (because the overlay
 // lives inside the Program) the in-memory source map. Equivalent to
-// throwing the Resolver away and replacing it with a fresh NewServer —
+// throwing the Session away and replacing it with a fresh NewServer —
 // except the goroutine / connection stays open. After reset, the resolver
 // requires a new setSources before scanFiles will work.
 //
@@ -347,52 +347,52 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 // cachedvfs layer in program.New / program.NewInferred — they are byte-
 // cached at the FS level and are NOT re-read from disk on the next
 // setSources. Only the user's overlay + parsed-AST state is discarded here.
-func (resolver *Resolver) Reset() {
-	if resolver.releaseLease != nil {
-		resolver.releaseLease()
-		resolver.releaseLease = nil
+func (sess *Session) Reset() {
+	if sess.releaseLease != nil {
+		sess.releaseLease()
+		sess.releaseLease = nil
 	}
-	resolver.Program = nil
-	resolver.checker = nil
-	resolver.cache.Clear()
-	resolver.cache.Rebind(nil)
-	resolver.sites = resolver.sites[:0]
-	resolver.pureFnHashes = map[string]string{}
-	resolver.scannedFiles = map[string]struct{}{}
-	resolver.pureFnFileCache = purefunctions.NewFileCache()
-	resolver.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
-	resolver.overridesBuilt = false
-	resolver.overrideEntries = nil
-	resolver.overrideDiagnostics = nil
-	resolver.overrideArgSpansByFile = nil
+	sess.Program = nil
+	sess.checker = nil
+	sess.cache.Clear()
+	sess.cache.Rebind(nil)
+	sess.sites = sess.sites[:0]
+	sess.pureFnHashes = map[string]string{}
+	sess.scannedFiles = map[string]struct{}{}
+	sess.pureFnFileCache = purefunctions.NewFileCache()
+	sess.verdictsByChecker = map[*checker.Checker]map[*checker.Type]markerVerdict{}
+	sess.overridesBuilt = false
+	sess.overrideEntries = nil
+	sess.overrideDiagnostics = nil
+	sess.overrideArgSpansByFile = nil
 }
 
-func (resolver *Resolver) Close() {
-	if resolver.releaseLease != nil {
-		resolver.releaseLease()
-		resolver.releaseLease = nil
+func (sess *Session) Close() {
+	if sess.releaseLease != nil {
+		sess.releaseLease()
+		sess.releaseLease = nil
 	}
 }
 
-func (resolver *Resolver) Cache() *runtype.Cache { return resolver.cache }
+func (sess *Session) Cache() *runtype.Cache { return sess.cache }
 
 // Checker returns the bound type checker. Used by the out-of-band enrichment
 // bridge (internal/enrichment) to resolve a named type declaration to its
 // *checker.Type before projecting it through the cache. The hot scan/render
 // path keeps using the unexported field directly.
-func (resolver *Resolver) Checker() *checker.Checker { return resolver.checker }
+func (sess *Session) Checker() *checker.Checker { return sess.checker }
 
 // Sites returns the running list of resolved call-site ids. Callers (CLI,
 // plugin) read this at end-of-build to write out the manifest.
-func (resolver *Resolver) Sites() []protocol.Site {
-	return append([]protocol.Site(nil), resolver.sites...)
+func (sess *Session) Sites() []protocol.Site {
+	return append([]protocol.Site(nil), sess.sites...)
 }
 
 // markerModule returns the package the marker brands are declared in (the
 // first configured spec's Module, defaulting to marker.DefaultModule). Passed
 // to builders.IsSchemaLeafCall as the module gate.
-func (resolver *Resolver) markerModule() string {
-	for _, spec := range resolver.marker.Specs {
+func (sess *Session) markerModule() string {
+	for _, spec := range sess.marker.Specs {
 		if spec.Module != "" {
 			return spec.Module
 		}

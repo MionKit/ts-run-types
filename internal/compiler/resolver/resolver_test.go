@@ -18,10 +18,10 @@ func fixturesDir(t *testing.T) string {
 	return abs
 }
 
-// setup builds a Resolver against the on-disk testfixtures/ directory via
+// setup builds a Session against the on-disk testfixtures/ directory via
 // the tsconfig path. Retained for the file-loading regression tests
 // (TestScanFile_F17_*) — the rest of the suite uses setupInline.
-func setup(t *testing.T) *resolver.Resolver {
+func setup(t *testing.T) *resolver.Session {
 	t.Helper()
 	p, err := program.New(program.Options{
 		Cwd:            fixturesDir(t),
@@ -59,7 +59,7 @@ func deref(types []*protocol.RunType, ref *protocol.RunType) *protocol.RunType {
 	return ref
 }
 
-func dump(r *resolver.Resolver) []*protocol.RunType {
+func dump(r *resolver.Session) []*protocol.RunType {
 	return r.Dispatch(protocol.Request{Op: protocol.OpDump}).RunTypes
 }
 
@@ -78,7 +78,7 @@ func findMember(types []*protocol.RunType, root *protocol.RunType, name string) 
 // first site. Used by both file-loading (setup) and inline (setupInline)
 // flows — both end up with a relative file name reachable from the
 // resolver's cwd.
-func resolveFile(t *testing.T, r *resolver.Resolver, file string) *protocol.RunType {
+func resolveFile(t *testing.T, r *resolver.Session, file string) *protocol.RunType {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{file}})
 	if resp.Error != "" {
@@ -139,7 +139,7 @@ getRunTypeId(u);
 	assertF2User(t, r, root)
 }
 
-func assertF2User(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF2User(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -245,7 +245,7 @@ getRunTypeId(add);
 	assertF5Function(t, r, root)
 }
 
-func assertF5Function(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF5Function(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindFunction {
@@ -288,7 +288,7 @@ getRunTypeId(routes);
 	assertF6Router(t, r, root)
 }
 
-func assertF6Router(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF6Router(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -352,7 +352,7 @@ getRunTypeId(wrap({a: 1, b: 'x'}));
 	assertF7Object(t, r, root)
 }
 
-func assertF7Object(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF7Object(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -391,7 +391,7 @@ getRunTypeId(u);
 	assertF8IdName(t, r, root)
 }
 
-func assertF8IdName(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF8IdName(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -449,7 +449,7 @@ getRunTypeId(xs);
 	assertF12Array(t, r, root)
 }
 
-func assertF12Array(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF12Array(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
@@ -480,7 +480,7 @@ getRunTypeId(tup);
 	assertF13Tuple(t, r, root)
 }
 
-func assertF13Tuple(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF13Tuple(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindTuple {
@@ -524,7 +524,7 @@ getRunTypeId(p);
 	assertF14Promise(t, r, root)
 }
 
-func assertF14Promise(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF14Promise(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindPromise {
@@ -563,7 +563,7 @@ getRunTypeId(u);
 	assertF15Class(t, r, root)
 }
 
-func assertF15Class(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF15Class(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindClass {
@@ -607,7 +607,7 @@ getRunTypeId(m);
 	assertF16Index(t, r, root)
 }
 
-func assertF16Index(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF16Index(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {

@@ -76,12 +76,12 @@ const temporalDTS = `declare namespace Temporal {
 }
 `
 
-// setupInline builds a Resolver over an in-memory overlay of TypeScript
+// setupInline builds a Session over an in-memory overlay of TypeScript
 // sources. Mirrors withInlineSources in helpers/inline.ts so Go tests can
 // keep their snippet right next to the assertions instead of jumping to a
 // fixture file. Single-threaded (one pool checker, serial scan) — the
 // shape every pre-parallel test was written against.
-func setupInline(t testing.TB, sources map[string]string) *resolver.Resolver {
+func setupInline(t testing.TB, sources map[string]string) *resolver.Session {
 	t.Helper()
 	return setupInlineWith(t, sources, func(programOpts *program.Options, resolverOpts *resolver.Options) {
 		programOpts.SingleThreaded = true
@@ -96,7 +96,7 @@ func setupInline(t testing.TB, sources map[string]string) *resolver.Resolver {
 // so the Program's file list — and therefore the pool's round-robin
 // file→checker association — is deterministic across runs (Go map
 // iteration order is not).
-func setupInlineWith(t testing.TB, sources map[string]string, mutate func(*program.Options, *resolver.Options)) *resolver.Resolver {
+func setupInlineWith(t testing.TB, sources map[string]string, mutate func(*program.Options, *resolver.Options)) *resolver.Session {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := make(map[string]string, len(sources)+2)
@@ -139,7 +139,7 @@ func setupInlineWith(t testing.TB, sources map[string]string, mutate func(*progr
 // and returns the resolver plus the RunType entry for the first call site.
 // Tests that need to dump the full type list after the scan use the
 // returned resolver; tests that only check the root type ignore it.
-func resolveInline(t *testing.T, code string) (*resolver.Resolver, *protocol.RunType) {
+func resolveInline(t *testing.T, code string) (*resolver.Session, *protocol.RunType) {
 	t.Helper()
 	r := setupInline(t, map[string]string{"test.ts": code})
 	tn := resolveFile(t, r, "test.ts")

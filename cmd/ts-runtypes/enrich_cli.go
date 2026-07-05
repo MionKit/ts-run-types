@@ -44,7 +44,7 @@ func dispatchEnrichCommand() bool {
 // caller owns the resolver and MUST call res.Close() when done (it keeps the
 // checker live for as long as the walk needs it). Shared by resolveOne and the
 // check command, which walks the file's AST against the still-open checker.
-func buildProgram(absPath string) (*program.Program, *resolver.Resolver, error) {
+func buildProgram(absPath string) (*program.Program, *resolver.Session, error) {
 	cwd := filepath.Dir(absPath)
 	prog, err := program.NewInferred(program.Options{Cwd: cwd, Conditions: []string{"source"}}, []string{absPath})
 	if err != nil {
@@ -61,7 +61,7 @@ func buildProgram(absPath string) (*program.Program, *resolver.Resolver, error) 
 // files — the batch `gen --files` path. Cwd is the first file's directory.
 // Caller owns res and MUST Close() it. One Program means the heavy parse/bind
 // is paid once for the whole batch; each file's `Target` resolves against it.
-func buildProgramMulti(absPaths []string) (*program.Program, *resolver.Resolver, error) {
+func buildProgramMulti(absPaths []string) (*program.Program, *resolver.Session, error) {
 	if len(absPaths) == 0 {
 		return nil, nil, fmt.Errorf("no files given")
 	}

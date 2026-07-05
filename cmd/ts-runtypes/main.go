@@ -353,7 +353,7 @@ func main() {
 		return
 	}
 
-	var r *resolver.Resolver
+	var r *resolver.Session
 	switch {
 	case inlineServer:
 		// Persistent server mode: no startup Program. The client installs
@@ -469,7 +469,7 @@ func serveRequests(dispatch func(protocol.Request) protocol.Response, dec *json.
 	}
 }
 
-func runDaemon(r *resolver.Resolver, socketPath string) {
+func runDaemon(r *resolver.Session, socketPath string) {
 	_ = os.Remove(socketPath)
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -479,7 +479,7 @@ func runDaemon(r *resolver.Resolver, socketPath string) {
 
 	fmt.Fprintf(os.Stderr, "ts-runtypes daemon listening on %s\n", socketPath)
 
-	// One Resolver serves every connection, so dispatches are serialized:
+	// One Session serves every connection, so dispatches are serialized:
 	// the resolver session state (cache, sites, scan bookkeeping — and the
 	// parallel scan inside a dispatch) assumes one op at a time. Without
 	// this, two connections issuing ops concurrently raced on shared maps.

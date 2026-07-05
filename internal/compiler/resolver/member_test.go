@@ -31,7 +31,7 @@ getRunTypeId(xs);
 	assertF19ArrayOfObject(t, r, root)
 }
 
-func assertF19ArrayOfObject(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF19ArrayOfObject(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
@@ -70,7 +70,7 @@ getRunTypeId(xs);
 	assertF20ArrayOfArray(t, r, root)
 }
 
-func assertF20ArrayOfArray(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF20ArrayOfArray(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
@@ -114,7 +114,7 @@ getRunTypeId(t);
 	assertF21RecursiveSelf(t, r, root)
 }
 
-func assertF21RecursiveSelf(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF21RecursiveSelf(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -172,7 +172,7 @@ getRunTypeId(a);
 	assertF22RecursiveMutual(t, r, root)
 }
 
-func assertF22RecursiveMutual(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF22RecursiveMutual(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {

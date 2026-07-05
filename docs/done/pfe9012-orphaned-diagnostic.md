@@ -1,6 +1,7 @@
 # Wire PFE9012: build-time "RT depends on missing pure-fn" validation
 
-**Status:** planned — owner decision (2026-07-05): KEEP the validation API and wire it; surface through the existing lint plugin.
+**Status:** DONE — wired through the resolver render path and surfaced via the lint plugin's severity routing (see the completion summary at the end). The only deferred piece is the nice-to-have **site attribution** (step 4), left as a follow-up exactly as this spec framed it.
+**Original status:** planned — owner decision (2026-07-05): KEEP the validation API and wire it; surface through the existing lint plugin.
 **Origin:** found during the Go simplification refactor ([go-simplification-refactor.md](../done/go-simplification-refactor.md), Phase A1). The API was built in `68cd944e` (2026-05-16) with the resolver wiring explicitly deferred, and the follow-up never happened. The refactor briefly deleted it as dead code; it is now **restored** at [internal/cachegen/purefunctions/index.go](../../internal/cachegen/purefunctions/index.go) (marked `KEPT-UNWIRED`, tests in `index_test.go`) pending this wiring.
 
 ## What exists today (all live except the last step)
@@ -23,3 +24,23 @@
 - Go: the restored `index_test.go` already pins the validator core (hit / miss / lazy expansion / dedup / never-reparse). Add one resolver-level test: a fixture whose compiled RT function references `utl.getPureFn('rt','missing')` with no registration → dump/scan response carries PFE9012; and the converse (registration present → no diagnostic).
 - JS: extend the lint-plugin routing test (`packages/ts-runtypes-devtools/test/eslint/prefilter.test.ts` pattern, which already covers PFE9004) so PFE9012 routes to the pure-fn rule bucket.
 - Website docs: the diagnostics catalog already lists PFE9012; add the hand-written prose summary (it is in the `still need a hand-written summary` backlog of `gen-diag-catalog`).
+
+---
+
+## What shipped (completion summary)
+
+Implemented on `claude/orphaned-diagnostic-resolver-rename-m3kjam`.
+
+**Collection.** `RenderOpts.PureFnDepSink *[]protocol.PureFnDep` ([module.go](../../internal/cachegen/typefunctions/module.go)) drains each LIVE entry body's `walker.PureFnDependencies` at render time. Noop / alwaysThrow entries and disk-cache hits contribute nothing (they emit no `getPureFn` call, or the walker never ran). The parallel family fan-out shards the sink per goroutine and merges in family order, mirroring `DiagSink` ([`collectFamilies` in dispatch.go](../../internal/compiler/resolver/dispatch.go)).
+
+**Validation.** `resolver.validateProgramPureFnDeps` ([render.go](../../internal/compiler/resolver/render.go)) builds a **whole-program** `purefunctions.Index` (shared helper `extractProgramPureFns`, memoized via `pureFnFileCache`) and runs `ValidatePureFnDependencies` over the aggregated deps, passing `resolver.Program` as the `SourceFileLookup`. Whole-program (not per-file) is the correctness pivot: the `rt::` built-ins register in the `ts-runtypes` package's own source, never in the user's requested files, so a per-file index would false-positive. Results are sorted by missing key for deterministic (serial == parallel) output.
+
+**Wired into** `OpScanFiles` (when `IncludeEntryModules` or `IncludeRtDiagnostics`), `OpDump`, and `OpGenerate` — so the lint plugin, the Vite `warn` channel, and `batchcompile` (which drives OpDump + OpGenerate) all surface it. PFE9012 is Error severity → the lint plugin's severity router puts it in the `error` tier.
+
+**Design refinement not in the original plan — the "mechanism present" guard.** Validation is suppressed when the program compiles ZERO `registerPureFnFactory` calls. That is a stub / ambient-only setup (e.g. `ts-runtypes` typed through a hand-written `.d.ts` with no runtime source — exactly what the Go and JS test harnesses use): there the pure-fn registration source isn't part of the program, so a "missing" verdict is a false positive, not a real dangling reference. A real build importing `ts-runtypes` always pulls its side-effect-registered `rt::` built-ins into the program, so the mechanism is present and a genuinely dangling key (e.g. an unimported format's `rtFormats::` fn while the `rt::` built-ins ARE present) still fires. This keeps the static check faithful to what the runtime would load, and it is why wiring PFE9012 did not disturb the existing ambient-`.d.ts` test corpus.
+
+**Tests.** Go: [pure_fn_dep_validation_test.go](../../internal/compiler/resolver/pure_fn_dep_validation_test.go) — missing registration → PFE9012 (scanFiles, lint-only, dump); registration present in a NON-scanned file → none (pins whole-program indexing); zero-registration stub → suppressed (pins the guard). JS: a PFE9012 case in [routing.test.ts](../../packages/runtypes-devtools/test/eslint/routing.test.ts) (Error → `error` rule, key in the message). Website: prose Summary + Fix in [prose.go](../../internal/diagnostics/prose.go), regenerated into the catalog.
+
+**Known follow-ups (out of scope, unchanged from the plan):**
+- **Site attribution (step 4).** Deps still carry `diag.Site{}`, so PFE9012 is file-less; the message spells out the full `namespace::fnName` + expected path. Threading the `utl.getPureFn` call-site position through `AddPureFnDependency` is the next step.
+- **Stale FilePath hint.** The emitters record the dep's expected registration path as `packages/ts-runtypes/src/run-types-pure-fns.ts` (`validationErrorsPureFnFilePath` / `unknownKeysPureFnFilePath`), but the real file is `packages/ts-runtypes/src/runtypes/pure-fns-utils.ts`. It only feeds `ValidatePureFnDependencies`' lazy expansion, which is a no-op on the whole-program path (the file is already walked), so validation is unaffected — but the constant is misleading and should be corrected (or dropped) when site attribution lands.

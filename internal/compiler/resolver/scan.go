@@ -18,9 +18,9 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
-func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
-	absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
-	sourceFile := resolver.Program.SourceFile(absolutePath)
+func (sess *Session) sourceFile(file string) (*ast.SourceFile, error) {
+	absolutePath := tspath.ResolvePath(sess.Program.TS.GetCurrentDirectory(), file)
+	sourceFile := sess.Program.SourceFile(absolutePath)
 	if sourceFile == nil {
 		return nil, fmt.Errorf("source file not in program: %s", absolutePath)
 	}
@@ -42,14 +42,14 @@ func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
 // doesn't carry can't be scanned but shouldn't block other files'
 // scans. This matches the loose-coupling between per-file marker
 // emission and the dump's transitive walk.
-func (resolver *Resolver) scanAllProgramFiles() {
-	if resolver.Program == nil || resolver.Program.TS == nil {
+func (sess *Session) scanAllProgramFiles() {
+	if sess.Program == nil || sess.Program.TS == nil {
 		return
 	}
-	if resolver.scannedFiles == nil {
-		resolver.scannedFiles = map[string]struct{}{}
+	if sess.scannedFiles == nil {
+		sess.scannedFiles = map[string]struct{}{}
 	}
-	sourceFiles := resolver.Program.TS.SourceFiles()
+	sourceFiles := sess.Program.TS.SourceFiles()
 	files := make([]string, 0, len(sourceFiles))
 	for _, sf := range sourceFiles {
 		if sf == nil {
@@ -63,7 +63,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 			continue
 		}
 		fileName := sf.FileName()
-		if _, seen := resolver.scannedFiles[fileName]; seen {
+		if _, seen := sess.scannedFiles[fileName]; seen {
 			continue
 		}
 		files = append(files, fileName)
@@ -73,7 +73,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 	}
 	// Errors are non-fatal — keep scanning other files. The dump still
 	// returns whatever was reachable from successful scans.
-	_, _, _ = resolver.dispatchScanFiles(files)
+	_, _, _ = sess.dispatchScanFiles(files)
 }
 
 // dispatchScanFiles walks every CallExpression in each requested file and
@@ -108,23 +108,23 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // (scripts/export-{serialization,validation}-suite.mjs) depend on this
 // invariant — they assume scanFiles' work scales with marker-reachable
 // type complexity, NOT with the file's total declaration count.
-func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
+func (sess *Session) dispatchScanFiles(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
 	// Build the override map BEFORE any id is assigned: every structural id must
 	// fold the `overrideX<T>(pureFn)` suffix, and the map is whole-program (an
 	// override anywhere shifts ids everywhere). One-time per Program.
-	resolver.ensureOverrides()
-	if resolver.parallelScanEnabled() && len(files) > 1 {
-		return resolver.dispatchScanFilesParallel(files)
+	sess.ensureOverrides()
+	if sess.parallelScanEnabled() && len(files) > 1 {
+		return sess.dispatchScanFilesParallel(files)
 	}
-	return resolver.dispatchScanFilesSerial(files)
+	return sess.dispatchScanFilesSerial(files)
 }
 
 // parallelScanEnabled reports whether this resolver may take the parallel
 // scan path at all. Parallel is the default; SingleThreaded implies serial
 // (the pool holds a single checker, so there is nothing to fan out over).
-func (resolver *Resolver) parallelScanEnabled() bool {
-	return !resolver.opts.DisableParallelScan && !resolver.opts.SingleThreaded &&
-		resolver.Program != nil && resolver.Program.TS != nil
+func (sess *Session) parallelScanEnabled() bool {
+	return !sess.opts.DisableParallelScan && !sess.opts.SingleThreaded &&
+		sess.Program != nil && sess.Program.TS != nil
 }
 
 // dispatchScanFilesSerial is the single-checker scan loop: every file is
@@ -132,12 +132,12 @@ func (resolver *Resolver) parallelScanEnabled() bool {
 // fallback the parallel path returns to on planning failures and
 // single-group requests, so its semantics (including the partial-scan +
 // error behavior on an unresolvable file) stay the contract for both.
-func (resolver *Resolver) dispatchScanFilesSerial(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
+func (sess *Session) dispatchScanFilesSerial(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
 	var sites []protocol.Site
 	var diagnostics []diagnostics.Diagnostic
-	state := resolver.scanStateFor(resolver.checker)
+	state := sess.scanStateFor(sess.checker)
 	for _, file := range files {
-		sourceFile, err := resolver.sourceFile(file)
+		sourceFile, err := sess.sourceFile(file)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -148,13 +148,13 @@ func (resolver *Resolver) dispatchScanFilesSerial(files []string) ([]protocol.Si
 				diagnostics = append(diagnostics, diags...)
 			}
 			if ok {
-				site := resolver.commitPending(pending)
+				site := sess.commitPending(pending)
 				sites = append(sites, site)
-				resolver.sites = append(resolver.sites, site)
+				sess.sites = append(sess.sites, site)
 			}
 			return true
 		})
-		resolver.markFileScanned(file, sites[fileStart:])
+		sess.markFileScanned(file, sites[fileStart:])
 	}
 	return sites, diagnostics, nil
 }
@@ -163,20 +163,20 @@ func (resolver *Resolver) dispatchScanFilesSerial(files []string) ([]protocol.Si
 // reached wire ids in the cache's per-file scope map and marks the file
 // (in both relative and absolute form) as scanned. Shared by the serial
 // loop above and the parallel commit phase.
-func (resolver *Resolver) markFileScanned(file string, fileSites []protocol.Site) {
-	resolver.recordFileIDs(file, fileSites)
-	if resolver.scannedFiles == nil {
+func (sess *Session) markFileScanned(file string, fileSites []protocol.Site) {
+	sess.recordFileIDs(file, fileSites)
+	if sess.scannedFiles == nil {
 		return
 	}
-	resolver.scannedFiles[file] = struct{}{}
+	sess.scannedFiles[file] = struct{}{}
 	// File names from the Program's source list use absolute paths.
 	// scanFiles callers (the Vite plugin) pass relative paths. Mark
 	// both forms so scanAllProgramFiles's dedup check matches a
 	// previously scanned per-request file regardless of which form
 	// arrived first.
-	if resolver.Program != nil && resolver.Program.TS != nil {
-		absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
-		resolver.scannedFiles[absolutePath] = struct{}{}
+	if sess.Program != nil && sess.Program.TS != nil {
+		absolutePath := tspath.ResolvePath(sess.Program.TS.GetCurrentDirectory(), file)
+		sess.scannedFiles[absolutePath] = struct{}{}
 	}
 }
 
@@ -185,28 +185,28 @@ func (resolver *Resolver) markFileScanned(file string, fileSites []protocol.Site
 // marker-verdict memo. The serial path builds one for the session
 // checker; the parallel path builds one per checker group.
 type scanState struct {
-	resolver    *Resolver
+	sess        *Session
 	scanChecker *checker.Checker
 	verdicts    map[*checker.Type]markerVerdict
 }
 
 // scanStateFor builds the scanState for scanChecker, resolving the
 // per-checker verdict memo once for the whole pass.
-func (resolver *Resolver) scanStateFor(scanChecker *checker.Checker) scanState {
+func (sess *Session) scanStateFor(scanChecker *checker.Checker) scanState {
 	return scanState{
-		resolver:    resolver,
+		sess:        sess,
 		scanChecker: scanChecker,
-		verdicts:    resolver.verdictsFor(scanChecker),
+		verdicts:    sess.verdictsFor(scanChecker),
 	}
 }
 
 // detectMarker is marker.DetectAny memoized by parameter type pointer in
-// the state's per-checker memo — see Resolver.verdictsByChecker.
+// the state's per-checker memo — see Session.verdictsByChecker.
 func (state scanState) detectMarker(paramType *checker.Type) (marker.Kind, *checker.Type, bool) {
 	if verdict, seen := state.verdicts[paramType]; seen {
 		return verdict.kind, verdict.typeArg, verdict.matched
 	}
-	kind, typeArg, matched := marker.DetectAny(state.scanChecker, paramType, state.resolver.marker)
+	kind, typeArg, matched := marker.DetectAny(state.scanChecker, paramType, state.sess.marker)
 	if state.verdicts != nil {
 		state.verdicts[paramType] = markerVerdict{kind: kind, typeArg: typeArg, matched: matched}
 	}
@@ -249,8 +249,8 @@ type pendingCall struct {
 // concurrent use. Projection runs under the checker that materialized the
 // type (a fast no-swap path when that is the session checker, i.e. always
 // on the serial scan path).
-func (resolver *Resolver) commitPending(pending pendingCall) protocol.Site {
-	id := resolver.cache.AssignIDUnder(pending.owner, pending.typeArgument)
+func (sess *Session) commitPending(pending pendingCall) protocol.Site {
+	id := sess.cache.AssignIDUnder(pending.owner, pending.typeArgument)
 	return protocol.Site{
 		File:          pending.file,
 		Pos:           pending.pos,
@@ -316,7 +316,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		}
 		paramType := checker.Checker_getTypeOfSymbol(state.scanChecker, paramSymbol)
 		kind, typeArg, matched := state.detectMarker(paramType)
-		if !matched && comptimeargs.IsCompTimeArgsParamNode(state.scanChecker, paramSymbol, state.resolver.marker) {
+		if !matched && comptimeargs.IsCompTimeArgsParamNode(state.scanChecker, paramSymbol, state.sess.marker) {
 			// CompTimeArgs is the zero-cost identity marker (markers.ts): its
 			// resolved type carries no alias/brand for DetectAny, so it's
 			// recognised off the parameter's `CompTimeArgs<…>` annotation node.
@@ -345,7 +345,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 				// A multi-function marker (InjectTypeFnArgs<T,'val','verr'>) names
 				// several families; the scanner computes one fnId + demand per key
 				// below and the rewrite injects an array of entry tuples at this slot.
-				if fnKeys, fnOK := marker.FnKeysForInjectTypeFnArgs(state.scanChecker, paramType, state.resolver.marker); fnOK {
+				if fnKeys, fnOK := marker.FnKeysForInjectTypeFnArgs(state.scanChecker, paramType, state.sess.marker); fnOK {
 					injectionFnKeys = fnKeys
 				}
 			}
@@ -440,8 +440,8 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		// `array(…)`, …) IS the intended reflect-form value — it's pure
 		// construction, not a side-effectful user function — so it must not warn.
 		if argZero != nil && argZero.Kind == ast.KindCallExpression &&
-			!builders.IsSchemaLeafCall(state.scanChecker, state.resolver.markerModule(), argZero, state.resolver.marker.FS) {
-			if diagnostic, ok := state.resolver.markerDiagFunctionCallArg(file, argZero); ok {
+			!builders.IsSchemaLeafCall(state.scanChecker, state.sess.markerModule(), argZero, state.sess.marker.FS) {
+			if diagnostic, ok := state.sess.markerDiagFunctionCallArg(file, argZero); ok {
 				diags = append(diags, diagnostic)
 			}
 		}
@@ -465,7 +465,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		// from the schema overload's `RunType<T>` param). Overriding it with
 		// `RunType<T>` would validate against RunType's own shape, not `T` — and
 		// break recursive schemas bound to an annotated const.
-		if annotated, ok := state.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, state.resolver.markerModule(), state.resolver.marker.FS) {
+		if annotated, ok := state.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, state.sess.markerModule(), state.sess.marker.FS) {
 			typeArgument = annotated
 		}
 	}
@@ -479,12 +479,12 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	if options.Any() {
 		resolvedKind := typeid.KindOf(state.scanChecker, typeArgument)
 		if options.Has("noLiterals") && resolvedKind != protocol.KindLiteral {
-			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoLiteralsNoop); ok {
+			if diagnostic, ok := state.sess.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoLiteralsNoop); ok {
 				diags = append(diags, diagnostic)
 			}
 		}
 		if options.Has("noIsArrayCheck") && resolvedKind != protocol.KindArray {
-			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoArrayNoop); ok {
+			if diagnostic, ok := state.sess.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoArrayNoop); ok {
 				diags = append(diags, diagnostic)
 			}
 		}
@@ -881,7 +881,7 @@ func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (d
 // to the whole call expression. Used by the no-op ValidateOption check
 // to report MKR004 / MKR005 — the option survives downstream
 // (always-emit invariant), so this is purely advisory.
-func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, lastIndex, argsCount int, code string) (diagnostics.Diagnostic, bool) {
+func (sess *Session) noopValidateOptionDiag(file string, call *ast.Node, lastIndex, argsCount int, code string) (diagnostics.Diagnostic, bool) {
 	sourceFile := ast.GetSourceFileOfNode(call)
 	if sourceFile == nil {
 		return diagnostics.Diagnostic{}, false
@@ -899,9 +899,9 @@ func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, la
 // `string({…})` or `optional(number())` inside `object({…})` passes without
 // recursing into it (each self-validates on its own scan visit).
 func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
-	module := state.resolver.markerModule()
+	module := state.sess.markerModule()
 	return func(node *ast.Node) bool {
-		return builders.IsSchemaLeafCall(state.scanChecker, module, node, state.resolver.marker.FS)
+		return builders.IsSchemaLeafCall(state.scanChecker, module, node, state.sess.marker.FS)
 	}
 }
 
@@ -912,7 +912,7 @@ func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
 // for no reason. The recommended replacement is the static form using
 // `ReturnType<typeof fn>`. Returns (_, false) when the call's source file
 // can't be located (defensive — shouldn't happen during scanFiles).
-func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.Node) (diagnostics.Diagnostic, bool) {
+func (sess *Session) markerDiagFunctionCallArg(file string, callArg *ast.Node) (diagnostics.Diagnostic, bool) {
 	sourceFile := ast.GetSourceFileOfNode(callArg)
 	if sourceFile == nil {
 		return diagnostics.Diagnostic{}, false

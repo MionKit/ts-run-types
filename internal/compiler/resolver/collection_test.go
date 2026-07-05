@@ -50,7 +50,7 @@ getRunTypeId(value);
 	assertF23ObjectShapes(t, r, root)
 }
 
-func assertF23ObjectShapes(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF23ObjectShapes(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -130,7 +130,7 @@ getRunTypeId(value);
 	assertF24ClassPropertyModifiers(t, r, root)
 }
 
-func assertF24ClassPropertyModifiers(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF24ClassPropertyModifiers(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindClass {
@@ -195,7 +195,7 @@ getRunTypeId(value);
 	assertF25ClassMethodModifiers(t, r, root)
 }
 
-func assertF25ClassMethodModifiers(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF25ClassMethodModifiers(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindClass {
@@ -243,7 +243,7 @@ getRunTypeId(value);
 	assertF26TupleLabeled(t, r, root)
 }
 
-func assertF26TupleLabeled(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF26TupleLabeled(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindTuple {
@@ -312,7 +312,7 @@ getRunTypeId(value);
 	assertF27ReadonlyIndexSignature(t, r, root)
 }
 
-func assertF27ReadonlyIndexSignature(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF27ReadonlyIndexSignature(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -368,7 +368,7 @@ getRunTypeId(fn);
 	assertF28ParameterDefaults(t, r, root, true)
 }
 
-func assertF28ParameterDefaults(t *testing.T, r *resolver.Resolver, root *protocol.RunType, expectDefaults bool) {
+func assertF28ParameterDefaults(t *testing.T, r *resolver.Session, root *protocol.RunType, expectDefaults bool) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindFunction {
