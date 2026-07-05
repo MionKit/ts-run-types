@@ -311,14 +311,6 @@ func ExportName(entry *Entry) string {
 	return BindingName(ModuleName(entry.Key, entry.Kind))
 }
 
-// Render assembles one ES module source per entry and returns them keyed by
-// MODULE BASENAME (== the `virtual:rt/<basename>.js` segment the Vite plugin
-// resolves). Callers run Cascade + AddMissingStubs first; a dep that still
-// doesn't resolve here is a programmer error and fails loudly.
-func Render(graph Graph) (map[string]string, error) {
-	return RenderGrouped(graph, nil)
-}
-
 // RenderGrouped assembles the graph's modules under a grouping: entries the
 // grouping maps to the same bundle basename render into ONE module (each as a
 // named export), everything else renders per-entry exactly as Render. Bundle

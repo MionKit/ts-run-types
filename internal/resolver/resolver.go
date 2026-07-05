@@ -247,16 +247,6 @@ func newRTStore(opts Options, incremental bool) *disk.Store {
 	return disk.New(baseDir, fp)
 }
 
-// RTStore returns the on-disk RT artifact cache, or nil when
-// disabled. Render-side wrappers read this to build the RenderOpts
-// they pass into the typefns module renderers.
-func (resolver *Resolver) RTStore() *disk.Store {
-	if resolver == nil {
-		return nil
-	}
-	return resolver.rtStore
-}
-
 // New builds a Resolver against prog. Defaults to hashid's default length when
 // HashLength is zero.
 func New(prog *program.Program, opts Options) (*Resolver, error) {

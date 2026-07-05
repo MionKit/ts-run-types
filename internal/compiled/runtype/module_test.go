@@ -39,7 +39,7 @@ func emitModules(t *testing.T, roots []string, runTypes []*protocol.RunType) map
 		sites = append(sites, protocol.Site{ID: root})
 	}
 	graph := CollectEntries(protocol.Dump{RunTypes: runTypes, Sites: sites})
-	modules, err := entrymod.Render(graph)
+	modules, err := entrymod.RenderGrouped(graph, nil)
 	if err != nil {
 		t.Fatalf("entrymod.Render: %v", err)
 	}
