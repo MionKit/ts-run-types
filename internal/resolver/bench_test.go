@@ -10,10 +10,9 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/resolver"
 )
 
-// Micro-benchmarks for the resolver pipeline. Inner-loop companions to the
-// suite-level harness in scripts/bench-compile.mjs — these isolate OUR
-// pipeline phases against a warm checker so `benchstat` deltas reflect
-// Go-side changes, not tsgo program-construction noise.
+// Micro-benchmarks for the resolver pipeline. These isolate OUR pipeline
+// phases against a warm checker so `benchstat` deltas reflect Go-side changes,
+// not tsgo program-construction noise.
 //
 // Run:  go test ./internal/resolver -bench=. -benchmem -run='^$' -count=10
 // Compare: benchstat old.txt new.txt

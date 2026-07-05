@@ -6,7 +6,7 @@ name: prod · publish
 # publish steps run in protected environments (required-reviewer gate).
 #
 # VERSION MODEL: the release PR into prod MUST carry the bumped version (committed
-# version.json + package.json files, e.g. via `node scripts/bump-version.mjs`). CI
+# version.json + package.json files, e.g. via `node scripts/release/bump-version.mjs`). CI
 # reads the version from the gate's build job output and tags exactly that.
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
             exit 1
           fi
       - name: Publish to npm (platform packages first, launcher, then FE)
-        run: node scripts/publish-tarballs.mjs --provenance
+        run: node scripts/release/publish-tarballs.mjs --provenance
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Tag the release (idempotent)
@@ -102,12 +102,12 @@ jobs:
       - name: podman version
         run: podman --version
       # CI never builds the shared image; pull the prebuilt one (republish from
-      # local if it's stale). website:publish then binds our binary + builds the
+      # local if it's stale). the site build then binds our binary + builds the
       # benchmarks + static site against it.
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Build binary + benchmarks + static site
-        run: pnpm run website:publish generate
+        run: bash scripts/website/build.sh generate
       - name: Upload static artifact
         uses: actions/upload-artifact@v7
         with:

@@ -225,11 +225,11 @@ The JS plugin tests spawn `bin/ts-runtypes`, so the Go binary must be built befo
 
 Three axes, isolated per competitor in a podman image (zod / typebox / ajv / typia), over the full 263-case suite — see [container/benchmarks/](container/benchmarks/):
 
-- **Runtime throughput** (`pnpm run bench`) — validations / sec, per case.
-- **Type-checking cost** (`pnpm run bench:typecost`) — TypeScript type instantiations to resolve each form (writing the type is ~free; a schema→type form is 50–150× more).
-- **Compile-time cost** (`pnpm run bench:compiletime`) — the build-time cost of ts-runtypes and typia, on tsgo, over the whole suite in three tiers: strip (transpile only), typecheck (`--noEmit`), and full (type-check + transform + emit the validators).
+- **Runtime throughput** (`pnpm rt bench`) — validations / sec, per case.
+- **Type-checking cost** (`pnpm rt bench typecost`) — TypeScript type instantiations to resolve each form (writing the type is ~free; a schema→type form is 50–150× more).
+- **Compile-time cost** (`pnpm rt bench compiletime`) — the build-time cost of ts-runtypes and typia, on tsgo, over the whole suite in three tiers: strip (transpile only), typecheck (`--noEmit`), and full (type-check + transform + emit the validators).
 
-Round-trip serialization (`pnpm run bench:serialization`) also reports `serialization-formats`: how a format constraint (`int8`, `uint16`, a `min`/`max` bound) packs a value into far fewer **binary** bytes than an unconstrained `number` / `bigint` (a fixed 8 bytes).
+Round-trip serialization (`pnpm rt bench serialization`) also reports `serialization-formats`: how a format constraint (`int8`, `uint16`, a `min`/`max` bound) packs a value into far fewer **binary** bytes than an unconstrained `number` / `bigint` (a fixed 8 bytes).
 
 ## Repository layout
 
@@ -243,7 +243,7 @@ packages/runtypes-devtools/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design + factory reference
 docs/ROADMAP.md                  scope + known lossy mappings
-scripts/                         publish / unpublish / pre-publish-test / pack
+scripts/                         publish / unpublish / preflight / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening
 version.json                     lockstep version (source of truth)
 .oxlintrc.json                   oxlint config (general lint + enrichment plugin)
@@ -251,7 +251,7 @@ version.json                     lockstep version (source of truth)
 .prettierrc                      Prettier config (markdown + playground runtime)
 ```
 
-`packages/*` is a pnpm workspace; publishing is a small script (`scripts/publish.sh`) over `pnpm publish`.
+`packages/*` is a pnpm workspace; publishing is a small script (`scripts/release/publish.sh`) over `pnpm publish`.
 
 ## License
 

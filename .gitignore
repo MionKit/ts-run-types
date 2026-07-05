@@ -29,7 +29,7 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 /runtypes-cache.json
 /tarballs/
 # Cross-compiled per-platform binary packages, staged for publish by
-# scripts/build-binary-packages.mjs (assembled, never committed).
+# scripts/release/build-binaries.mjs (assembled, never committed).
 /dist-binaries/
 # Host-built playground WASM cache: the raw .wasm (buildid oracle + Node test
 # resolver) + the ts-runtypes source overlay, produced by

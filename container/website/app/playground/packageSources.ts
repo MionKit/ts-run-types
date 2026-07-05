@@ -18,7 +18,7 @@
 // `setRuntypesPackageSources` with it. In the Node test suite the resolver
 // loader reads `packages/ts-runtypes/src` from disk and injects the same map.
 // The single builder that produces this overlay from a source dir lives in
-// scripts/runtypes-source-overlay.mjs (used by both the site build and the tests).
+// scripts/website/playground-overlay.mjs (used by both the site build and the tests).
 
 export type PackageSourcesOverlay = Record<string, string>;
 

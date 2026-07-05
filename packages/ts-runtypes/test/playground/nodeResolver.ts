@@ -14,7 +14,7 @@
 import {existsSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import vm from 'node:vm';
-import {buildRuntypesOverlay} from '../../../../scripts/runtypes-source-overlay.mjs';
+import {buildRuntypesOverlay} from '../../../../scripts/website/playground-overlay.mjs';
 import {setRuntypesPackageSources, type Resolver} from '../../../../container/website/app/playground/index.ts';
 
 // Host-built WASM assets live in the repo cache dir (build-playground.sh output).

@@ -47,7 +47,7 @@ function typescriptVersion() {
 }
 
 const cpus = os.cpus() ?? [];
-// The container (Linux VM) reports no CPU model, so benchmarks.sh passes the host's.
+// The container (Linux VM) reports no CPU model, so bench.sh passes the host's.
 const cpu = process.env.RT_BENCH_HOST_CPU?.trim() || cpus[0]?.model?.trim() || 'unknown';
 const meta = {
   generatedAt: new Date().toISOString(),

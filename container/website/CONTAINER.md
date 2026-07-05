@@ -37,24 +37,24 @@ website source *and* its Nuxt/TS/ESLint config — is bind-mounted at run time.
 ## Usage
 
 All commands run from the **repo root**. Running the site is
-[`scripts/website.sh`](../scripts/website.sh); the image lifecycle is
-[`scripts/podman-website.sh`](../scripts/podman-website.sh):
+[`scripts/website/site.sh`](../scripts/website/site.sh); the image lifecycle is
+[`scripts/container/image.sh`](../scripts/container/image.sh):
 
 ```bash
-# --- run the site (website.sh) ---
-pnpm run website:dev           # dev server with hot reload  -> http://localhost:3000
-pnpm run website:build         # production build            -> container/website/.output
-pnpm run website:generate      # static prerender            -> container/website/.output/public
-pnpm run website:prep          # verify the mion repo context (packages/) is built
-pnpm run website:verify-docs   # check code-import + twoslash render (curl/grep)
-pnpm run website:shell         # debug shell inside the container
-# --- image lifecycle (podman-website.sh) ---
-pnpm run podman-website:build-image   # build the image locally (maintainer)
-pnpm run podman-website:lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
-pnpm run podman-website:login         # log in to GHCR (needs a PAT; see SETUP.md)
-pnpm run podman-website:push          # build + push the multi-arch image to GHCR
-pnpm run podman-website:pull          # pull the published image and tag it locally
-pnpm run podman-website:clean         # remove the image + cache volumes
+# --- run the site (site.sh) ---
+pnpm rt website dev           # dev server with hot reload  -> http://localhost:3000
+pnpm rt website build         # production build            -> container/website/.output
+pnpm rt website build      # static prerender            -> container/website/.output/public
+pnpm rt website check          # verify the mion repo context (packages/) is built
+pnpm rt website check --docs   # check code-import + twoslash render (curl/grep)
+bash scripts/website/site.sh shell         # debug shell inside the container
+# --- image lifecycle (image.sh) ---
+pnpm rt container build-image   # build the image locally (maintainer)
+pnpm rt container lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
+pnpm rt container login         # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm rt container push          # build + push the multi-arch image to GHCR
+pnpm rt container pull          # pull the published image and tag it locally
+pnpm rt container clean         # remove the image + cache volumes
 ```
 
 The images are published to GHCR, so **`website:dev` (and the other run commands)
@@ -81,18 +81,18 @@ image (offline, or to test a dep bump before pushing).
 
 The `<code-import>` and `::twoslash-code` mechanisms read first-party source +
 built `.d.ts` from `packages/`. Those packages live in the **mion** checkout, which
-`website.sh` mounts **read-only** and points the resolvers at via `RT_REPO_ROOT`
+`site.sh` mounts **read-only** and points the resolvers at via `RT_REPO_ROOT`
 — so the website works whether mion is a sibling checkout (today) or merged in
 later. Only `packages/` (+ a drizzle-orm `.d.ts` allowlist) is exposed, and every
 `path=` read is confined to `packages/` (`server/utils/repo-root.ts`). Run
-`pnpm run website:prep` to confirm the context is built and `pnpm run website:verify-docs`
+`pnpm rt website check` to confirm the context is built and `pnpm rt website check --docs`
 to check both mechanisms render.
 
 On **macOS** (podman runs in a Linux VM), inotify events don't always cross the
 VM mount boundary — run with polling:
 
 ```bash
-RT_WEBSITE_POLL=1 pnpm run website:dev
+RT_WEBSITE_POLL=1 pnpm rt website dev
 ```
 
 ## Behind a corporate / MITM egress proxy
@@ -106,9 +106,9 @@ use host networking:
 # RT_WEBSITE_CA_CERT may be a single .crt file or a directory of .crt files.
 RT_WEBSITE_CA_CERT=/usr/local/share/ca-certificates \
 RT_WEBSITE_BUILD_NETWORK=host \
-  pnpm run podman-website:build-image
+  pnpm rt container build-image
 
-RT_WEBSITE_RUN_NETWORK=host pnpm run website:dev
+RT_WEBSITE_RUN_NETWORK=host pnpm rt website dev
 ```
 
 The certs are copied into `container/website/.cacerts/` (git-ignored) and trusted via
@@ -131,7 +131,7 @@ extra framework to install.
   `PNPM_VERSION` build-arg). Override the base with `RT_WEBSITE_BASE_IMAGE`.
 - This is the **single shared image**: it also bakes the benchmark dependencies
   under `/bench` (`/bench/competitors/<name>` + `/bench/typecost`), which
-  `scripts/benchmarks.sh` runs against. So one image builds the whole site,
+  `scripts/website/bench-data/bench.sh` runs against. So one image builds the whole site,
   benchmark data included. See [SETUP.md](../SETUP.md) and
   [container/benchmarks/README.md](../benchmarks/README.md).
 - Nuxt's generated caches (`.nuxt`, `.data`, `node_modules/.cache`) live in

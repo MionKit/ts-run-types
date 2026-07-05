@@ -20,4 +20,4 @@ runs:
         # line. `npm config set` writes to the correct per-OS user config (so this
         # also works on the Windows runner, where ~/.npmrc is not what npm reads).
         npm config set //127.0.0.1:4873/:_authToken "ci-local-verdaccio"
-        node scripts/publish-tarballs.mjs --registry http://127.0.0.1:4873
+        node scripts/release/publish-tarballs.mjs --registry http://127.0.0.1:4873

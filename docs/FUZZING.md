@@ -94,21 +94,26 @@ validation functions disagreeing is almost always a bug.
 
 ## Running
 
+All suites run through the internal CLI: `pnpm rt core fuzz <suite> [--soak]`. It
+builds the binary + plugin first (except `unit`, which needs neither) and sets the
+suite's `RT_FUZZ_*` env for you. Suites: `unit | value | types | enrich | i18n |
+typemod | race | all`.
+
 ```bash
 # offline unit tests — pure logic, no Go binary needed
-pnpm run fuzz:unit
+pnpm rt core fuzz unit
 
 # end-to-end sweep over compiled functions (builds binary + plugin first)
-pnpm run fuzz
+pnpm rt core fuzz all
 
-# autonomous soak: fuzz for 60s, log every finding (set RT_FUZZ_SOAK_MS / RT_FUZZ_SEED)
-pnpm run fuzz:soak
+# autonomous soak: fuzz for 60s, log every finding (set RT_FUZZ_SEED to replay)
+pnpm rt core fuzz value --soak
 
 # Phase 2 — generate random TYPES and sweep both oracle tiers (builds binary first)
-pnpm run fuzz:types
+pnpm rt core fuzz types
 
-# Phase 2 autonomous soak (set RT_FUZZ_TYPES_SOAK_MS / RT_FUZZ_SEED)
-pnpm run fuzz:types:soak
+# Phase 2 autonomous soak (set RT_FUZZ_SEED to replay)
+pnpm rt core fuzz types --soak
 ```
 
 Reproducing a reported violation: every `Violation` carries the `seed` that

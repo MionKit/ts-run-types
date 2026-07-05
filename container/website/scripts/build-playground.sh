@@ -11,13 +11,13 @@
 # build), so there is NO separate vite bundle / manifest here anymore - only these
 # host-built inputs, which the Node-only container cannot produce (no Go toolchain,
 # and packages/ is a read-only mount). Run this on the HOST (needs the Go toolchain
-# + bootstrapped submodule, see ../../../SETUP.md) before "scripts/website.sh dev".
+# + bootstrapped submodule, see ../../../SETUP.md) before "scripts/website/site.sh dev".
 # public/ is bind-mounted into the container, so the staged files ride in.
 #
 # The WASM build is STALENESS-GATED so repeated dev/build starts do NOT recompile
 # when nothing changed (the common case is instant): a fast mtime pre-check over
 # the Go inputs (against a stamp), then a `go tool buildid` compare (same mechanism
-# as scripts/check-stale-builds.sh) that only recompiles on a real input change.
+# as scripts/core/build.sh) that only recompiles on a real input change.
 # Gzip - the slow part on the ~37 MiB wasm - runs ONLY when the wasm bytes actually
 # changed. Output is git-ignored and reproducible; never committed.
 set -euo pipefail
@@ -90,7 +90,7 @@ build_wasm_if_stale() {
   # shellcheck disable=SC2064
   trap "rm -f '$tmp'" RETURN
   # No version ldflags: the asset is dev-only, and matching flags is what lets the
-  # buildid compare cache (see check-stale-builds.sh check_go). Keep it flagless.
+  # buildid compare cache (see core/build.sh check_go). Keep it flagless.
   GOOS=js GOARCH=wasm go build -o "$tmp" "$wasm_pkg" || die "wasm build failed."
 
   local disk_id ref_id
@@ -139,7 +139,7 @@ build_sources_if_stale() {
   fi
   command -v node >/dev/null 2>&1 || die "node not found (needed to build the source overlay)."
   info "building ts-runtypes source overlay ..."
-  node scripts/gen-runtypes-sources.mjs "$sources_input" "$sources_json" || die "source overlay build failed."
+  node scripts/website/playground-overlay.mjs "$sources_input" "$sources_json" || die "source overlay build failed."
   SOURCES_CHANGED=1
 }
 
@@ -148,7 +148,7 @@ build_sources_if_stale() {
 vendor_runtime_if_stale() {
   # Keep the marker package's dist fresh vs its src (rebuilds only when stale; the
   # same tsc check `pnpm test` runs). Then vendor that dist into the site.
-  bash "$repo_root/scripts/check-stale-builds.sh" marker-dist >/dev/null 2>&1 || warn "ts-runtypes dist freshness check failed - vendoring whatever exists"
+  bash "$repo_root/scripts/core/build.sh" marker-dist >/dev/null 2>&1 || warn "ts-runtypes dist freshness check failed - vendoring whatever exists"
   local dist_src="$repo_root/packages/ts-runtypes/dist"
   [ -d "$dist_src" ] || { warn "packages/ts-runtypes/dist missing - run 'pnpm run build' first"; return 0; }
   # Re-sync only when a dist file is newer than the vendor dir's stamp (cp -R

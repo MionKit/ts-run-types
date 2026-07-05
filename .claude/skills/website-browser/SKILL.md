@@ -1,7 +1,7 @@
 ---
 name: website-browser
 description: Start the containerized Nuxt/Docus docs website and drive it in a real browser with playwright-cli — for manual checks, UI review, debugging rendered docs (code-import / twoslash), and end-to-end testing of container/website/.
-allowed-tools: Bash(pnpm:*) Bash(playwright-cli:*) Bash(npx:*) Bash(scripts/website.sh:*)
+allowed-tools: Bash(pnpm:*) Bash(playwright-cli:*) Bash(npx:*) Bash(scripts/website/site.sh:*)
 ---
 
 # Website browser testing (Nuxt docs site + playwright-cli)
@@ -11,27 +11,27 @@ Drive the project's docs website ([container/website/](../../../container/websit
 ## Prerequisites
 
 - **playwright-cli** is installed as a pinned root devDependency (`@playwright/cli`, see [Installing playwright-cli](#installing-playwright-cli)). Invoke it via **`pnpm exec playwright-cli ...`** from the repo root. The command samples below write bare `playwright-cli` for brevity — prefix each with `pnpm exec`.
-- **podman** running (the website only ever runs inside its container — see [scripts/website.sh](../../../scripts/website.sh)).
+- **podman** running (the website only ever runs inside its container — see [scripts/website/site.sh](../../../scripts/website/site.sh)).
 
 ## Start the website, then test it
 
-The site cannot run on the host — its `node_modules` live only in the image. Use [scripts/website.sh](../../../scripts/website.sh) to bring it up, then point the browser at `http://localhost:3100`.
+The site cannot run on the host — its `node_modules` live only in the image. Use [scripts/website/site.sh](../../../scripts/website/site.sh) to bring it up, then point the browser at `http://localhost:3100`.
 
 ### 1. Start the dev server (agent mode, hot-reload)
 
-**As an agent, always start with `--isAgent`.** It runs the site in a separate container (`tsrt-website-agent`) on the reserved port **3100**, so you never collide with a human running `scripts/website.sh dev` on `:3000`. It's detached (no `&` needed) and self-stops after ~5 min idle, so a forgotten server cleans itself up. Target **3100** in every command below.
+**As an agent, always start with `--isAgent`.** It runs the site in a separate container (`tsrt-website-agent`) on the reserved port **3100**, so you never collide with a human running `scripts/website/site.sh dev` on `:3000`. It's detached (no `&` needed) and self-stops after ~5 min idle, so a forgotten server cleans itself up. Target **3100** in every command below.
 
 ```bash
 # start the agent dev server (detached, self-stopping, on :3100)
-scripts/website.sh dev --isAgent
+scripts/website/site.sh dev --isAgent
 
 # wait until it answers (Nuxt cold start can take ~30-60s)
 until curl -fsS http://localhost:3100 -o /dev/null; do sleep 2; done
 echo "website up on http://localhost:3100"
 ```
 
-> Only use plain `scripts/website.sh dev` (foreground, `:3000`) if you specifically need the human-facing port — it will collide with a user's running server.
-> A one-shot health check with no browser is `scripts/website.sh smoke` (starts a bg server, curls `:3000`, stops).
+> Only use plain `scripts/website/site.sh dev` (foreground, `:3000`) if you specifically need the human-facing port — it will collide with a user's running server.
+> A one-shot health check with no browser is `scripts/website/site.sh smoke` (starts a bg server, curls `:3000`, stops).
 
 ### 2. Drive it with the browser
 
@@ -54,7 +54,7 @@ playwright-cli --raw eval "document.body.innerText" | grep -i "expected snippet 
 playwright-cli --raw eval "document.querySelectorAll('pre.shiki, .twoslash').length"
 ```
 
-> There is also a non-browser doc verifier: `scripts/website.sh verify-docs` (curl/grep based).
+> There is also a non-browser doc verifier: `scripts/website/site.sh verify-docs` (curl/grep based).
 
 ### 4. Debug a page
 

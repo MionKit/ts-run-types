@@ -17,7 +17,7 @@
 //
 // Reusable both ways: `node transform-wire/transform-wire.mjs` on the host (the
 // binary + built runtypes-devtools resolve locally) and in the bench container
-// (`scripts/benchmarks.sh transform-wire`), where the numbers are stable.
+// (`scripts/website/bench-data/bench.sh transform-wire`), where the numbers are stable.
 // Median of N (default 5), a warm-up pass discarded, tiers interleaved.
 
 import fs from 'node:fs';
