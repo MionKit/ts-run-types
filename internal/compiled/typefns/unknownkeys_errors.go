@@ -1,7 +1,6 @@
 package typefns
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -77,16 +76,7 @@ func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 }
 
 func (UnknownKeyErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	pthArg := ctx.ArgName("pλth")
-	errArg := ctx.ArgName("εrr")
-	callCode := ctx.emitDepCall(childID, ctx.Vλl+","+pthArg+","+errArg, "")
-	pathLit := ctx.AccessPathLiteral("")
-	pathLen := ctx.AccessPathLength("")
-	if pathLen == 0 {
-		return callCode
-	}
-	pushArgs := pathLit[1 : len(pathLit)-1]
-	return "(" + pthArg + ".push(" + pushArgs + ")," + callCode + "," + pthArg + ".splice(-" + strconv.Itoa(pathLen) + "))"
+	return ctx.emitPathTrackedDepCall(childID)
 }
 
 func (UnknownKeyErrorsEmitter) Finalize(rawCode string) (string, bool) {

@@ -161,18 +161,7 @@ func (CompactFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		if rt.Child == nil {
 			return RTCode{Code: "", Type: CodeS}
 		}
-		iVar := ctx.NextLocalVar("i")
-		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childRT := ctx.CompileChild(rt.Child, CodeS)
-		ctx.SetChildAccessor("")
-		if childRT.Type == CodeNS {
-			return RTCode{Code: "", Type: CodeNS}
-		}
-		if childRT.Code == "" {
-			return RTCode{Code: "", Type: CodeS}
-		}
-		body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
-		return RTCode{Code: body, Type: CodeS}
+		return emitElementLoop(rt.Child, ctx, v, "0")
 	}
 	return RTCode{Code: "", Type: CodeNS}
 }

@@ -427,20 +427,7 @@ func (ValidationErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitCo
 // right access-path prefix. Mirrors the `BaseFnCompiler.callDependency`
 // branch at rtFnCompiler.ts:388-397.
 func (ValidationErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	pthArg := ctx.ArgName("pλth")
-	errArg := ctx.ArgName("εrr")
-	callCode := ctx.emitDepCall(childID, ctx.Vλl+","+pthArg+","+errArg, "")
-	pathLit := ctx.AccessPathLiteral("")
-	pathLen := ctx.AccessPathLength("")
-	if pathLen == 0 {
-		return callCode
-	}
-	// Push static segments onto the runtime path before calling, pop
-	// them after via splice(-N). Returned as a comma-expression so the
-	// caller can drop it into an expression slot (parent's CodeE arm)
-	// or a statement slot (CodeS) without restructuring.
-	pushArgs := pathLit[1 : len(pathLit)-1] // strip `[` … `]` for push(...args)
-	return "(" + pthArg + ".push(" + pushArgs + ")," + callCode + "," + pthArg + ".splice(-" + strconv.Itoa(pathLen) + "))"
+	return ctx.emitPathTrackedDepCall(childID)
 }
 
 // Finalize wraps the raw body. Empty body → noop ("return er", true);
