@@ -220,17 +220,11 @@ func TestHasCamelSuffix(t *testing.T) {
 	}
 }
 
-// TestTranslationVarNames covers the locale-prefix predicate + the two-way
+// TestTranslationVarNames covers the locale-prefix predicate + the forward
 // var-name mapping (BCP-47 separators sanitized to underscores).
 func TestTranslationVarNames(t *testing.T) {
 	if TranslationVarName("pt-BR", "friendlyUser") != "pt_BR_friendlyUser" {
 		t.Errorf("TranslationVarName = %q", TranslationVarName("pt-BR", "friendlyUser"))
-	}
-	if SourceVarOfTranslation("pt_BR_friendlyUser") != "friendlyUser" {
-		t.Errorf("SourceVarOfTranslation = %q", SourceVarOfTranslation("pt_BR_friendlyUser"))
-	}
-	if SourceVarOfTranslation("friendlyUser") != "friendlyUser" {
-		t.Errorf("SourceVarOfTranslation must pass a non-translation var through")
 	}
 	if isTranslationVar("friendlyUser") || !isTranslationVar("es_friendlyUser") {
 		t.Errorf("isTranslationVar misclassifies")

@@ -552,22 +552,6 @@ func (index *Index) Breadcrumb() (string, bool) {
 	return index.breadcrumb.specifier, true
 }
 
-// ValueImportInfo is one cross-file value import's public view: the imported
-// names and the module specifier, as written.
-type ValueImportInfo struct {
-	Names     []string
-	Specifier string
-}
-
-// ValueImports lists the file's cross-file value imports in declaration order.
-func (index *Index) ValueImports() []ValueImportInfo {
-	out := make([]ValueImportInfo, 0, len(index.valueImports))
-	for _, entry := range index.valueImports {
-		out = append(out, ValueImportInfo{Names: entry.names, Specifier: entry.specifier})
-	}
-	return out
-}
-
 // FriendlyConstType is one friendly-form const's public view for the translate
 // driver's DISCOVERY step: the const identifier and the source type name its
 // `FriendlyText<T>` annotation carries ("" when unannotated).
@@ -622,17 +606,6 @@ func isTranslationVar(name string) bool {
 // underscores (`pt-BR` → `pt_BR_friendlyUser`).
 func TranslationVarName(locale, sourceVar string) string {
 	return strings.ReplaceAll(locale, "-", "_") + "_" + sourceVar
-}
-
-// SourceVarOfTranslation strips the leading locale segment off a translation
-// const name (`es_friendlyUser` → `friendlyUser`); returns name unchanged when
-// it is not a translation var.
-func SourceVarOfTranslation(name string) string {
-	idx := strings.Index(name, "_friendly")
-	if idx <= 0 {
-		return name
-	}
-	return name[idx+1:]
 }
 
 // hasCamelSuffix reports whether name is prefix + a CamelCase suffix (first

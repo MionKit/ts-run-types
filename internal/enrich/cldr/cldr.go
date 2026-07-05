@@ -50,17 +50,6 @@ func Categories(locale string) []string {
 	return AllCategories
 }
 
-// Known reports whether the built-in table covers the locale's base language
-// (false means Categories returned the all-six fallback).
-func Known(locale string) bool {
-	language := strings.ToLower(locale)
-	if idx := strings.IndexAny(language, "-_"); idx >= 0 {
-		language = language[:idx]
-	}
-	_, ok := categoriesByLanguage[language]
-	return ok
-}
-
 // IsCategory reports whether name is a CLDR plural category (a valid plural
 // arm key).
 func IsCategory(name string) bool {
