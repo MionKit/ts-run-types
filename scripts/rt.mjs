@@ -102,25 +102,38 @@ function runCore(args) {
 }
 
 // ── website ────────────────────────────────────────────────────────────────
-function runWebsite(args) {
+async function runWebsite(args) {
   const [sub, ...rest] = args;
   if (sub === 'dev') {
     const {value: agent, rest: pass} = takeFlag(rest, '--agent');
-    return proxy('bash', ['scripts/website/site.sh', 'dev', ...(agent ? ['--isAgent'] : []), ...pass]);
+    const {main} = await import('./website/site.mjs');
+    return main(['dev', ...(agent ? ['--isAgent'] : []), ...pass]);
   }
   if (sub === 'build') {
     let a = rest;
     const target = hasFlag(a, '--ssr') ? 'build' : 'generate';
     a = takeFlag(a, '--ssr').rest;
     const skip = takeFlag(a, '--skip-playground');
-    return proxy('bash', ['scripts/website/build.sh', target, ...skip.rest], skip.value ? {RT_WEBSITE_SKIP_PLAYGROUND: '1'} : undefined);
+    if (skip.value) process.env.RT_WEBSITE_SKIP_PLAYGROUND = '1';
+    const {main} = await import('./website/build.mjs');
+    return main([target, ...skip.rest]);
+  }
+  // container-build: the container-only prod build (site.mjs build), NOT the full
+  // pipeline (build.mjs). Used by the release gate's website-build job.
+  if (sub === 'container-build') {
+    const {main} = await import('./website/site.mjs');
+    return main(['build', ...rest]);
   }
   if (sub === 'preview') {
-    proxy('bash', ['scripts/website/site.sh', 'generate']);
+    const {main} = await import('./website/site.mjs');
+    await main(['generate']);
     return proxy('node', ['scripts/website/serve.mjs', ...rest]);
   }
-  if (sub === 'check') return proxy('bash', ['scripts/website/site.sh', hasFlag(rest, '--docs') ? 'verify-docs' : 'smoke']);
-  die('usage: rt website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview|check [--docs]>');
+  if (sub === 'check') {
+    const {main} = await import('./website/site.mjs');
+    return main([hasFlag(rest, '--docs') ? 'verify-docs' : 'smoke']);
+  }
+  die('usage: rt website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview|check [--docs]|container-build>');
 }
 
 // ── bench ────────────────────────────────────────────────────────────────
@@ -146,7 +159,7 @@ function runRelease(args) {
   const map = {
     preflight: ['bash', ['scripts/release/preflight.sh']],
     npm: ['bash', ['scripts/release/publish.sh']],
-    website: ['bash', ['scripts/website/build.sh', 'generate']],
+    website: ['node', ['scripts/website/build.mjs', 'generate']],
     unpublish: ['bash', ['scripts/release/unpublish.sh']],
     bump: ['node', ['scripts/release/bump-version.mjs']],
     dists: ['pnpm', ['-r', 'run', 'build']],
@@ -161,7 +174,7 @@ function runRelease(args) {
   const plan = [['bash', ['scripts/release/preflight.sh']]];
   if (!preflightOnly) {
     plan.push(['bash', ['scripts/release/publish.sh']]);
-    if (!noWebsite) plan.push(['bash', ['scripts/website/build.sh', 'generate']]);
+    if (!noWebsite) plan.push(['node', ['scripts/website/build.mjs', 'generate']]);
   }
   if (hasFlag(args, '--dry-run')) {
     console.log('rt release would run, in order:');

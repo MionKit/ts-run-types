@@ -163,7 +163,7 @@ jobs:
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Website serves-a-page smoke
-        run: bash scripts/website/site.sh smoke
+        run: pnpm rt website check
       # RT_BENCH_NO_TYPIA stays until the prebuilt image BAKES typia's .ttsc plugin (a
       # local image change + republish); a no-.ttsc image would otherwise recompile
       # it ~200s here. Drop this once that image is live.
