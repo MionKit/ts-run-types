@@ -20,11 +20,13 @@
 // object literal (balanced-delimiter scan, no TS dep) so the hover shows the real
 // schema/validator each library authors for that case.
 
-import '../../env/load.mjs'; // load .env (dev) so RT_BENCH_* knobs apply when run directly
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import ts from 'typescript';
+import {loadEnv} from '../../lib/env.mjs';
+
+loadEnv(); // load .env (dev) so RT_BENCH_* knobs apply when run directly
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
