@@ -20,7 +20,7 @@
 // each structural id against the live runtype.Cache; any mismatch
 // (different short hash, missing entry, structural drift) is treated as
 // a miss and the renderer re-runs the walker.
-package disk
+package diskcache
 
 // FormatVersion identifies the on-disk JSON layout. Bump whenever the
 // RTEntry shape changes incompatibly so stale files written by an older

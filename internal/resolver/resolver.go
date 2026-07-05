@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/cache/disk"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
 	"github.com/mionkit/ts-runtypes/internal/constants"
@@ -164,7 +164,7 @@ type Resolver struct {
 	// renderXxxModule call. nil when CacheDir was empty — the renderer
 	// treats nil as "no cache wired", so test paths that build a
 	// resolver without a CacheDir keep the original semantics.
-	rtStore *disk.Store
+	rtStore *diskcache.Store
 	// overridesBuilt guards the one-time, whole-program `overrideX<T>(pureFn)`
 	// collection pass (ensureOverrides) for the current Program. The pass must
 	// run before any AssignID so every id folds the override suffix; reset on
@@ -230,12 +230,12 @@ func cacheLocation(opts Options, incremental bool) string {
 // disabled. incremental is the loaded Program's IsIncremental() (false in
 // server mode, where no Program exists yet). Centralised so New / NewServer
 // share the same fingerprinting rules.
-func newRTStore(opts Options, incremental bool) *disk.Store {
+func newRTStore(opts Options, incremental bool) *diskcache.Store {
 	baseDir := cacheLocation(opts, incremental)
 	if baseDir == "" {
 		return nil
 	}
-	fp := disk.Fingerprint(disk.FingerprintInputs{
+	fp := diskcache.Fingerprint(diskcache.FingerprintInputs{
 		HashLength:      opts.HashLength,
 		EmitMode:        string(opts.EmitMode),
 		InlineMode:      string(opts.InlineMode),
@@ -244,7 +244,7 @@ func newRTStore(opts Options, incremental bool) *disk.Store {
 		SizeStringBytes: opts.SizeStringBytes,
 		SizeMaxBytes:    opts.SizeMaxBytes,
 	})
-	return disk.New(baseDir, fp)
+	return diskcache.New(baseDir, fp)
 }
 
 // New builds a Resolver against prog. Defaults to hashid's default length when

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/cache/disk"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
@@ -379,8 +379,8 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText s
 	if structural == "" {
 		return
 	}
-	entry := disk.RTEntry{
-		Format:       disk.FormatVersion,
+	entry := diskcache.RTEntry{
+		Format:       diskcache.FormatVersion,
 		StructuralID: structural,
 		ArgsText:     argsText,
 	}

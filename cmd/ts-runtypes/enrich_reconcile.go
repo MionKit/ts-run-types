@@ -81,7 +81,7 @@ func writeReconciled(mirrorPath string, content []byte) {
 // file flips old→new in one atomic rename, and a failed write leaves the
 // original byte-identical. This is the prerequisite for racing reconciles (an
 // HMR save and a format-on-save firing together) to stay safe. It mirrors the
-// disk-cache writer in internal/cache/disk.
+// disk-cache writer in internal/cachegen/diskcache.
 func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
