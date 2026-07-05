@@ -102,7 +102,7 @@ func buildVitePluginConstants() string {
 // render specifier, relativized to on-disk paths at the resolver boundary.
 func writeEntryModuleConstants(out *strings.Builder) {
 	out.WriteString("// Internal render-format names (virtual:rt/<basename>.js) the resolver\n")
-	out.WriteString("// writes to disk and relativizes to on-disk paths — see internal/compiled/entrymod.\n")
+	out.WriteString("// writes to disk and relativizes to on-disk paths — see internal/compiler/virtualmodules.\n")
 	fmt.Fprintf(out, "export const VIRTUAL_MODULE_PREFIX = %q;\n", constants.VirtualModulePrefix)
 	fmt.Fprintf(out, "export const ENTRY_MODULE_SUFFIX = %q;\n", constants.EntryModuleSuffix)
 	fmt.Fprintf(out, "export const ENTRY_BINDING_PREFIX = %q;\n", constants.EntryBindingPrefix)

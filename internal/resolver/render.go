@@ -5,7 +5,7 @@ import (
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
@@ -97,9 +97,9 @@ func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
 // extractor and returns the per-entry graph (the OpDump path; OpScanFiles
 // reuses its own per-request extraction instead). Returns the wire-shaped
 // diagnostics from the in-place extraction alongside.
-func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entrymod.Graph, []diag.Diagnostic) {
+func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (virtualmodules.Graph, []diag.Diagnostic) {
 	if resolver.Program == nil {
-		return entrymod.Graph{}, nil
+		return virtualmodules.Graph{}, nil
 	}
 	// The override pass extracts the cfn pure-fn entries the type-fn redirects
 	// forward to; idempotent, so this is a cheap guard when scanning already ran.

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -270,7 +270,7 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	pjKey := operations.PlainHash("prepareForJson") + "_obj1"
 	runType := &protocol.RunType{ID: "obj1", Kind: protocol.KindObjectLiteral}
 
-	render := func(tag string, rendered entrymod.Graph) *entrymod.Entry {
+	render := func(tag string, rendered virtualmodules.Graph) *virtualmodules.Entry {
 		t.Helper()
 		composite, ok := constants.JsonCompositeByTag(tag)
 		if !ok {
@@ -282,10 +282,10 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 		}
 		return entry
 	}
-	noopGraph := entrymod.Graph{}
-	noopGraph.Add(&entrymod.Entry{Key: rjKey, Kind: entrymod.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'", IsNoop: true})
-	noopGraph.Add(&entrymod.Entry{Key: pjKey, Kind: entrymod.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
-	noopGraph.Add(&entrymod.Entry{Key: ukuwKey, Kind: entrymod.KindTypeFn, FamilyTag: "ukuw", ArgsText: "'" + ukuwKey + "'"})
+	noopGraph := virtualmodules.Graph{}
+	noopGraph.Add(&virtualmodules.Entry{Key: rjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'", IsNoop: true})
+	noopGraph.Add(&virtualmodules.Entry{Key: pjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
+	noopGraph.Add(&virtualmodules.Entry{Key: ukuwKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "ukuw", ArgsText: "'" + ukuwKey + "'"})
 
 	jdPRKey := operations.FnHashFor(mustOp(t, "jsonDecoder"), nil, "preserve") + "_obj1"
 	jeMUKey := operations.FnHashFor(mustOp(t, "jsonEncoder"), nil, "mutate") + "_obj1"
@@ -325,8 +325,8 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	}
 
 	// Control: a live (non-noop) rj keeps today's binding shape.
-	liveGraph := entrymod.Graph{}
-	liveGraph.Add(&entrymod.Entry{Key: rjKey, Kind: entrymod.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'"})
+	liveGraph := virtualmodules.Graph{}
+	liveGraph.Add(&virtualmodules.Entry{Key: rjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'"})
 	entry = render("jdPR", liveGraph)
 	if !strings.Contains(entry.ArgsText, "return rjFn(JSON.parse(s));") {
 		t.Errorf("jdPR with live rj must keep the binding:\n%s", entry.ArgsText)
@@ -730,8 +730,8 @@ func TestJsonComposite_WrapRootNeverNoop(t *testing.T) {
 	if !ok {
 		t.Fatal("unknown composite tag jeMU")
 	}
-	noopGraph := entrymod.Graph{}
-	noopGraph.Add(&entrymod.Entry{Key: pjKey, Kind: entrymod.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
+	noopGraph := virtualmodules.Graph{}
+	noopGraph.Add(&virtualmodules.Entry{Key: pjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
 	entry := collectJsonCompositeEntry(runType, "jeMU", composite, RenderOpts{EmitMode: constants.EmitBoth}, noopGraph)
 	if entry == nil {
 		t.Fatal("no composite entry for jeMU")

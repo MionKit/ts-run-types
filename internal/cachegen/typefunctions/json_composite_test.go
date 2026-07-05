@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -96,9 +96,9 @@ func TestJsonComposite_DirectFnBind_CompactDecoder(t *testing.T) {
 // (JCP001) instead of a runtime `undefined.fn` TypeError.
 func TestAssertCompositeSoftDeps_MissingPrimitiveFails(t *testing.T) {
 	rjKey := operations.PlainHash("restoreFromJson") + "_obj1"
-	graph := entrymod.Graph{}
-	graph.Add(&entrymod.Entry{
-		Key: "jd1_obj1", Kind: entrymod.KindTypeFn, FamilyTag: "jdPR",
+	graph := virtualmodules.Graph{}
+	graph.Add(&virtualmodules.Entry{
+		Key: "jd1_obj1", Kind: virtualmodules.KindTypeFn, FamilyTag: "jdPR",
 		ArgsText: "'jd1_obj1'", SoftDeps: []string{rjKey},
 	})
 	var sink []diag.Diagnostic
@@ -111,7 +111,7 @@ func TestAssertCompositeSoftDeps_MissingPrimitiveFails(t *testing.T) {
 	}
 
 	// Present primitive (even a noop short-form entry) satisfies the assert.
-	graph.Add(&entrymod.Entry{Key: rjKey, Kind: entrymod.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'"})
+	graph.Add(&virtualmodules.Entry{Key: rjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'"})
 	sink = nil
 	AssertCompositeSoftDeps(graph, &sink)
 	if len(sink) != 0 {
@@ -119,12 +119,12 @@ func TestAssertCompositeSoftDeps_MissingPrimitiveFails(t *testing.T) {
 	}
 
 	// A KindMissing stub registers NOTHING at runtime — still a breach.
-	graph2 := entrymod.Graph{}
-	graph2.Add(&entrymod.Entry{
-		Key: "jd1_obj2", Kind: entrymod.KindTypeFn, FamilyTag: "jdPR",
+	graph2 := virtualmodules.Graph{}
+	graph2.Add(&virtualmodules.Entry{
+		Key: "jd1_obj2", Kind: virtualmodules.KindTypeFn, FamilyTag: "jdPR",
 		ArgsText: "'jd1_obj2'", SoftDeps: []string{"stub1"},
 	})
-	graph2.Add(&entrymod.Entry{Key: "stub1", Kind: entrymod.KindMissing})
+	graph2.Add(&virtualmodules.Entry{Key: "stub1", Kind: virtualmodules.KindMissing})
 	sink = nil
 	AssertCompositeSoftDeps(graph2, &sink)
 	if len(sink) != 1 {

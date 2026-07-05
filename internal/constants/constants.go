@@ -276,7 +276,7 @@ var JsonStrategyFamilies = map[string][]string{
 // exporting one tuple under its binding name (entrymod.ExportName —
 // `<EntryBindingPrefix><identifier-escaped basename>`). The SAME name binds
 // the entry everywhere: the export, every import clause, and the call-site
-// binding the rewrite injects. See internal/compiled/entrymod.
+// binding the rewrite injects. See internal/compiler/virtualmodules.
 const (
 	// VirtualModulePrefix is the Vite virtual-module namespace every entry
 	// module lives under.

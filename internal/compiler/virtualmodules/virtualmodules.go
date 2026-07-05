@@ -48,7 +48,7 @@
 // deterministic — cycle members only reference each other through
 // `ini`/registry lookups that run after the whole registration phase, so
 // intra-SCC order is correctness-neutral.
-package entrymod
+package virtualmodules
 
 import (
 	"fmt"
