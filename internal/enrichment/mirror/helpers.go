@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // Spec is the arg bundle for a mirror reconcile / scaffold. It is filesystem
@@ -18,7 +18,7 @@ import (
 type Spec struct {
 	MirrorPath    string
 	SourceFile    string
-	Consts        []enrich.NamedConst
+	Consts        []enrichment.NamedConst
 	VarDeclFile   map[string]string
 	Out           string
 	WantFriendly  bool
@@ -64,7 +64,7 @@ func stripModuleExt(path string) string {
 // called for a NEWLY-generated const (create-only first-gen, a new const
 // appended during --update), so a fresh `@todo` is always correct here; the
 // reconcile NEVER re-stamps it on an already-existing const.
-func ConstBlock(varName, wrapper string, named enrich.NamedConst, body string) string {
+func ConstBlock(varName, wrapper string, named enrichment.NamedConst, body string) string {
 	marker := MarkerComment(named)
 	return marker + todoComment() + "export const " + varName + ": " + wrapper + "<" + named.TypeName + "> = " + body + ";\n"
 }
@@ -93,7 +93,7 @@ func todoComment() string {
 // degenerate const stays marker-free. The encoding survives Prettier (leading
 // JSDoc on a declaration is preserved) and round-trips through
 // parseConstMarkers on reconcile.
-func MarkerComment(named enrich.NamedConst) string {
+func MarkerComment(named enrichment.NamedConst) string {
 	if named.TypeID == "" {
 		return ""
 	}
@@ -130,7 +130,7 @@ func formatChildIDs(childIDs map[string]string) string {
 
 // ConstTypeNames returns the distinct source type names in a slice of
 // NamedConsts, in emission order, for a mirror file's `import type { … }` line.
-func ConstTypeNames(consts []enrich.NamedConst) []string {
+func ConstTypeNames(consts []enrichment.NamedConst) []string {
 	seen := make(map[string]bool, len(consts))
 	names := make([]string, 0, len(consts))
 	for _, named := range consts {
@@ -223,11 +223,11 @@ func Scaffold(spec Spec, existing string) (string, []string, error) {
 	var blocks []string
 	for _, named := range spec.Consts {
 		if spec.WantFriendly && !HasExport(existing, named.FriendlyVar) {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrich.FriendlyTextName, named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrichment.FriendlyTextName, named, named.Friendly))
 			added = append(added, named.FriendlyVar)
 		}
 		if spec.WantMock && !HasExport(existing, named.MockVar) {
-			blocks = append(blocks, ConstBlock(named.MockVar, enrich.MockDataName, named, named.Mock))
+			blocks = append(blocks, ConstBlock(named.MockVar, enrichment.MockDataName, named, named.Mock))
 			added = append(added, named.MockVar)
 		}
 	}
@@ -302,10 +302,10 @@ func writeMirrorHeader(builder *strings.Builder, spec Spec, blocks []string) {
 func dslTypeNames(spec Spec) []string {
 	var names []string
 	if spec.WantFriendly {
-		names = append(names, enrich.FriendlyTextName)
+		names = append(names, enrichment.FriendlyTextName)
 	}
 	if spec.WantMock {
-		names = append(names, enrich.MockDataName)
+		names = append(names, enrichment.MockDataName)
 	}
 	return names
 }

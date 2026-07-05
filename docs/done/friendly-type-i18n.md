@@ -163,13 +163,13 @@ maps `models/user.ts` → `<enrichDir>/models/user.ts` with **no family in the p
 `forceTSExt` ([config.go:159](../../cmd/ts-runtypes/config.go)) only swaps the extension — there is
 **no hook** that could produce a per-family filename. The emitter then writes the `friendlyUser`
 (`FriendlyType<User>`) and `mockUser` (`MockData<User>`) consts into that same file: `Scaffold`
-([helpers.go:220](../../internal/enrich/mirror/helpers.go)) and `appendNewConsts`
-([reconcile.go:547](../../internal/enrich/mirror/reconcile.go)) push both `ConstBlock`s into one
-`blocks` slice gated by `WantFriendly`/`WantMock` ([helpers.go:24](../../internal/enrich/mirror/helpers.go)).
+([helpers.go:220](../../internal/enrichment/mirror/helpers.go)) and `appendNewConsts`
+([reconcile.go:547](../../internal/enrichment/mirror/reconcile.go)) push both `ConstBlock`s into one
+`blocks` slice gated by `WantFriendly`/`WantMock` ([helpers.go:24](../../internal/enrichment/mirror/helpers.go)).
 The two families are told apart **only by var-name prefix** — `isFriendlyVar`/`isMockVar` =
-`hasCamelSuffix(name, "friendly"|"mock")` ([index.go:504](../../internal/enrich/mirror/index.go));
+`hasCamelSuffix(name, "friendly"|"mock")` ([index.go:504](../../internal/enrichment/mirror/index.go));
 names are built `"friendly"+baseName` / `"mock"+baseName`
-([closure.go:137](../../internal/enrich/closure.go)). So the user's assumption is correct: **one
+([closure.go:137](../../internal/enrichment/closure.go)). So the user's assumption is correct: **one
 file per source type holds both `friendly<Name>` and `mock<Name>`.**
 
 **The change — a family path segment (decided).** Emit each family to its **own** mirror file
@@ -252,7 +252,7 @@ consumed by **real committed imports** (never plugin-injected). The
 nodes with a one-time `@todo` blank. Full design:
 [AI_ENRICHMENT.md](../AI_ENRICHMENT.md).
 
-**Why the reconcile mostly transfers (VERIFIED `internal/enrich/mirror/*`):** the merge
+**Why the reconcile mostly transfers (VERIFIED `internal/enrichment/mirror/*`):** the merge
 core — `mergeObject` (merge.go:196), `computeRenames`/`fieldIdentity` (merge.go:648),
 the orphan/insert/replace ops, `parseDesiredObject` (merge.go:118, which just reparses a
 body string), and the descending fatal-on-overlap splicer — is **generic over two
@@ -656,7 +656,7 @@ dormant, zero behaviour change):
 `SourceLocale` / `I18nDir` / `I18nLocales` / `I18nFormats` fields, and the reconcile's
 `MirrorPathFor` closure is parameterized so cross-file value imports between translation
 files resolve to sibling `i18n/<locale>/` paths. The **plural-category table** lives in a new
-`internal/enrich/cldr` package (built-in 11-language map + an all-six fallback).
+`internal/enrichment/cldr` package (built-in 11-language map + an all-six fallback).
 
 ## Fallback semantics — always lenient at runtime
 
@@ -761,7 +761,7 @@ configurable `sourceLocale`.
   reactive `{ value }` seam. Vitest: partial-translation fallback, whole-plural atomic
   fallback, ref-driven switch, function-form node ignores i18n.
 - **Phase 3 — constraint classification + CLDR table (Go).** The count-bearing constraint list
-  (shared with the checker), the `internal/enrich/cldr` table (11 languages + all-six fallback),
+  (shared with the checker), the `internal/enrichment/cldr` table (11 languages + all-six fallback),
   and the scaffold that emits object-vs-string per constraint with the file-locale's arms.
   `go test` for the classification + arm emission per locale.
 - **Phase 4 — Go reconcile driver (the load-bearing new merge code).** `$errors` descent + plural

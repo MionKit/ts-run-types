@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // findCarcass returns the @rtOrphan carcass for a reappearing desired const,
@@ -13,7 +13,7 @@ import (
 // back, so its preserved value is restored. Matching by var name (not the shared
 // structural id) keeps a DIFFERENT same-shape type from reviving this carcass's
 // old-named const, and stops two same-shape desired consts from both restoring it.
-func findCarcass(index *Index, named enrich.NamedConst, friendly bool) *carcassEntry {
+func findCarcass(index *Index, named enrichment.NamedConst, friendly bool) *carcassEntry {
 	varName := named.MockVar
 	if friendly {
 		varName = named.FriendlyVar

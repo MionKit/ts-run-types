@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // TestWriteMirrorFile_CreateOnly_IdempotentTodo is the create-only first-gen
@@ -24,7 +24,7 @@ func TestWriteMirrorFile_CreateOnly_IdempotentTodo(t *testing.T) {
 		Out:          mirrorPath, // single-file: skip cross-file import wiring
 		WantFriendly: true,
 		WantMock:     true,
-		Consts: []enrich.NamedConst{{
+		Consts: []enrichment.NamedConst{{
 			TypeName:    "User",
 			FriendlyVar: "friendlyUser",
 			MockVar:     "mockUser",

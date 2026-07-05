@@ -4,8 +4,8 @@
 marker to the current id in the same pass, so the reconcile is a single-pass fixed
 point. Root-caused by instrumenting the reconciler (not a guess), fixed in
 `reconcileOneConst` / new `refreshRestoredMarker`
-([reconcile.go](../../internal/enrich/mirror/reconcile.go)), pinned by a Go
-worked-example test ([reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go))
+([reconcile.go](../../internal/enrichment/mirror/reconcile.go)), pinned by a Go
+worked-example test ([reconcile_examples_test.go](../../internal/enrichment/mirror/reconcile_examples_test.go))
 and the fuzzer R6 reproducer seed.
 
 ## The bug (root cause, proven)
@@ -47,7 +47,7 @@ unchanged, so the restore stays byte-identical (the existing
 ## What is pinned
 
 - `RestoreCarcass_refreshesStaleMarker`
-  ([reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go)) —
+  ([reconcile_examples_test.go](../../internal/enrichment/mirror/reconcile_examples_test.go)) —
   a const orphaned with `oldId` and re-introduced with `newId` restores with the
   refreshed marker AND a second `--update` is byte-identical (fixed point). FAILS on
   the old verbatim restore (stale `oldId`, not a fixed point).

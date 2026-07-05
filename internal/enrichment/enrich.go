@@ -18,13 +18,13 @@
 // Nothing here is wired into the Vite build; the commands are out-of-band CLI
 // modes (driven by argv), so the resolver process that the plugin spawns is
 // untouched and still emits no `.rt.ts`.
-package enrich
+package enrichment
 
 import (
 	"sort"
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich/cldr"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/cldr"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

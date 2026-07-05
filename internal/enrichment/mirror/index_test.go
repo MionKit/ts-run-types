@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // mustParse parses a mirror file that is expected to be valid, failing the test
@@ -160,7 +160,7 @@ func TestParseConstMarkers(t *testing.T) {
 // TestMarkerComment renders a deterministic, parse-round-tripping JSDoc marker
 // (sorted @rtIds keys), and omits the comment entirely when there is no id.
 func TestMarkerComment(t *testing.T) {
-	got := MarkerComment(enrich.NamedConst{TypeName: "User", TypeID: "9f3a", ChildIDs: map[string]string{"age": "b2", "name": "a1"}})
+	got := MarkerComment(enrichment.NamedConst{TypeName: "User", TypeID: "9f3a", ChildIDs: map[string]string{"age": "b2", "name": "a1"}})
 	want := "/** @rtType User#9f3a @rtIds {age: b2, name: a1} */\n"
 	if got != want {
 		t.Errorf("MarkerComment = %q, want %q", got, want)
@@ -176,13 +176,13 @@ func TestMarkerComment(t *testing.T) {
 	}
 
 	// No id → no marker.
-	if MarkerComment(enrich.NamedConst{TypeName: "User"}) != "" {
+	if MarkerComment(enrichment.NamedConst{TypeName: "User"}) != "" {
 		t.Errorf("expected empty marker for empty typeID")
 	}
 
 	// No childIDs → @rtType only.
-	if MarkerComment(enrich.NamedConst{TypeName: "User", TypeID: "abc"}) != "/** @rtType User#abc */\n" {
-		t.Errorf("marker without childIDs = %q", MarkerComment(enrich.NamedConst{TypeName: "User", TypeID: "abc"}))
+	if MarkerComment(enrichment.NamedConst{TypeName: "User", TypeID: "abc"}) != "/** @rtType User#abc */\n" {
+		t.Errorf("marker without childIDs = %q", MarkerComment(enrichment.NamedConst{TypeName: "User", TypeID: "abc"}))
 	}
 
 	// PARSING TOLERANCE: a legacy marker carrying the retired `@rtI18n <locale>

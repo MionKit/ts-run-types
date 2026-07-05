@@ -4,14 +4,14 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // TestGroupByDeclFile buckets a topologically-ordered closure by declaration
 // file, preserving order, and falls back to the target file for empty DeclFile.
 func TestGroupByDeclFile(t *testing.T) {
-	closure := []enrich.NamedConst{
+	closure := []enrichment.NamedConst{
 		{TypeName: "Address", DeclFile: "/src/address.ts", FriendlyVar: "friendlyAddress", MockVar: "mockAddress"},
 		{TypeName: "User", DeclFile: "/src/user.ts", FriendlyVar: "friendlyUser", MockVar: "mockUser"},
 		{TypeName: "Anon", DeclFile: "", FriendlyVar: "friendlyAnon", MockVar: "mockAnon"},
@@ -68,7 +68,7 @@ func TestCrossFileImportLines(t *testing.T) {
 
 // TestConstTypeNames returns distinct source type names in emission order.
 func TestConstTypeNames(t *testing.T) {
-	consts := []enrich.NamedConst{
+	consts := []enrichment.NamedConst{
 		{TypeName: "User"},
 		{TypeName: "Address"},
 		{TypeName: "User"}, // duplicate (e.g. friendly + mock split) — deduped

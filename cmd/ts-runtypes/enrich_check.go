@@ -9,16 +9,16 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/astcheck"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/astcheck"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // fileFinding pairs a Finding with its source file and 1-based position for
 // the report. Line/Col are zero when a finding could not be anchored.
 type fileFinding struct {
 	File string `json:"file"`
-	enrich.Finding
+	enrichment.Finding
 	Line    int `json:"line,omitempty"`
 	Col     int `json:"col,omitempty"`
 	EndLine int `json:"endLine,omitempty"`
@@ -107,7 +107,7 @@ func runCheck(args []string) {
 		endLine, endCol := lineIndex.At(drift.End)
 		findings = append(findings, fileFinding{
 			File:    absPath,
-			Finding: enrich.Finding{Code: drift.Code, Severity: drift.Severity(), Message: drift.Message, Args: drift.Args},
+			Finding: enrichment.Finding{Code: drift.Code, Severity: drift.Severity(), Message: drift.Message, Args: drift.Args},
 			Line:    line,
 			Col:     col,
 			EndLine: endLine,
@@ -126,7 +126,7 @@ func tagFileFinding(file string, lineIndex *mirror.LineIndex, tag mirror.TagFind
 	endLine, endCol := lineIndex.At(tag.End)
 	return fileFinding{
 		File:    file,
-		Finding: enrich.Finding{Code: code, Severity: mirror.EnrichSeverity(code), Message: message},
+		Finding: enrichment.Finding{Code: code, Severity: mirror.EnrichSeverity(code), Message: message},
 		Line:    line,
 		Col:     col,
 		EndLine: endLine,
@@ -139,9 +139,9 @@ func tagFileFinding(file string, lineIndex *mirror.LineIndex, tag mirror.TagFind
 // mirror split; an unattributable finding reports under the friendly code
 // (same convention as the resolver's tagCode).
 func tagCodeMessage(kind mirror.TagKind, family mirror.MirrorFamily) (string, string) {
-	familyName := enrich.FriendlyTypeName
+	familyName := enrichment.FriendlyTypeName
 	if family == mirror.FamilyMock {
-		familyName = enrich.MockDataName
+		familyName = enrichment.MockDataName
 	}
 	switch kind {
 	case mirror.TagOrphan:
@@ -201,7 +201,7 @@ func sortFileFindings(findings []fileFinding) {
 func reportFindings(findings []fileFinding, asJSON bool) int {
 	hasError := false
 	for _, finding := range findings {
-		if finding.Severity == enrich.Error {
+		if finding.Severity == enrichment.Error {
 			hasError = true
 		}
 	}
@@ -215,9 +215,9 @@ func reportFindings(findings []fileFinding, asJSON bool) int {
 	} else {
 		for _, finding := range findings {
 			if finding.Line > 0 {
-				fmt.Printf("%s(%d,%d):%s\n", finding.File, finding.Line, finding.Col, enrich.FormatFinding(finding.Finding))
+				fmt.Printf("%s(%d,%d):%s\n", finding.File, finding.Line, finding.Col, enrichment.FormatFinding(finding.Finding))
 			} else {
-				fmt.Printf("%s:%s\n", finding.File, enrich.FormatFinding(finding.Finding))
+				fmt.Printf("%s:%s\n", finding.File, enrichment.FormatFinding(finding.Finding))
 			}
 		}
 	}

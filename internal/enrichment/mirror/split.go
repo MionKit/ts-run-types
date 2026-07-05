@@ -7,7 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/scanner"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // SplitCombined splits a pre-family-split COMBINED mirror (one file holding
@@ -142,11 +142,11 @@ func collectSplitItems(index *Index, text string) []splitItem {
 // to the verbatim-carried const annotations. Defaults to the current name.
 func friendlyWrapperFromImport(dslImport *importEntry) string {
 	for _, name := range dslImport.names {
-		if enrich.IsFriendlyWrapperName(name) {
+		if enrichment.IsFriendlyWrapperName(name) {
 			return name
 		}
 	}
-	return enrich.FriendlyTextName
+	return enrichment.FriendlyTextName
 }
 
 // writeSplitHeader synthesizes one family file's import header from the
@@ -161,7 +161,7 @@ func writeSplitHeader(builder *strings.Builder, index *Index, text, mirrorPath, 
 		builder.WriteString("';\n")
 	}
 	if index.dslImport != nil {
-		wrapper := enrich.MockDataName
+		wrapper := enrichment.MockDataName
 		if friendly {
 			// Split carries const annotations VERBATIM, so the synthesized import must
 			// match the source's friendly wrapper spelling (a pre-family-split combined

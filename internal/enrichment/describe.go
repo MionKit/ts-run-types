@@ -1,4 +1,4 @@
-package enrich
+package enrichment
 
 import (
 	"fmt"

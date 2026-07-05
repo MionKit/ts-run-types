@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // TestStripJSONC verifies comment + trailing-comma stripping is string-aware.

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // TestParseBreadcrumb verifies the source breadcrumb is extracted (skipping the

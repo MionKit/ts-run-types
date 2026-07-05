@@ -16,7 +16,7 @@ The reconciler bugs the fuzzers SURFACED were fixed under their own records:
 ## What shipped
 
 - **Layer 1 — in-process Go property test**
-  ([internal/enrich/mirror/reconcile_property_test.go](../../internal/enrich/mirror/reconcile_property_test.go)).
+  ([internal/enrichment/mirror/reconcile_property_test.go](../../internal/enrichment/mirror/reconcile_property_test.go)).
   A seeded harness starts from a real `Scaffold` mirror (every blank authored with a
   unique sentinel) and applies random human-like edits (rename / add / delete / retype
   a field, rename the type, mirror-side comment + reserved-key extras), re-running

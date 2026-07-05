@@ -1,4 +1,4 @@
-package enrich_test
+package enrichment_test
 
 import (
 	"strings"
@@ -7,13 +7,13 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // resolveRawFixture mirrors resolveFixture (bridge_test.go) but returns the RAW
 // (non-inlined) projected node via ResolveTypeRaw — the shape EmitClosure walks
 // so it can tell a named-type reference from an anonymous inline shape.
-func resolveRawFixture(t *testing.T, relPath, typeName string, sources map[string]string) *enrich.Resolved {
+func resolveRawFixture(t *testing.T, relPath, typeName string, sources map[string]string) *enrichment.Resolved {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := make(map[string]string, len(sources))
@@ -38,17 +38,17 @@ func resolveRawFixture(t *testing.T, relPath, typeName string, sources map[strin
 	}
 	t.Cleanup(res.Close)
 
-	resolved, err := enrich.ResolveTypeRaw(prog, res.Checker(), res.Cache(), absTarget, typeName)
+	resolved, err := enrichment.ResolveTypeRaw(prog, res.Checker(), res.Cache(), absTarget, typeName)
 	if err != nil {
 		t.Fatalf("ResolveTypeRaw(%s): %v", typeName, err)
 	}
 	return resolved
 }
 
-func emitClosure(t *testing.T, relPath, typeName string, sources map[string]string) []enrich.NamedConst {
+func emitClosure(t *testing.T, relPath, typeName string, sources map[string]string) []enrichment.NamedConst {
 	t.Helper()
 	resolved := resolveRawFixture(t, relPath, typeName, sources)
-	return enrich.EmitClosure(resolved.Node, enrich.ClosureOptions{
+	return enrichment.EmitClosure(resolved.Node, enrichment.ClosureOptions{
 		TypeName:  typeName,
 		Resolve:   resolved.Resolve,
 		DeclFiles: resolved.DeclFiles,
@@ -98,13 +98,13 @@ func TestEmitClosure_DeclFileSameFile(t *testing.T) {
 
 // findConst returns the NamedConst with the given source TypeName and its index,
 // or (-1, zero) when absent.
-func findConst(closure []enrich.NamedConst, typeName string) (int, enrich.NamedConst) {
+func findConst(closure []enrichment.NamedConst, typeName string) (int, enrichment.NamedConst) {
 	for i, named := range closure {
 		if named.TypeName == typeName {
 			return i, named
 		}
 	}
-	return -1, enrich.NamedConst{}
+	return -1, enrichment.NamedConst{}
 }
 
 // TestEmitClosure_TypeIDAndChildIDs: each NamedConst carries its type's
@@ -225,7 +225,7 @@ func TestEmitClosure_Circular(t *testing.T) {
 			refEdges++
 		}
 	}
-	for _, named := range []enrich.NamedConst{a, b} {
+	for _, named := range []enrichment.NamedConst{a, b} {
 		// The cross-type field (a or b) is a leaf when it has `{rt$label: '', rt$errors: {type: ''}}`
 		// and is NOT a const reference.
 		if strings.Contains(named.Friendly, "a: {rt$label: '', rt$errors: {type: ''}}") || strings.Contains(named.Friendly, "b: {rt$label: '', rt$errors: {type: ''}}") {
@@ -308,8 +308,8 @@ func TestEmitClosure_BackwardCompat(t *testing.T) {
 
 	// The inlined single-const path renders the same body.
 	inlined := resolveFixture(t, "user.ts", "User", sources)
-	wantFriendly := enrich.FriendlySkeleton(inlined.Node, inlined.Resolve)
-	wantMock := enrich.MockSkeleton(inlined.Node, inlined.Resolve)
+	wantFriendly := enrichment.FriendlySkeleton(inlined.Node, inlined.Resolve)
+	wantMock := enrichment.MockSkeleton(inlined.Node, inlined.Resolve)
 	if got.Friendly != wantFriendly {
 		t.Errorf("friendly body diverged from FriendlySkeleton's:\n got:\n%s\nwant:\n%s", got.Friendly, wantFriendly)
 	}

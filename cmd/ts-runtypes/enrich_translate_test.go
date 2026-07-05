@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // These are focused unit tests of the translate driver's PURE helpers — target
@@ -107,7 +107,7 @@ func TestTranslationSpecs_TransformAndGrouping(t *testing.T) {
 	config, source, _ := translateFixture(t, false)
 	geoSource := filepath.Join(filepath.Dir(source), "geo.ts")
 
-	closure := []enrich.NamedConst{
+	closure := []enrichment.NamedConst{
 		{TypeName: "Address", DeclFile: geoSource, FriendlyVar: "friendlyAddress", MockVar: "mockAddress",
 			Friendly: "{rt$label: ''}", Mock: "{}", TypeID: "a1"},
 		{TypeName: "User", DeclFile: source, FriendlyVar: "friendlyUser", MockVar: "mockUser",
@@ -163,7 +163,7 @@ func stubTranslationSpec(source, translationPath, friendlyBody string) mirror.Sp
 		MirrorPathFor: func(declFile string) string {
 			return translationPath
 		},
-		Consts: []enrich.NamedConst{{
+		Consts: []enrichment.NamedConst{{
 			TypeName: "User", DeclFile: source, FriendlyVar: "pl_friendlyUser",
 			Friendly: friendlyBody, TypeID: "u1", ChildIDs: map[string]string{"name": "n1"},
 		}},
@@ -178,12 +178,12 @@ func TestCheckTranslationFile_Findings(t *testing.T) {
 	translationPath := filepath.Join(dir, "models.ts")
 
 	// Missing file → TR001 (warning when not strict; Error under i18n.strict).
-	findings := checkTranslationFile("pl", translationPath, nil, enrich.Warning)
-	if len(findings) != 1 || findings[0].Code != "TR001" || findings[0].Severity != enrich.Warning {
+	findings := checkTranslationFile("pl", translationPath, nil, enrichment.Warning)
+	if len(findings) != 1 || findings[0].Code != "TR001" || findings[0].Severity != enrichment.Warning {
 		t.Fatalf("want one TR001 warning; got %+v", findings)
 	}
-	strict := checkTranslationFile("pl", translationPath, nil, enrich.Error)
-	if len(strict) != 1 || strict[0].Severity != enrich.Error {
+	strict := checkTranslationFile("pl", translationPath, nil, enrichment.Error)
+	if len(strict) != 1 || strict[0].Severity != enrichment.Error {
 		t.Fatalf("strict severity must flip to Error; got %+v", strict)
 	}
 
@@ -194,7 +194,7 @@ func TestCheckTranslationFile_Findings(t *testing.T) {
 			"  rt$label: '',\n"+
 			"  name: {rt$label: 'ok'}, /* @rtOrphanChild gone: 'x' */\n"+
 			"};\n")
-	findings = checkTranslationFile("pl", translationPath, nil, enrich.Warning)
+	findings = checkTranslationFile("pl", translationPath, nil, enrichment.Warning)
 	codes := map[string]int{}
 	for _, finding := range findings {
 		codes[finding.Code]++
@@ -231,7 +231,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	}
 
 	// In sync: no TR003.
-	for _, finding := range checkTranslationFile("pl", translationPath, &baseSpec, enrich.Warning) {
+	for _, finding := range checkTranslationFile("pl", translationPath, &baseSpec, enrichment.Warning) {
 		if finding.Code == "TR003" {
 			t.Fatalf("fresh scaffold must not be out of date: %+v", finding)
 		}
@@ -241,7 +241,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	grownSpec := stubTranslationSpec(source, translationPath, "{rt$label: '', name: {rt$label: ''}, email: {rt$label: ''}}")
 	grownSpec.Consts[0].ChildIDs["email"] = "e1"
 	sawOutOfDate := false
-	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrich.Warning) {
+	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrichment.Warning) {
 		if finding.Code == "TR003" {
 			sawOutOfDate = true
 		}
@@ -258,7 +258,7 @@ func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	if !strings.Contains(string(updated), "email: {rt$label: ''}") {
 		t.Errorf("added field not scaffolded:\n%s", updated)
 	}
-	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrich.Warning) {
+	for _, finding := range checkTranslationFile("pl", translationPath, &grownSpec, enrichment.Warning) {
 		if finding.Code == "TR003" {
 			t.Errorf("updated translation must be in sync; got %+v", finding)
 		}

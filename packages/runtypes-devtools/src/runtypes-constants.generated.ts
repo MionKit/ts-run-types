@@ -142,7 +142,7 @@ export const NON_SERIALIZABLE_GLOBALS = [
   'AsyncIterator',
 ] as const;
 
-// Enrichment mirror tags (internal/enrich/mirror/tags.go): the reconcile
+// Enrichment mirror tags (internal/enrichment/mirror/tags.go): the reconcile
 // markers hygiene must never flag, the dirty-state tags it reports, and
 // the flag-free orphan-block regex body (compile with the 's' flag).
 export const RT_TYPE_TAG = '@rtType';

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // orphanBlockPattern matches both `/* @rtOrphan … */` (whole-const carcass) and
@@ -48,7 +48,7 @@ func Reconcile(spec Spec, existing []byte, readSource func(string) (string, erro
 	}
 
 	var ops []spliceOp
-	var addedConsts []enrich.NamedConst
+	var addedConsts []enrichment.NamedConst
 
 	// Const-rename pre-pass: a whole type renamed (User → Account) keeps its
 	// structural id (the id is name-independent) but changes its var name +
@@ -164,7 +164,7 @@ func replaceIdentifierAll(text []byte, oldVar, newVar string) []byte {
 // existing const by @rtType id (fallback var name), and either property-merges
 // it (recording splice ops) or, when there is no match, queues it for append.
 // addedConsts dedups so a friendly+mock pair queues a single NamedConst once.
-func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index *Index, named enrich.NamedConst, friendly bool) {
+func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrichment.NamedConst, index *Index, named enrichment.NamedConst, friendly bool) {
 	varName, body, metaKeys := formParts(named, friendly)
 
 	existing := findExistingConst(index, varName)
@@ -203,7 +203,7 @@ func reconcileOneConst(ops *[]spliceOp, addedConsts *[]enrich.NamedConst, index 
 // formParts returns the var name, body text, and reserved-key set for one form
 // (friendly or mock) of a desired const — the per-form selection both
 // reconcileOneConst and emitConstRename make before merging.
-func formParts(named enrich.NamedConst, friendly bool) (varName, body string, metaKeys map[string]bool) {
+func formParts(named enrichment.NamedConst, friendly bool) (varName, body string, metaKeys map[string]bool) {
 	if friendly {
 		return named.FriendlyVar, named.Friendly, friendlyReservedKeys
 	}
@@ -232,7 +232,7 @@ func mergeConstBody(ops *[]spliceOp, index *Index, existing *constEntry, body st
 // When the existing const has a marker block, it is replaced; when it has none
 // (a hand-authored file), a fresh marker is inserted before the const keyword.
 // No op when the marker already matches (idempotent).
-func refreshMarker(ops *[]spliceOp, raw []byte, existing *constEntry, named enrich.NamedConst) {
+func refreshMarker(ops *[]spliceOp, raw []byte, existing *constEntry, named enrichment.NamedConst) {
 	desired := MarkerComment(named)
 	if desired == "" {
 		return
@@ -257,7 +257,7 @@ func refreshMarker(ops *[]spliceOp, raw []byte, existing *constEntry, named enri
 // located by markerBlockRange over the leading trivia (bounded to before the
 // `export`/`const` keyword so a body token can't match). A marker-free const, or a
 // desired with no structural id, is returned unchanged.
-func refreshRestoredMarker(inner string, named enrich.NamedConst) string {
+func refreshRestoredMarker(inner string, named enrichment.NamedConst) string {
 	desired := MarkerComment(named)
 	if desired == "" {
 		return inner
@@ -294,7 +294,7 @@ func findExistingConst(index *Index, varName string) *constEntry {
 // same structural id + form, but a new type name (so a new var + annotation).
 type constRename struct {
 	existing *constEntry
-	desired  enrich.NamedConst
+	desired  enrichment.NamedConst
 	friendly bool
 }
 
@@ -348,7 +348,7 @@ func computeConstRenames(index *Index, spec Spec) []constRename {
 			}
 			drops = append(drops, entry)
 		}
-		var adds []enrich.NamedConst
+		var adds []enrichment.NamedConst
 		for _, named := range spec.Consts {
 			if named.TypeID == "" {
 				continue
@@ -411,7 +411,7 @@ func buildReferentialLinks(index *Index, spec Spec) map[string]map[string]bool {
 // threshold. A pair is a rename iff `add` is the unique highest-scoring add for
 // `drop` AND `drop` is the unique highest-scoring drop for `add` — any tie at
 // either maximum leaves the pair unselected (ambiguous → safe fall-through).
-func pairRenames(drops []*constEntry, adds []enrich.NamedConst, friendly bool, refLinks map[string]map[string]bool) []constRename {
+func pairRenames(drops []*constEntry, adds []enrichment.NamedConst, friendly bool, refLinks map[string]map[string]bool) []constRename {
 	if len(drops) == 0 || len(adds) == 0 {
 		return nil
 	}
@@ -475,7 +475,7 @@ func strictArgmax(values []float64) (int, bool) {
 // stays below it. Every 1.0 still passes through pairRenames' strict mutual-best,
 // so an ambiguous repoint (the same drop linked to two adds) ties and falls
 // through rather than guessing.
-func constSimilarity(existing *constEntry, desired enrich.NamedConst, refLinks map[string]map[string]bool) float64 {
+func constSimilarity(existing *constEntry, desired enrichment.NamedConst, refLinks map[string]map[string]bool) float64 {
 	if existing.typeID != "" && existing.typeID == desired.TypeID {
 		return 1.0
 	}
@@ -598,8 +598,8 @@ func migrateLegacyFriendlyWrapper(ops *[]spliceOp, index *Index, orphaned []*con
 		if !entry.isFriendly || orphanedSet[entry] {
 			continue
 		}
-		if entry.annoWrapper == enrich.FriendlyTypeName && entry.annoWrapperStart != entry.annoWrapperEnd {
-			*ops = append(*ops, spliceOp{start: entry.annoWrapperStart, end: entry.annoWrapperEnd, text: enrich.FriendlyTextName})
+		if entry.annoWrapper == enrichment.FriendlyTypeName && entry.annoWrapperStart != entry.annoWrapperEnd {
+			*ops = append(*ops, spliceOp{start: entry.annoWrapperStart, end: entry.annoWrapperEnd, text: enrichment.FriendlyTextName})
 			migrated = true
 		}
 	}
@@ -607,12 +607,12 @@ func migrateLegacyFriendlyWrapper(ops *[]spliceOp, index *Index, orphaned []*con
 		return
 	}
 	for i, name := range index.dslImport.names {
-		if name != enrich.FriendlyTypeName || i >= len(index.dslImport.nameSpans) {
+		if name != enrichment.FriendlyTypeName || i >= len(index.dslImport.nameSpans) {
 			continue
 		}
 		span := index.dslImport.nameSpans[i]
 		if span[0] != span[1] {
-			*ops = append(*ops, spliceOp{start: span[0], end: span[1], text: enrich.FriendlyTextName})
+			*ops = append(*ops, spliceOp{start: span[0], end: span[1], text: enrichment.FriendlyTextName})
 		}
 	}
 }
@@ -622,7 +622,7 @@ func migrateLegacyFriendlyWrapper(ops *[]spliceOp, index *Index, orphaned []*con
 // its friendly and mock forms and must not queue twice, but two DIFFERENT named
 // types that happen to share a structural id (TypeID) are distinct consts and must
 // BOTH append — so the dedup keys on the names, never on the shared id.
-func queueNewConst(addedConsts *[]enrich.NamedConst, named enrich.NamedConst) {
+func queueNewConst(addedConsts *[]enrichment.NamedConst, named enrichment.NamedConst) {
 	for _, existing := range *addedConsts {
 		if existing.FriendlyVar == named.FriendlyVar && existing.MockVar == named.MockVar {
 			return
@@ -636,14 +636,14 @@ func queueNewConst(addedConsts *[]enrich.NamedConst, named enrich.NamedConst) {
 // @rtType/@rtIds marker, and ensures any cross-file value imports those consts
 // reference are present (added after the existing import block). Returns merged
 // unchanged when there is nothing to add.
-func appendNewConsts(merged []byte, spec Spec, index *Index, addedConsts []enrich.NamedConst) []byte {
+func appendNewConsts(merged []byte, spec Spec, index *Index, addedConsts []enrichment.NamedConst) []byte {
 	if len(addedConsts) == 0 {
 		return merged
 	}
 	var blocks []string
 	for _, named := range addedConsts {
 		if spec.WantFriendly {
-			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrich.FriendlyTextName, named, named.Friendly))
+			blocks = append(blocks, ConstBlock(named.FriendlyVar, enrichment.FriendlyTextName, named, named.Friendly))
 		}
 		if spec.WantMock {
 			blocks = append(blocks, ConstBlock(named.MockVar, "MockData", named, named.Mock))

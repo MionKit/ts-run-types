@@ -11,8 +11,8 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // enrichCommands are the out-of-band argv subcommands handled before the
@@ -79,13 +79,13 @@ func buildProgramMulti(absPaths []string) (*program.Program, *resolver.Resolver,
 
 // resolveOne builds a Program over absPath, a resolver, and resolves typeName
 // to its canonical RunType. Shared by describe + gen.
-func resolveOne(absPath, typeName string) (*enrich.Resolved, error) {
+func resolveOne(absPath, typeName string) (*enrichment.Resolved, error) {
 	prog, res, err := buildProgram(absPath)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Close()
-	return enrich.ResolveType(prog, res.Checker(), res.Cache(), absPath, typeName)
+	return enrichment.ResolveType(prog, res.Checker(), res.Cache(), absPath, typeName)
 }
 
 func runDescribe(args []string) {
@@ -110,7 +110,7 @@ func runDescribe(args []string) {
 		fatal("describe: %v", err)
 	}
 
-	description := enrich.Describe(resolved.Node, enrich.DescribeOptions{
+	description := enrichment.Describe(resolved.Node, enrichment.DescribeOptions{
 		TypeName: typeName,
 		Resolve:  resolved.Resolve,
 	})
@@ -229,17 +229,17 @@ func runGen(args []string) {
 		fatal("gen: %v", err)
 	}
 	defer res.Close()
-	resolved, err := enrich.ResolveTypeRaw(prog, res.Checker(), res.Cache(), absPath, typeName)
+	resolved, err := enrichment.ResolveTypeRaw(prog, res.Checker(), res.Cache(), absPath, typeName)
 	if err != nil {
 		fatal("gen: %v", err)
 	}
 	// The rt$ prefix is RESERVED for enrichment meta keys — a colliding
 	// property makes the scaffold unrepresentable, so refuse up front.
-	if collisions := enrich.ReservedPropertyCollisions(resolved.Node, resolved.Resolve); len(collisions) > 0 {
+	if collisions := enrichment.ReservedPropertyCollisions(resolved.Node, resolved.Resolve); len(collisions) > 0 {
 		fatal("gen: %s: property %s collides with the reserved enrichment meta prefix 'rt$' — rename the property or exclude the type from enrichment", typeName, strings.Join(collisions, ", "))
 	}
 
-	closure := enrich.EmitClosure(resolved.Node, enrich.ClosureOptions{
+	closure := enrichment.EmitClosure(resolved.Node, enrichment.ClosureOptions{
 		TypeName:       typeName,
 		Resolve:        resolved.Resolve,
 		DeclFiles:      resolved.DeclFiles,
@@ -344,7 +344,7 @@ func wantedFamilies(wantFriendly, wantMock bool) []string {
 // type is declared in declFile, in topological (declared-before-use) order.
 type declFileGroup struct {
 	declFile string
-	consts   []enrich.NamedConst
+	consts   []enrichment.NamedConst
 }
 
 // groupByDeclFile buckets a topologically-ordered closure by each const's
@@ -353,7 +353,7 @@ type declFileGroup struct {
 // const into one group keyed by fallbackFile (the --out single-file override).
 // Group order follows first appearance, so dependency order is preserved when a
 // referenced type's file is emitted before its referrer's.
-func groupByDeclFile(closure []enrich.NamedConst, fallbackFile string, forceSingle bool) []declFileGroup {
+func groupByDeclFile(closure []enrichment.NamedConst, fallbackFile string, forceSingle bool) []declFileGroup {
 	indexByFile := map[string]int{}
 	var groups []declFileGroup
 	for _, named := range closure {
@@ -433,14 +433,14 @@ func runGenBatch(files []string, typeName string) {
 	}
 	out := make(map[string]skeletons, len(absPaths))
 	for _, absPath := range absPaths {
-		resolved, err := enrich.ResolveType(prog, res.Checker(), res.Cache(), absPath, typeName)
+		resolved, err := enrichment.ResolveType(prog, res.Checker(), res.Cache(), absPath, typeName)
 		if err != nil {
 			fatal("gen --files: %s: %v", absPath, err)
 		}
 		key := strings.TrimSuffix(filepath.Base(absPath), filepath.Ext(absPath))
 		out[key] = skeletons{
-			Friendly: enrich.FriendlySkeleton(resolved.Node, resolved.Resolve),
-			Mock:     enrich.MockSkeleton(resolved.Node, resolved.Resolve),
+			Friendly: enrichment.FriendlySkeleton(resolved.Node, resolved.Resolve),
+			Mock:     enrichment.MockSkeleton(resolved.Node, resolved.Resolve),
 		}
 	}
 	encoded, err := json.MarshalIndent(out, "", "  ")

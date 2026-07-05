@@ -24,8 +24,8 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -153,13 +153,13 @@ func writeNonSerializableGlobals(out *strings.Builder) {
 }
 
 // writeEnrichmentTagConstants emits the enrichment-mirror tag literals from
-// internal/enrich/mirror/tags.go (single source of truth — the emitters and
+// internal/enrichment/mirror/tags.go (single source of truth — the emitters and
 // the Go hygiene detector derive from the same constants). The lint entry in
 // runtypes-devtools uses them for its cheap pre-filters and its tests; the
 // regex body ships WITHOUT the Go `(?s)` prefix — JS compiles it with the
 // `s` flag.
 func writeEnrichmentTagConstants(out *strings.Builder) {
-	out.WriteString("// Enrichment mirror tags (internal/enrich/mirror/tags.go): the reconcile\n")
+	out.WriteString("// Enrichment mirror tags (internal/enrichment/mirror/tags.go): the reconcile\n")
 	out.WriteString("// markers hygiene must never flag, the dirty-state tags it reports, and\n")
 	out.WriteString("// the flag-free orphan-block regex body (compile with the 's' flag).\n")
 	fmt.Fprintf(out, "export const RT_TYPE_TAG = %q;\n", mirror.RtTypeTag)
@@ -174,9 +174,9 @@ func writeEnrichmentTagConstants(out *strings.Builder) {
 	out.WriteString("// part of the enrichment-file guard alongside the marker tags.\n")
 	out.WriteString("// FRIENDLY_TYPE_NAME is the LEGACY spelling, still accepted by the file guard\n")
 	out.WriteString("// so mirrors authored before the friendly-text rename are recognized.\n")
-	fmt.Fprintf(out, "export const FRIENDLY_TEXT_NAME = %q;\n", enrich.FriendlyTextName)
-	fmt.Fprintf(out, "export const FRIENDLY_TYPE_NAME = %q;\n", enrich.FriendlyTypeName)
-	fmt.Fprintf(out, "export const MOCK_DATA_NAME = %q;\n", enrich.MockDataName)
+	fmt.Fprintf(out, "export const FRIENDLY_TEXT_NAME = %q;\n", enrichment.FriendlyTextName)
+	fmt.Fprintf(out, "export const FRIENDLY_TYPE_NAME = %q;\n", enrichment.FriendlyTypeName)
+	fmt.Fprintf(out, "export const MOCK_DATA_NAME = %q;\n", enrichment.MockDataName)
 }
 
 // tsKey wraps a key in quotes if it isn't a bare JS identifier. Keeps the

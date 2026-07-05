@@ -3,9 +3,9 @@ package resolver
 import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/astcheck"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/astcheck"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // checkEnrichFiles is the Request.CheckEnrich pass of OpScanFiles: the
@@ -72,7 +72,7 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diag.Diagnostic {
 // codes_mock.go entry — must not panic the resolver mid-lint, so it is built
 // manually with the finding's own severity. The JS side renders unknown codes with its own fallback, so
 // the finding still reaches the user either way.
-func enrichDiagnostic(code string, severity enrich.Severity, args []string, site diag.Site) diag.Diagnostic {
+func enrichDiagnostic(code string, severity enrichment.Severity, args []string, site diag.Site) diag.Diagnostic {
 	if _, known := diag.Definitions[code]; known {
 		return diag.New(code, site, args...)
 	}
@@ -83,12 +83,12 @@ func enrichDiagnostic(code string, severity enrich.Severity, args []string, site
 	return diagnostic
 }
 
-// diagSeverityFor maps an enrich.Severity onto the wire severity scheme.
-func diagSeverityFor(severity enrich.Severity) diag.Severity {
+// diagSeverityFor maps an enrichment.Severity onto the wire severity scheme.
+func diagSeverityFor(severity enrichment.Severity) diag.Severity {
 	switch severity {
-	case enrich.Error:
+	case enrichment.Error:
 		return diag.SeverityError
-	case enrich.Warning:
+	case enrichment.Warning:
 		return diag.SeverityWarning
 	default:
 		return diag.SeverityInfo

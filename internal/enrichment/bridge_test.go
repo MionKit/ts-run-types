@@ -1,4 +1,4 @@
-package enrich_test
+package enrichment_test
 
 import (
 	"strings"
@@ -7,13 +7,13 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // resolveFixture builds an inferred Program from in-memory sources, a resolver
 // over it, and resolves typeName in relPath to a canonical RunType. Hermetic —
 // no disk fixtures. Mirrors the resolver suite's setupInline overlay pattern.
-func resolveFixture(t *testing.T, relPath, typeName string, sources map[string]string) *enrich.Resolved {
+func resolveFixture(t *testing.T, relPath, typeName string, sources map[string]string) *enrichment.Resolved {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := make(map[string]string, len(sources))
@@ -38,7 +38,7 @@ func resolveFixture(t *testing.T, relPath, typeName string, sources map[string]s
 	}
 	t.Cleanup(res.Close)
 
-	resolved, err := enrich.ResolveType(prog, res.Checker(), res.Cache(), absTarget, typeName)
+	resolved, err := enrichment.ResolveType(prog, res.Checker(), res.Cache(), absTarget, typeName)
 	if err != nil {
 		t.Fatalf("ResolveType(%s): %v", typeName, err)
 	}
@@ -49,7 +49,7 @@ func TestResolveType_Describe(t *testing.T) {
 	resolved := resolveFixture(t, "user.ts", "User", map[string]string{
 		"user.ts": "export interface User { name: string; age: number }\n",
 	})
-	got := enrich.Describe(resolved.Node, enrich.DescribeOptions{
+	got := enrichment.Describe(resolved.Node, enrichment.DescribeOptions{
 		TypeName: "User",
 		Resolve:  resolved.Resolve,
 	})
@@ -75,7 +75,7 @@ func TestResolveType_UnknownTypeErrors(t *testing.T) {
 	}
 	t.Cleanup(res.Close)
 
-	if _, err := enrich.ResolveType(prog, res.Checker(), res.Cache(), abs, "Missing"); err == nil {
+	if _, err := enrichment.ResolveType(prog, res.Checker(), res.Cache(), abs, "Missing"); err == nil {
 		t.Fatal("ResolveType(Missing): expected error, got nil")
 	}
 }
@@ -88,8 +88,8 @@ func TestSkeletons_ObjectLiteralOnly(t *testing.T) {
 	resolved := resolveFixture(t, "user.ts", "User", map[string]string{
 		"user.ts": "export interface User { name: string; tags: string[] }\n",
 	})
-	friendly := enrich.FriendlySkeleton(resolved.Node, resolved.Resolve)
-	mock := enrich.MockSkeleton(resolved.Node, resolved.Resolve)
+	friendly := enrichment.FriendlySkeleton(resolved.Node, resolved.Resolve)
+	mock := enrichment.MockSkeleton(resolved.Node, resolved.Resolve)
 
 	if strings.Contains(friendly, "export const") || strings.Contains(friendly, "FriendlyText<") {
 		t.Errorf("FriendlySkeleton should be a bare object literal; got:\n%s", friendly)

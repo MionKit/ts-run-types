@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // runGenTranslate implements the `gen --translate <locale|all> [<src>]` verbs:
@@ -175,17 +175,17 @@ func buildTranslationSpecs(config enrichConfig, sourceMirror string, locales []s
 	// emitted plural arms differ per locale, so EmitClosure runs PER LOCALE.
 	type resolvedType struct {
 		typeName string
-		resolved *enrich.Resolved
+		resolved *enrichment.Resolved
 	}
 	var resolvedTypes []resolvedType
 	for _, typeName := range discovery.typeNames {
-		resolved, resolveErr := enrich.ResolveTypeRaw(prog, res.Checker(), res.Cache(), discovery.declFile, typeName)
+		resolved, resolveErr := enrichment.ResolveTypeRaw(prog, res.Checker(), res.Cache(), discovery.declFile, typeName)
 		if resolveErr != nil {
 			fmt.Fprintf(os.Stderr, "gen --translate: %s: skipping type %s: %v\n", sourceMirror, typeName, resolveErr)
 			continue
 		}
 		// The rt$ prefix is RESERVED for enrichment meta keys (see gen).
-		if collisions := enrich.ReservedPropertyCollisions(resolved.Node, resolved.Resolve); len(collisions) > 0 {
+		if collisions := enrichment.ReservedPropertyCollisions(resolved.Node, resolved.Resolve); len(collisions) > 0 {
 			fatal("gen --translate: %s: property %s collides with the reserved enrichment meta prefix 'rt$' — rename the property or exclude the type from enrichment", typeName, strings.Join(collisions, ", "))
 		}
 		resolvedTypes = append(resolvedTypes, resolvedType{typeName: typeName, resolved: resolved})
@@ -197,10 +197,10 @@ func buildTranslationSpecs(config enrichConfig, sourceMirror string, locales []s
 
 	specsByLocale := make(map[string][]mirror.Spec, len(locales))
 	for _, locale := range locales {
-		var closure []enrich.NamedConst
+		var closure []enrichment.NamedConst
 		seenVar := map[string]bool{}
 		for _, item := range resolvedTypes {
-			for _, named := range enrich.EmitClosure(item.resolved.Node, enrich.ClosureOptions{
+			for _, named := range enrichment.EmitClosure(item.resolved.Node, enrichment.ClosureOptions{
 				TypeName:  item.typeName,
 				Resolve:   item.resolved.Resolve,
 				DeclFiles: item.resolved.DeclFiles,
@@ -228,7 +228,7 @@ func buildTranslationSpecs(config enrichConfig, sourceMirror string, locales []s
 // and cross-file value imports resolve to locale siblings via MirrorPathFor.
 // The breadcrumb is the normal src type import (SourceFile = the decl file).
 // Mock halves ride along untouched — WantMock is false, nothing reads them.
-func translationSpecs(config enrichConfig, locale string, closure []enrich.NamedConst, fallbackDeclFile string) []mirror.Spec {
+func translationSpecs(config enrichConfig, locale string, closure []enrichment.NamedConst, fallbackDeclFile string) []mirror.Spec {
 	renames := make(map[string]string, len(closure))
 	renameOrder := make([]string, 0, len(closure))
 	for _, named := range closure {
@@ -239,7 +239,7 @@ func translationSpecs(config enrichConfig, locale string, closure []enrich.Named
 	}
 
 	varDeclFile := make(map[string]string, len(closure))
-	transformed := make([]enrich.NamedConst, 0, len(closure))
+	transformed := make([]enrichment.NamedConst, 0, len(closure))
 	for _, named := range closure {
 		declFile := named.DeclFile
 		if declFile == "" {
@@ -287,7 +287,7 @@ func specForMirrorPath(specs []mirror.Spec, mirrorPath string) *mirror.Spec {
 // translationFinding is one `check --translate` completeness finding.
 type translationFinding struct {
 	File     string
-	Severity enrich.Severity
+	Severity enrichment.Severity
 	Code     string
 	Message  string
 }
@@ -315,9 +315,9 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 		fatal("check --translate: %v", err)
 	}
 
-	severity := enrich.Warning
+	severity := enrichment.Warning
 	if config.I18nStrict {
-		severity = enrich.Error
+		severity = enrichment.Error
 	}
 
 	var findings []translationFinding
@@ -344,7 +344,7 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 
 	hasError := false
 	for _, finding := range findings {
-		if finding.Severity == enrich.Error {
+		if finding.Severity == enrichment.Error {
 			hasError = true
 		}
 		fmt.Printf("%s: [%s %s] %s\n", finding.File, finding.Code, finding.Severity.String(), finding.Message)
@@ -360,7 +360,7 @@ func runCheckTranslate(translateValue string, enrichDirFlag string) {
 // target. spec is the already-built src-derived desired side for THIS file —
 // nil when the friendly mirror couldn't be processed, which skips TR003 while
 // the file-local findings (TR001/TR002/TR004) still run.
-func checkTranslationFile(locale, translationPath string, spec *mirror.Spec, severity enrich.Severity) []translationFinding {
+func checkTranslationFile(locale, translationPath string, spec *mirror.Spec, severity enrichment.Severity) []translationFinding {
 	var findings []translationFinding
 
 	translationBytes, err := os.ReadFile(translationPath)

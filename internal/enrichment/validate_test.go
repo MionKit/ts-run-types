@@ -1,15 +1,15 @@
-package enrich_test
+package enrichment_test
 
 import (
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// fakeView is a hand-built enrich.LiteralView for unit tests — no Program
+// fakeView is a hand-built enrichment.LiteralView for unit tests — no Program
 // required. strings holds the string-literal-valued keys; objects holds the
 // nested object-literal-valued keys. order preserves declaration order across
 // both maps.
@@ -37,7 +37,7 @@ func (view *fakeView) obj(key string, child *fakeView) *fakeView {
 
 func (view *fakeView) Keys() []string { return view.order }
 
-func (view *fakeView) Child(key string) enrich.LiteralView {
+func (view *fakeView) Child(key string) enrichment.LiteralView {
 	child, ok := view.objects[key]
 	if !ok || child == nil {
 		return nil
@@ -72,7 +72,7 @@ func objectRT(fields map[string]*protocol.RunType) *protocol.RunType {
 
 func stringRT() *protocol.RunType { return &protocol.RunType{Kind: protocol.KindString} }
 
-func findingCodes(findings []enrich.Finding) []string {
+func findingCodes(findings []enrichment.Finding) []string {
 	codes := make([]string, 0, len(findings))
 	for _, finding := range findings {
 		codes = append(codes, finding.Code)
@@ -86,9 +86,9 @@ func TestCheckFriendly_FT002UnknownField(t *testing.T) {
 		obj("name", newFakeView().str("rt$label", "Name")).
 		obj("nope", newFakeView().str("rt$label", "Nope"))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 
-	var ft002 *enrich.Finding
+	var ft002 *enrichment.Finding
 	for i := range findings {
 		if findings[i].Code == "FT002" {
 			ft002 = &findings[i]
@@ -97,7 +97,7 @@ func TestCheckFriendly_FT002UnknownField(t *testing.T) {
 	if ft002 == nil {
 		t.Fatalf("expected FT002 for unknown field; got %v", findingCodes(findings))
 	}
-	if ft002.Severity != enrich.Error {
+	if ft002.Severity != enrichment.Error {
 		t.Errorf("FT002 severity = %v, want Error", ft002.Severity)
 	}
 	if ft002.Path != "nope" {
@@ -110,7 +110,7 @@ func TestCheckFriendly_FT005BadPlaceholder(t *testing.T) {
 	view := newFakeView().obj("name", newFakeView().
 		obj("rt$errors", newFakeView().str("type", "must be a $[nope] for $[label]")))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 
 	codes := findingCodes(findings)
 	if !contains(codes, "FT005") {
@@ -137,7 +137,7 @@ func TestCheckFriendly_Clean(t *testing.T) {
 			obj("rt$errors", newFakeView().str("type", "$[label] is required"))).
 		obj("email", newFakeView().str("rt$label", "Email"))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 	if len(findings) != 0 {
 		t.Fatalf("clean map produced findings: %v", findings)
 	}
@@ -160,9 +160,9 @@ func TestCheckFriendly_FT003UnknownConstraint(t *testing.T) {
 			str("minLength", "too short"). // declared constraint — OK
 			str("maxLength", "too long"))) // NOT declared — FT003
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 
-	var ft003 []enrich.Finding
+	var ft003 []enrichment.Finding
 	for _, finding := range findings {
 		if finding.Code == "FT003" {
 			ft003 = append(ft003, finding)
@@ -171,7 +171,7 @@ func TestCheckFriendly_FT003UnknownConstraint(t *testing.T) {
 	if len(ft003) != 1 {
 		t.Fatalf("expected exactly one FT003 (maxLength); got %v", findings)
 	}
-	if ft003[0].Severity != enrich.Warning {
+	if ft003[0].Severity != enrichment.Warning {
 		t.Errorf("FT003 severity = %v, want Warning", ft003[0].Severity)
 	}
 	if ft003[0].Path != "code.rt$errors.maxLength" {
@@ -198,8 +198,8 @@ func TestCheckFriendly_FT003PresentationParam(t *testing.T) {
 			str("max", "too much").          // declared constraint — OK
 			str("isCurrency", "not money"))) // presentation metadata — FT003
 
-	findings := enrich.CheckFriendly(rt, view, nil)
-	var ft003 []enrich.Finding
+	findings := enrichment.CheckFriendly(rt, view, nil)
+	var ft003 []enrichment.Finding
 	for _, finding := range findings {
 		if finding.Code == "FT003" {
 			ft003 = append(ft003, finding)
@@ -219,7 +219,7 @@ func TestCheckFriendly_FunctionFormErrorsSkipped(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"name": stringRT()})
 	view := newFakeView().obj("name", newFakeView().str("rt$errors", "(failed) => 'x'"))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 	if len(findings) != 0 {
 		t.Fatalf("function-form rt$errors should be skipped; got %v", findings)
 	}
@@ -231,9 +231,9 @@ func TestCheckMock_MD001UnknownField(t *testing.T) {
 		obj("name", newFakeView().str("pool", "ignored")).
 		obj("ghost", newFakeView())
 
-	findings := enrich.CheckMock(rt, view, nil)
+	findings := enrichment.CheckMock(rt, view, nil)
 
-	var md001 *enrich.Finding
+	var md001 *enrichment.Finding
 	for i := range findings {
 		if findings[i].Code == "MD001" {
 			md001 = &findings[i]
@@ -242,7 +242,7 @@ func TestCheckMock_MD001UnknownField(t *testing.T) {
 	if md001 == nil {
 		t.Fatalf("expected MD001 for unknown mock field; got %v", findingCodes(findings))
 	}
-	if md001.Severity != enrich.Error {
+	if md001.Severity != enrichment.Error {
 		t.Errorf("MD001 severity = %v, want Error", md001.Severity)
 	}
 	if md001.Path != "ghost" {
@@ -258,7 +258,7 @@ func TestCheckMock_MetaKeysNotFlagged(t *testing.T) {
 		str("rt$optional", "1").
 		obj("age", newFakeView().str("min", "0").str("max", "120").str("pool", "[]"))
 
-	findings := enrich.CheckMock(rt, view, nil)
+	findings := enrichment.CheckMock(rt, view, nil)
 	if len(findings) != 0 {
 		t.Fatalf("reserved mock keys should not be flagged; got %v", findings)
 	}
@@ -276,8 +276,8 @@ func TestCheckFriendly_NestedAndArray(t *testing.T) {
 			obj("city", newFakeView().str("rt$label", "City")).
 			obj("zip", newFakeView().str("rt$label", "Zip")))) // zip not a property
 
-	findings := enrich.CheckFriendly(rt, view, nil)
-	var ft002 *enrich.Finding
+	findings := enrichment.CheckFriendly(rt, view, nil)
+	var ft002 *enrichment.Finding
 	for i := range findings {
 		if findings[i].Code == "FT002" {
 			ft002 = &findings[i]
@@ -302,7 +302,7 @@ func TestCheckFriendly_NestedObjectErrorsNotDoubled(t *testing.T) {
 		obj("rt$errors", newFakeView().str("type", "bad $[nope]")).
 		obj("email", newFakeView().str("rt$label", "Email")))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 	count := 0
 	for _, finding := range findings {
 		if finding.Code == "FT005" {
@@ -334,7 +334,7 @@ func TestCheckFriendly_PluralLeafClean(t *testing.T) {
 				str("one", "at least $[val] character").
 				str("other", "at least $[val] characters"))))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 	if len(findings) != 0 {
 		t.Fatalf("clean plural leaf produced findings: %v", findings)
 	}
@@ -346,8 +346,8 @@ func TestCheckFriendly_FT006MissingOther(t *testing.T) {
 		obj("rt$errors", newFakeView().
 			obj("minLength", newFakeView().str("one", "at least $[val]"))))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
-	var ft006 *enrich.Finding
+	findings := enrichment.CheckFriendly(rt, view, nil)
+	var ft006 *enrichment.Finding
 	for i := range findings {
 		if findings[i].Code == "FT006" {
 			ft006 = &findings[i]
@@ -356,7 +356,7 @@ func TestCheckFriendly_FT006MissingOther(t *testing.T) {
 	if ft006 == nil {
 		t.Fatalf("expected FT006 for a plural without `other`; got %v", findingCodes(findings))
 	}
-	if ft006.Severity != enrich.Error {
+	if ft006.Severity != enrichment.Error {
 		t.Errorf("FT006 severity = %v, want Error", ft006.Severity)
 	}
 	if ft006.Path != "name.rt$errors.minLength" {
@@ -372,8 +372,8 @@ func TestCheckFriendly_FT007UnknownArm(t *testing.T) {
 				str("other", "chars").
 				str("lots", "way too many")))) // not a CLDR category
 
-	findings := enrich.CheckFriendly(rt, view, nil)
-	var ft007 *enrich.Finding
+	findings := enrichment.CheckFriendly(rt, view, nil)
+	var ft007 *enrichment.Finding
 	for i := range findings {
 		if findings[i].Code == "FT007" {
 			ft007 = &findings[i]
@@ -382,7 +382,7 @@ func TestCheckFriendly_FT007UnknownArm(t *testing.T) {
 	if ft007 == nil {
 		t.Fatalf("expected FT007 for a non-CLDR arm; got %v", findingCodes(findings))
 	}
-	if ft007.Severity != enrich.Warning {
+	if ft007.Severity != enrichment.Warning {
 		t.Errorf("FT007 severity = %v, want Warning", ft007.Severity)
 	}
 	if ft007.Path != "name.rt$errors.minLength.lots" {
@@ -397,8 +397,8 @@ func TestCheckFriendly_FT008PluralOnNonCountBearing(t *testing.T) {
 		obj("rt$errors", newFakeView().
 			obj("pattern", newFakeView().str("one", "x").str("other", "y"))))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
-	var ft008 *enrich.Finding
+	findings := enrichment.CheckFriendly(rt, view, nil)
+	var ft008 *enrichment.Finding
 	for i := range findings {
 		if findings[i].Code == "FT008" {
 			ft008 = &findings[i]
@@ -407,7 +407,7 @@ func TestCheckFriendly_FT008PluralOnNonCountBearing(t *testing.T) {
 	if ft008 == nil {
 		t.Fatalf("expected FT008 for a plural on a non-count-bearing constraint; got %v", findingCodes(findings))
 	}
-	if ft008.Severity != enrich.Warning {
+	if ft008.Severity != enrichment.Warning {
 		t.Errorf("FT008 severity = %v, want Warning", ft008.Severity)
 	}
 }
@@ -420,8 +420,8 @@ func TestCheckFriendly_FT005InsidePluralArm(t *testing.T) {
 				str("one", "bad $[nope]").
 				str("other", "fine $[val]"))))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
-	var ft005 []enrich.Finding
+	findings := enrichment.CheckFriendly(rt, view, nil)
+	var ft005 []enrichment.Finding
 	for _, finding := range findings {
 		if finding.Code == "FT005" {
 			ft005 = append(ft005, finding)
@@ -447,8 +447,8 @@ func TestCheckFriendly_FT005FormatTokens(t *testing.T) {
 			str("type", "removed $[val:number:currency] but ratio 3:1 is prose").
 			str("max", "removed $[label:number:currency] and $[val:nope:x], plain $[val] fine")))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
-	var ft005 []enrich.Finding
+	findings := enrichment.CheckFriendly(rt, view, nil)
+	var ft005 []enrichment.Finding
 	for _, finding := range findings {
 		if finding.Code == "FT005" {
 			ft005 = append(ft005, finding)
@@ -479,9 +479,9 @@ func TestCheckFriendly_FT011ReservedProperty(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"rt$label": stringRT(), "name": stringRT()})
 	view := newFakeView().obj("name", newFakeView().str("rt$label", "Name"))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 
-	var ft011 *enrich.Finding
+	var ft011 *enrichment.Finding
 	for i := range findings {
 		if findings[i].Code == "FT011" {
 			ft011 = &findings[i]
@@ -490,7 +490,7 @@ func TestCheckFriendly_FT011ReservedProperty(t *testing.T) {
 	if ft011 == nil {
 		t.Fatalf("expected FT011 for reserved property; got %v", findingCodes(findings))
 	}
-	if ft011.Severity != enrich.Error {
+	if ft011.Severity != enrichment.Error {
 		t.Errorf("FT011 severity = %v, want Error", ft011.Severity)
 	}
 	if ft011.Path != "rt$label" {
@@ -502,11 +502,11 @@ func TestCheckMock_MD011ReservedProperty(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"rt$optional": stringRT()})
 	view := newFakeView()
 
-	findings := enrich.CheckMock(rt, view, nil)
+	findings := enrichment.CheckMock(rt, view, nil)
 
 	found := false
 	for _, finding := range findings {
-		if finding.Code == "MD011" && finding.Severity == enrich.Error && finding.Path == "rt$optional" {
+		if finding.Code == "MD011" && finding.Severity == enrichment.Error && finding.Path == "rt$optional" {
 			found = true
 		}
 	}
@@ -521,7 +521,7 @@ func TestCheckFriendly_PlainDollarPropertyIsOrdinaryField(t *testing.T) {
 	rt := objectRT(map[string]*protocol.RunType{"$label": stringRT()})
 	view := newFakeView().obj("$label", newFakeView().str("rt$label", "Dollar label"))
 
-	findings := enrich.CheckFriendly(rt, view, nil)
+	findings := enrichment.CheckFriendly(rt, view, nil)
 
 	for _, finding := range findings {
 		if finding.Code == "FT002" || finding.Code == "FT011" {
@@ -536,12 +536,12 @@ func TestReservedPropertyCollisions_NestedPaths(t *testing.T) {
 		"name":    stringRT(),
 	})
 
-	collisions := enrich.ReservedPropertyCollisions(rt, nil)
+	collisions := enrichment.ReservedPropertyCollisions(rt, nil)
 
 	if len(collisions) != 1 || collisions[0] != "profile.rt$errors" {
 		t.Fatalf("collisions = %v, want [profile.rt$errors]", collisions)
 	}
-	if clean := enrich.ReservedPropertyCollisions(objectRT(map[string]*protocol.RunType{"name": stringRT()}), nil); len(clean) != 0 {
+	if clean := enrichment.ReservedPropertyCollisions(objectRT(map[string]*protocol.RunType{"name": stringRT()}), nil); len(clean) != 0 {
 		t.Fatalf("clean type reported collisions: %v", clean)
 	}
 }

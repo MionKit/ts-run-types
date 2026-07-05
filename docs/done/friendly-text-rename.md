@@ -12,13 +12,13 @@
   the `#region friendlytype-extract` marker → `friendlytext-extract`, and the
   compile test → `test/types/friendlyText.compile.test.ts`; `enrichHarness.ts`
   slice reference updated in lockstep.
-- **Go recognition/emission** ([internal/enrich/names.go](../../internal/enrich/names.go)):
+- **Go recognition/emission** ([internal/enrichment/names.go](../../internal/enrichment/names.go)):
   added `FriendlyTextName` (emitted) + kept `FriendlyTypeName` (legacy) +
   `FriendlyWrapperNames` / `IsFriendlyWrapperName` for dual-name parsing. astcheck,
   the hygiene file-guard regex, and the reconcile all accept both; every emitter
   (emit.go, helpers.go, reconcile.go, split.go) writes `FriendlyText`.
 - **Lazy `gen --update` migration** (`migrateLegacyFriendlyWrapper` in
-  [reconcile.go](../../internal/enrich/mirror/reconcile.go)): a surviving legacy
+  [reconcile.go](../../internal/enrichment/mirror/reconcile.go)): a surviving legacy
   const's annotation wrapper AND the `import type { FriendlyType }` DSL import are
   spliced to `FriendlyText` together; orphaned consts keep their wrapper verbatim
   (the carcass splice would collide). `SplitCombined` preserves the source's
@@ -73,10 +73,10 @@ Changes:
    `#region friendlytype-extract` marker + `test/types/enrichHarness.ts` slice
    reference together, and re-measure the instantiation-budget compile test).
 2. The generator's emitted annotation + import (`friendlyWrapper` in
-   [internal/enrich/mirror/helpers.go](../../internal/enrich/mirror/helpers.go))
+   [internal/enrichment/mirror/helpers.go](../../internal/enrichment/mirror/helpers.go))
    and the scaffolded `import type { FriendlyText } from 'ts-runtypes'` line.
 3. Reconcile/index recognition of the annotation text (grep `FriendlyType` under
-   [internal/enrich/](../../internal/enrich/)); accept BOTH names when parsing
+   [internal/enrichment/](../../internal/enrichment/)); accept BOTH names when parsing
    existing mirrors so committed files migrate lazily (`--update` rewrites the
    annotation), same pattern as the combined-mirror auto-migration.
 4. `packages/ts-runtypes/src/index.ts` — export `FriendlyText`; keep

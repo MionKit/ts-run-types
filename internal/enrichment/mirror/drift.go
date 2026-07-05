@@ -10,7 +10,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // drift.go is the shared core of the breadcrumb-drift checks (`gen --check`
@@ -180,21 +180,21 @@ func resolveBreadcrumbFS(fs vfspkg.FS, mirrorFile, spec string) string {
 	return tsCandidate
 }
 
-// EnrichSeverity maps a FamilyEnrich diag code to the enrich.Severity the
+// EnrichSeverity maps a FamilyEnrich diag code to the enrichment.Severity the
 // CLI reports (and exits on). Severity ownership stays with the diag catalog;
 // this is the read-side bridge for the text/JSON reports.
-func EnrichSeverity(code string) enrich.Severity {
+func EnrichSeverity(code string) enrichment.Severity {
 	switch diag.Definitions[code].Severity {
 	case diag.SeverityError:
-		return enrich.Error
+		return enrichment.Error
 	case diag.SeverityWarning:
-		return enrich.Warning
+		return enrichment.Warning
 	default:
-		return enrich.Info
+		return enrichment.Info
 	}
 }
 
 // Severity reports the finding's CLI severity, derived from the diag catalog.
-func (finding DriftFinding) Severity() enrich.Severity {
+func (finding DriftFinding) Severity() enrichment.Severity {
 	return EnrichSeverity(finding.Code)
 }
