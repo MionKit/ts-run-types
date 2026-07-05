@@ -71,7 +71,7 @@ node container/benchmarks/_audit/classify.mjs
 
 # all five competitors, inside the shared image (the canonical full run, runs
 # ts-runtypes for real too)
-pnpm run audit:alignment
+pnpm rt bench audit
 ```
 
 ## Summary

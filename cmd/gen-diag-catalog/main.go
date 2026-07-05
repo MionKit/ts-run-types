@@ -9,7 +9,7 @@
 // title, headline, detail, summary, fix, example} records (sorted by code)
 // to stdout.
 //
-// scripts/gen-diag-catalog.mjs consumes this dump and emits BOTH generated
+// scripts/core/gen-diagnostics-catalog.mjs consumes this dump and emits BOTH generated
 // artifacts: the front-end message dictionary
 // (packages/runtypes-devtools/src/diagnosticCatalog.generated.ts) that the
 // bundler + lint plugins render diagnostics from, and the website

@@ -57,9 +57,8 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",
     "dev:test": "vitest watch",
-    "format": "oxfmt --write 'src/**/*.ts'",
-    "clean": "node ../../scripts/rmrf.mjs dist .coverage tsconfig.tsbuildinfo",
-    "fresh-start": "pnpm run clean && node ../../scripts/rmrf.mjs node_modules"
+    "clean": "node ../../scripts/lib/rmrf.mjs dist .coverage tsconfig.tsbuildinfo",
+    "fresh-start": "pnpm run clean && node ../../scripts/lib/rmrf.mjs node_modules"
   },
   "dependencies": {
     "ts-runtypes-bin": "workspace:*",

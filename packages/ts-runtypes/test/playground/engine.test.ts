@@ -18,7 +18,7 @@ import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 // browser playground drives. They need the host-built WASM assets in
 // .cache/rt-wasm/; run
 //   bash container/website/scripts/build-playground.sh
-// first (scripts/website.sh dev|build does this automatically). Without the
+// first (scripts/website/site.sh dev|build does this automatically). Without the
 // assets, they skip.
 
 const TYPE = `type MyType = {

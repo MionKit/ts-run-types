@@ -27,7 +27,7 @@ image and were left on their current toolchains:
 
 - **`container/website`** (Nuxt/Docus): Vite is Nuxt-managed. Move when Nuxt
   supports Vite 8. Its own `eslint.config.mjs` (bind-mounted, see
-  [`scripts/website.sh`](../../scripts/website.sh)) is independent of the repo's
+  [`scripts/website/site.sh`](../../scripts/website/site.sh)) is independent of the repo's
   root lint migration and can move to oxlint separately if desired.
 - **`container/benchmarks`**: bumping the harness Vite to 8 changes competitor
   build numbers — re-baseline the published bench data **and republish the GHCR

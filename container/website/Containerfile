@@ -7,10 +7,10 @@
 #
 # DEPS-ONLY IMAGE: only the package-manager manifests are baked. The website's
 # come from _deps/; the benchmarks' come from .bench-deps/ (a build-time copy of
-# container/benchmarks/_deps/ that scripts/website.sh stages into the build context). The
+# container/benchmarks/_deps/ that scripts/website/site.sh stages into the build context). The
 # heavy node_modules trees are installed INSIDE the image. No first-party file
 # lives here: the website source + its Nuxt/TS/ESLint config, and all benchmark
-# source, are bind-mounted at run time (scripts/website.sh, scripts/benchmarks.sh).
+# source, are bind-mounted at run time (scripts/website/site.sh, scripts/website/bench-data/bench.sh).
 # The image is invalidated only when a dependency manifest changes.
 #
 # TWO SEPARATE DEPENDENCY TREES, in separate dirs, each with its own node_modules:
@@ -37,7 +37,7 @@ WORKDIR /app
 
 # -- Optional: trust extra CA certs (corporate / MITM egress proxy) -----------
 # MUST come before any network step (npm/apt/pnpm). The .cacerts/ dir is ALWAYS
-# present in the build context (scripts/website.sh creates it) but is empty unless
+# present in the build context (scripts/website/site.sh creates it) but is empty unless
 # a proxy CA was supplied, in which case the script copies it in. An empty dir
 # makes update-ca-certificates a no-op, so this layer costs nothing on a normal build.
 COPY .cacerts/ /usr/local/share/ca-certificates/
@@ -75,7 +75,7 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 # /bench as the root, find "no projects", and install nothing). Each gets a copy
 # of the supply-chain policy (pnpm-workspace.yaml + .npmrc) plus its package.json.
 # Manifests are sourced from .bench-deps/ (a build-time copy of container/benchmarks/_deps/,
-# staged by scripts/website.sh). typia's install is non-fatal so its opt-in
+# staged by scripts/website/site.sh). typia's install is non-fatal so its opt-in
 # fragile deps can't abort the build. node_modules is cached on each package.json.
 COPY .bench-deps/pnpm-workspace.yaml .bench-deps/.npmrc /bench/competitors/zod/
 COPY .bench-deps/competitors/zod/package.json /bench/competitors/zod/package.json
@@ -119,7 +119,7 @@ RUN cd /bench/competitors/typia \
 
 # typecost runner: its own TypeScript install (it drives the compiler API). The
 # marker package it type-resolves against is bind-mounted into the ts-runtypes
-# competitor at run time (see scripts/benchmarks.sh:mount_args).
+# competitor at run time (see scripts/website/bench-data/bench.sh:mount_args).
 COPY .bench-deps/pnpm-workspace.yaml .bench-deps/.npmrc /bench/typecost/
 COPY .bench-deps/typecost/package.json /bench/typecost/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
@@ -127,7 +127,7 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 
 EXPOSE 3000
 
-# No CMD: scripts/website.sh (WORKDIR /app) and scripts/benchmarks.sh (WORKDIR
+# No CMD: scripts/website/site.sh (WORKDIR /app) and scripts/website/bench-data/bench.sh (WORKDIR
 # /bench) each bind-mount their first-party source and supply the command. typia's
 # native ttsc plugin is pre-compiled into /bench/competitors/typia/node_modules/.ttsc
 # above (baked into the image), so the bench build reuses it with no runtime compile.

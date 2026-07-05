@@ -7,7 +7,7 @@ import type { Plugin, ViteDevServer } from 'vite'
 import { getRepoRoot, packagesDir, resolveInPackages } from './repo-root'
 
 // Monorepo root that contains packages/. Configurable via RT_REPO_ROOT (set by
-// scripts/website.sh to the read-only repo context); falls back to the parent of
+// scripts/website/site.sh to the read-only repo context); falls back to the parent of
 // the website folder for plain host runs.
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)

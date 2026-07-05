@@ -362,7 +362,7 @@ neutralize_placeholder_env() {
 }
 
 # -----------------------------------------------------------------------------
-# 10. GHCR login so a later `pnpm run website:dev` / `pnpm run bench` can PULL the
+# 10. GHCR login so a later `pnpm rt website dev` / `pnpm run bench` can PULL the
 #     private tsrt-website image instead of rebuilding it. Login is auth only - it
 #     pulls nothing, so it stays within the setup time budget.
 # -----------------------------------------------------------------------------
@@ -410,8 +410,9 @@ main() {
   ghcr_login
 
   bold "Ready. Verify / work from the repo root (this setup ran no tests):"
+  echo "  pnpm rt --help         # the internal dev/website/bench/publish CLI"
   echo "  pnpm test              # full JS suite (spawns the Go binary)"
-  echo "  pnpm run website:dev   # docs site -> http://localhost:3000"
+  echo "  pnpm rt website dev   # docs site -> http://localhost:3000"
   echo "  pnpm run bench         # full validation benchmark"
 
   if [ "$FAILED" = 0 ]; then bold "Setup OK."; else bold "Setup incomplete - see ERR above."; exit 1; fi
@@ -430,7 +431,7 @@ main "$@"
 # | "setup script" field, so at run time it is NOT `scripts/…` in a checkout|
 # | - it is a lone script in a temp path. It therefore MUST NOT source or   |
 # | call any other repo file (the ts-runtypes-setup skill's setup.sh,       |
-# | scripts/podman-website.sh, scripts/lib-*.sh, pm/*.sh, …) and MUST NOT   |
+# | scripts/container/image.sh, scripts/lib-*.sh, pm/*.sh, …) and MUST NOT   |
 # | derive the repo root from BASH_SOURCE. Every step is inlined on purpose.|
 # | If you factor something out into another file, this script breaks the   |
 # | moment it runs from the UI. Keep it standalone; DUPLICATE logic rather  |

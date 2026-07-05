@@ -34,7 +34,7 @@ This isolation is the whole point:
   only thing special about it is *build* mechanics — its validators are generated
   at build time by `runtypes-devtools` spawning the **Go binary**, so that
   binary + the first-party packages are bind-mounted into its `node_modules` at run
-  time (see [`scripts/benchmarks.sh`](../scripts/benchmarks.sh) `mount_args`).
+  time (see [`scripts/website/bench-data/bench.sh`](../scripts/website/bench-data/bench.sh) `mount_args`).
 
 ## Totality — a validator **or** an explicit not-supported, for every case
 
@@ -93,7 +93,7 @@ The first build compiles typia's native plugin once (~200s, "once per cache key"
 via ttsc's own embedded Go toolchain. Since the image is deps-only (no source at
 build time), this compile happens on the **first run that includes typia** rather
 than at image build, writing into a persisted named volume (`competitors/typia/node_modules/.ttsc`)
-so every later run reuses it; `pnpm run bench:clean` drops the volume.
+so every later run reuses it; `pnpm rt bench clean` drops the volume.
 
 typia entries copy the per-case literal `T` verbatim from the ts-go competitor
 (the type must be written at the `createIs<T>()` call site, like ts-go's
@@ -109,7 +109,7 @@ signature accepts an explicit-`undefined` property value (`{a: undefined}`).
 The image is **deps-only**: it bakes per-competitor `node_modules` (from the
 manifests in [`_deps/`](_deps/)) and nothing first-party. ALL benchmark source —
 the shared suite, every competitor's source files, `typecost/`, `aggregate.mjs` —
-is bind-mounted at run time (`scripts/benchmarks.sh:mount_args`), so an image is
+is bind-mounted at run time (`scripts/website/bench-data/bench.sh:mount_args`), so an image is
 invalidated only when a dependency manifest changes.
 
 | Inside the image (deps only)                           | Bind-mounted from the repo at run time                     |
@@ -123,32 +123,32 @@ invalidated only when a dependency manifest changes.
 From the repo root:
 
 ```bash
-pnpm run bench:prep            # build the Go binaries (host + Linux cross) + first-party JS packages on the host (one-time)
-pnpm run bench                 # build + validate + throughput for EVERY competitor + aggregate
-pnpm run bench:one zod         # the same for a SINGLE competitor (fastest verification loop)
-pnpm run bench:typecost        # compile-time: per-competitor TS type-instantiation cost
-pnpm run bench:serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
-pnpm run bench:website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
-pnpm run bench:smoke           # quick: build every competitor's dist (no run)
-# --- image publishing (maintainer); all delegate to scripts/podman-website.sh ---
-pnpm run podman-website:build-image     # build the shared website+benchmark image locally
-pnpm run podman-website:login           # log in to GHCR (needs a PAT; see SETUP.md)
-pnpm run podman-website:push            # build + push the multi-arch image to GHCR
-pnpm run podman-website:pull            # pull the published image and tag it locally
+pnpm rt bench prep            # build the Go binaries (host + Linux cross) + first-party JS packages on the host (one-time)
+pnpm rt bench                 # build + validate + throughput for EVERY competitor + aggregate
+pnpm rt bench --one zod         # the same for a SINGLE competitor (fastest verification loop)
+pnpm rt bench typecost        # compile-time: per-competitor TS type-instantiation cost
+pnpm rt bench serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
+pnpm rt bench --website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
+pnpm rt bench smoke           # quick: build every competitor's dist (no run)
+# --- image publishing (maintainer); all delegate to scripts/container/image.sh ---
+pnpm rt container build-image     # build the shared website+benchmark image locally
+pnpm rt container login           # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm rt container push            # build + push the multi-arch image to GHCR
+pnpm rt container pull            # pull the published image and tag it locally
 ```
 
 The benchmarks run in the **single shared image** built from
 [`container/website/Containerfile`](../website/Containerfile) (`FROM node:26-bookworm`): the
 website deps live at `/app`, the benchmark deps at `/bench` (`/bench/competitors/<name>`
-+ `/bench/typecost`), each its own isolated pnpm project. `scripts/podman-website.sh` owns
-the image (build/push/pull) and `scripts/benchmarks.sh` delegates to it, then runs
++ `/bench/typecost`), each its own isolated pnpm project. `scripts/container/image.sh` owns
+the image (build/push/pull) and `scripts/website/bench-data/bench.sh` delegates to it, then runs
 the bench half under `/bench`. Node 26 unflags the global `Temporal` API, so every
 timing runs on native Temporal, the same runtime the published library targets, with
 **no `temporal-polyfill`**. Override the base with `RT_WEBSITE_BASE_IMAGE` (or
 `RT_BENCH_BASE_IMAGE`, forwarded to the build).
 
 **`bench:serialization`** runs the ts-runtypes-only round-trip bench
-([`scripts/gen-serialization-bench.mjs`](../scripts/gen-serialization-bench.mjs))
+([`scripts/website/bench-data/gen-serialization.mjs`](../scripts/website/bench-data/gen-serialization.mjs))
 **inside** the Node 26 container — previously it ran on the host (wrong Node /
 polyfilled Temporal). It reuses the ts-runtypes competitor context (baked vite +
 the bind-mounted marker package, plugin and Go binary) plus a bind-mounted Linux
@@ -160,7 +160,7 @@ toolchain is needed in-container), and writes `serialization` +
 the docs site renders — runtime validation + typecost + `capture-env` +
 serialization (+ formats), every measurement taken inside the Node 26 container,
 then the `gen-bench-docs` host transform. (Suite-doc panels — schema / generated
-code — are a separate `pnpm run gen:suite-docs`.)
+code — are a separate `pnpm rt website build`.)
 
 The run commands **pull the latest published `ghcr.io/mionkit/tsrt-website:latest`
 (the shared image) by default** (cheap no-op when current), falling back to a local
@@ -276,15 +276,15 @@ process-start — and typia's one-time ~200s `ttsc` plugin compile, cached in th
 volume — never lands in a measured tier; each number is the **median of N** (default 5).
 
 ```bash
-pnpm run bench:compiletime                              # ts-runtypes + typia, three tiers
-RT_COMPILETIME_COMPETITORS="ts-runtypes" pnpm run bench:compiletime   # one library
-RT_COMPILETIME_N=10 pnpm run bench:compiletime             # more repeats
+pnpm rt bench compiletime                              # ts-runtypes + typia, three tiers
+RT_COMPILETIME_COMPETITORS="ts-runtypes" pnpm rt bench compiletime   # one library
+RT_COMPILETIME_N=10 pnpm rt bench compiletime             # more repeats
 ```
 
 Results land in `results/{ts-runtypes,typia}.compiletime.json` (`strip_ms`,
 `typecheck_ms`, `full_ms`, `types`) and join the website as a per-library breakdown (the
 two libraries as columns; the three tiers plus the two derived costs as rows) via
-`gen-bench-docs.mjs` → `bench-data/compiletime/`, on the **Compile Time** page (shared
+`gen-docs.mjs` → `bench-data/compiletime/`, on the **Compile Time** page (shared
 with the `typecost` type-checking table).
 
 > **What the numbers show.** tsgo type-checks the whole suite fast, so **typecheck −
@@ -332,14 +332,14 @@ aggregate.mjs           results/*.json → comparison table + coverage; sets the
 
 Edit the relevant `competitors/<name>/cases.ts`: change a `NOT_SUPPORTED` entry to
 a builder `() => { const s = <schema>; return (v) => <validate>(v, s); }` (the
-`CaseKey` union catches typo'd keys at compile time). Run `pnpm run bench:one
+`CaseKey` union catches typo'd keys at compile time). Run `pnpm rt bench --one
 <name>` with `RT_BENCH_NO_TIMING=1` and fix any reported mismatch — or downgrade it
 back to `NOT_SUPPORTED` (with a one-line reason) when the library genuinely
 diverges from RunTypes' semantics. To add a whole new competitor, copy a
 `competitors/<name>/` source folder, add its `package.json` under
 `_deps/competitors/<name>/`, write a total `cases.ts`, add a COPY+install layer
 to [`Containerfile`](Containerfile), and add it to `competitor_list()` in
-`scripts/benchmarks.sh`.
+`scripts/website/bench-data/bench.sh`.
 
 ## Cross-library validation alignment audit
 
@@ -350,13 +350,13 @@ against the SHARED samples (never its override) to surface and explain every
 cross-library divergence. It is analysis only and changes no case file.
 
 ```bash
-pnpm run audit:alignment        # build + audit-run every competitor, then aggregate + classify
+pnpm rt bench audit        # build + audit-run every competitor, then aggregate + classify
 ```
 
 Tooling lives in [`_audit/`](_audit/); the committed write-up is
 [`docs/cross-library-validation-alignment-report.md`](../docs/cross-library-validation-alignment-report.md).
 The audit also feeds the website's **Correctness** benchmark page (an `alignment` bench
-in `scripts/gen-bench-docs.mjs`); `pnpm run bench:website` runs the audit so that page's
+in `scripts/website/bench-data/gen-docs.mjs`); `pnpm rt bench --website` runs the audit so that page's
 data regenerates with the rest.
 
 ## Behind a corporate / MITM proxy
@@ -369,7 +369,7 @@ explicitly (file or dir) to override, and point the build at the proxy network:
 ```bash
 RT_BENCH_CA_CERT=/usr/local/share/ca-certificates \
 RT_BENCH_BUILD_NETWORK=host \
-  pnpm run podman-website:build-image
+  pnpm rt container build-image
 ```
 
 The Go binary + first-party packages are built on the host by `bench:prep` and

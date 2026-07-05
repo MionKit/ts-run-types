@@ -146,7 +146,7 @@ async function loadDetail(item: {id: string; title: string}) {
 
     <div v-else-if="indexState === 'missing'" class="suite-note">
       <span class="suite-prompt">$</span> Suite data not generated yet — run
-      <code>pnpm run gen:suite-docs</code>.
+      <code>pnpm rt website build</code>.
     </div>
 
     <template v-else-if="index">

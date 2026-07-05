@@ -5,7 +5,7 @@ package diag
 // diagnostic: a plain-language Summary of what triggers it and how to fix
 // it, an optional Fix snippet (the corrected code), and an Example (the
 // TypeScript source that actually triggers the code). The gen-diag-catalog
-// dump exports all three, so scripts/gen-diag-catalog.mjs renders the page
+// dump exports all three, so scripts/core/gen-diagnostics-catalog.mjs renders the page
 // without a second prose source.
 //
 // Example is not just docs. The standardized suite in
