@@ -4,7 +4,7 @@
 //
 // Single source of truth for two consumers (they MUST produce byte-identical
 // overlays, or the browser playground and the Node tests would diverge):
-//   - container/website/scripts/build-playground.sh writes it to
+//   - container/website/scripts/build-playground.mjs writes it to
 //     runtypes-sources.json for the browser to fetch.
 //   - packages/ts-runtypes/test/playground/nodeResolver.ts builds it in-memory
 //     and injects it via setRuntypesPackageSources().
@@ -61,7 +61,7 @@ export function buildRuntypesOverlay(srcDir) {
 }
 
 // CLI: `node scripts/website/playground-overlay.mjs <srcDir> <outFile>` writes the
-// overlay JSON that container/website/scripts/build-playground.sh serves to the
+// overlay JSON that container/website/scripts/build-playground.mjs serves to the
 // browser. Run directly; the export above is what the Node playground tests import.
 if (import.meta.main) {
   const [srcDir, outFile] = process.argv.slice(2);

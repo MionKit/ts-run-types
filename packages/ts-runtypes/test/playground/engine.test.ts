@@ -17,8 +17,8 @@ import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
 // public ts-runtypes factory, and runs the live function - the same pipeline the
 // browser playground drives. They need the host-built WASM assets in
 // .cache/rt-wasm/; run
-//   bash container/website/scripts/build-playground.sh
-// first (scripts/website/site.sh dev|build does this automatically). Without the
+//   node container/website/scripts/build-playground.mjs
+// first (pnpm rt website dev|build does this automatically). Without the
 // assets, they skip.
 
 const TYPE = `type MyType = {
@@ -58,7 +58,7 @@ const ready = assetsBuilt();
 if (!ready) {
   // eslint-disable-next-line no-console
   console.warn(
-    '[playground] WASM assets not built - skipping engine tests. Run: bash container/website/scripts/build-playground.sh'
+    '[playground] WASM assets not built - skipping engine tests. Run: node container/website/scripts/build-playground.mjs'
   );
 }
 const describeIf = ready ? describe : describe.skip;

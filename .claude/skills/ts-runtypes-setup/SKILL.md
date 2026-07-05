@@ -90,7 +90,7 @@ Runs in ~1s when healthy. Exits 0/1.
 
 **3. `pnpm rt website check`** - readies the website podman image then runs the
 dev server. The images are **deps-only** and published to GHCR, so by default
-`scripts/container/image.sh:ensure_image` PULLS the latest `ghcr.io/mionkit/tsrt-website:latest`
+`scripts/container/image.mjs:ensure_image` PULLS the latest `ghcr.io/mionkit/tsrt-website:latest`
 (`ghcr_try_pull_retag`; cheap no-op when already current), falling back to a
 local image / local build when the registry is unreachable. It then runs the dev
 server detached in a `tsrt-website-smoke` container, polls `http://localhost:3000`
@@ -99,7 +99,7 @@ for HTTP 200 + a `<title>...</title>` response (90s timeout, override with
 (`RT_WEBSITE_USE_LOCAL=1` builds/uses a local image instead of pulling - for offline
 or maintainer runs.)
 
-**4. `pnpm rt bench smoke`** - via `scripts/website/bench-data/bench.sh:ensure_prereqs`,
+**4. `pnpm rt bench smoke`** - via `scripts/website/bench-data/bench.mjs:ensure_prereqs`,
 self-syncs the host Go binary, the Linux cross-binary (`bin/ts-runtypes-linux-<arch>`),
 the marker dist and the plugin dist (rebuilds whichever is stale), and readies
 the shared image (PULLS `ghcr.io/mionkit/tsrt-website:latest` by default;
