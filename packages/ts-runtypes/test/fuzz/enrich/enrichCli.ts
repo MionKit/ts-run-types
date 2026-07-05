@@ -19,7 +19,7 @@ export const BIN = resolve(REPO_ROOT, 'bin/ts-runtypes');
 const CLI_TIMEOUT_MS = 15_000;
 const MAX_BUFFER = 32 * 1024 * 1024;
 
-/** One `check` finding — the real JSON shape the CLI emits (internal/enrich
+/** One `check` finding — the real JSON shape the CLI emits (internal/enrichment
  *  validate.go `Finding`: lowercase keys, severity as a string). **/
 export interface CheckFinding {
   file: string;

@@ -1,11 +1,11 @@
-package enrich
+package enrichment
 
 import (
 	"encoding/json"
 	"regexp"
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich/cldr"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/cldr"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

@@ -1,4 +1,4 @@
-package enrich
+package enrichment
 
 // FriendlyTextName / MockDataName are the public ts-runtypes DSL type names an
 // enrichment const is annotated with (`const x: FriendlyText<T> = {…}`).

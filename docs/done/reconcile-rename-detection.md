@@ -4,7 +4,7 @@
 a dropped const with an added const by their FIELD-GRAPH overlap, so a type that is
 renamed AND reshaped in one edit carries its authored tree onto the live const
 instead of orphaning it. Proven by worked-example Go tests
-([reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go))
+([reconcile_examples_test.go](../../internal/enrichment/mirror/reconcile_examples_test.go))
 and asserted on every fuzzer run by the new RC oracle
 ([typeModFuzzRunner.ts](../../packages/ts-runtypes/test/fuzz/enrich/typeModFuzzRunner.ts)).
 
@@ -14,7 +14,7 @@ The sibling case — a NOMINAL rename with no field graph (an enum) — is now a
 
 ## The gap (fixed)
 
-`computeConstRenames` ([reconcile.go](../../internal/enrich/mirror/reconcile.go))
+`computeConstRenames` ([reconcile.go](../../internal/enrichment/mirror/reconcile.go))
 paired a DROPPED existing const with an ADDED desired const only when they shared a
 **unique whole-graph TypeID** (`len(drops) == 1 && len(adds) == 1`). The type-id is an
 avalanche hash of the FULL type graph, so ANY reshape (a field added / dropped /
@@ -56,7 +56,7 @@ That field-level net is why the `0.5` const threshold is safe.
 
 ## What is pinned
 
-- **Go worked examples** ([reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go)):
+- **Go worked examples** ([reconcile_examples_test.go](../../internal/enrichment/mirror/reconcile_examples_test.go)):
   `RenameAndReshape_carriesByGraphParity` (the headline carry + fixed point — it FAILS
   on the old id-only matcher), `TwoSameShapeRenames_ambiguousFallsThrough` (the
   soundness floor: ambiguous renames orphan + scaffold, never mis-carry), plus the

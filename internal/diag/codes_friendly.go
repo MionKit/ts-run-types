@@ -4,8 +4,8 @@ package diag
 // a source type enriches into TWO generated files — this group covers the
 // FriendlyText mirror (labels + rt$errors templates, and its per-locale
 // translation twins). Content validity comes from the paired checker in
-// internal/enrich/validate.go; the FT02x hygiene codes come from the
-// dirty-tag scan in internal/enrich/mirror/hygiene.go, attributed to this
+// internal/enrichment/validate.go; the FT02x hygiene codes come from the
+// dirty-tag scan in internal/enrichment/mirror/hygiene.go, attributed to this
 // family by the file's const annotations / DSL import. All are opt-in
 // surfaces (Request.CheckEnrich, `ts-runtypes check`) — never emitted by a
 // build. MockData twins live in codes_mock.go; the mirror↔source linkage

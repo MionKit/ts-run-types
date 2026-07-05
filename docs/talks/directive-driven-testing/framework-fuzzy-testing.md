@@ -669,7 +669,7 @@ like a stateful sync pipeline.
 >
 > Grounded in the real pipeline: CLI at [`cmd/ts-runtypes/enrich_cli.go`](../../../cmd/ts-runtypes/enrich_cli.go)
 > (+ `enrich_reconcile.go`, `enrich_check.go`); the value-preserving merge in
-> [`internal/enrich/mirror/reconcile.go`](../../../internal/enrich/mirror/reconcile.go);
+> [`internal/enrichment/mirror/reconcile.go`](../../../internal/enrichment/mirror/reconcile.go);
 > node shapes in [`packages/ts-runtypes/src/enrich/friendlyType.ts`](../../../packages/ts-runtypes/src/enrich/friendlyType.ts)
 >
 > - `mockData.ts`; comptime-args validation in
@@ -889,7 +889,7 @@ express_):
    to _"a non-literal node inside a comptime-args `$errors` function → then what?"_:
    it is policed at **build/transform time** as **CTA001/002/003**, NOT by `check` —
    `check` deliberately treats a function-form `$errors` as opaque and walks past it
-   ([`internal/enrich/validate.go`](../../../internal/enrich/validate.go)). **MD003**
+   ([`internal/enrichment/validate.go`](../../../internal/enrichment/validate.go)). **MD003**
    (pool value vs field type) is build-time too. So a _check-driven_ fuzzer expresses
    R5 for **FT002 / FT005 / MD001** (unknown field, bad placeholder, unknown mock
    field) but **cannot** see CTA/MD003 — those need a second, build-driven harness.

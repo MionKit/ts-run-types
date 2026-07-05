@@ -4,8 +4,8 @@
 content onto the live const via a REFERENTIAL signal — the parent field that
 referenced it repoints from the old child id to the new one, which is concrete
 evidence of the rename. Implemented in `computeConstRenames`
-([reconcile.go](../../internal/enrich/mirror/reconcile.go)) and pinned by three Go
-worked-example tests ([reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go)).
+([reconcile.go](../../internal/enrichment/mirror/reconcile.go)) and pinned by three Go
+worked-example tests ([reconcile_examples_test.go](../../internal/enrichment/mirror/reconcile_examples_test.go)).
 Sibling of the graph-parity const matcher
 ([reconcile-rename-detection.md](./reconcile-rename-detection.md)); this closes the
 case it could not — a type with NO field graph to score.
@@ -49,7 +49,7 @@ fall-through, so it stays sound:
 
 ## What is pinned
 
-Go worked examples in [reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go):
+Go worked examples in [reconcile_examples_test.go](../../internal/enrichment/mirror/reconcile_examples_test.go):
 
 - `RenameEnum_carriesByReferentialLink` — enum referenced by a field, renamed, parent
   repointed → the authored label carries onto the live renamed const (FAILS without

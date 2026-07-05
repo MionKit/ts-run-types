@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // blankLabels empties every authored rt$label value so two mirrors that differ ONLY in
@@ -35,7 +35,7 @@ func TestExample_ReconcileIsContentBlind(t *testing.T) {
 	filledExisting := header +
 		"export const friendlyUser: FriendlyText<User> = {rt$label: 'Account', name: {rt$label: 'Name'}, age: {rt$label: 'Age'}};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
 		Friendly: "{rt$label: '', name: {rt$label: ''}, email: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"name": "strId", "email": "strId"},
@@ -50,7 +50,7 @@ func TestExample_ReconcileIsContentBlind(t *testing.T) {
 
 // friendlySpec builds a friendly-only desired set (one const per case keeps the
 // example readable; the mock form behaves identically).
-func friendlySpec(consts ...enrich.NamedConst) Spec {
+func friendlySpec(consts ...enrichment.NamedConst) Spec {
 	return Spec{
 		MirrorPath:   "/rt/models.ts",
 		SourceFile:   "/src.ts",
@@ -107,7 +107,7 @@ func TestExample_RenameField_carriesValue(t *testing.T) {
 		"  name: {rt$label: 'Full name'},\n" +
 		"};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
 		Friendly: "{rt$label: '', fullName: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"fullName": "strId"},
@@ -132,7 +132,7 @@ func TestExample_RenameInterface_carriesTreeAndRenames(t *testing.T) {
 		"  name: {rt$label: 'Full name'},\n" +
 		"};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "Account", DeclFile: "/src.ts", FriendlyVar: "friendlyAccount",
 		Friendly: "{rt$label: '', name: {rt$label: ''}}",
 		TypeID:   "shapeId", ChildIDs: map[string]string{"name": "strId"},
@@ -164,7 +164,7 @@ func TestExample_RenameAndReshape_carriesByGraphParity(t *testing.T) {
 		"  size: {rt$label: 'Size in mm'},\n" +
 		"};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "Gadget", DeclFile: "/src.ts", FriendlyVar: "friendlyGadget",
 		Friendly: "{rt$label: '', id: {rt$label: ''}, size: {rt$label: ''}, color: {rt$label: ''}}",
 		TypeID:   "gadId", // different whole-graph id — the reshape changed it
@@ -204,8 +204,8 @@ func TestExample_TwoSameShapeRenames_ambiguousFallsThrough(t *testing.T) {
 
 	body := "{rt$label: '', x: {rt$label: ''}}"
 	spec := friendlySpec(
-		enrich.NamedConst{TypeName: "X", DeclFile: "/src.ts", FriendlyVar: "friendlyX", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
-		enrich.NamedConst{TypeName: "Y", DeclFile: "/src.ts", FriendlyVar: "friendlyY", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
+		enrichment.NamedConst{TypeName: "X", DeclFile: "/src.ts", FriendlyVar: "friendlyX", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
+		enrichment.NamedConst{TypeName: "Y", DeclFile: "/src.ts", FriendlyVar: "friendlyY", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("X", "Y"))
 
@@ -231,11 +231,11 @@ func TestExample_RenameEnum_carriesByReferentialLink(t *testing.T) {
 		"export const friendlyHolder: FriendlyText<Holder> = {rt$label: 'Holder', kind: friendlyE0};\n"
 
 	spec := friendlySpec(
-		enrich.NamedConst{
+		enrichment.NamedConst{
 			TypeName: "Status", DeclFile: "/src.ts", FriendlyVar: "friendlyStatus",
 			Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e0new", // enum id changed with the rename
 		},
-		enrich.NamedConst{
+		enrichment.NamedConst{
 			TypeName: "Holder", DeclFile: "/src.ts", FriendlyVar: "friendlyHolder",
 			Friendly: "{rt$label: '', kind: friendlyStatus}",
 			TypeID:   "holdId", ChildIDs: map[string]string{"kind": "e0new"}, // field repointed to the new id
@@ -261,8 +261,8 @@ func TestExample_RenameEnum_noReferentialLink_fallsThrough(t *testing.T) {
 		"export const friendlyE2: FriendlyText<E2> = {rt$label: 'enum two', rt$errors: {type: ''}};\n"
 
 	spec := friendlySpec(
-		enrich.NamedConst{TypeName: "E3", DeclFile: "/src.ts", FriendlyVar: "friendlyE3", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e3"},
-		enrich.NamedConst{TypeName: "E4", DeclFile: "/src.ts", FriendlyVar: "friendlyE4", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e4"},
+		enrichment.NamedConst{TypeName: "E3", DeclFile: "/src.ts", FriendlyVar: "friendlyE3", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e3"},
+		enrichment.NamedConst{TypeName: "E4", DeclFile: "/src.ts", FriendlyVar: "friendlyE4", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e4"},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("E3", "E4"))
 
@@ -288,10 +288,10 @@ func TestExample_RenameEnum_ambiguousRepoint_fallsThrough(t *testing.T) {
 		"export const friendlyHolderB: FriendlyText<HolderB> = {rt$label: '', fieldB: friendlyE0};\n"
 
 	spec := friendlySpec(
-		enrich.NamedConst{TypeName: "E1", DeclFile: "/src.ts", FriendlyVar: "friendlyE1", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e1"},
-		enrich.NamedConst{TypeName: "E2", DeclFile: "/src.ts", FriendlyVar: "friendlyE2", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e2"},
-		enrich.NamedConst{TypeName: "HolderA", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderA", Friendly: "{rt$label: '', fieldA: friendlyE1}", TypeID: "ha", ChildIDs: map[string]string{"fieldA": "e1"}},
-		enrich.NamedConst{TypeName: "HolderB", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderB", Friendly: "{rt$label: '', fieldB: friendlyE2}", TypeID: "hb", ChildIDs: map[string]string{"fieldB": "e2"}},
+		enrichment.NamedConst{TypeName: "E1", DeclFile: "/src.ts", FriendlyVar: "friendlyE1", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e1"},
+		enrichment.NamedConst{TypeName: "E2", DeclFile: "/src.ts", FriendlyVar: "friendlyE2", Friendly: "{rt$label: '', rt$errors: {type: ''}}", TypeID: "e2"},
+		enrichment.NamedConst{TypeName: "HolderA", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderA", Friendly: "{rt$label: '', fieldA: friendlyE1}", TypeID: "ha", ChildIDs: map[string]string{"fieldA": "e1"}},
+		enrichment.NamedConst{TypeName: "HolderB", DeclFile: "/src.ts", FriendlyVar: "friendlyHolderB", Friendly: "{rt$label: '', fieldB: friendlyE2}", TypeID: "hb", ChildIDs: map[string]string{"fieldB": "e2"}},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("HolderA", "HolderB", "E1", "E2"))
 
@@ -314,7 +314,7 @@ func TestExample_ChangeFieldType_parksOldValueInCarcass(t *testing.T) {
 		"  age: {rt$label: 'Years old'},\n" +
 		"};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
 		Friendly: "{rt$label: '', age: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"age": "strId"}, // age is now a string
@@ -336,7 +336,7 @@ func TestExample_AddField_insertsFreshSkeleton(t *testing.T) {
 		"  name: {rt$label: 'Full name'},\n" +
 		"};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
 		Friendly: "{rt$label: '', name: {rt$label: ''}, email: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"name": "strId", "email": "strId"},
@@ -360,7 +360,7 @@ func TestExample_DeleteField_orphanChildsIt(t *testing.T) {
 		"  nickname: {rt$label: 'Nickname'},\n" +
 		"};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
 		Friendly: "{rt$label: '', name: {rt$label: ''}}",
 		TypeID:   "u2", ChildIDs: map[string]string{"name": "strId"},
@@ -385,8 +385,8 @@ func TestExample_TwoSameShapeTypes_stayDistinct(t *testing.T) {
 
 	body := "{rt$label: '', x: {rt$label: ''}}"
 	spec := friendlySpec(
-		enrich.NamedConst{TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
-		enrich.NamedConst{TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
+		enrichment.NamedConst{TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
+		enrichment.NamedConst{TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: body, TypeID: "sameId", ChildIDs: map[string]string{"x": "strId"}},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("A", "B"))
 
@@ -411,8 +411,8 @@ func TestExample_SameShapeNewTypes_noDoubleRestoreCrash(t *testing.T) {
 
 	body := "{rt$label: ''}"
 	spec := friendlySpec(
-		enrich.NamedConst{TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: body, TypeID: "shape"},
-		enrich.NamedConst{TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: body, TypeID: "shape"},
+		enrichment.NamedConst{TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: body, TypeID: "shape"},
+		enrichment.NamedConst{TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: body, TypeID: "shape"},
 	)
 	out := mustReconcile(t, spec, existing, sourceDeclaring("A", "B")) // must NOT crash
 
@@ -432,7 +432,7 @@ func TestExample_NewTypeSameShapeAsCarcass_doesNotReviveOldConst(t *testing.T) {
 		"/* @rtOrphan /** @rtType C#shape *\\/\n" +
 		"export const friendlyC: FriendlyText<C> = {rt$label: 'old C'}; */\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "A", DeclFile: "/src.ts", FriendlyVar: "friendlyA", Friendly: "{rt$label: ''}", TypeID: "shape",
 	})
 	src := sourceDeclaring("A")
@@ -459,7 +459,7 @@ func TestExample_RestoreCarcass_refreshesStaleMarker(t *testing.T) {
 		"/* @rtOrphan /** @rtType Map#oldId @rtIds {rt$values: oldVal} *\\/\n" +
 		"export const friendlyMap: FriendlyText<Map> = {rt$label: 'Authored map', rt$values: {rt$label: 'a value'}}; */\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "Map", DeclFile: "/src.ts", FriendlyVar: "friendlyMap",
 		Friendly: "{rt$label: '', rt$values: {rt$label: ''}}",
 		TypeID:   "newId", ChildIDs: map[string]string{"rt$values": "newVal"}, // id changed while orphaned
@@ -488,7 +488,7 @@ func TestExample_DeletedTypeReappears_restoresByName(t *testing.T) {
 		"/* @rtOrphan /** @rtType B#bId *\\/\n" +
 		"export const friendlyB: FriendlyText<B> = {rt$label: 'Authored B'}; */\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "B", DeclFile: "/src.ts", FriendlyVar: "friendlyB", Friendly: "{rt$label: ''}", TypeID: "bId",
 	})
 	out := mustReconcile(t, spec, existing, sourceDeclaring("B"))
@@ -509,7 +509,7 @@ func TestExample_LegacyFriendlyTypeAnnotationMigrates(t *testing.T) {
 		"/** @rtType User#u1 @rtIds {name: strId} */\n" +
 		"export const friendlyUser: FriendlyType<User> = {rt$label: 'Account', rt$errors: {type: ''}, name: {rt$label: 'Name', rt$errors: {type: ''}}};\n"
 
-	spec := friendlySpec(enrich.NamedConst{
+	spec := friendlySpec(enrichment.NamedConst{
 		TypeName: "User", DeclFile: "/src.ts", FriendlyVar: "friendlyUser",
 		Friendly: "{rt$label: '', rt$errors: {type: ''}, name: {rt$label: '', rt$errors: {type: ''}}}",
 		TypeID:   "u1", ChildIDs: map[string]string{"name": "strId"},

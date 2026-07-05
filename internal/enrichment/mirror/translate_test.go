@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // Translation files reconcile with the ORDINARY type-driven Spec — same
@@ -53,14 +53,14 @@ export const pl_friendlyUser: FriendlyText<User> = {
 // desiredTranslationConsts hand-builds the src-derived desired side for locale
 // pl over models.ts — what EmitClosure (SourceLocale: pl) + the driver's var
 // prefixing/sibling renaming would emit.
-func desiredTranslationConsts() []enrich.NamedConst {
-	address := enrich.NamedConst{
+func desiredTranslationConsts() []enrichment.NamedConst {
+	address := enrichment.NamedConst{
 		TypeName: "Address", DeclFile: translationSrcPath,
 		FriendlyVar: "pl_friendlyAddress",
 		Friendly:    "{rt$label: '', rt$errors: {type: ''}, street: {rt$label: '', rt$errors: {type: ''}}}",
 		TypeID:      "a1", ChildIDs: map[string]string{"street": "s1"},
 	}
-	user := enrich.NamedConst{
+	user := enrichment.NamedConst{
 		TypeName: "User", DeclFile: translationSrcPath,
 		FriendlyVar: "pl_friendlyUser",
 		Friendly: "{rt$label: '', rt$errors: {type: ''}, " +
@@ -68,12 +68,12 @@ func desiredTranslationConsts() []enrich.NamedConst {
 			"home: pl_friendlyAddress}",
 		TypeID: "u1", ChildIDs: map[string]string{"home": "a1", "name": "n1"},
 	}
-	return []enrich.NamedConst{address, user}
+	return []enrichment.NamedConst{address, user}
 }
 
 // translationSpec bundles the pl translation Spec over a desired set — an
 // ORDINARY spec: the breadcrumb/orphan oracle is the src .ts, like any mirror.
-func translationSpec(consts []enrich.NamedConst) Spec {
+func translationSpec(consts []enrichment.NamedConst) Spec {
 	return Spec{
 		MirrorPath:    translationMirrorPath,
 		SourceFile:    translationSrcPath,
@@ -87,7 +87,7 @@ func translationSpec(consts []enrich.NamedConst) Spec {
 
 // reconcileTranslation runs the full Reconcile of a desired set against an
 // existing translation file, with srcText backing the orphan oracle.
-func reconcileTranslation(t *testing.T, consts []enrich.NamedConst, existing, srcText string) (string, bool) {
+func reconcileTranslation(t *testing.T, consts []enrichment.NamedConst, existing, srcText string) (string, bool) {
 	t.Helper()
 	out, changed, err := Reconcile(translationSpec(consts), []byte(existing),
 		func(string) (string, error) { return srcText, nil })

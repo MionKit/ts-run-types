@@ -1,6 +1,6 @@
 // Prefilter gate tests + the Go↔TS constant-sync guard: the generated tag
 // constants the JS side matches with must be byte-identical to the literals
-// the Go emitters/detectors define in internal/enrich/mirror/tags.go (the
+// the Go emitters/detectors define in internal/enrichment/mirror/tags.go (the
 // single source of truth). A drifted literal silently stops enforcing, so
 // this guard reads the Go source directly.
 
@@ -22,10 +22,10 @@ import {
   TODO_TAG,
 } from '../../src/runtypes-constants.generated.ts';
 
-const TAGS_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrich/mirror/tags.go'), 'utf8');
-const NAMES_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrich/names.go'), 'utf8');
+const TAGS_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrichment/mirror/tags.go'), 'utf8');
+const NAMES_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrichment/names.go'), 'utf8');
 
-describe('constant sync with internal/enrich/mirror/tags.go', () => {
+describe('constant sync with internal/enrichment/mirror/tags.go', () => {
   it('tag literals match the Go definitions byte for byte', () => {
     expect(TAGS_GO).toContain(`RtTypeTag = "${RT_TYPE_TAG}"`);
     expect(TAGS_GO).toContain(`RtIdsTag  = "${RT_IDS_TAG}"`);

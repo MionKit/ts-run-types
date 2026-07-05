@@ -2,11 +2,11 @@ package mirror
 
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // astLiteralView adapts a tsgo ObjectLiteralExpression node to the
-// enrich.LiteralView interface the paired checkers walk. It indexes the
+// enrichment.LiteralView interface the paired checkers walk. It indexes the
 // literal's property assignments by key once, lazily, on first access.
 type astLiteralView struct {
 	literal *ast.Node
@@ -14,9 +14,9 @@ type astLiteralView struct {
 	keys    []string
 }
 
-// NewASTLiteralView builds an enrich.LiteralView over an
+// NewASTLiteralView builds an enrichment.LiteralView over an
 // ObjectLiteralExpression node, for the paired FriendlyText / MockData checkers.
-func NewASTLiteralView(literal *ast.Node) enrich.LiteralView {
+func NewASTLiteralView(literal *ast.Node) enrichment.LiteralView {
 	return newASTLiteralView(literal)
 }
 
@@ -48,7 +48,7 @@ func (view *astLiteralView) Keys() []string {
 
 // Child returns the nested object-literal view bound to key, or nil when that
 // key's value is not an object literal.
-func (view *astLiteralView) Child(key string) enrich.LiteralView {
+func (view *astLiteralView) Child(key string) enrichment.LiteralView {
 	value := view.byKey[key]
 	if value == nil || !ast.IsObjectLiteralExpression(value) {
 		return nil

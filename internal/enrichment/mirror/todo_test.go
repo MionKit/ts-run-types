@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // todoLine is the exact PLAIN `@todo` line constBlock stamps on a newly-generated
@@ -34,7 +34,7 @@ func TestTodoComment_Format(t *testing.T) {
 // `@todo` line, placed AFTER the `@rtType`/`@rtIds` marker line and BEFORE the
 // `export const` keyword — a separate line, never folded into the marker.
 func TestConstBlock_EmitsTodoAfterMarker(t *testing.T) {
-	named := enrich.NamedConst{
+	named := enrichment.NamedConst{
 		TypeName:    "User",
 		FriendlyVar: "friendlyUser",
 		TypeID:      "uID",
@@ -75,7 +75,7 @@ func TestConstBlock_EmitsTodoAfterMarker(t *testing.T) {
 // (markerComment returns "") still gets its `@todo` — the flag means "needs data"
 // independent of whether the reconcile marker is present.
 func TestConstBlock_EmitsTodoWithoutMarker(t *testing.T) {
-	named := enrich.NamedConst{TypeName: "Anon", FriendlyVar: "friendlyAnon"} // no TypeID
+	named := enrichment.NamedConst{TypeName: "Anon", FriendlyVar: "friendlyAnon"} // no TypeID
 	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{rt$label: ''}")
 	if strings.Contains(block, "@rtType") {
 		t.Fatalf("precondition: a const with no TypeID should have no @rtType marker:\n%s", block)
@@ -102,7 +102,7 @@ func TestAppendNewConsts_StampsTodo(t *testing.T) {
 		WantFriendly: true,
 		WantMock:     true,
 	}
-	added := []enrich.NamedConst{{
+	added := []enrichment.NamedConst{{
 		TypeName:    "B",
 		FriendlyVar: "friendlyB",
 		MockVar:     "mockB",
@@ -143,7 +143,7 @@ func TestReconcile_DoesNotReAddTodo(t *testing.T) {
 		SourceFile:   "/src/models.ts",
 		WantFriendly: true,
 		WantMock:     true,
-		Consts: []enrich.NamedConst{{
+		Consts: []enrichment.NamedConst{{
 			TypeName:    "User",
 			DeclFile:    "/src/models.ts",
 			FriendlyVar: "friendlyUser",
@@ -214,7 +214,7 @@ func TestParseConstMarkers_IgnoresTodo(t *testing.T) {
 // TestSkeletonBody_NoTodo is the batch-path (runGenBatch → the 287 vitest)
 // byte-identity guard: the `@todo` rides the const WRAPPER (constBlock), never the
 // skeleton BODY the batch path (FriendlySkeleton/MockSkeleton) emits and the
-// generation suite compares. The skeleton emitters live in internal/enrich and
+// generation suite compares. The skeleton emitters live in internal/enrichment and
 // have no knowledge of `@todo` by construction — assert that directly so a future
 // refactor that pushes the flag into the body would fail loudly here.
 func TestSkeletonBody_NoTodo(t *testing.T) {
@@ -233,7 +233,7 @@ func TestSkeletonBody_NoTodo(t *testing.T) {
 	// And the wrapper-stamped block, stripped of its leading wrapper trivia (the
 	// marker + @todo lines up to `export const`), leaves a body with no @todo —
 	// proving the flag never bleeds into the body the batch path emits.
-	named := enrich.NamedConst{TypeName: "User", FriendlyVar: "friendlyUser", TypeID: "uID"}
+	named := enrichment.NamedConst{TypeName: "User", FriendlyVar: "friendlyUser", TypeID: "uID"}
 	block := ConstBlock(named.FriendlyVar, "FriendlyType", named, "{rt$label: ''}")
 	body := block[strings.Index(block, "= ")+2:]
 	if strings.Contains(body, "@todo") {
@@ -252,7 +252,7 @@ func reconcileToBytes(t *testing.T, spec Spec, existing string) []byte {
 	index := mustParse(t, spec.MirrorPath, existing)
 
 	var ops []spliceOp
-	var addedConsts []enrich.NamedConst
+	var addedConsts []enrichment.NamedConst
 	for _, named := range spec.Consts {
 		if spec.WantFriendly {
 			reconcileOneConst(&ops, &addedConsts, index, named, true)

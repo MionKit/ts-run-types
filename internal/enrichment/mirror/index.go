@@ -1,3 +1,9 @@
+// Package mirror maintains the committed enrichment mirror files — the
+// per-source `.rt.ts` FriendlyText/MockData consts. It parses a mirror
+// into an Index (consts, markers, imports, translations), reconciles it
+// against freshly generated skeletons (add / update / orphan / prune),
+// splits multi-type mirrors per declaration file, and detects the dirty
+// tags (`@todo`, `@rtOrphan…`) the lint surfaces report.
 package mirror
 
 import (

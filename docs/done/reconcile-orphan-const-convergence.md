@@ -22,29 +22,29 @@ reconcile pass it produced three symptoms, all from the same mishandling:
 ## The fix (three coordinated changes)
 
 1. **Key carcasses by VAR NAME, not structural id**
-   ([index.go](../../internal/enrich/mirror/index.go) `indexOrphanCarcasses`,
-   [orphan.go](../../internal/enrich/mirror/orphan.go) `findCarcass`). Restore-on-
+   ([index.go](../../internal/enrichment/mirror/index.go) `indexOrphanCarcasses`,
+   [orphan.go](../../internal/enrichment/mirror/orphan.go) `findCarcass`). Restore-on-
    reappear now means "the SAME named type came back", not "a same-shape type
    appeared". Id-keying let a different same-shape type revive the carcass's old-named
    const (re-orphaned next pass → churn) and let two same-shape desired consts both
    restore one carcass → two splices on one byte range → the crash.
 
 2. **A const's own marker detection starts AFTER any preceding carcass**
-   ([index.go](../../internal/enrich/mirror/index.go) `ownTriviaStart`). The first
+   ([index.go](../../internal/enrichment/mirror/index.go) `ownTriviaStart`). The first
    live const after a carcass was adopting the carcass's `@rtType` as its OWN marker
    (the carcass is leading trivia of that const), so a marker refresh overwrote the
    carcass → data loss. The const's own trivia (and its orphan-fold) now begin past
    the carcass.
 
 3. **`queueNewConst` dedups by var-name PAIR, not TypeID**
-   ([reconcile.go](../../internal/enrich/mirror/reconcile.go)). Two distinct named
+   ([reconcile.go](../../internal/enrichment/mirror/reconcile.go)). Two distinct named
    types that share a structural id are distinct consts and must both append; the id
    dedup silently dropped the second.
 
 ## Tests
 
 Worked-example tests in
-[reconcile_examples_test.go](../../internal/enrich/mirror/reconcile_examples_test.go):
+[reconcile_examples_test.go](../../internal/enrichment/mirror/reconcile_examples_test.go):
 `TestExample_SameShapeNewTypes_noDoubleRestoreCrash`,
 `TestExample_NewTypeSameShapeAsCarcass_doesNotReviveOldConst` (incl. fixed-point),
 `TestExample_DeletedTypeReappears_restoresByName`. Plus the fuzzer's default lane as

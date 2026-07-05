@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // TestScanDirtyTags_ScaffoldRoundTrip pins the emitter↔detector loop for the
@@ -13,13 +13,13 @@ import (
 // the @todo line — what the user does after filling the data — makes the
 // block clean.
 func TestScanDirtyTags_ScaffoldRoundTrip(t *testing.T) {
-	named := enrich.NamedConst{
+	named := enrichment.NamedConst{
 		TypeName:    "User",
 		TypeID:      "abc123",
 		ChildIDs:    map[string]string{"name": "n1"},
 		FriendlyVar: "friendlyUser",
 	}
-	block := ConstBlock("friendlyUser", enrich.FriendlyTypeName, named, "{\n  name: {},\n}")
+	block := ConstBlock("friendlyUser", enrichment.FriendlyTypeName, named, "{\n  name: {},\n}")
 
 	findings := ScanDirtyTags(block)
 	if len(findings) != 1 {
@@ -114,23 +114,23 @@ func TestIsEnrichmentFile(t *testing.T) {
 	}{
 		{"marker", MarkerCommentPrefix + "User#a1 */\nexport const friendlyUser = {};", true},
 		{"bare tag in a string literal", "export const RT_TYPE_TAG = '" + RtTypeTag + "';\nexport const T = '" + RtIdsTag + "';", false},
-		{"friendly annotation", "import type {" + enrich.FriendlyTypeName + "} from 'ts-runtypes';\nexport const f: " + enrich.FriendlyTypeName + "<User> = {};", true},
-		{"mock annotation", "export const m: " + enrich.MockDataName + "<User> = {};", true},
-		{"annotation with newline after colon", "export const f:\n  " + enrich.FriendlyTypeName + "<User> = {};", true},
+		{"friendly annotation", "import type {" + enrichment.FriendlyTypeName + "} from 'ts-runtypes';\nexport const f: " + enrichment.FriendlyTypeName + "<User> = {};", true},
+		{"mock annotation", "export const m: " + enrichment.MockDataName + "<User> = {};", true},
+		{"annotation with newline after colon", "export const f:\n  " + enrichment.FriendlyTypeName + "<User> = {};", true},
 		{"plain source with todo", "// " + TodoTag + ": refactor this\nexport const a = 1;", false},
 		// The DSL package's own sources DECLARE and document the bare names
 		// (and may carry @todo in prose) — never enrichment files.
-		{"dsl declaration file", "// the `" + TodoTag + "`/diagnostic layer enforces this\nexport type " + enrich.FriendlyTypeName + "<T> = {[K in keyof T]?: unknown};\ntype Use = " + enrich.FriendlyTypeName + "<{a: 1}>;", false},
+		{"dsl declaration file", "// the `" + TodoTag + "`/diagnostic layer enforces this\nexport type " + enrichment.FriendlyTypeName + "<T> = {[K in keyof T]?: unknown};\ntype Use = " + enrichment.FriendlyTypeName + "<{a: 1}>;", false},
 		// A runtime that TAKES a map parameter (createFriendly's own signature)
 		// is not a mirror — only the const-declaration shape scaffolds emit is.
-		{"parameter annotation", "// blank '' (an unfilled " + TodoTag + ") counts as absent\nexport function createFriendly<T>(map: " + enrich.FriendlyTypeName + "<T>) {\n  return map;\n}", false},
+		{"parameter annotation", "// blank '' (an unfilled " + TodoTag + ") counts as absent\nexport function createFriendly<T>(map: " + enrichment.FriendlyTypeName + "<T>) {\n  return map;\n}", false},
 		// A JSDoc CODE EXAMPLE showing the const shape lives inside a comment —
 		// masked out, so docs-heavy sources with @todo prose never read as mirrors.
-		{"jsdoc code example", "/**\n * Example:\n *   export const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n * then fill the " + TodoTag + " blanks.\n */\nexport function helper() {}", false},
+		{"jsdoc code example", "/**\n * Example:\n *   export const friendlyUser: " + enrichment.FriendlyTypeName + "<User> = {};\n * then fill the " + TodoTag + " blanks.\n */\nexport function helper() {}", false},
 		// A multiline TEMPLATE embedding a mirror-shaped line is string data —
 		// the structural mask blanks literal bodies, so it never reads as a
 		// mirror (the docs site's own example snippets ship exactly this).
-		{"template-embedded annotation", "export const doc = `\nexport const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n`;\n", false},
+		{"template-embedded annotation", "export const doc = `\nexport const friendlyUser: " + enrichment.FriendlyTypeName + "<User> = {};\n`;\n", false},
 		{"empty", "", false},
 	}
 	for _, testCase := range cases {
@@ -182,8 +182,8 @@ func TestOrphanBlockPatternSource_JSCompatible(t *testing.T) {
 // annotation at/after the tag, nearest one before it, the DSL import, Unknown.
 func TestFamilyClassifier_Attribution(t *testing.T) {
 	dsl := "import type { FriendlyType, MockData } from 'ts-runtypes';\n"
-	friendlyConst := "export const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n"
-	mockConst := "export const mockUser: " + enrich.MockDataName + "<User> = {};\n"
+	friendlyConst := "export const friendlyUser: " + enrichment.FriendlyTypeName + "<User> = {};\n"
+	mockConst := "export const mockUser: " + enrichment.MockDataName + "<User> = {};\n"
 
 	cases := []struct {
 		name string
@@ -192,7 +192,7 @@ func TestFamilyClassifier_Attribution(t *testing.T) {
 	}{
 		{
 			name: "carcass interior annotation wins over surrounding consts",
-			text: dsl + friendlyConst + "/* " + OrphanTag + " export const gone: " + enrich.MockDataName + "<User> = {}; */\n" + friendlyConst,
+			text: dsl + friendlyConst + "/* " + OrphanTag + " export const gone: " + enrichment.MockDataName + "<User> = {}; */\n" + friendlyConst,
 			want: []MirrorFamily{FamilyMock},
 		},
 		{
@@ -207,7 +207,7 @@ func TestFamilyClassifier_Attribution(t *testing.T) {
 		},
 		{
 			name: "no consts at all: single-family DSL import decides",
-			text: "import type { " + enrich.FriendlyTypeName + " } from 'ts-runtypes';\n" + TodoLine + "\n",
+			text: "import type { " + enrichment.FriendlyTypeName + " } from 'ts-runtypes';\n" + TodoLine + "\n",
 			want: []MirrorFamily{FamilyFriendly},
 		},
 		{
@@ -217,7 +217,7 @@ func TestFamilyClassifier_Attribution(t *testing.T) {
 		},
 		{
 			name: "annotation inside an ordinary comment never counts",
-			text: dsl + "// example: const x: " + enrich.FriendlyTypeName + "<T> = {}\n" + TodoLine + "\n" + mockConst,
+			text: dsl + "// example: const x: " + enrichment.FriendlyTypeName + "<T> = {}\n" + TodoLine + "\n" + mockConst,
 			want: []MirrorFamily{FamilyMock},
 		},
 	}
@@ -259,7 +259,7 @@ func TestScanDirtyTags_StringLiteralsNeverFire(t *testing.T) {
 
 	// The same emit forms as REAL comments still fire / still gate.
 	realMirror := MarkerCommentPrefix + "User#a1 */\n" +
-		"export const friendlyUser: " + enrich.FriendlyTypeName + "<User> = {};\n" +
+		"export const friendlyUser: " + enrichment.FriendlyTypeName + "<User> = {};\n" +
 		"/* " + OrphanTag + " export const gone = {}; */\n"
 	if !HasMarkerComment(realMirror) {
 		t.Errorf("real marker comment must be recognised")

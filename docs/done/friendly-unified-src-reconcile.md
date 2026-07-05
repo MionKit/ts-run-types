@@ -82,12 +82,12 @@
 - **`NonFailingParams`** (params that never fail; never `$errors` keys):
   `isCurrency`, `mockSamples`, `trim`, `lowercase`, `uppercase`, `capitalize`,
   `replace`, `replaceAll`. TS: `friendlyType.ts`; Go: `nonFailingParams` in
-  [internal/enrich/enrich.go](../../internal/enrich/enrich.go) (extends the
+  [internal/enrichment/enrich.go](../../internal/enrichment/enrich.go) (extends the
   existing `presentationParams`; also cleans up Go's current "transformer
   params may appear too, author prunes" scaffold fuzziness).
 - **`CountBearingKeys`**: `minLength`, `maxLength`, `min`, `max`, `lt`, `gt` —
   TS union mirrors Go's `CountBearing`
-  ([internal/enrich/classify.go](../../internal/enrich/classify.go)).
+  ([internal/enrichment/classify.go](../../internal/enrichment/classify.go)).
 
 ## Implementation plan
 

@@ -20,7 +20,7 @@
 // <enrichDir>/friendly/<rel>.ts (friendly consts) and <enrichDir>/mock/<rel>.ts
 // (mock consts); whole-output oracles (convergence, orphan absence) read both.
 //
-// Where Layer 1 (internal/enrich/mirror property test) drives Reconcile with a
+// Where Layer 1 (internal/enrichment/mirror property test) drives Reconcile with a
 // SYNTHETIC desired set, this layer exercises the REAL compiler -> reconcile ->
 // disk pipeline end to end, so the structural ids, closure grouping and atomic
 // write are all the production ones.

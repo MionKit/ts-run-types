@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/enrich"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
 )
 
 // hygiene.go detects the DIRTY enrichment tags this package's emitters write —
@@ -209,7 +209,7 @@ func ScanDirtyTags(text string) []TagFinding {
 // wrapper type name — the current `FriendlyText` + legacy `FriendlyType` +
 // `MockData` — shared by the annotation-structure probes so all of them accept
 // mirrors authored before the friendly-text rename.
-var dslWrapperAlternation = strings.Join(append(append([]string{}, enrich.FriendlyWrapperNames...), enrich.MockDataName), `|`)
+var dslWrapperAlternation = strings.Join(append(append([]string{}, enrichment.FriendlyWrapperNames...), enrichment.MockDataName), `|`)
 
 // annotationFamilyPattern is the family-capturing twin of
 // enrichConstAnnotationPattern; group 1 is the DSL type name.
@@ -286,7 +286,7 @@ func (classifier *FamilyClassifier) FamilyFor(finding TagFinding) MirrorFamily {
 
 // familyForName maps a DSL type name to its family.
 func familyForName(name string) MirrorFamily {
-	if name == enrich.MockDataName {
+	if name == enrichment.MockDataName {
 		return FamilyMock
 	}
 	return FamilyFriendly
@@ -302,13 +302,13 @@ func dslImportFamily(text string) MirrorFamily {
 	}
 	clause := match[1]
 	hasFriendly := false
-	for _, name := range enrich.FriendlyWrapperNames { // FriendlyText (+ legacy FriendlyType)
+	for _, name := range enrichment.FriendlyWrapperNames { // FriendlyText (+ legacy FriendlyType)
 		if strings.Contains(clause, name) {
 			hasFriendly = true
 			break
 		}
 	}
-	hasMock := strings.Contains(clause, enrich.MockDataName)
+	hasMock := strings.Contains(clause, enrichment.MockDataName)
 	switch {
 	case hasFriendly && !hasMock:
 		return FamilyFriendly

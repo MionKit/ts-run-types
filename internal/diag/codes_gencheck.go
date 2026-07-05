@@ -6,7 +6,7 @@ package diag
 // breadcrumb resolves (GE002), the source still declares the imported types
 // (GE003), and the file sits at its computed per-family location (GE001,
 // CLI-only — needs the project's enrich-dir config). Detection lives in
-// internal/enrich/mirror/drift.go.
+// internal/enrichment/mirror/drift.go.
 const (
 	CodeGenMirrorUnreadable = "GE000"
 	CodeGenMirrorDrift      = "GE001"

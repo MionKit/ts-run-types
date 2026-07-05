@@ -10,22 +10,22 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
 // driftFinding is one breadcrumb-drift issue for the gen --check report.
-// Mirrors the enrich.Finding shape (Code / Severity / Message) but is
+// Mirrors the enrichment.Finding shape (Code / Severity / Message) but is
 // file-anchored; Line/Col are the 1-based position of the breadcrumb import
 // (zero for file-level findings like GE000).
 type driftFinding struct {
-	File     string          `json:"file"`
-	Severity enrich.Severity `json:"severity"`
-	Code     string          `json:"code"`
-	Message  string          `json:"message"`
-	Args     []string        `json:"args,omitempty"`
-	Line     int             `json:"line,omitempty"`
-	Col      int             `json:"col,omitempty"`
+	File     string              `json:"file"`
+	Severity enrichment.Severity `json:"severity"`
+	Code     string              `json:"code"`
+	Message  string              `json:"message"`
+	Args     []string            `json:"args,omitempty"`
+	Line     int                 `json:"line,omitempty"`
+	Col      int                 `json:"col,omitempty"`
 }
 
 // runGenCheck implements `gen --check [<mirror-file-or-dir>] [--json]`: it
@@ -98,7 +98,7 @@ func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
 
 	hasError := false
 	for _, finding := range findings {
-		if finding.Severity == enrich.Error {
+		if finding.Severity == enrichment.Error {
 			hasError = true
 		}
 	}
@@ -172,7 +172,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	if err != nil {
 		return []driftFinding{{
 			File:     mirrorFile,
-			Severity: enrich.Error,
+			Severity: enrichment.Error,
 			Code:     diag.CodeGenMirrorUnreadable,
 			Message:  "cannot read mirror file: " + err.Error(),
 			Args:     []string{err.Error()},
@@ -219,7 +219,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 		expectedMock := config.mirrorPath(familyMock, resolvedSource)
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
-			Severity: enrich.Warning,
+			Severity: enrichment.Warning,
 			Code:     diag.CodeGenMirrorDrift,
 			Message: fmt.Sprintf("mirror location drift: source maps to the per-family files %s + %s but this file is %s — re-run gen to migrate/relocate",
 				expectedFriendly, expectedMock, mirrorFile),
@@ -234,7 +234,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 		line, col := lineIndex.At(breadcrumb.Start)
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
-			Severity: enrich.Warning,
+			Severity: enrichment.Warning,
 			Code:     diag.CodeGenMirrorDrift,
 			Message:  fmt.Sprintf("mirror location drift: source maps to %s but this file is %s — re-run gen to relocate", expectedMirror, mirrorFile),
 			Args:     []string{expectedMirror, mirrorFile},

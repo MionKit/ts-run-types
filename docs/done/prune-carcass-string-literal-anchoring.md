@@ -12,7 +12,7 @@ rule's promise — "reports exactly what prune would fix" — is literally true
 again in BOTH directions.
 
 - **New shared helper `CarcassMatches`** in
-  [internal/enrich/mirror/hygiene.go](../../internal/enrich/mirror/hygiene.go):
+  [internal/enrichment/mirror/hygiene.go](../../internal/enrichment/mirror/hygiene.go):
   `orphanBlockPattern` matches restricted to those that START a genuine
   block-comment span (via the existing `commentSpans` scanner). This is the
   extraction of the comment-anchoring logic that previously lived inline in
@@ -20,7 +20,7 @@ again in BOTH directions.
 - **`ScanDirtyTags`** (lint) now derives its carcass findings from
   `CarcassMatches` — behaviourally unchanged, just factored through the helper.
 - **`PruneOrphanBlocks`** (the engine of `ts-runtypes gen --prune`,
-  [reconcile.go](../../internal/enrich/mirror/reconcile.go)) now takes its match
+  [reconcile.go](../../internal/enrichment/mirror/reconcile.go)) now takes its match
   set from `CarcassMatches` instead of running the RAW `orphanBlockPattern` over
   the whole mirror text. Its malformed-carcass (`carcassCrossesStatement`) and
   indentation/newline cleanup logic sit unchanged on top of the filtered
@@ -54,7 +54,7 @@ are unchanged.
 
 ## Tests
 
-- [orphan_test.go](../../internal/enrich/mirror/orphan_test.go) →
+- [orphan_test.go](../../internal/enrichment/mirror/orphan_test.go) →
   `TestPruneOrphanBlocks_StringLiteralsNeverPruned`: the destructive twin of the
   lint-side `TestScanDirtyTags_StringLiteralsNeverFire`. Pins that (a) authored
   `rt$label`/`rt$errors` strings and a `//`-line-comment carcass come out
@@ -70,7 +70,7 @@ are unchanged.
 ## Follow-up (same branch): parse-oracle comment spans — `mirror.Scan`
 
 The hand-rolled `commentSpans` lexer was then replaced wholesale by a
-parse-derived one ([internal/enrich/mirror/scanTags.go](../../internal/enrich/mirror/scanTags.go)),
+parse-derived one ([internal/enrichment/mirror/scanTags.go](../../internal/enrichment/mirror/scanTags.go)),
 upgrading the anchoring from "good lexical approximation" to parser-grade:
 
 - **`Scan` type** — one per-file lexical view (text + comment spans + literal
@@ -97,7 +97,7 @@ upgrading the anchoring from "good lexical approximation" to parser-grade:
     and a plain const slipped under it). Verified against the extracted old
     lexer; pinned by `TestScan_RegexLiteralNeverPhantomComment`.
 - **Third raw-pattern consumer found and fixed:** `indexOrphanCarcasses`
-  ([index.go](../../internal/enrich/mirror/index.go)) — the restore-on-reappear
+  ([index.go](../../internal/enrichment/mirror/index.go)) — the restore-on-reappear
   index — matched carcass bytes inside string literals too, so an authored
   value documenting the syntax could be spliced back in AS LIVE CODE when the
   named type reappeared. Now anchored through the same Scan

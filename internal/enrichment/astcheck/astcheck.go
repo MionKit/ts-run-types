@@ -20,8 +20,8 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/enrich"
-	"github.com/mionkit/ts-runtypes/internal/enrich/mirror"
+	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
@@ -35,11 +35,11 @@ const (
 	mapKindMock
 )
 
-// PositionedFinding pairs an enrich.Finding with the diag.Site its Path
+// PositionedFinding pairs an enrichment.Finding with the diag.Site its Path
 // resolved to (the property NAME node inside the const's object literal, or
 // the const's name when the path could not be located).
 type PositionedFinding struct {
-	enrich.Finding
+	enrichment.Finding
 	Site diag.Site
 }
 
@@ -72,17 +72,17 @@ func CheckSourceFile(sourceFile *ast.SourceFile, typeChecker *checker.Checker, c
 			if literal == nil {
 				continue
 			}
-			resolved := enrich.ProjectType(cache, typeArg)
+			resolved := enrichment.ProjectType(cache, typeArg)
 			if resolved == nil {
 				continue
 			}
 			view := mirror.NewASTLiteralView(literal)
-			var findings []enrich.Finding
+			var findings []enrichment.Finding
 			switch kind {
 			case mapKindFriendly:
-				findings = enrich.CheckFriendly(resolved.Node, view, resolved.Resolve)
+				findings = enrichment.CheckFriendly(resolved.Node, view, resolved.Resolve)
 			case mapKindMock:
-				findings = enrich.CheckMock(resolved.Node, view, resolved.Resolve)
+				findings = enrichment.CheckMock(resolved.Node, view, resolved.Resolve)
 			}
 			for _, finding := range findings {
 				out = append(out, PositionedFinding{
@@ -145,9 +145,9 @@ func enrichAnnotation(typeChecker *checker.Checker, declaration *ast.Node, modul
 	}
 	var kind mapKind
 	switch {
-	case enrich.IsFriendlyWrapperName(symbol.Name): // FriendlyText (+ legacy FriendlyType)
+	case enrichment.IsFriendlyWrapperName(symbol.Name): // FriendlyText (+ legacy FriendlyType)
 		kind = mapKindFriendly
-	case symbol.Name == enrich.MockDataName:
+	case symbol.Name == enrichment.MockDataName:
 		kind = mapKindMock
 	default:
 		return mapKindNone, nil

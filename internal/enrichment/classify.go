@@ -1,4 +1,4 @@
-package enrich
+package enrichment
 
 // Count-bearing constraint classification — the single shared table behind
 // generator-owned plurals (docs/done/friendly-type-i18n.md → §4). A constraint
