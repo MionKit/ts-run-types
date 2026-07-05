@@ -16,7 +16,7 @@
 import {createMockType} from 'ts-runtypes';
 import type {BinarySizingOptions} from '../../../src/mocking/mockTypes.ts';
 import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
-import {genType, isRecursive, DATA_GEN_OPTIONS} from '../core/typeGen.ts';
+import {genType, isRecursive, DATA_GEN_OPTIONS, type GeneratedType} from '../core/typeGen.ts';
 import {openClient, compileType, hasBinary, BIN, type CompiledType} from '../type/typeFuzzHarness.ts';
 import {checkInBounds, checkOversized, type SizeViolation} from './sizeOracle.ts';
 import {sizeLaneEligible} from './sizeEligible.ts';
@@ -36,6 +36,34 @@ export const SIZE_CONFIGS: ReadonlyArray<Required<BinarySizingOptions>> = [
   {sizeBias: 1, sizeItems: 2, sizeStringBytes: 1, sizeMaxBytes: 65536}, // tiny strings + index-sig keys
   {sizeBias: 1, sizeItems: 64, sizeStringBytes: 4, sizeMaxBytes: 65536}, // many items, sub-floor strings
 ];
+
+/** A fixed, always-eligible type used as the DETERMINISTIC FLOOR (see `runFloor`).
+ *  Its in-bounds mock fits the cold buffer (no resize) and its oversized mock
+ *  inflates an unbounded position (`tag` / the `items` elements) far past the
+ *  tiny seed (grow), so running it under `SIZE_CONFIGS[0]` exercises BOTH lanes
+ *  regardless of what the random fuzz happens to produce. The lane guards would
+ *  otherwise go vacuous when every fuzz iteration skips — which is what a
+ *  resolver dying under full-suite load does (one crash closes the client, so
+ *  every later request on it throws and cascades to `skipped`). See
+ *  docs/done/flaky-binary-size-estimate-fuzz.md. **/
+const FLOOR_TYPE: GeneratedType = {
+  decls: [],
+  root: {
+    kind: 'object',
+    props: [
+      {name: 'tag', optional: false, readonly: false, method: false, shape: {kind: 'string'}},
+      {name: 'items', optional: false, readonly: false, method: false, shape: {kind: 'array', elem: {kind: 'string'}}},
+    ],
+  },
+};
+
+/** How many times to respawn a FRESH resolver client after one dies before
+ *  giving up on a case. A dead client's transport stays closed, so without a
+ *  respawn every later request throws — cascading a single transient crash into
+ *  skipping the rest of a config (the vacuous-run flake). Node reports spawn
+ *  failures asynchronously (the transport just closes), so this covers both a
+ *  crashed child and a child that never came up. **/
+const RESOLVER_RETRIES = 3;
 
 export interface SizeFuzzOptions {
   seed?: number;
@@ -68,6 +96,9 @@ interface OneResult {
   noGrow: number;
   exercised: number;
   skipped: number;
+  /** The resolver call itself errored (the child likely died) — the caller
+   *  respawns a fresh client and retries rather than cascading to `skipped`. **/
+  resolverFailed: boolean;
 }
 
 function makeMock(compiled: CompiledType, respectBinarySize: boolean, binarySizingOptions: BinarySizingOptions): () => unknown {
@@ -84,7 +115,7 @@ async function runOne(
   cfg: Required<BinarySizingOptions>,
   iterSeed: number
 ): Promise<OneResult> {
-  const out: OneResult = {violations: [], noGrow: 0, exercised: 0, skipped: 0};
+  const out: OneResult = {violations: [], noGrow: 0, exercised: 0, skipped: 0, resolverFailed: false};
   const gen = withSeededRandom(iterSeed, () => genType(DATA_GEN_OPTIONS));
   // The in-process linker can't faithfully run a cyclic factory graph (typeFuzz
   // restricts recursive types to the resolver/emit oracles) — skip them here.
@@ -94,8 +125,15 @@ async function runOne(
     return out;
   }
   const compiled = await compileType(client, gen);
+  // A resolver error (setSources / scanFiles threw) means the child likely died,
+  // so flag it for a respawn+retry — otherwise every later request on this now
+  // closed client throws too, cascading to an all-skipped (vacuous) run.
+  if (compiled.resolverError) {
+    out.skipped = 1;
+    out.resolverFailed = true;
+    return out;
+  }
   if (
-    compiled.resolverError ||
     compiled.evalError ||
     compiled.errorDiagnostics.length ||
     compiled.seed === undefined ||
@@ -135,8 +173,105 @@ async function runOne(
   return out;
 }
 
+interface FloorResult {
+  violations: SizeViolation[];
+  noGrow: number;
+  exercised: number;
+}
+
+// Compile + check the deterministic FLOOR case under SIZE_CONFIGS[0], respawning
+// a fresh client if the resolver dies mid-attempt. This is what keeps the lane
+// guards non-vacuous: whenever the resolver is reachable AT ALL, the floor drives
+// one in-bounds no-grow check and one oversized grow, so noGrowChecked and
+// negativesExercised are > 0 by construction — the random fuzz then piles variety
+// on top. Throws ONLY when the resolver can't compile a trivial type across every
+// retry (a genuine "resolver unavailable" — reported as such instead of the
+// misleading "no-resize lane never ran") or when the floor loses its teeth (the
+// oversized negative control stops growing — a real mock-sizing regression).
+async function runFloor(seed: number): Promise<FloorResult> {
+  const cfg = SIZE_CONFIGS[0];
+  let lastError = 'unknown';
+  for (let attempt = 0; attempt <= RESOLVER_RETRIES; attempt++) {
+    const client = openClient(cfg);
+    try {
+      const compiled = await compileType(client, FLOOR_TYPE);
+      if (compiled.resolverError) {
+        lastError = compiled.resolverError; // client died — respawn + retry
+        continue;
+      }
+      if (
+        compiled.evalError ||
+        compiled.errorDiagnostics.length ||
+        compiled.seed === undefined ||
+        compiled.seed >= cfg.sizeMaxBytes ||
+        !compiled.binarySizer ||
+        !compiled.wired.binaryEncode ||
+        !compiled.reflectionTuple
+      ) {
+        // The floor is hand-picked to always yield a clean binary surface with a
+        // small seed; losing it is a real regression, not a transient blip.
+        throw new Error(
+          `size fuzz floor lost its binary surface (seed=${compiled.seed}, errs=${compiled.errorDiagnostics.length}, evalError=${compiled.evalError ?? 'none'})`
+        );
+      }
+      const ctx = {seed};
+      let inBoundsValue: unknown;
+      let oversizedValue: unknown;
+      try {
+        inBoundsValue = withSeededRandom(mixSeed(seed, 'floor-value', 0), () => makeMock(compiled, true, cfg)());
+        oversizedValue = withSeededRandom(mixSeed(seed, 'floor-over', 0), () => makeMock(compiled, false, cfg)());
+      } catch (err) {
+        throw new Error(`size fuzz floor mock wiring failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      const violations = [...checkInBounds(compiled, inBoundsValue, ctx)];
+      const neg = checkOversized(compiled, oversizedValue, ctx);
+      if (neg.violation) violations.push(neg.violation);
+      if (!neg.exercised) {
+        throw new Error(
+          'size fuzz floor: the oversized value did not grow the cold buffer — the respectBinarySize:false negative control lost its teeth (mock-sizing regression?)'
+        );
+      }
+      return {violations, noGrow: 1, exercised: 1};
+    } finally {
+      client.close();
+    }
+  }
+  throw new Error(
+    `size fuzz could not compile its floor type after ${RESOLVER_RETRIES + 1} attempts — the resolver appears unavailable ` +
+      `(last error: ${lastError}). This is an environment failure, not a size regression.`
+  );
+}
+
+// Run one fuzz case, respawning the client on resolver death so a single
+// transient crash doesn't cascade to skipping the config's remaining iterations.
+// Returns the (possibly respawned) client for the caller to keep using.
+async function runOneWithRespawn(
+  client: ReturnType<typeof openClient>,
+  cfg: Required<BinarySizingOptions>,
+  iterSeed: number
+): Promise<{result: OneResult; client: ReturnType<typeof openClient>}> {
+  let result = await runOne(client, cfg, iterSeed);
+  for (let retry = 0; result.resolverFailed && retry < RESOLVER_RETRIES; retry++) {
+    client.close();
+    client = openClient(cfg);
+    result = await runOne(client, cfg, iterSeed);
+  }
+  return {result, client};
+}
+
 function emptyStats(): SizeFuzzStats {
   return {noGrowChecked: 0, negativesExercised: 0, skipped: 0};
+}
+
+function accumulate(
+  stats: SizeFuzzStats,
+  violations: SizeViolation[],
+  r: {violations: SizeViolation[]; noGrow: number; exercised: number; skipped?: number}
+): void {
+  violations.push(...r.violations);
+  stats.noGrowChecked += r.noGrow;
+  stats.negativesExercised += r.exercised;
+  stats.skipped += r.skipped ?? 0;
 }
 
 /** Run a fixed number of generated types, distributed across the configs. **/
@@ -149,16 +284,19 @@ export async function runSizeFuzz(options: SizeFuzzOptions = {}): Promise<SizeFu
   const stats = emptyStats();
   let runs = 0;
 
+  // Deterministic floor first: guarantees both lanes ran (or fails loudly with a
+  // resolver-unavailable / lost-teeth message) so the guards below can't trip on
+  // a run the random fuzz left vacuous.
+  accumulate(stats, violations, await runFloor(seed));
+
   for (let c = 0; c < SIZE_CONFIGS.length; c++) {
     const cfg = SIZE_CONFIGS[c];
-    const client = openClient(cfg);
+    let client = openClient(cfg);
     try {
       for (let i = 0; i < perConfig && runs < iterations; i++) {
-        const r = await runOne(client, cfg, mixSeed(seed, `cfg${c}`, i));
-        violations.push(...r.violations);
-        stats.noGrowChecked += r.noGrow;
-        stats.negativesExercised += r.exercised;
-        stats.skipped += r.skipped;
+        const step = await runOneWithRespawn(client, cfg, mixSeed(seed, `cfg${c}`, i));
+        client = step.client;
+        accumulate(stats, violations, step.result);
         runs++;
       }
     } finally {
@@ -184,19 +322,21 @@ export async function runSizeFuzzForDuration(
   let runs = 0;
   let round = 0;
 
+  // Same deterministic floor as runSizeFuzz — keeps the lanes non-vacuous and
+  // proves the resolver is reachable before the soak commits to a long run.
+  const floor = await runFloor(seed);
+  accumulate(stats, violations, floor);
+  for (const v of floor.violations) onViolation?.(v);
+
   while (now() - start < durationMs) {
     const cfg = SIZE_CONFIGS[round % SIZE_CONFIGS.length];
-    const client = openClient(cfg);
+    let client = openClient(cfg);
     try {
       for (let i = 0; i < 25 && now() - start < durationMs; i++) {
-        const r = await runOne(client, cfg, mixSeed(seed, `soak${round}`, i));
-        for (const v of r.violations) {
-          violations.push(v);
-          onViolation?.(v);
-        }
-        stats.noGrowChecked += r.noGrow;
-        stats.negativesExercised += r.exercised;
-        stats.skipped += r.skipped;
+        const step = await runOneWithRespawn(client, cfg, mixSeed(seed, `soak${round}`, i));
+        client = step.client;
+        for (const v of step.result.violations) onViolation?.(v);
+        accumulate(stats, violations, step.result);
         runs++;
       }
     } finally {
