@@ -11,9 +11,9 @@
 // `CompiledPureFunction`), so the wire shapes can never drift from the
 // registry shapes. The positional tuple types are DERIVED from the records
 // through the `*_TUPLE_KEYS` arrays — the single source of slot order,
-// mirrored by the emitters in internal/compiled/{entrymod,runtype,typefns,
-// purefns}. Any layout change MUST touch the matching keys array here and
-// the Go emitter together.
+// mirrored by the emitters in internal/compiler/virtualmodules and
+// internal/cachegen/{runtype,typefunctions,purefunctions}. Any layout change
+// MUST touch the matching keys array here and the Go emitter together.
 //
 // Every tuple shares the same fixed head: slot 0 discriminates the layout
 // (the numeric kinds below, or the QUOTED family tag string for type-fn

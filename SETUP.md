@@ -220,7 +220,7 @@ pnpm run changelog:unreleased  # prepend just the unreleased section to CHANGELO
 
 ```bash
 printf '%s\n%s\n' \
-  '{"op":"scanFiles","files":["internal/testfixtures/f6_router_inference.ts"]}' \
+  '{"op":"scanFiles","files":["internal/testfixtures/f17_runtype_id.ts"]}' \
   '{"op":"dump"}' \
   | bin/ts-runtypes --one-shot --tsconfig internal/testfixtures/tsconfig.json \
   > cache.json

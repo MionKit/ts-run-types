@@ -12,7 +12,7 @@
 //      cold buffer. A `respectBinarySize:true` value must fit by construction.
 //
 // Format brands use the local `TypeFormat` decl the resolver recognises (mirrors
-// internal/resolver's typeFormatBrandDecl).
+// internal/compiler/resolver's typeFormatBrandDecl).
 
 import path from 'node:path';
 import {describe, it, expect} from 'vitest';
