@@ -10,6 +10,7 @@
 // CliError on failure (never process.exit); this file catches it, prints, and sets
 // process.exitCode. See docs/todos/scripts-shell-to-mjs-migration.md.
 import {spawnSync} from 'node:child_process';
+import {main as coreBuild} from './core/build.mjs';
 import {loadEnv} from './lib/env.mjs';
 import {CliError, reportCliError} from './lib/proc.mjs';
 
@@ -34,9 +35,9 @@ function proxy(cmd, args = [], extraEnv) {
 function steps(list) {
   for (const step of list) proxy(step[0], step[1] ?? [], step[2]);
 }
-// Build the engine first (throws on its failure), then continue in-process.
+// Build the engine first (throws CliError on its failure), then continue in-process.
 function ensureBuilt() {
-  proxy('bash', ['scripts/core/build.sh', 'all']);
+  coreBuild(['all']);
 }
 const hasFlag = (args, ...names) => args.some((a) => names.includes(a));
 function takeFlag(args, flag, {valued = false} = {}) {
@@ -85,7 +86,7 @@ function runCodegen(args) {
 
 function runCore(args) {
   const [sub, ...rest] = args;
-  if (sub === 'build') return proxy('bash', ['scripts/core/build.sh', ...(rest.length ? rest : ['all'])]);
+  if (sub === 'build') return coreBuild(rest);
   if (sub === 'smoke') return (ensureBuilt(), proxy('node', ['scripts/core/smoke.mjs', ...rest]));
   if (sub === 'codegen') return runCodegen(rest);
   if (sub === 'fuzz') {
@@ -218,7 +219,7 @@ async function dispatch(argv) {
     case 'release': return runRelease(rest);
     case 'container': return proxy('bash', ['scripts/container/image.sh', ...rest]);
     case 'env': return runEnv(rest);
-    case 'verify': return steps([['bash', ['scripts/core/build.sh', 'all']], ['pnpm', ['run', 'lint']], ['pnpm', ['run', 'check-format']]]);
+    case 'verify': return (coreBuild(['all']), steps([['pnpm', ['run', 'lint']], ['pnpm', ['run', 'check-format']]]));
     case 'fmt': return proxy('pnpm', ['run', hasFlag(rest, '--check') ? 'check-format' : 'format']);
     case 'clean': return proxy('pnpm', ['run', hasFlag(rest, '--deep') ? 'fresh-start' : 'clean']);
     case undefined:

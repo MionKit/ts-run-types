@@ -28,7 +28,7 @@
     "rt": "node scripts/rt.mjs",
     "pretest": "pnpm run check:builds",
     "test": "vitest run",
-    "check:builds": "bash scripts/core/build.sh",
+    "check:builds": "node scripts/rt.mjs core build",
     "check:env": "node scripts/rt.mjs env",
     "gen:ts-constants": "go run ./cmd/gen-ts-constants",
     "gen:run-type-kind": "go run ./cmd/gen-run-type-kind > packages/ts-runtypes/src/runTypeKind.ts",

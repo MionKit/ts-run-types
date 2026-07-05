@@ -137,10 +137,10 @@ jobs:
           filters: |
             smoke:
               - 'container/**'
-              - 'scripts/core/build.sh'
+              - 'scripts/core/build.mjs'
               - 'scripts/website/**'
               - 'scripts/container/**'
-              - 'scripts/env/registry.sh'
+              - 'scripts/lib/**'
 
   # Path-gated container smoke, parallel with the verify jobs. Self-contained: it
   # builds its own resolver + linux binaries for the container mounts, then pulls
@@ -159,7 +159,7 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/bootstrap
       - name: Build the resolver + linux binaries for the container mounts
-        run: bash scripts/core/build.sh all linux-go linux-extract
+        run: pnpm rt core build all linux-go linux-extract
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Website serves-a-page smoke

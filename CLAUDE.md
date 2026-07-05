@@ -48,7 +48,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - JS uses **Vitest** (root [vitest.config.ts](vitest.config.ts)); test files use `.spec.ts` or `.test.ts`.
 - All JS: `pnpm test`. Single file: `pnpm exec vitest run <pattern>`. Single package: `pnpm --filter <name> test`.
 - Go: `go test ./internal/...`.
-- ALWAYS rebuild `bin/ts-runtypes` before `pnpm test` — plugin tests spawn it; `pnpm run pretest` runs [`scripts/core/build.sh`](scripts/core/build.sh) automatically (covers the Go binary, the marker dist, and the vite plugin dist).
+- ALWAYS rebuild `bin/ts-runtypes` before `pnpm test` — plugin tests spawn it; `pnpm run pretest` runs [`scripts/core/build.mjs`](scripts/core/build.mjs) automatically (covers the Go binary, the marker dist, and the vite plugin dist).
 - Never run `pnpm run build` during development (only for publishing) — EXCEPT for `ts-runtypes-devtools`, which MUST be rebuilt after every src edit (consumers read its dist `.d.ts` for typecheck; no `source` condition in its exports).
 
 ### ⚠️ Marker test coverage rule
