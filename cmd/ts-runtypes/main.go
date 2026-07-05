@@ -23,7 +23,7 @@ import (
 	// format (stringFormat, uuid, …) registers with the formats
 	// registry before the resolver starts handing out RunTypes.
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
-	"github.com/mionkit/ts-runtypes/internal/compile"
+	"github.com/mionkit/ts-runtypes/internal/compiler/batchcompile"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/marker"
@@ -327,7 +327,7 @@ func main() {
 		if !hasTsconfig {
 			fatal("compile: requires a tsconfig (not compatible with --inline-server / --inline-sources-stdin)")
 		}
-		compileResult, compileErr := compile.Run(compile.Options{
+		compileResult, compileErr := batchcompile.Run(batchcompile.Options{
 			Cwd:          absCwd,
 			TsconfigPath: tsconfigPath,
 			// merged.runTypesGenDir layers the flag over the tsconfig

@@ -1,4 +1,4 @@
-package compile
+package batchcompile
 
 import (
 	"encoding/json"
