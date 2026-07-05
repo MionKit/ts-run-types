@@ -30,7 +30,7 @@ import (
 
 // structuralByID returns the raw structural id (pre-hash) the typeid Computer
 // produced for the wire id, via the resolver's cache.
-func structuralByID(t *testing.T, r *resolver.Resolver, id string) string {
+func structuralByID(t *testing.T, r *resolver.Session, id string) string {
 	t.Helper()
 	structural := r.Cache().StructuralForHash(id)
 	if structural == "" {
@@ -41,7 +41,7 @@ func structuralByID(t *testing.T, r *resolver.Resolver, id string) string {
 
 // scanSiteIDs scans test.ts and returns the wire ids of every call site, in
 // source order.
-func scanSiteIDs(t *testing.T, r *resolver.Resolver) []string {
+func scanSiteIDs(t *testing.T, r *resolver.Session) []string {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	if resp.Error != "" {

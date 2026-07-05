@@ -54,7 +54,7 @@ var enrichMirror = "import type { User } from './user';\n" +
 
 // setupEnrichFixture builds the overlay program + resolver. The extra map
 // lets tests add or replace files (e.g. a mirror with a dead breadcrumb).
-func setupEnrichFixture(t *testing.T, extra map[string]string) *resolver.Resolver {
+func setupEnrichFixture(t *testing.T, extra map[string]string) *resolver.Session {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := map[string]string{

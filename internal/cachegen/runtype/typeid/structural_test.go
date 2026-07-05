@@ -18,7 +18,7 @@ const runtypesDTS = `declare module 'ts-runtypes' {
 
 // inlineResolver builds an in-memory program around the supplied snippet
 // and returns a resolver ready for OpScanFiles / OpDump.
-func inlineResolver(t *testing.T, code string) *resolver.Resolver {
+func inlineResolver(t *testing.T, code string) *resolver.Session {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	dtsPath := tspath.ResolvePath(cwd, "runtypes.d.ts")
@@ -45,7 +45,7 @@ func inlineResolver(t *testing.T, code string) *resolver.Resolver {
 
 // rootFor scans test.ts and returns the RunType node for the first
 // (and only) call site.
-func rootFor(t *testing.T, code string) (*resolver.Resolver, *protocol.RunType) {
+func rootFor(t *testing.T, code string) (*resolver.Session, *protocol.RunType) {
 	t.Helper()
 	res := inlineResolver(t, code)
 	scanResp := res.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})

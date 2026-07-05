@@ -19,7 +19,7 @@ import (
 
 // setupRenderResolver builds a resolver with serial scanning and the
 // requested render mode.
-func setupRenderResolver(t testing.TB, sources map[string]string, disableParallelRender bool) *resolver.Resolver {
+func setupRenderResolver(t testing.TB, sources map[string]string, disableParallelRender bool) *resolver.Session {
 	t.Helper()
 	return setupInlineWith(t, sources, func(_ *program.Options, resolverOpts *resolver.Options) {
 		resolverOpts.DisableParallelScan = true

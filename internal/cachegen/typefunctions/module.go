@@ -32,6 +32,19 @@ type RenderOpts struct {
 	// diagnostic emission entirely — keeps tests that don't care about
 	// the per-call-site fan-out quiet.
 	DiagSink *[]diagnostics.Diagnostic
+	// PureFnDepSink, when non-nil, accumulates every pure-fn dependency the
+	// walker records while rendering a LIVE entry body (walker.PureFnDependencies
+	// — e.g. `rt::newRunTypeErr` for a validationErrors body). The resolver
+	// aggregates these across a dispatch and cross-checks each against the
+	// program-wide pure-fn registration set; a dep whose registration is
+	// missing surfaces PFE9012 ("RT depends on missing pure-fn"). Noop,
+	// alwaysThrow, and disk-cache-hit entries contribute nothing — they emit
+	// no `utl.getPureFn` calls (or the walker never ran) — so a warm disk
+	// cache validates only the entries the walk actually recomputed. Nil
+	// disables the collection (the common non-linting path). Populated
+	// serially per family collect; the parallel fan-out shards it per goroutine
+	// (see resolver.collectFamilies) exactly like DiagSink.
+	PureFnDepSink *[]protocol.PureFnDep
 	// ProvenanceSites maps each cached RunType ID to the set of marker
 	// call sites that reference it. EmitDiagnostic uses this to fan out
 	// one Diagnostic per call site so the user gets actionable file:line:col
@@ -561,6 +574,13 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 	deps := append([]string(nil), walker.RTDependencies...)
 	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
+	// Surface this live body's pure-fn dependencies for build-time validation
+	// (PFE9012). Only the live path reaches here — noop / alwaysThrow entries
+	// and disk-cache hits returned earlier, and none of them emit getPureFn
+	// calls, so this is the complete set of deps a fresh walk contributes.
+	if opts.PureFnDepSink != nil && len(walker.PureFnDependencies) > 0 {
+		*opts.PureFnDepSink = append(*opts.PureFnDepSink, walker.PureFnDependencies...)
+	}
 	argsText := joinArgs(args)
 	if variantSuffix == "" {
 		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, false, opts)

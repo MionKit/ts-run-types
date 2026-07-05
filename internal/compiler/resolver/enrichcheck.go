@@ -25,13 +25,13 @@ import (
 // nothing; the pass never fails the op. Sites echo the REQUESTED path,
 // matching the marker scanner's convention, so the consumer can key
 // diagnostics back to the file it asked about.
-func (resolver *Resolver) checkEnrichFiles(files []string) []diagnostics.Diagnostic {
+func (sess *Session) checkEnrichFiles(files []string) []diagnostics.Diagnostic {
 	var out []diagnostics.Diagnostic
-	if resolver.Program == nil {
+	if sess.Program == nil {
 		return out
 	}
 	for _, file := range files {
-		sourceFile, err := resolver.sourceFile(file)
+		sourceFile, err := sess.sourceFile(file)
 		if err != nil || sourceFile == nil {
 			continue
 		}
@@ -47,7 +47,7 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diagnostics.Diagnos
 			out = append(out, diagnostics.New(tagCode(tag.Kind, classifier.FamilyFor(tag)), tagSite(file, lineIndex, tag)))
 		}
 
-		for _, finding := range astcheck.CheckSourceFile(sourceFile, resolver.checker, resolver.cache, resolver.Program.FS, file) {
+		for _, finding := range astcheck.CheckSourceFile(sourceFile, sess.checker, sess.cache, sess.Program.FS, file) {
 			out = append(out, enrichDiagnostic(finding.Code, finding.Severity, finding.Args, finding.Site))
 		}
 
@@ -57,8 +57,8 @@ func (resolver *Resolver) checkEnrichFiles(files []string) []diagnostics.Diagnos
 		// breadcrumb. `check` and `gen --check` — where the user explicitly
 		// targets enrichment files — stay ungated.
 		if scan.HasMarkerComment() {
-			absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
-			for _, drift := range mirror.CheckBreadcrumbDrift(absolutePath, text, resolver.Program.FS) {
+			absolutePath := tspath.ResolvePath(sess.Program.TS.GetCurrentDirectory(), file)
+			for _, drift := range mirror.CheckBreadcrumbDrift(absolutePath, text, sess.Program.FS) {
 				out = append(out, diagnostics.New(drift.Code, tagSite(file, lineIndex, mirror.TagFinding{Start: drift.Start, End: drift.End}), drift.Args...))
 			}
 		}

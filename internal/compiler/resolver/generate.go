@@ -155,12 +155,12 @@ func unwritableOutDirError(typesDir string, err error) error {
 // workingDir is the resolver's configured cwd — the base every relative file
 // path and outDir resolves against — falling back to the Program's current
 // directory.
-func (resolver *Resolver) workingDir() string {
-	if resolver.opts.Cwd != "" {
-		return resolver.opts.Cwd
+func (sess *Session) workingDir() string {
+	if sess.opts.Cwd != "" {
+		return sess.opts.Cwd
 	}
-	if resolver.Program != nil && resolver.Program.TS != nil {
-		return resolver.Program.TS.GetCurrentDirectory()
+	if sess.Program != nil && sess.Program.TS != nil {
+		return sess.Program.TS.GetCurrentDirectory()
 	}
 	return ""
 }
@@ -168,11 +168,11 @@ func (resolver *Resolver) workingDir() string {
 // absPath resolves p against the resolver's working dir when relative, so the
 // generate/transform relative-path math (filepath.Rel) sees consistent bases
 // regardless of whether the caller passed absolute or cwd-relative paths.
-func (resolver *Resolver) absPath(p string) string {
+func (sess *Session) absPath(p string) string {
 	if p == "" || filepath.IsAbs(p) {
 		return p
 	}
-	return filepath.Join(resolver.workingDir(), p)
+	return filepath.Join(sess.workingDir(), p)
 }
 
 // outputDirName is the project-folder name the files-mode output lands under
@@ -186,11 +186,11 @@ const outputDirName = "__runtypes"
 // output root. An explicit value is absolutized as-is; an empty value infers
 // <srcDir>/__runtypes from the tsconfig so a consumer that can't parse tsconfig
 // (the dependency-free plugin) gets a sensible default it can adopt.
-func (resolver *Resolver) resolveOutDir(requested string) string {
+func (sess *Session) resolveOutDir(requested string) string {
 	if requested != "" {
-		return resolver.absPath(requested)
+		return sess.absPath(requested)
 	}
-	return filepath.Join(resolver.inferSrcDir(), outputDirName)
+	return filepath.Join(sess.inferSrcDir(), outputDirName)
 }
 
 // inferSrcDir picks the project's source root — the base for the default
@@ -198,27 +198,27 @@ func (resolver *Resolver) resolveOutDir(requested string) string {
 // tsconfig: an explicit rootDir wins; else the common-ancestor directory of
 // the program's own root files (the matched include set, node_modules
 // excluded); else baseUrl; else the working dir.
-func (resolver *Resolver) inferSrcDir() string {
-	cwd := resolver.workingDir()
-	if resolver.Program == nil || resolver.Program.TS == nil {
+func (sess *Session) inferSrcDir() string {
+	cwd := sess.workingDir()
+	if sess.Program == nil || sess.Program.TS == nil {
 		return cwd
 	}
-	options := resolver.Program.TS.Options()
+	options := sess.Program.TS.Options()
 	// rootDir wins only when it sits at or below the working dir. A rootDir
 	// ABOVE cwd (e.g. tsconfig.test.json's `rootDir: "../.."`, set wide to
 	// type-check sibling packages) is an emit-root signal, not a source-root
 	// one — honoring it would drop the output tree outside the project. In
 	// that case fall through to the common-ancestor of the actual files.
 	if options != nil && options.RootDir != "" {
-		if rootDir := resolver.absPath(options.RootDir); isWithin(cwd, rootDir) {
+		if rootDir := sess.absPath(options.RootDir); isWithin(cwd, rootDir) {
 			return rootDir
 		}
 	}
-	if ancestor := commonDir(resolver.projectRootFiles()); ancestor != "" {
+	if ancestor := commonDir(sess.projectRootFiles()); ancestor != "" {
 		return ancestor
 	}
 	if options != nil && options.BaseUrl != "" {
-		return resolver.absPath(options.BaseUrl)
+		return sess.absPath(options.BaseUrl)
 	}
 	return cwd
 }
@@ -238,11 +238,11 @@ func isWithin(base, target string) bool {
 // include list, or the inferred program's explicit file names), with
 // node_modules-resolved entries dropped so a dependency .d.ts can't drag the
 // common-ancestor up to a shared parent.
-func (resolver *Resolver) projectRootFiles() []string {
-	if resolver.Program == nil || resolver.Program.TS == nil {
+func (sess *Session) projectRootFiles() []string {
+	if sess.Program == nil || sess.Program.TS == nil {
 		return nil
 	}
-	commandLine := resolver.Program.TS.CommandLine()
+	commandLine := sess.Program.TS.CommandLine()
 	if commandLine == nil {
 		return nil
 	}

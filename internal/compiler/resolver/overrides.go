@@ -66,15 +66,15 @@ type overrideArgSpan struct {
 // triggering scan requested: an override declared in one file shifts the ids of
 // types used in any other, so the map must be complete before the first id is
 // minted.
-func (resolver *Resolver) ensureOverrides() {
-	if resolver.overridesBuilt {
+func (sess *Session) ensureOverrides() {
+	if sess.overridesBuilt {
 		return
 	}
-	resolver.overridesBuilt = true
-	if resolver.Program == nil || resolver.Program.TS == nil || resolver.checker == nil {
+	sess.overridesBuilt = true
+	if sess.Program == nil || sess.Program.TS == nil || sess.checker == nil {
 		return
 	}
-	state := resolver.scanStateFor(resolver.checker)
+	state := sess.scanStateFor(sess.checker)
 
 	// Phase 1 — collect every override declaration once. cfn extraction is
 	// independent of the override map, so it runs here (not per fixpoint
@@ -84,7 +84,7 @@ func (resolver *Resolver) ensureOverrides() {
 	var entries []purefunctions.Entry
 	seen := map[string]struct{}{}
 	argSpans := map[string][]overrideArgSpan{}
-	for _, sourceFile := range resolver.Program.TS.SourceFiles() {
+	for _, sourceFile := range sess.Program.TS.SourceFiles() {
 		if sourceFile == nil || sourceFile.IsDeclarationFile {
 			continue
 		}
@@ -93,7 +93,7 @@ func (resolver *Resolver) ensureOverrides() {
 			if !ok {
 				return true
 			}
-			cfn, cfnOK := purefunctions.ExtractOverrideFn(resolver.checker, sourceFile, site.fnArg)
+			cfn, cfnOK := purefunctions.ExtractOverrideFn(sess.checker, sourceFile, site.fnArg)
 			if !cfnOK {
 				return true
 			}
@@ -112,8 +112,8 @@ func (resolver *Resolver) ensureOverrides() {
 			return true
 		})
 	}
-	resolver.overrideEntries = entries
-	resolver.overrideArgSpansByFile = argSpans
+	sess.overrideEntries = entries
+	sess.overrideArgSpansByFile = argSpans
 	if len(raws) == 0 {
 		return
 	}
@@ -122,24 +122,24 @@ func (resolver *Resolver) ensureOverrides() {
 	// contains another overridden type needs the inner fold applied first; each
 	// iteration recomputes base keys against the previous map until the keys
 	// stabilize (bounded — see maxOverrideFoldIterations).
-	overrides, baseKeys := resolver.foldOverrideMap(raws)
+	overrides, baseKeys := sess.foldOverrideMap(raws)
 
 	// Phase 3 — diagnostics on the FINAL, stable base keys: strict OVR001 (any
 	// second override of a (type, family) pair) + OVR010 (validate cross-family).
-	resolver.overrideDiagnostics = overrideDiagnostics(raws, baseKeys)
+	sess.overrideDiagnostics = overrideDiagnostics(raws, baseKeys)
 
-	resolver.cache.SetOverrides(overrides)
+	sess.cache.SetOverrides(overrides)
 }
 
 // foldOverrideMap iterates the base-key computation to a fixpoint and returns the
 // final override map plus the final base key of each raw (parallel to raws). The
 // first raw (source order) wins a (baseKey, fnKey) pair; conflicts are reported
 // separately by overrideDiagnostics.
-func (resolver *Resolver) foldOverrideMap(raws []rawOverride) (map[string]map[string]string, []string) {
+func (sess *Session) foldOverrideMap(raws []rawOverride) (map[string]map[string]string, []string) {
 	prev := map[string]map[string]string{}
 	baseKeys := make([]string, len(raws))
 	for iteration := 0; iteration < maxOverrideFoldIterations; iteration++ {
-		computer := typeid.NewWithOverrides(resolver.checker, prev)
+		computer := typeid.NewWithOverrides(sess.checker, prev)
 		next := map[string]map[string]string{}
 		for i, raw := range raws {
 			baseKey := computer.BaseStructuralKey(raw.typeArg)
@@ -213,12 +213,12 @@ func overrideDiagnostics(raws []rawOverride, baseKeys []string) []diagnostics.Di
 // in the cfn module). Scoped per file like the pure-fn factory nullings — the
 // span map is whole-program, but only spans whose file is in this request are
 // emitted. Sorted (file, start) for deterministic output.
-func (resolver *Resolver) collectOverrideReplacements(files []string) []protocol.Replacement {
-	if len(resolver.overrideArgSpansByFile) == 0 {
+func (sess *Session) collectOverrideReplacements(files []string) []protocol.Replacement {
+	if len(sess.overrideArgSpansByFile) == 0 {
 		return nil
 	}
-	filePaths := make([]string, 0, len(resolver.overrideArgSpansByFile))
-	for filePath := range resolver.overrideArgSpansByFile {
+	filePaths := make([]string, 0, len(sess.overrideArgSpansByFile))
+	for filePath := range sess.overrideArgSpansByFile {
 		inRequest := false
 		for _, file := range files {
 			if sameTransformPath(filePath, file) {
@@ -233,7 +233,7 @@ func (resolver *Resolver) collectOverrideReplacements(files []string) []protocol
 	sort.Strings(filePaths)
 	var replacements []protocol.Replacement
 	for _, filePath := range filePaths {
-		spans := resolver.overrideArgSpansByFile[filePath]
+		spans := sess.overrideArgSpansByFile[filePath]
 		sort.Slice(spans, func(i, j int) bool { return spans[i].start < spans[j].start })
 		for _, span := range spans {
 			replacements = append(replacements, protocol.Replacement{
@@ -289,7 +289,7 @@ func (state scanState) detectOverrideSite(call *ast.Node) (overrideSite, bool) {
 				continue
 			}
 			typeArgument = typeArg
-			if fnKeys, fnOK := marker.FnKeysForInjectTypeFnArgs(state.scanChecker, paramType, state.resolver.marker); fnOK && len(fnKeys) == 1 {
+			if fnKeys, fnOK := marker.FnKeysForInjectTypeFnArgs(state.scanChecker, paramType, state.sess.marker); fnOK && len(fnKeys) == 1 {
 				fnKey = fnKeys[0]
 			}
 		case marker.KindPureFunction:

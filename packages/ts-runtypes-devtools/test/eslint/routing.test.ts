@@ -21,6 +21,23 @@ describe('severity-tier routing (compiler families)', () => {
     expect(routeDiagnostic(diagnostic({code: 'CLS001', severity: Severity.Info})).ruleName).toBe('info');
   });
 
+  it('routes the build-time pure-fn dependency error (PFE9012) to the error rule with its missing key in the message', () => {
+    // The resolver now cross-checks every RT-referenced pure fn against the
+    // program registration set; a missing one rides the wire as PFE9012 and
+    // must land in the error tier (it fails the build) with the key spelled out.
+    const report = routeDiagnostic(
+      diagnostic({
+        code: 'PFE9012',
+        family: Family.PureFn,
+        severity: Severity.Error,
+        args: ['rt::newRunTypeErr', 'rt', 'newRunTypeErr', 'packages/ts-runtypes/src/run-types-pure-fns.ts'],
+      })
+    );
+    expect(report.ruleName).toBe('error');
+    expect(report.message).toContain('[PFE9012]');
+    expect(report.message).toContain('rt::newRunTypeErr');
+  });
+
   it('keeps the stable code in the message for lookup and disable comments', () => {
     const report = routeDiagnostic(diagnostic({code: 'VL011', args: ['onClick']}));
     expect(report.message).toContain('[VL011]');

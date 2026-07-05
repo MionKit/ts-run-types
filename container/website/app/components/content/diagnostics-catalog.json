@@ -1179,8 +1179,8 @@
       "severity": "error",
       "headline": "Pure-fn `{0}` is referenced by a RT function but never registered — call `registerPureFnFactory('{1}::{2}', …)` first.",
       "detail": "A RT validator/encoder calls `utl.usePureFn('{0}')` (or similar) but\nno `registerPureFnFactory` call with that namespace+function pair was\nfound in any scanned source file.\n\nFix — register the function in the expected location ({3}, if known).\nMake sure the file is included in the scan set.",
-      "summary": null,
-      "fix": null,
+      "summary": "A generated validator or encoder calls a helper (a pure function) that was never registered, so the built output would fail the moment it runs. This almost always means a source file that registers the helper with `registerPureFnFactory` is not part of the compile. Import the `ts-runtypes` entry that provides it, or include the file that registers it, so the build can see the definition.",
+      "fix": "import {registerPureFnFactory} from 'ts-runtypes';\nregisterPureFnFactory('rt::newRunTypeErr', (utl) => (message) => new Error(message));",
       "example": null
     },
     {

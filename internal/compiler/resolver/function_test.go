@@ -43,7 +43,7 @@ getRunTypeId(fn);
 	assertF35RestOnlyFunction(t, r, root)
 }
 
-func assertF35RestOnlyFunction(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF35RestOnlyFunction(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindFunction {
@@ -102,7 +102,7 @@ getRunTypeId(fn);
 	assertF36MixedFunction(t, r, root)
 }
 
-func assertF36MixedFunction(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF36MixedFunction(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindFunction {
@@ -180,7 +180,7 @@ getRunTypeId(fn);
 	assertF37PromiseReturn(t, r, root)
 }
 
-func assertF37PromiseReturn(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF37PromiseReturn(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindFunction {
@@ -236,7 +236,7 @@ getRunTypeId(value);
 	assertF38ClassMethodFullShape(t, r, root)
 }
 
-func assertF38ClassMethodFullShape(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF38ClassMethodFullShape(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindClass {
@@ -303,7 +303,7 @@ getRunTypeId(value);
 	assertF39MethodSignatureFullShape(t, r, root)
 }
 
-func assertF39MethodSignatureFullShape(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF39MethodSignatureFullShape(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -356,7 +356,7 @@ getRunTypeId<Tagged>();
 // canonical interface shape; the marker-coverage parity is preserved by
 // F35–F39 reflect tests already exercising the marker.DetectAny path.
 
-func assertF40CallSignature(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF40CallSignature(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {

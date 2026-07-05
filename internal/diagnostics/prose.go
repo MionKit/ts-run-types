@@ -134,6 +134,18 @@ export const errorsOf = createGetValidationErrors<Box>();`,
 		Example: `import {createGetValidationErrors} from 'ts-runtypes';
 export const errorsOf = createGetValidationErrors<unknown>();`,
 	},
+
+	// ─────────────────────── pure functions (PFE) ───────────────────────
+
+	// No Example: PFE9012 needs a compiled function to reach a pure fn whose
+	// registration is absent from the program. The built-in helpers register
+	// through the `ts-runtypes` package itself, so no small type-only snippet
+	// reproduces the miss (the diag-example harness always has them present).
+	CodeMissingPureFnDep: {
+		Summary: "A generated validator or encoder calls a helper (a pure function) that was never registered, so the built output would fail the moment it runs. This almost always means a source file that registers the helper with `registerPureFnFactory` is not part of the compile. Import the `ts-runtypes` entry that provides it, or include the file that registers it, so the build can see the definition.",
+		Fix: `import {registerPureFnFactory} from 'ts-runtypes';
+registerPureFnFactory('rt::newRunTypeErr', (utl) => (message) => new Error(message));`,
+	},
 }
 
 // init folds the prose onto the registered Definitions. It runs after the

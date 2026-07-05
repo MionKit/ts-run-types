@@ -8,7 +8,7 @@ import (
 // notes the visited wire ids against `file` in the per-file scope map. The
 // resulting map drives the "scanned files" semantics for IncludeRunTypes /
 // IncludeCacheSources — see scopedDump.
-func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
+func (sess *Session) recordFileIDs(file string, sites []protocol.Site) {
 	if file == "" || len(sites) == 0 {
 		return
 	}
@@ -22,8 +22,8 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 			return
 		}
 		visited[id] = struct{}{}
-		resolver.cache.RecordFileID(file, id)
-		node := resolver.cache.NodeByID(id)
+		sess.cache.RecordFileID(file, id)
+		node := sess.cache.NodeByID(id)
 		if node == nil {
 			return
 		}
@@ -42,18 +42,18 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 // RunTypes are sorted by id (cache guarantees) and sites are filtered to
 // the same file allowlist. Callers wanting the full in-memory cache use
 // dispatchDump instead.
-func (resolver *Resolver) scopedDump(files []string) protocol.Dump {
-	ids := resolver.cache.IDsForUnion(files)
+func (sess *Session) scopedDump(files []string) protocol.Dump {
+	ids := sess.cache.IDsForUnion(files)
 	allowed := make(map[string]struct{}, len(files))
 	for _, file := range files {
 		allowed[file] = struct{}{}
 	}
-	sites := make([]protocol.Site, 0, len(resolver.sites))
-	for _, site := range resolver.sites {
+	sites := make([]protocol.Site, 0, len(sess.sites))
+	for _, site := range sess.sites {
 		if _, ok := allowed[site.File]; ok {
 			sites = append(sites, site)
 		}
 	}
-	runTypes := resolver.cache.NodesForIDs(ids)
+	runTypes := sess.cache.NodesForIDs(ids)
 	return protocol.Dump{RunTypes: runTypes, Sites: sites}
 }

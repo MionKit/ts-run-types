@@ -338,7 +338,7 @@ const (
 	// reset is explicitly invoked.
 	OpSetSources = "setSources"
 	// OpReset wipes ALL resolver state: cache, sites, Program, checker,
-	// and the in-memory overlay. Equivalent to throwing the Resolver away
+	// and the in-memory overlay. Equivalent to throwing the Session away
 	// and replacing it with a fresh one — the connection stays open. A
 	// subsequent setSources is required before scanFiles will work.
 	OpReset = "reset"

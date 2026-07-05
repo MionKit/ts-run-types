@@ -17,7 +17,7 @@ import (
 // shapes are locked by the existing suites (rewrite/perfile/scanfile tests).
 
 // setupInlineMode is setupInline with a module mode.
-func setupInlineMode(t testing.TB, sources map[string]string, mode string) *resolver.Resolver {
+func setupInlineMode(t testing.TB, sources map[string]string, mode string) *resolver.Session {
 	t.Helper()
 	return setupInlineWith(t, sources, func(programOpts *program.Options, resolverOpts *resolver.Options) {
 		programOpts.SingleThreaded = true
@@ -37,7 +37,7 @@ const u = {id: 1, name: 'm'} as User;
 export const reflectedId = getRunTypeId(u);
 `
 
-func scanWithModules(t *testing.T, r *resolver.Resolver, files []string) protocol.Response {
+func scanWithModules(t *testing.T, r *resolver.Session, files []string) protocol.Response {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: files, IncludeEntryModules: true})
 	if resp.Error != "" {

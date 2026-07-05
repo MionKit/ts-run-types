@@ -22,7 +22,7 @@ import (
 // circular re-entries terminating.
 
 // setupInlineModeAllInternal is setupInline with InlineMode allInternal.
-func setupInlineModeAllInternal(t testing.TB, sources map[string]string) *resolver.Resolver {
+func setupInlineModeAllInternal(t testing.TB, sources map[string]string) *resolver.Session {
 	t.Helper()
 	return setupInlineWith(t, sources, func(programOpts *program.Options, resolverOpts *resolver.Options) {
 		programOpts.SingleThreaded = true

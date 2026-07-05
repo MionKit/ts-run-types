@@ -56,7 +56,7 @@ getRunTypeId(value);
 	assertF29CircularObject(t, r, root)
 }
 
-func assertF29CircularObject(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF29CircularObject(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -134,7 +134,7 @@ getRunTypeId(value);
 	assertF30CircularArrayUnion(t, r, root)
 }
 
-func assertF30CircularArrayUnion(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF30CircularArrayUnion(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
@@ -216,7 +216,7 @@ getRunTypeId(value);
 	assertF31CircularTuple(t, r, root)
 }
 
-func assertF31CircularTuple(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF31CircularTuple(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -298,7 +298,7 @@ getRunTypeId(value);
 	assertF32CircularIndex(t, r, root)
 }
 
-func assertF32CircularIndex(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF32CircularIndex(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -375,7 +375,7 @@ getRunTypeId(value);
 	assertF33CircularDeep(t, r, root)
 }
 
-func assertF33CircularDeep(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF33CircularDeep(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -512,7 +512,7 @@ getRunTypeId(value);
 	assertF34NestedAndMultipleCircular(t, r, root)
 }
 
-func assertF34NestedAndMultipleCircular(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+func assertF34NestedAndMultipleCircular(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {

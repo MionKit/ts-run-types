@@ -57,17 +57,17 @@ type analyzedCall struct {
 // configuration (non-exclusive, noop release), so planning is cheap.
 // Group order is first-appearance order over the request — deterministic
 // for a given Program + request.
-func (resolver *Resolver) planScanGroups(files []string) ([]*ast.SourceFile, []scanGroup, error) {
+func (sess *Session) planScanGroups(files []string) ([]*ast.SourceFile, []scanGroup, error) {
 	sourceFiles := make([]*ast.SourceFile, len(files))
 	var groups []scanGroup
 	groupIndexByChecker := map[*checker.Checker]int{}
 	for fileIndex, file := range files {
-		sourceFile, err := resolver.sourceFile(file)
+		sourceFile, err := sess.sourceFile(file)
 		if err != nil {
 			return nil, nil, err
 		}
 		sourceFiles[fileIndex] = sourceFile
-		scanChecker, release := resolver.Program.TS.GetTypeCheckerForFile(context.Background(), sourceFile)
+		scanChecker, release := sess.Program.TS.GetTypeCheckerForFile(context.Background(), sourceFile)
 		release()
 		if scanChecker == nil {
 			return nil, nil, fmt.Errorf("no checker available for file: %s", file)
@@ -88,17 +88,17 @@ func (resolver *Resolver) planScanGroups(files []string) ([]*ast.SourceFile, []s
 // request can't honestly be parallelized — a file fails to resolve
 // (serial reproduces the established partial-scan + error semantics) or
 // every file lands on one checker.
-func (resolver *Resolver) dispatchScanFilesParallel(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
-	sourceFiles, groups, err := resolver.planScanGroups(files)
+func (sess *Session) dispatchScanFilesParallel(files []string) ([]protocol.Site, []diagnostics.Diagnostic, error) {
+	sourceFiles, groups, err := sess.planScanGroups(files)
 	if err != nil || len(groups) < 2 {
-		return resolver.dispatchScanFilesSerial(files)
+		return sess.dispatchScanFilesSerial(files)
 	}
 	// Build every group's scanState on this goroutine: verdictsFor mutates
 	// the resolver-level memo registry, which must never happen
 	// concurrently. Each goroutine then only writes its own inner memo.
 	states := make([]scanState, len(groups))
 	for groupIndex, group := range groups {
-		states[groupIndex] = resolver.scanStateFor(group.scanChecker)
+		states[groupIndex] = sess.scanStateFor(group.scanChecker)
 	}
 	// Per-file result slots and per-group error slots: every goroutine
 	// writes only the indices it owns, so the fan-out shares no mutable
@@ -119,7 +119,7 @@ func (resolver *Resolver) dispatchScanFilesParallel(files []string) ([]protocol.
 			// Mutual exclusion between groups already comes from the
 			// partition itself; the lease is defense-in-depth against any
 			// other in-process pool user.
-			_, release := resolver.Program.TS.GetTypeCheckerForFileExclusive(context.Background(), group.leader)
+			_, release := sess.Program.TS.GetTypeCheckerForFileExclusive(context.Background(), group.leader)
 			defer release()
 			state := states[groupIndex]
 			for _, fileIndex := range group.fileIndexes {
@@ -156,12 +156,12 @@ func (resolver *Resolver) dispatchScanFilesParallel(files []string) ([]protocol.
 				diagnostics = append(diagnostics, call.diagnostics...)
 			}
 			if call.emitSite {
-				site := resolver.commitPending(call.pending)
+				site := sess.commitPending(call.pending)
 				sites = append(sites, site)
-				resolver.sites = append(resolver.sites, site)
+				sess.sites = append(sess.sites, site)
 			}
 		}
-		resolver.markFileScanned(file, sites[fileStart:])
+		sess.markFileScanned(file, sites[fileStart:])
 	}
 	return sites, diagnostics, nil
 }

@@ -37,7 +37,7 @@ func atomicFixturesDir(t *testing.T) string {
 	return abs
 }
 
-func atomicSetup(t *testing.T) *resolver.Resolver {
+func atomicSetup(t *testing.T) *resolver.Session {
 	t.Helper()
 	p, err := program.New(program.Options{
 		Cwd:            atomicFixturesDir(t),
@@ -57,7 +57,7 @@ func atomicSetup(t *testing.T) *resolver.Resolver {
 
 // atomicResolve runs scanFiles on a fixture and returns the RunType entry for
 // its first (and only) call site.
-func atomicResolve(t *testing.T, r *resolver.Resolver, file string) *protocol.RunType {
+func atomicResolve(t *testing.T, r *resolver.Session, file string) *protocol.RunType {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{file}})
 	if resp.Error != "" {

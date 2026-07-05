@@ -90,15 +90,15 @@ var familyAddedFlags = []familyAddedFlag{
 // dispatch: total wall time, Go memory deltas/snapshots, tsgo
 // extendedDiagnostics counters (read off the live Program), and the
 // per-phase times the inner handler recorded.
-func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
+func (sess *Session) Dispatch(request protocol.Request) protocol.Response {
 	if !request.IncludeMetrics {
-		return resolver.dispatch(request, nil)
+		return sess.dispatch(request, nil)
 	}
 	var memBefore runtime.MemStats
 	runtime.ReadMemStats(&memBefore)
 	metrics := &protocol.Metrics{RenderMs: map[string]float64{}}
 	start := time.Now()
-	response := resolver.dispatch(request, metrics)
+	response := sess.dispatch(request, metrics)
 	metrics.TotalMs = elapsedMs(start)
 	var memAfter runtime.MemStats
 	runtime.ReadMemStats(&memAfter)
@@ -107,15 +107,15 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 	metrics.NumGC = memAfter.NumGC - memBefore.NumGC
 	metrics.HeapAlloc = memAfter.HeapAlloc
 	metrics.HeapInuse = memAfter.HeapInuse
-	if resolver.cache != nil {
-		metrics.CacheNodes = resolver.cache.Size()
+	if sess.cache != nil {
+		metrics.CacheNodes = sess.cache.Size()
 	}
 	// extendedDiagnostics counters — tsgo checks lazily, so these are
 	// post-op absolutes reflecting every check forced so far in this
 	// Program's lifetime. The bench harness resets the Program per cycle,
 	// which makes per-case numbers directly comparable.
-	if resolver.Program != nil && resolver.Program.TS != nil {
-		ts := resolver.Program.TS
+	if sess.Program != nil && sess.Program.TS != nil {
+		ts := sess.Program.TS
 		metrics.Files = len(ts.SourceFiles())
 		metrics.Lines = ts.LineCount()
 		metrics.Identifiers = ts.IdentifierCount()
@@ -136,15 +136,15 @@ func elapsedMs(start time.Time) float64 {
 // fan-out preserved), JSON composites, pure fns, the cross-family fixpoint,
 // the global dangling-dep cascade, and missing stubs for demanded keys that
 // didn't survive. Returns the rendered modules keyed by module BASENAME.
-func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph virtualmodules.Graph, metrics *protocol.Metrics) (map[string]string, error) {
+func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph virtualmodules.Graph, metrics *protocol.Metrics) (map[string]string, error) {
 	var graph virtualmodules.Graph
-	if resolver.opts.ModuleMode == constants.ModuleModeAllModules {
+	if sess.opts.ModuleMode == constants.ModuleModeAllModules {
 		graph = runtype.CollectEntriesPerNode(dump)
 	} else {
 		graph = runtype.CollectEntries(dump)
 	}
 
-	familyGraphs, err := resolver.collectFamilies(dump, rtOpts, metrics)
+	familyGraphs, err := sess.collectFamilies(dump, rtOpts, metrics)
 	if err != nil {
 		return nil, err
 	}
@@ -158,9 +158,9 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefun
 
 	// Link the reflection RunType bundle into the guarded fn entries of
 	// circular types so the runtime circular-reference guard can walk values.
-	resolver.wireCircularRunTypeDeps(graph, dump)
+	sess.wireCircularRunTypeDeps(graph, dump)
 
-	resolver.resolveCrossFamilyEdges(graph, dump, rtOpts)
+	sess.resolveCrossFamilyEdges(graph, dump, rtOpts)
 	// Composite prologues bind primitives with an unguarded
 	// `utl.getRT(key).fn` — assert every referenced primitive actually
 	// rendered (post-fixpoint) so an invariant breach fails the build
@@ -183,7 +183,7 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefun
 	// the site's import points at (Site.Module) — tag its stub so the
 	// grouping routes it into that family bundle. Untagged stubs (soft-dep
 	// fallbacks no site demanded) keep their own per-entry module.
-	if resolver.opts.ModuleMode == constants.ModuleModeAllSingle {
+	if sess.opts.ModuleMode == constants.ModuleModeAllSingle {
 		for key, entry := range graph {
 			if entry.Kind == virtualmodules.KindMissing && entry.FamilyTag == "" {
 				entry.FamilyTag = demandTags[key]
@@ -193,7 +193,7 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefun
 	pruneUnreachableTypeFnEntries(graph, demanded)
 
 	renderStart := time.Now()
-	modules, err := virtualmodules.RenderGrouped(graph, resolver.moduleGrouping())
+	modules, err := virtualmodules.RenderGrouped(graph, sess.moduleGrouping())
 	if metrics != nil {
 		metrics.RenderMs["entryModules"] = elapsedMs(renderStart)
 	}
@@ -208,10 +208,10 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefun
 // registry order: first error wins, RenderMs recorded (values overlap
 // wall-clock; their sum exceeds elapsed time), shard diagnostics appended
 // (== the sequential order), and Facts shards merged into the dispatch opts.
-func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]virtualmodules.Graph, error) {
+func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]virtualmodules.Graph, error) {
 	families := typefunctions.Families
 	graphs := make([]virtualmodules.Graph, len(families))
-	if !resolver.parallelRenderEnabled() || len(families) < 2 {
+	if !sess.parallelRenderEnabled() || len(families) < 2 {
 		for familyIndex, spec := range families {
 			collectStart := time.Now()
 			graphs[familyIndex] = spec.Collect(dump, rtOpts, nil)
@@ -228,6 +228,7 @@ func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctio
 	}
 	results := make([]familyResult, len(families))
 	familyDiagnostics := make([][]diagnostics.Diagnostic, len(families))
+	familyPureFnDeps := make([][]protocol.PureFnDep, len(families))
 	factShards := make([]*typefunctions.FactsTable, len(families))
 	var waitGroup sync.WaitGroup
 	for familyIndex, spec := range families {
@@ -243,6 +244,12 @@ func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctio
 			shardOpts := rtOpts
 			if rtOpts.DiagSink != nil {
 				shardOpts.DiagSink = &familyDiagnostics[familyIndex]
+			}
+			// Shard the pure-fn dep sink per goroutine (like DiagSink) so the
+			// concurrent family collects never append to a shared slice; the
+			// shards merge back in family order below, matching the serial path.
+			if rtOpts.PureFnDepSink != nil {
+				shardOpts.PureFnDepSink = &familyPureFnDeps[familyIndex]
 			}
 			shardOpts.Facts = factShards[familyIndex]
 			collectStart := time.Now()
@@ -261,6 +268,9 @@ func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctio
 		if rtOpts.DiagSink != nil && len(familyDiagnostics[familyIndex]) > 0 {
 			*rtOpts.DiagSink = append(*rtOpts.DiagSink, familyDiagnostics[familyIndex]...)
 		}
+		if rtOpts.PureFnDepSink != nil && len(familyPureFnDeps[familyIndex]) > 0 {
+			*rtOpts.PureFnDepSink = append(*rtOpts.PureFnDepSink, familyPureFnDeps[familyIndex]...)
+		}
 		rtOpts.Facts.Merge(factShards[familyIndex])
 	}
 	return graphs, nil
@@ -269,8 +279,8 @@ func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctio
 // parallelRenderEnabled reports whether family collects may fan out.
 // Parallel is the default; SingleThreaded means "no concurrency at all",
 // covering collects too even though they never touch a checker.
-func (resolver *Resolver) parallelRenderEnabled() bool {
-	return !resolver.opts.DisableParallelRender && !resolver.opts.SingleThreaded
+func (sess *Session) parallelRenderEnabled() bool {
+	return !sess.opts.DisableParallelRender && !sess.opts.SingleThreaded
 }
 
 // familyByPlainHash maps each type-walking family's PLAIN fnHash to its spec —
@@ -303,7 +313,7 @@ var familyByPlainHash = func() map[string]typefunctions.FamilySpec {
 // rendered set grows monotonically toward the (finite) session type set. The
 // guard cap is defensive — hitting it leaves the remaining edges to the stub
 // pass, which preserves the build (runtime degrades to identity fallback).
-func (resolver *Resolver) resolveCrossFamilyEdges(graph virtualmodules.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
+func (sess *Session) resolveCrossFamilyEdges(graph virtualmodules.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
 	seedDump := protocol.Dump{RunTypes: dump.RunTypes}
 	for iteration := 0; iteration < 8; iteration++ {
 		missingByFamily := map[string]map[string]bool{}
@@ -467,8 +477,8 @@ func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string
 // the `pf` bundle, the reflection facades fold into the runtypes bundle, and
 // missing stubs follow their demanding site's family (per-entry when no site
 // demanded them — soft-dep stubs keep their own resolvable module).
-func (resolver *Resolver) moduleGrouping() virtualmodules.Grouping {
-	if resolver.opts.ModuleMode != constants.ModuleModeAllSingle {
+func (sess *Session) moduleGrouping() virtualmodules.Grouping {
+	if sess.opts.ModuleMode != constants.ModuleModeAllSingle {
 		return nil
 	}
 	return func(entry *virtualmodules.Entry) string {
@@ -495,8 +505,8 @@ func (resolver *Resolver) moduleGrouping() virtualmodules.Grouping {
 // demand family's bundle — so the plain transform scan (no entry-module
 // collection) stamps identically to the dump path. Returns a copy when
 // stamping occurs; other modes pass sites through untouched.
-func (resolver *Resolver) stampSiteModules(sites []protocol.Site) []protocol.Site {
-	if resolver.opts.ModuleMode != constants.ModuleModeAllSingle || len(sites) == 0 {
+func (sess *Session) stampSiteModules(sites []protocol.Site) []protocol.Site {
+	if sess.opts.ModuleMode != constants.ModuleModeAllSingle || len(sites) == 0 {
 		return sites
 	}
 	out := make([]protocol.Site, len(sites))
@@ -543,12 +553,12 @@ var circularGuardedFamilyTags = map[string]bool{
 // (the fn body never references it; only the runtime wrapper does). In the
 // default / allSingle bundle modes the dep is the single data bundle; in
 // allModules mode it is the type's own per-node module (key == typeId).
-func (resolver *Resolver) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump protocol.Dump) {
+func (sess *Session) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump protocol.Dump) {
 	circular := runtype.CircularGuardTypeIDs(dump)
 	if len(circular) == 0 {
 		return
 	}
-	perNode := resolver.opts.ModuleMode == constants.ModuleModeAllModules
+	perNode := sess.opts.ModuleMode == constants.ModuleModeAllModules
 	bundleKey := ""
 	if !perNode {
 		for key, entry := range graph {
@@ -615,18 +625,18 @@ func containsString(values []string, target string) bool {
 
 // dispatch is the un-instrumented op switch. metrics may be nil (the
 // no-IncludeMetrics fast path); phase recordings are guarded per site.
-func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.Metrics) protocol.Response {
-	before := resolver.cache.Size()
+func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metrics) protocol.Response {
+	before := sess.cache.Size()
 	switch request.Op {
 	case protocol.OpScanFiles:
-		if resolver.Program == nil {
+		if sess.Program == nil {
 			return protocol.Response{Error: "scanFiles: no Program loaded — call setSources first"}
 		}
 		if len(request.Files) == 0 {
 			return protocol.Response{Error: "scanFiles: files is required and must be non-empty"}
 		}
 		scanStart := time.Now()
-		sites, markerDiagnostics, err := resolver.dispatchScanFiles(request.Files)
+		sites, markerDiagnostics, err := sess.dispatchScanFiles(request.Files)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
@@ -641,28 +651,28 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// source. Diagnostics flow unconditionally so editor surfaces
 		// update as the user types.
 		pureFnsStart := time.Now()
-		pureFnEntries, pureFnDiagnostics, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
+		pureFnEntries, pureFnDiagnostics, pureFnReplacements, addedPureFns := sess.extractPureFnsForScan(request.Files)
 		if metrics != nil {
 			metrics.PureFnsMs = elapsedMs(pureFnsStart)
 		}
 		prepStart := time.Now()
-		added := resolver.cache.Added(before)
+		added := sess.cache.Added(before)
 		// Per-cache "did this scan change anything?" signals consumed by
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
-		combinedDiagnostics := append(append(append([]diagnostics.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
+		combinedDiagnostics := append(append(append([]diagnostics.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), sess.overrideDiagnostics...)
 		// Opt-in enrichment-health pass (tag hygiene + FriendlyText/MockData
 		// content + breadcrumb drift) for the lint surfaces. Runs AFTER
 		// cache.Added(before) so the types the content checks intern never
 		// leak into this response's added* HMR signals.
 		if request.CheckEnrich {
-			combinedDiagnostics = append(combinedDiagnostics, resolver.checkEnrichFiles(request.Files)...)
+			combinedDiagnostics = append(combinedDiagnostics, sess.checkEnrichFiles(request.Files)...)
 		}
 		// Override arg-nulling replacements (scoped to the requested files) ride
 		// the same Replacements channel as pure-fn factory nullings.
-		allReplacements := append(append([]protocol.Replacement(nil), pureFnReplacements...), resolver.collectOverrideReplacements(request.Files)...)
+		allReplacements := append(append([]protocol.Replacement(nil), pureFnReplacements...), sess.collectOverrideReplacements(request.Files)...)
 		response := protocol.Response{
-			Sites:         resolver.stampSiteModules(sites),
+			Sites:         sess.stampSiteModules(sites),
 			Replacements:  allReplacements,
 			AddedRunTypes: addedRunTypes,
 			AddedPureFns:  addedPureFns,
@@ -694,17 +704,24 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// diagnostics but drops the module payload (lint pass).
 		renderEntries := request.IncludeEntryModules || request.IncludeRtDiagnostics
 		var rtDiagnostics []diagnostics.Diagnostic
+		// rtPureFnDeps accumulates the pure-fn dependencies the family walkers
+		// record while rendering live bodies below (via rtOpts.PureFnDepSink);
+		// validated against the program registration set for PFE9012 once the
+		// collection finishes. Only wired when entries actually render, so a
+		// plain rewrite scan collects nothing and the validation short-circuits.
+		var rtPureFnDeps []protocol.PureFnDep
 		var rtOpts typefunctions.RenderOpts
 		if renderEntries {
 			rtOptsStart := time.Now()
-			rtOpts = resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
+			rtOpts = sess.rtRenderOpts(&rtDiagnostics, sess.buildProvenanceSites())
+			rtOpts.PureFnDepSink = &rtPureFnDeps
 			if metrics != nil {
 				metrics.PrepMs += elapsedMs(rtOptsStart)
 			}
 		}
 		if request.IncludeRunTypes || renderEntries {
 			scopedStart := time.Now()
-			scoped := resolver.scopedDump(request.Files)
+			scoped := sess.scopedDump(request.Files)
 			if metrics != nil {
 				metrics.ScopedDumpMs = elapsedMs(scopedStart)
 			}
@@ -716,8 +733,8 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				// so the type-fn redirects resolve their `cfn::` dep modules. Kept
 				// out of the per-file pure-fn signals (replacements / addedPureFns)
 				// — those track registerPureFnFactory rewrites, not overrides.
-				allPureFns := append(append([]purefunctions.Entry(nil), pureFnEntries...), resolver.overrideEntries...)
-				modules, modulesErr := resolver.collectEntryModules(scoped, rtOpts, purefunctions.CollectEntries(allPureFns), metrics)
+				allPureFns := append(append([]purefunctions.Entry(nil), pureFnEntries...), sess.overrideEntries...)
+				modules, modulesErr := sess.collectEntryModules(scoped, rtOpts, purefunctions.CollectEntries(allPureFns), metrics)
 				if modulesErr != nil {
 					return protocol.Response{Error: modulesErr.Error()}
 				}
@@ -729,6 +746,10 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// Flush RT diagnostics into the unified response.Diagnostics slice
 		// so the Vite plugin's reception loop surfaces them via this.warn.
 		response.Diagnostics = append(response.Diagnostics, rtDiagnostics...)
+		// PFE9012: any pure-fn dep an emitted body reaches whose registration
+		// is absent from the program is an Error the lint surface / build must
+		// see. No-op when nothing rendered (deps empty).
+		response.Diagnostics = append(response.Diagnostics, sess.validateProgramPureFnDeps(rtPureFnDeps)...)
 		return response
 	case protocol.OpDump:
 		// Ensure every source file in the Program has been scanned for
@@ -740,15 +761,15 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// that hasn't happened yet, so OpDump always returns the
 		// complete picture.
 		scanStart := time.Now()
-		if resolver.Program != nil {
-			resolver.scanAllProgramFiles()
+		if sess.Program != nil {
+			sess.scanAllProgramFiles()
 		}
 		if metrics != nil {
 			metrics.MarkerScanMs = elapsedMs(scanStart)
 		}
 		fullDump := protocol.Dump{
-			RunTypes: resolver.cache.Dump(),
-			Sites:    resolver.stampSiteModules(resolver.Sites()),
+			RunTypes: sess.cache.Dump(),
+			Sites:    sess.stampSiteModules(sess.Sites()),
 		}
 		response := protocol.Response{
 			RunTypes: fullDump.RunTypes,
@@ -758,15 +779,20 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// across the whole collection, flushed into response.Diagnostics
 		// once the render completes.
 		var rtDiagnostics []diagnostics.Diagnostic
-		rtOpts := resolver.rtRenderOpts(&rtDiagnostics, resolver.buildProvenanceSites())
-		pureFnGraph, pureFnsDiagnostics := resolver.collectProgramPureFns(metrics)
+		var rtPureFnDeps []protocol.PureFnDep
+		rtOpts := sess.rtRenderOpts(&rtDiagnostics, sess.buildProvenanceSites())
+		rtOpts.PureFnDepSink = &rtPureFnDeps
+		pureFnGraph, pureFnsDiagnostics := sess.collectProgramPureFns(metrics)
 		response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
-		modules, modulesErr := resolver.collectEntryModules(fullDump, rtOpts, pureFnGraph, metrics)
+		modules, modulesErr := sess.collectEntryModules(fullDump, rtOpts, pureFnGraph, metrics)
 		if modulesErr != nil {
 			return protocol.Response{Error: modulesErr.Error()}
 		}
 		response.EntryModules = modules
 		response.Diagnostics = append(response.Diagnostics, rtDiagnostics...)
+		// PFE9012: dangling pure-fn deps in the whole-program dump — the path
+		// batchcompile drives, so a missing registration fails the build.
+		response.Diagnostics = append(response.Diagnostics, sess.validateProgramPureFnDeps(rtPureFnDeps)...)
 		return response
 	case protocol.OpGenerate:
 		// Filesystem-output sibling of OpDump: the same full-program entry
@@ -774,21 +800,23 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// files the bundler resolves natively) instead of returned on the wire.
 		// An empty OutDir infers <srcDir>/__runtypes from the tsconfig and echoes
 		// the resolved path back so the plugin can adopt it.
-		outDir := resolver.resolveOutDir(request.OutDir)
+		outDir := sess.resolveOutDir(request.OutDir)
 		if outDir == "" {
 			return protocol.Response{Error: "generate: could not resolve an output dir (no OutDir, no tsconfig srcDir)"}
 		}
-		if resolver.Program != nil {
-			resolver.scanAllProgramFiles()
+		if sess.Program != nil {
+			sess.scanAllProgramFiles()
 		}
 		genDump := protocol.Dump{
-			RunTypes: resolver.cache.Dump(),
-			Sites:    resolver.stampSiteModules(resolver.Sites()),
+			RunTypes: sess.cache.Dump(),
+			Sites:    sess.stampSiteModules(sess.Sites()),
 		}
 		var genDiagnostics []diagnostics.Diagnostic
-		genOpts := resolver.rtRenderOpts(&genDiagnostics, resolver.buildProvenanceSites())
-		genPureFnGraph, genPureFnsDiagnostics := resolver.collectProgramPureFns(metrics)
-		genModules, genModulesErr := resolver.collectEntryModules(genDump, genOpts, genPureFnGraph, metrics)
+		var genPureFnDeps []protocol.PureFnDep
+		genOpts := sess.rtRenderOpts(&genDiagnostics, sess.buildProvenanceSites())
+		genOpts.PureFnDepSink = &genPureFnDeps
+		genPureFnGraph, genPureFnsDiagnostics := sess.collectProgramPureFns(metrics)
+		genModules, genModulesErr := sess.collectEntryModules(genDump, genOpts, genPureFnGraph, metrics)
 		if genModulesErr != nil {
 			return protocol.Response{Error: genModulesErr.Error()}
 		}
@@ -799,10 +827,12 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		genResponse := protocol.Response{Generated: manifest, OutDir: outDir}
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genPureFnsDiagnostics...)
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genDiagnostics...)
+		// PFE9012: same dangling-dep guard on the disk-generation path.
+		genResponse.Diagnostics = append(genResponse.Diagnostics, sess.validateProgramPureFnDeps(genPureFnDeps)...)
 		return genResponse
 	case protocol.OpSetSources:
 		setStart := time.Now()
-		if err := resolver.dispatchSetSources(request.Sources); err != nil {
+		if err := sess.dispatchSetSources(request.Sources); err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
 		if metrics != nil {
@@ -810,16 +840,16 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		}
 		return protocol.Response{OK: true}
 	case protocol.OpReset:
-		resolver.Reset()
+		sess.Reset()
 		return protocol.Response{OK: true}
 	case protocol.OpResolveID:
-		runType := resolver.ResolveID(request.ID)
+		runType := sess.ResolveID(request.ID)
 		if runType == nil {
 			return protocol.Response{}
 		}
 		return protocol.Response{RunTypes: []*protocol.RunType{runType}}
 	case protocol.OpTsCompile:
-		ms, err := resolver.dispatchTsCompile()
+		ms, err := sess.dispatchTsCompile()
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
@@ -831,14 +861,14 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		// rather than handing offsets back to the JS plugin. Returns one
 		// TransformResult per file. The added* flags ride along so the thin
 		// Vite wrapper can still drive data-bundle HMR off this single call.
-		if resolver.Program == nil {
+		if sess.Program == nil {
 			return protocol.Response{Error: "transform: no Program loaded — call setSources first"}
 		}
 		if len(request.Files) == 0 {
 			return protocol.Response{Error: "transform: files is required and must be non-empty"}
 		}
 		scanStart := time.Now()
-		sites, markerDiagnostics, err := resolver.dispatchScanFiles(request.Files)
+		sites, markerDiagnostics, err := sess.dispatchScanFiles(request.Files)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
@@ -846,22 +876,22 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			metrics.MarkerScanMs = elapsedMs(scanStart)
 		}
 		pureFnsStart := time.Now()
-		_, pureFnDiagnostics, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
+		_, pureFnDiagnostics, pureFnReplacements, addedPureFns := sess.extractPureFnsForScan(request.Files)
 		if metrics != nil {
 			metrics.PureFnsMs = elapsedMs(pureFnsStart)
 		}
 		// Override arg-nulling replacements (scoped to the requested files) join
 		// the pure-fn factory nullings; both are partitioned per file below.
-		allReplacements := append(append([]protocol.Replacement(nil), pureFnReplacements...), resolver.collectOverrideReplacements(request.Files)...)
-		sites = resolver.stampSiteModules(sites)
-		added := resolver.cache.Added(before)
+		allReplacements := append(append([]protocol.Replacement(nil), pureFnReplacements...), sess.collectOverrideReplacements(request.Files)...)
+		sites = sess.stampSiteModules(sites)
+		added := sess.cache.Added(before)
 		addedRunTypes := len(added) > 0
 		// Apply the rewrite per file. Sites/replacements come back flat across
 		// all requested files, so partition them by File. Source text is read
 		// from the Program (the authoritative bytes Site.Pos byte-offsets index).
 		transformed := make(map[string]protocol.TransformResult, len(request.Files))
 		for _, file := range request.Files {
-			sourceFile, sourceErr := resolver.sourceFile(file)
+			sourceFile, sourceErr := sess.sourceFile(file)
 			if sourceErr != nil {
 				return protocol.Response{Error: sourceErr.Error()}
 			}
@@ -890,7 +920,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 					// Files-mode: relativize the injected block's virtual:rt
 					// specifiers exactly as 'go' mode does to the whole file —
 					// the block is the only place those specifiers appear.
-					importBlock = relativizeUserImports(resolver.absPath(file), resolver.absPath(request.OutDir), importBlock)
+					importBlock = relativizeUserImports(sess.absPath(file), sess.absPath(request.OutDir), importBlock)
 				}
 				transformed[file] = protocol.TransformResult{
 					ImportBlock: importBlock,
@@ -907,7 +937,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				// absolutized against the resolver cwd so filepath.Rel always
 				// relates them. The block is one physical line, so this leaves
 				// the source map valid.
-				code = relativizeUserImports(resolver.absPath(file), resolver.absPath(request.OutDir), code)
+				code = relativizeUserImports(sess.absPath(file), sess.absPath(request.OutDir), code)
 			}
 			if request.OmitSourcesContent && sourceMap != nil {
 				// Drop the embedded original source — the bundler fills it from
@@ -922,7 +952,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			// unaffected either way.
 			transformed[file] = protocol.TransformResult{Code: code, Map: sourceMap, SourceHash: sourcerewrite.SourceHash(source)}
 		}
-		combinedDiagnostics := append(append(append([]diagnostics.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), resolver.overrideDiagnostics...)
+		combinedDiagnostics := append(append(append([]diagnostics.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...), sess.overrideDiagnostics...)
 		response := protocol.Response{
 			Transformed:   transformed,
 			Sites:         sites,
@@ -943,11 +973,11 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 // ResolveID returns the canonical full Type for id, or nil if no such id
 // has been interned. Child slots inside the returned Type remain KindRef
 // sentinels — callers re-issue ResolveID per id to drill in.
-func (resolver *Resolver) ResolveID(id string) *protocol.RunType {
+func (sess *Session) ResolveID(id string) *protocol.RunType {
 	if id == "" {
 		return nil
 	}
-	return resolver.cache.NodeByID(id)
+	return sess.cache.NodeByID(id)
 }
 
 // dispatchSetSources builds an inferred Program from the supplied overlay
@@ -955,13 +985,13 @@ func (resolver *Resolver) ResolveID(id string) *protocol.RunType {
 // the working directory the resolver's previous Program had (or, on first
 // call before any Program exists, against os.Getwd at start — but we don't
 // have that here; main passes an absCwd via Options for server mode).
-func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
+func (sess *Session) dispatchSetSources(sources map[string]string) error {
 	if sources == nil {
 		sources = map[string]string{}
 	}
-	cwd := resolver.opts.Cwd
-	if cwd == "" && resolver.Program != nil {
-		cwd = resolver.Program.TS.GetCurrentDirectory()
+	cwd := sess.opts.Cwd
+	if cwd == "" && sess.Program != nil {
+		cwd = sess.Program.TS.GetCurrentDirectory()
 	}
 	if cwd == "" {
 		return errors.New("setSources: no cwd configured")
@@ -976,13 +1006,13 @@ func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 	}
 	prog, err := program.NewInferred(program.Options{
 		Cwd:            cwd,
-		SingleThreaded: resolver.opts.SingleThreaded,
+		SingleThreaded: sess.opts.SingleThreaded,
 		Overlay:        overlay,
 	}, fileNames)
 	if err != nil {
 		return fmt.Errorf("setSources: %w", err)
 	}
-	return resolver.SetProgram(prog)
+	return sess.SetProgram(prog)
 }
 
 // extractPureFnsForScan runs the pure-fn extractor once per scanFiles
@@ -997,19 +1027,19 @@ func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 // that drops one of its pure-fn calls still leaves the session entry
 // behind (matches the runTypes cache's structural-dedup contract;
 // the orphan is harmless until the next process restart).
-func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefunctions.Entry, diagnostics []diagnostics.Diagnostic, replacements []protocol.Replacement, changed bool) {
-	if resolver.Program == nil || len(files) == 0 {
+func (sess *Session) extractPureFnsForScan(files []string) (entries []purefunctions.Entry, diagnostics []diagnostics.Diagnostic, replacements []protocol.Replacement, changed bool) {
+	if sess.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}
-	entries, diagnostics = purefunctions.ExtractFromProgramCached(resolver.checker, resolver.marker, resolver.Program, files, resolver.pureFnFileCache)
+	entries, diagnostics = purefunctions.ExtractFromProgramCached(sess.checker, sess.marker, sess.Program, files, sess.pureFnFileCache)
 	for _, entry := range entries {
 		key := entry.Key()
-		if existing, ok := resolver.pureFnHashes[key]; !ok || existing != entry.BodyHash {
-			resolver.pureFnHashes[key] = entry.BodyHash
+		if existing, ok := sess.pureFnHashes[key]; !ok || existing != entry.BodyHash {
+			sess.pureFnHashes[key] = entry.BodyHash
 			changed = true
 		}
 	}
-	replacements = purefunctions.Replacements(entries, resolver.opts.ModuleMode == constants.ModuleModeAllSingle)
+	replacements = purefunctions.Replacements(entries, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
 	return entries, diagnostics, replacements, changed
 }
 
@@ -1020,8 +1050,8 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 // ts-runtypes entry modules — this is the pure-TypeScript baseline
 // measurement the bench orchestrators record alongside the existing
 // scanFiles latency.
-func (resolver *Resolver) dispatchTsCompile() (float64, error) {
-	if resolver.Program == nil || resolver.Program.TS == nil {
+func (sess *Session) dispatchTsCompile() (float64, error) {
+	if sess.Program == nil || sess.Program.TS == nil {
 		return 0, errors.New("tsCompile: no Program loaded; call setSources first")
 	}
 	start := time.Now()
@@ -1033,6 +1063,6 @@ func (resolver *Resolver) dispatchTsCompile() (float64, error) {
 			return nil
 		},
 	}
-	resolver.Program.TS.Emit(context.Background(), options)
+	sess.Program.TS.Emit(context.Background(), options)
 	return float64(time.Since(start).Microseconds()) / 1000.0, nil
 }
