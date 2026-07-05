@@ -7,7 +7,7 @@
 // — anchored on the cycle target's STRUCTURE (not its declaration), so
 // structurally-identical recursive types converge regardless of name/position.
 //
-// Output is fed into `internal/hashid.Dict.Unique` to produce the short hash
+// Output is fed into `internal/cachegen/hashid.Dict.Unique` to produce the short hash
 // id that travels on the wire.
 package typeid
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
@@ -19,7 +20,6 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/operations"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )

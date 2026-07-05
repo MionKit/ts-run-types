@@ -70,7 +70,7 @@ The pieces are already wired for this:
   `eval`, no `import()`, etc.). An override that fails purity should hard-error
   at the call site (same `PFN001` / `PFE9006`–`PFE9011` codes), not silently
   fall through to the emitted body.
-- **Operations registry.** [`internal/operations/operations.go`](../../internal/operations/operations.go)
+- **Operations registry.** [`internal/cachegen/operations/operations.go`](../../internal/cachegen/operations/operations.go)
   already names every family by `FamilyTag` + `FnKey`. An override targets one
   registry entry by FnKey; no new registry.
 - **Cache-entry tuple.** The positional tuple under `__rt_<key>` already

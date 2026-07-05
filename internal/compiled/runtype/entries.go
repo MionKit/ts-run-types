@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mionkit/ts-runtypes/internal/cachegen/hashid"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
-	"github.com/mionkit/ts-runtypes/internal/hashid"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

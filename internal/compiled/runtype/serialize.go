@@ -1,7 +1,7 @@
 // Serializer: projects tsgo's *checker.Type into a reflection-shape
 // protocol.RunType graph. Every resolved type gets a structural id
 // (mirroring the reference `_createTypeId`) which is hashed (the reference
-// quickHash, ported in `internal/hashid`) into a short alphanumeric wire id.
+// quickHash, ported in `internal/cachegen/hashid`) into a short alphanumeric wire id.
 // Two structurally-equal types share the same wire id — that's what makes
 // our cache keys stable across builds and equivalent to what the reference
 // implementation would compute at runtime.
@@ -27,9 +27,9 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/hashid"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/hashid"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/operations"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 

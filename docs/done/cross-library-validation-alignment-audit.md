@@ -153,7 +153,7 @@ DIFFERENT code paths in every library:
 
 A library can have one path right and the other wrong. ts-runtypes itself has
 distinct emitted bodies for the two families (`val_` vs `pj_` / `pjs_` /
-`huk_`, see [internal/operations](../../internal/operations/)), so we want
+`huk_`, see [internal/cachegen/operations](../../internal/cachegen/operations/)), so we want
 independent audit rows per metric, not a single boolean per case.
 
 Same for the two PATHS — accept and reject:

@@ -98,7 +98,7 @@ results data and the website pages:
 ## Touchpoints
 
 - **Go pipeline.** New strategy in the operations registry
-  ([internal/operations](../../internal/operations/)), the JSON composite emitter
+  ([internal/cachegen/operations](../../internal/cachegen/operations/)), the JSON composite emitter
   ([internal/compiled/typefns/json_composite.go](../../internal/compiled/typefns/json_composite.go)),
   and a per-strategy tag in `constants.jsonCompositeTags`
   ([internal/constants/constants.go](../../internal/constants/constants.go)).

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	_ "github.com/mionkit/ts-runtypes/internal/compiled/typefns/formats/all"
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/operations"
 	"github.com/mionkit/ts-runtypes/internal/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/resolver"
