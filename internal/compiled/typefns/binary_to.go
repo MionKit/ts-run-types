@@ -551,58 +551,14 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 	if objectHasCallSignature(rt, ctx) {
 		return RTCode{Code: "", Type: CodeNS}
 	}
-	// Collect the index-signature child (if any). It is emitted AFTER the named
-	// properties — an object mixing named props with an index signature encodes
-	// each named prop with its OWN type, then the index sig covers only the
-	// REMAINING dynamic keys (skipped via the sibling-named set published below).
-	// Before, an index signature short-circuited the whole object and mis-applied
-	// the index value encoder to the named props too (F1).
-	var indexSig *protocol.RunType
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved != nil && resolved.Kind == protocol.KindIndexSignature {
-			indexSig = resolved
-			break
-		}
-	}
+	// The index signature is emitted AFTER the named properties — an object
+	// mixing named props with an index signature encodes each named prop with
+	// its OWN type, then the index sig covers only the REMAINING dynamic keys
+	// (skipped via the sibling-named set published below). Before, an index
+	// signature short-circuited the whole object and mis-applied the index
+	// value encoder to the named props too (F1).
 	publishSiblingNamedKeysForIndexSig(rt, ctx)
-
-	// Split children into required vs optional. Static and function-typed
-	// props are skipped entirely.
-	var required, optional []*protocol.RunType
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved == nil {
-			continue
-		}
-		if resolved.IsStatic {
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
-			continue
-		}
-		if resolved.Kind != protocol.KindProperty && resolved.Kind != protocol.KindPropertySignature {
-			continue
-		}
-		if resolved.Child == nil {
-			continue
-		}
-		childResolved := ctx.ResolveRef(resolved.Child)
-		if childResolved == nil {
-			continue
-		}
-		if strippedPropertyDrop(childResolved, resolved.Name, ctx) {
-			// Directly DataOnly-stripped value — drop the property from both the
-			// required and optional sets (optional props compile their value
-			// here, bypassing emitPropertyToBinary). A structurally-unserializable
-			// value (symbol[], …) is NOT stripped here; it stays and its CodeNS
-			// propagates from the compile below, failing the object (F3).
-			continue
-		}
-		if resolved.Optional {
-			optional = append(optional, child)
-		} else {
-			required = append(required, child)
-		}
-	}
+	required, optional, indexSig := partitionBinaryObjectProps(rt, ctx)
 
 	var parts []string
 	// Required props — straight concat in declared order.
