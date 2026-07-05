@@ -5,7 +5,7 @@
 //   - ts-runtypes-bin                 the launcher, with optionalDependencies filled
 //
 // Output is staged under dist-binaries/ (gitignored). This script does NOT
-// publish — scripts/release/publish.sh runs it, then publishes the platform packages
+// publish — scripts/release/publish.mjs runs it, then publishes the platform packages
 // FIRST and the launcher LAST, so a consumer never resolves a launcher whose
 // optional deps aren't on the registry yet. Mirrors microsoft/typescript-go's
 // Herebyfile packing step.
