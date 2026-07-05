@@ -81,7 +81,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 12
+    // Mirrors disk.FormatVersion (internal/cachegen/diskcache/format.go). Bumped to 12
     // when the noop verdict became predicate-decided: every family's IsNoopType
     // over the type graph decides the short/full form (the compiled body's
     // shape survives only as a protective tripwire), so v11 payloads' IsNoop
@@ -149,7 +149,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     // as ResolverClient does but adding the extra arg. For now,
     // accept that we can only assert the default path exists; the
     // hash-length isolation is covered by the Go-side fingerprint test
-    // (internal/cache/disk/disk_test.go::TestFingerprint_OptionIsolation).
+    // (internal/cachegen/diskcache/disk_test.go::TestFingerprint_OptionIsolation).
     expect(fs.existsSync(cacheDirDefault)).toBe(true);
     expect(fs.readdirSync(cacheDirDefault).length).toBe(1);
     // Empty alt dir would also have been created if we'd run the alt

@@ -126,7 +126,7 @@ Go emits transformed **TypeScript**, not JS. The user's existing toolchain perfo
 
 - **Default cache dir:** `node_modules/.cache/rt/` — transparent to the user and already covered by the existing `node_modules/` entry in [`.gitignore`](../.gitignore), so no new ignore rule is needed.
 - **Configurable:** a `cacheDir` option (binary flag + plugin option). A later switch to a user-source folder (e.g. `rt/types`, gitignored) is just a config change.
-- **Separate from the resolver disk cache.** The persisted resolver cache (`/runtypes-cache.json`, fingerprinted via [`internal/cache/disk/fingerprint.go`](../internal/cache/disk/fingerprint.go)) is a different artifact and is unaffected.
+- **Separate from the resolver disk cache.** The persisted resolver cache (`/runtypes-cache.json`, fingerprinted via [`internal/cachegen/diskcache/fingerprint.go`](../internal/cachegen/diskcache/fingerprint.go)) is a different artifact and is unaffected.
 - **Future committed surface (out of scope here):** `rt/enriched/` holds authored enrichment (`FriendlyText`/`MockData`), committed; `rt/types/` would hold generated modules if/when the cache moves into source. Invariant 2 keeps `types → enriched` one-directional.
 
 ## Migration phases

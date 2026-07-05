@@ -43,8 +43,8 @@ knobs, and behaviour that matches the mental model users already have from `tsc`
 4. **Invalidation matches incremental semantics** with no active pruning needed.
    Entries are content-addressed: the binary version folds into every typeID hash
    and non-version options fingerprint into a subdir
-   ([disk.go](../../internal/cache/disk/disk.go),
-   [fingerprint.go](../../internal/cache/disk/fingerprint.go)), plus a
+   ([disk.go](../../internal/cachegen/diskcache/disk.go),
+   [fingerprint.go](../../internal/cachegen/diskcache/fingerprint.go)), plus a
    `FormatVersion` header check. A changed type writes a NEW entry and the stale
    one is never read again (the same non-pruning behaviour as `tsc`'s
    `.tsbuildinfo`), and cross-version / cross-config files never collide. Bounded

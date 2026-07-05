@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/cache/disk"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// fakeLookup satisfies disk.HashLookup with two in-memory maps. Used by
+// fakeLookup satisfies diskcache.HashLookup with two in-memory maps. Used by
 // disk-cache integration tests so they can run without a real
 // runtype.Cache (which would require a tsgo checker to populate).
 type fakeLookup struct {
@@ -50,7 +50,7 @@ func (f *fakeLookup) HashForStructural(structural string) string {
 //     bypassed).
 func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	root := t.TempDir()
-	store := disk.New(root, "fp1")
+	store := diskcache.New(root, "fp1")
 	lookup := newFakeLookup()
 	lookup.set("abc123", "1:atomic")
 
@@ -68,12 +68,12 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected cache file at %s, got %v", cachePath, err)
 	}
-	var entry disk.RTEntry
+	var entry diskcache.RTEntry
 	if err := json.Unmarshal(raw, &entry); err != nil {
 		t.Fatalf("cache file is not valid JSON: %v", err)
 	}
-	if entry.Format != disk.FormatVersion {
-		t.Errorf("cache file Format: got %d want %d", entry.Format, disk.FormatVersion)
+	if entry.Format != diskcache.FormatVersion {
+		t.Errorf("cache file Format: got %d want %d", entry.Format, diskcache.FormatVersion)
 	}
 	if entry.StructuralID != "1:atomic" {
 		t.Errorf("cache StructuralID: got %q want %q", entry.StructuralID, "1:atomic")
@@ -107,7 +107,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 // child is unknown to the dump) emits a different result.
 func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 	root := t.TempDir()
-	store := disk.New(root, "fp1")
+	store := diskcache.New(root, "fp1")
 	lookup := newFakeLookup()
 	lookup.set("abc123", "1:atomic")
 	lookup.set("childHash", "2:atomic")
@@ -118,11 +118,11 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	stale := disk.RTEntry{
-		Format:       disk.FormatVersion,
+	stale := diskcache.RTEntry{
+		Format:       diskcache.FormatVersion,
 		StructuralID: "1:atomic",
 		ArgsText:     "'val_abc123','STALE_MARKER',undefined,true",
-		ChildRefs: []disk.ChildRef{
+		ChildRefs: []diskcache.ChildRef{
 			// "ghostStructural" was never registered with the lookup
 			// → HashForStructural returns "" → cache miss.
 			{StructuralID: "ghostStructural", Hash: "ghostHash"},
@@ -149,7 +149,7 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fresh disk.RTEntry
+	var fresh diskcache.RTEntry
 	if err := json.Unmarshal(rewritten, &fresh); err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 // (collision-extension drift), the cache must miss and recompile.
 func TestRenderFnModule_DiskCache_HeaderStructuralMismatch(t *testing.T) {
 	root := t.TempDir()
-	store := disk.New(root, "fp1")
+	store := diskcache.New(root, "fp1")
 	lookup := newFakeLookup()
 	// Current build maps abc123 → "1:atomic", but the cache file
 	// claims abc123 → "9:something-else". Mismatch → miss.
@@ -174,8 +174,8 @@ func TestRenderFnModule_DiskCache_HeaderStructuralMismatch(t *testing.T) {
 
 	cachePath := filepath.Join(root, "fp1", "abc123", "val.json")
 	_ = os.MkdirAll(filepath.Dir(cachePath), 0o755)
-	stale := disk.RTEntry{
-		Format:       disk.FormatVersion,
+	stale := diskcache.RTEntry{
+		Format:       diskcache.FormatVersion,
 		StructuralID: "9:something-else",
 		ArgsText:     "'val_abc123','STALE_MARKER',undefined,true",
 	}

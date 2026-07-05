@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/cache/disk"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
@@ -22,11 +22,11 @@ import (
 // logged once and ignored so a read-only filesystem doesn't break builds.
 type RenderOpts struct {
 	// Store is the on-disk RT cache. Nil disables caching.
-	Store *disk.Store
+	Store *diskcache.Store
 	// Lookup resolves structural ids ↔ short hashes for the current
 	// session. Required when Store is non-nil. The resolver passes its
-	// runtype.Cache here (which satisfies disk.HashLookup).
-	Lookup disk.HashLookup
+	// runtype.Cache here (which satisfies diskcache.HashLookup).
+	Lookup diskcache.HashLookup
 	// DiagSink is the destination for compile-time diagnostics emitted
 	// by the walker at RTThrow / silent-skip sites. Nil disables
 	// diagnostic emission entirely — keeps tests that don't care about
@@ -662,7 +662,7 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 	if structural == "" {
 		return
 	}
-	childRefs := make([]disk.ChildRef, 0, len(deps))
+	childRefs := make([]diskcache.ChildRef, 0, len(deps))
 	for _, dep := range deps {
 		childHash := strings.TrimPrefix(dep, innerPrefix)
 		if childHash == dep {
@@ -675,12 +675,12 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 		if childStructural == "" {
 			return
 		}
-		childRefs = append(childRefs, disk.ChildRef{
+		childRefs = append(childRefs, diskcache.ChildRef{
 			StructuralID: childStructural,
 			Hash:         childHash,
 		})
 	}
-	crossFamilyRefs := make([]disk.CrossFamilyRef, 0, len(crossFamilyDeps))
+	crossFamilyRefs := make([]diskcache.CrossFamilyRef, 0, len(crossFamilyDeps))
 	for _, dep := range crossFamilyDeps {
 		prefix, bareHash, ok := splitNamespacedHash(dep)
 		if !ok {
@@ -692,14 +692,14 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 		if crossStructural == "" {
 			return
 		}
-		crossFamilyRefs = append(crossFamilyRefs, disk.CrossFamilyRef{
+		crossFamilyRefs = append(crossFamilyRefs, diskcache.CrossFamilyRef{
 			Prefix:       prefix,
 			StructuralID: crossStructural,
 			Hash:         bareHash,
 		})
 	}
-	entry := disk.RTEntry{
-		Format:          disk.FormatVersion,
+	entry := diskcache.RTEntry{
+		Format:          diskcache.FormatVersion,
 		StructuralID:    structural,
 		ArgsText:        argsText,
 		IsNoop:          isNoop,

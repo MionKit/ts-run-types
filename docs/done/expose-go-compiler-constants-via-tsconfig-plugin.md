@@ -180,7 +180,7 @@ Source: [`cmd/ts-runtypes/main.go`](../../cmd/ts-runtypes/main.go).
 
 - `--hash-length` → `resolver.Options.HashLength` (default
   `hashid.DefaultLength = 7`). Folded into the disk fingerprint
-  ([`internal/cache/disk/fingerprint.go`](../../internal/cache/disk/fingerprint.go))
+  ([`internal/cachegen/diskcache/fingerprint.go`](../../internal/cachegen/diskcache/fingerprint.go))
   so changing it never collides with the existing cache. Surface as
   `hashLength?: number` on the tsconfig entry.
 - `--single-threaded` → `resolver.Options.SingleThreaded`. Currently exposed
@@ -283,7 +283,7 @@ mentioned above, injected only when any of them is non-default.
 ### E. Disk-fingerprint inputs
 
 Source:
-[`internal/cache/disk/fingerprint.go`](../../internal/cache/disk/fingerprint.go).
+[`internal/cachegen/diskcache/fingerprint.go`](../../internal/cachegen/diskcache/fingerprint.go).
 
 `FingerprintInputs` covers `HashLength`, `EmitMode`, `InlineMode` today
 (tag v4). Anything NEW that lands on the tsconfig entry AND changes Go-side

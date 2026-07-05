@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/cache/disk"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/operations"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -46,7 +46,7 @@ func seedConflictPropUnionLookup(lookup *fakeLookup) {
 // collection pass silently drops the `val_<member>` roots.
 func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 	root := t.TempDir()
-	store := disk.New(root, "fp1")
+	store := diskcache.New(root, "fp1")
 	lookup := newFakeLookup()
 	seedConflictPropUnionLookup(lookup)
 
@@ -77,12 +77,12 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected cache file at %s: %v", cachePath, err)
 	}
-	var entry disk.RTEntry
+	var entry diskcache.RTEntry
 	if err := json.Unmarshal(raw, &entry); err != nil {
 		t.Fatalf("cache file is not valid JSON: %v", err)
 	}
-	if entry.Format != disk.FormatVersion {
-		t.Errorf("cache Format: got %d want %d", entry.Format, disk.FormatVersion)
+	if entry.Format != diskcache.FormatVersion {
+		t.Errorf("cache Format: got %d want %d", entry.Format, diskcache.FormatVersion)
 	}
 	if len(entry.CrossFamilyRefs) != len(wantCross) {
 		t.Fatalf("persisted CrossFamilyRefs count: got %d (%+v) want %d", len(entry.CrossFamilyRefs), entry.CrossFamilyRefs, len(wantCross))
@@ -129,7 +129,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 // edges on a cached build — the resolver's cross-family fixpoint reads them.
 func TestCrossFamilyDeps_DiskCacheHit_PreservesModuleDeps(t *testing.T) {
 	root := t.TempDir()
-	store := disk.New(root, "fp1")
+	store := diskcache.New(root, "fp1")
 	lookup := newFakeLookup()
 	seedConflictPropUnionLookup(lookup)
 
@@ -175,7 +175,7 @@ func TestCrossFamilyDeps_DiskCacheHit_PreservesModuleDeps(t *testing.T) {
 // channel.
 func TestRenderFnModule_DiskCache_CrossFamilyHashDriftMiss(t *testing.T) {
 	root := t.TempDir()
-	store := disk.New(root, "fp1")
+	store := diskcache.New(root, "fp1")
 	lookup := newFakeLookup()
 	lookup.set("uni", "u:union")
 
@@ -187,11 +187,11 @@ func TestRenderFnModule_DiskCache_CrossFamilyHashDriftMiss(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	stale := disk.RTEntry{
-		Format:       disk.FormatVersion,
+	stale := diskcache.RTEntry{
+		Format:       diskcache.FormatVersion,
 		StructuralID: "u:union",
 		ArgsText:     "'pj_uni','STALE_CROSS_MARKER',undefined,true",
-		CrossFamilyRefs: []disk.CrossFamilyRef{
+		CrossFamilyRefs: []diskcache.CrossFamilyRef{
 			{Prefix: "val_", StructuralID: "b:bigint", Hash: "staleBig"},
 		},
 	}
@@ -234,7 +234,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyHashDriftMiss(t *testing.T) {
 // rewrite then produces a v2 file the current build reads back.
 func TestRenderFnModule_DiskCache_FormatV1IsMiss(t *testing.T) {
 	root := t.TempDir()
-	store := disk.New(root, "fp1")
+	store := diskcache.New(root, "fp1")
 	lookup := newFakeLookup()
 	lookup.set("abc123", "1:atomic")
 
@@ -257,7 +257,7 @@ func TestRenderFnModule_DiskCache_FormatV1IsMiss(t *testing.T) {
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}}}
 	rendered := renderEntryWithDeps(dump.RunTypes[0], constants.CacheModules["validate"], ValidateEmitter{}, "val_", buildRefTable(dump.RunTypes), RenderOpts{Store: store, Lookup: lookup}, "", nil)
 	if rendered.argsText == v1["argsText"] {
-		t.Errorf("v1 file should be a miss under FormatVersion %d, but the stale v1 args were returned", disk.FormatVersion)
+		t.Errorf("v1 file should be a miss under FormatVersion %d, but the stale v1 args were returned", diskcache.FormatVersion)
 	}
 
 	// After the miss the renderer rewrites a v2 file the current build accepts.
@@ -265,12 +265,12 @@ func TestRenderFnModule_DiskCache_FormatV1IsMiss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fresh disk.RTEntry
+	var fresh diskcache.RTEntry
 	if err := json.Unmarshal(rewritten, &fresh); err != nil {
 		t.Fatal(err)
 	}
-	if fresh.Format != disk.FormatVersion {
-		t.Errorf("rewritten file Format: got %d want %d", fresh.Format, disk.FormatVersion)
+	if fresh.Format != diskcache.FormatVersion {
+		t.Errorf("rewritten file Format: got %d want %d", fresh.Format, diskcache.FormatVersion)
 	}
 }
 
