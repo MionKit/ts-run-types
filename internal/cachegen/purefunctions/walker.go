@@ -183,10 +183,28 @@ func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Op
 	return entries, diagnostics
 }
 
+// extractFromFile walks a single source file resolved from lookup and
+// returns its pure-fn entries + extractor-side diagnostics (PFE9005 +
+// purity violations + dep diagnostics). Called by the dep-validation
+// Index's lazy expansion (index.go) when a recorded rt dep points at a
+// file the main scan didn't cover.
+//
+// Does NOT perform cross-file collision detection (PFE9004) — the
+// caller folds entries into a shared map and surfaces collisions there.
+// A nil/missing source file yields (nil, nil); the caller decides
+// whether that is an error.
+func extractFromFile(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, filePath string) ([]Entry, []diag.Diagnostic) {
+	sourceFile := lookup.SourceFile(filePath)
+	if sourceFile == nil {
+		return nil, nil
+	}
+	return extractFromSourceFile(typeChecker, markerOpts, sourceFile)
+}
+
 // extractFromSourceFile is the per-file extraction core: build symbol
 // table, walk every CallExpression, dispatch to extractOne. Called by
 // the ExtractFromProgramCached loop body (which already holds a
-// *SourceFile in hand).
+// *SourceFile in hand) and by the lookup-driven extractFromFile above.
 func extractFromSourceFile(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
 	var diagnostics []diag.Diagnostic

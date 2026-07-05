@@ -44,5 +44,6 @@ const (
 	CodePurityForbidden     = diag.CodePurityForbidden
 	CodePurityClosure       = diag.CodePurityClosure
 
+	CodeMissingPureFnDep    = diag.CodeMissingPureFnDep
 	CodePurityDepNotLiteral = diag.CodePurityDepNotLiteral
 )
