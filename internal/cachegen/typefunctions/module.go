@@ -9,7 +9,7 @@ import (
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -142,7 +142,7 @@ func variantFactoryName(settings constants.CacheModuleSettings, suffix string, o
 // reaches register themselves at their own `registerPureFnFactory` call sites
 // (binding-injected by the plugin, or live factories without it) when the
 // defining module is imported — always before any factory materializes.
-func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, opts RenderOpts, extraRoots []string) entrymod.Graph {
+func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, opts RenderOpts, extraRoots []string) virtualmodules.Graph {
 	// Single-pass id→RunType index used by the walker to deref
 	// KindRef sentinels at descent time. Cache entries store every
 	// child slot as a ref (`{kind: -1, id: …}`) per protocol.go;
@@ -161,7 +161,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 		}
 	}
 
-	graph := make(entrymod.Graph, len(dump.RunTypes))
+	graph := make(virtualmodules.Graph, len(dump.RunTypes))
 
 	// renderEntry compiles one (RunType, variant) into the graph and returns
 	// its discovered same-family child dependencies. Idempotent via the graph
@@ -200,9 +200,9 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 		if rendered.argsText == "" {
 			return nil, false
 		}
-		graph.Add(&entrymod.Entry{
+		graph.Add(&virtualmodules.Entry{
 			Key:       entryID,
-			Kind:      entrymod.KindTypeFn,
+			Kind:      virtualmodules.KindTypeFn,
 			FamilyTag: settings.Tag,
 			ArgsText:  rendered.argsText,
 			// Same-family deps are HARD (body calls `<dep>.fn(…)`
@@ -358,7 +358,7 @@ type entryRender struct {
 	crossFamilyDeps []string
 	// isNoop mirrors the walker's Finalize verdict (the short-form tuple
 	// whose runtime fn is the family identity). Landed on
-	// entrymod.Entry.IsNoop so downstream consumers (the JSON composite
+	// virtualmodules.Entry.IsNoop so downstream consumers (the JSON composite
 	// collector) can elide references to identity entries.
 	isNoop bool
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -71,8 +71,8 @@ var (
 // noop gate, or disk-cached verdict). A primitive missing from the graph is
 // treated as live (conservative bind; AssertCompositeSoftDeps still surfaces
 // the invariant breach). Nil graph = bind everything (unit-test shape).
-func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered entrymod.Graph) entrymod.Graph {
-	graph := entrymod.Graph{}
+func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered virtualmodules.Graph) virtualmodules.Graph {
+	graph := virtualmodules.Graph{}
 	refTable := opts.RefTable
 	if refTable == nil {
 		refTable = make(map[string]*protocol.RunType, len(dump.RunTypes))
@@ -116,7 +116,7 @@ func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered e
 // operation's entry for id — false exactly when the rendered graph holds a
 // noop (family-identity) entry for it, in which case calling it is dead
 // weight and the binding elides. Missing entries stay live (conservative).
-func primitiveIsLive(rendered entrymod.Graph, primOp string, id string) bool {
+func primitiveIsLive(rendered virtualmodules.Graph, primOp string, id string) bool {
 	if rendered == nil {
 		return true
 	}
@@ -138,7 +138,7 @@ func primitiveIsLive(rendered entrymod.Graph, primOp string, id string) bool {
 // structural id (+ family), so the liveness set is identical on every build
 // that hits the same structural header — recomputing deps from the current
 // graph on a cache hit always agrees with the baked body.
-func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts, rendered entrymod.Graph) *entrymod.Entry {
+func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts, rendered virtualmodules.Graph) *virtualmodules.Entry {
 	op, ok := operations.ByName(composite.OpName)
 	if !ok {
 		return nil
@@ -182,11 +182,11 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 			"undefined", // code — holed (runtime uses the composite's native-JSON noop)
 			"true",      // isNoop — kept: the signal that selects the noop fn
 		})
-		return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: joinArgs(args), IsNoop: true}
+		return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: joinArgs(args), IsNoop: true}
 	}
 
 	if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
-		return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
+		return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
 	}
 
 	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive, wrapRoot)
@@ -210,7 +210,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	})
 	argsText := joinArgs(args)
 	writeCachedCompositeEntry(runType, tag, argsText, opts)
-	return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: deps}
+	return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: deps}
 }
 
 // jsonCompositeDeps names the primitive entries a composite body resolves at
@@ -394,7 +394,7 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText s
 // primitive as real, noop short-form, or alwaysThrow — and the unguarded
 // `.fn` read would crash at runtime, so it surfaces as an Error diagnostic
 // at collect time instead. Deterministic order via sorted keys.
-func AssertCompositeSoftDeps(graph entrymod.Graph, diagSink *[]diag.Diagnostic) {
+func AssertCompositeSoftDeps(graph virtualmodules.Graph, diagSink *[]diag.Diagnostic) {
 	if diagSink == nil {
 		return
 	}
@@ -405,14 +405,14 @@ func AssertCompositeSoftDeps(graph entrymod.Graph, diagSink *[]diag.Diagnostic) 
 	sort.Strings(keys)
 	for _, key := range keys {
 		entry := graph[key]
-		if entry == nil || entry.Kind != entrymod.KindTypeFn {
+		if entry == nil || entry.Kind != virtualmodules.KindTypeFn {
 			continue
 		}
 		if _, ok := constants.JsonCompositeByTag(entry.FamilyTag); !ok {
 			continue
 		}
 		for _, dep := range entry.SoftDeps {
-			if target, ok := graph[dep]; ok && target != nil && target.Kind != entrymod.KindMissing {
+			if target, ok := graph[dep]; ok && target != nil && target.Kind != virtualmodules.KindMissing {
 				continue
 			}
 			*diagSink = append(*diagSink, diag.New(diag.CodeCompositeMissingPrimitive, diag.Site{}, entry.Key, dep))

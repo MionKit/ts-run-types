@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/hashid"
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -32,8 +32,8 @@ const bundleKeyLength = 10
 // the bundle content does and the runtime's processed-keys guard re-registers
 // an evolved bundle after an HMR reload (the module NAME stays fixed; the
 // Vite plugin invalidates it on addedRunTypes).
-func CollectEntries(dump protocol.Dump) entrymod.Graph {
-	graph := entrymod.Graph{}
+func CollectEntries(dump protocol.Dump) virtualmodules.Graph {
+	graph := virtualmodules.Graph{}
 	nodes := indexNodes(dump.RunTypes)
 	// Facades are emitted for reflection-only roots; circular createX types
 	// contribute their graph as bundle ROWS (so the circular-reference guard
@@ -79,9 +79,9 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 		relEnd--
 	}
 	bundleKey := "rts_" + hashid.QuickHash(strings.Join(rows, ","), bundleKeyLength, "")
-	graph.Add(&entrymod.Entry{
+	graph.Add(&virtualmodules.Entry{
 		Key:      bundleKey,
-		Kind:     entrymod.KindRunTypeBundle,
+		Kind:     virtualmodules.KindRunTypeBundle,
 		ArgsText: quoteJS(bundleKey) + ",[" + rowsText.String() + "],[" + strings.Join(relRows[:relEnd], ",") + "]",
 		InitBody: footer.String(),
 	})
@@ -89,9 +89,9 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 	// made it into the dump (defensive): the injected import must resolve, and
 	// the runtime degrades to a registry miss exactly as before.
 	for _, root := range facadeRoots {
-		graph.Add(&entrymod.Entry{
+		graph.Add(&virtualmodules.Entry{
 			Key:      root,
-			Kind:     entrymod.KindRunTypeFacade,
+			Kind:     virtualmodules.KindRunTypeFacade,
 			ArgsText: quoteJS(root),
 			Deps:     []string{bundleKey},
 		})
@@ -190,7 +190,7 @@ func closureHasCircular(rootID string, nodes map[string]*protocol.RunType, memo 
 	return found
 }
 
-// CollectEntriesPerNode is the allModules-mode collector: one entrymod.Entry
+// CollectEntriesPerNode is the allModules-mode collector: one virtualmodules.Entry
 // per cached RunType (the pre-bundle layout). Tuple args reuse
 // renderFactoryArgs verbatim, the per-entry init body reuses writeFooter, and
 // Deps collects the KindRef ids the footer references so the assembler
@@ -198,8 +198,8 @@ func closureHasCircular(rootID string, nodes map[string]*protocol.RunType, memo 
 // scoping happens at the dump layer (scopedDump for scanFiles, full cache for
 // dump). Measured slower than the bundle on dense reflection graphs (the
 // reason the bundle replaced it) — kept as the allModules escape hatch.
-func CollectEntriesPerNode(dump protocol.Dump) entrymod.Graph {
-	graph := make(entrymod.Graph, len(dump.RunTypes))
+func CollectEntriesPerNode(dump protocol.Dump) virtualmodules.Graph {
+	graph := make(virtualmodules.Graph, len(dump.RunTypes))
 	for _, runType := range dump.RunTypes {
 		if runType == nil || runType.ID == "" {
 			continue
@@ -209,9 +209,9 @@ func CollectEntriesPerNode(dump protocol.Dump) entrymod.Graph {
 		// (each child rides its own module dep), unlike the data bundle which
 		// uses row indices.
 		writeFooter(&footer, runType)
-		graph.Add(&entrymod.Entry{
+		graph.Add(&virtualmodules.Entry{
 			Key:      runType.ID,
-			Kind:     entrymod.KindRunType,
+			Kind:     virtualmodules.KindRunType,
 			ArgsText: strings.Join(renderFactoryArgs(runType), ","),
 			InitBody: footer.String(),
 			Deps:     collectRefDeps(runType),

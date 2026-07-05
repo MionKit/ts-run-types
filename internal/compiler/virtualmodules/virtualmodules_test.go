@@ -1,4 +1,4 @@
-package entrymod
+package virtualmodules
 
 import (
 	"strings"

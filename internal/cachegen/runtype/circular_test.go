@@ -3,7 +3,7 @@ package runtype
 import (
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -46,9 +46,9 @@ func TestCircularCreateXEmitsBundleWithoutFacade(t *testing.T) {
 	bundles, facades := 0, 0
 	for _, entry := range graph {
 		switch entry.Kind {
-		case entrymod.KindRunTypeBundle:
+		case virtualmodules.KindRunTypeBundle:
 			bundles++
-		case entrymod.KindRunTypeFacade:
+		case virtualmodules.KindRunTypeFacade:
 			facades++
 		}
 	}

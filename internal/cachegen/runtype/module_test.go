@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -39,9 +39,9 @@ func emitModules(t *testing.T, roots []string, runTypes []*protocol.RunType) map
 		sites = append(sites, protocol.Site{ID: root})
 	}
 	graph := CollectEntries(protocol.Dump{RunTypes: runTypes, Sites: sites})
-	modules, err := entrymod.RenderGrouped(graph, nil)
+	modules, err := virtualmodules.RenderGrouped(graph, nil)
 	if err != nil {
-		t.Fatalf("entrymod.Render: %v", err)
+		t.Fatalf("virtualmodules.Render: %v", err)
 	}
 	return modules
 }

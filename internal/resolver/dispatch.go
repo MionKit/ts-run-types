@@ -16,8 +16,8 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
 	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/program"
@@ -136,8 +136,8 @@ func elapsedMs(start time.Time) float64 {
 // fan-out preserved), JSON composites, pure fns, the cross-family fixpoint,
 // the global dangling-dep cascade, and missing stubs for demanded keys that
 // didn't survive. Returns the rendered modules keyed by module BASENAME.
-func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph entrymod.Graph, metrics *protocol.Metrics) (map[string]string, error) {
-	var graph entrymod.Graph
+func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph virtualmodules.Graph, metrics *protocol.Metrics) (map[string]string, error) {
+	var graph virtualmodules.Graph
 	if resolver.opts.ModuleMode == constants.ModuleModeAllModules {
 		graph = runtype.CollectEntriesPerNode(dump)
 	} else {
@@ -185,7 +185,7 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefun
 	// fallbacks no site demanded) keep their own per-entry module.
 	if resolver.opts.ModuleMode == constants.ModuleModeAllSingle {
 		for key, entry := range graph {
-			if entry.Kind == entrymod.KindMissing && entry.FamilyTag == "" {
+			if entry.Kind == virtualmodules.KindMissing && entry.FamilyTag == "" {
 				entry.FamilyTag = demandTags[key]
 			}
 		}
@@ -193,7 +193,7 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefun
 	pruneUnreachableTypeFnEntries(graph, demanded)
 
 	renderStart := time.Now()
-	modules, err := entrymod.RenderGrouped(graph, resolver.moduleGrouping())
+	modules, err := virtualmodules.RenderGrouped(graph, resolver.moduleGrouping())
 	if metrics != nil {
 		metrics.RenderMs["entryModules"] = elapsedMs(renderStart)
 	}
@@ -208,9 +208,9 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefun
 // registry order: first error wins, RenderMs recorded (values overlap
 // wall-clock; their sum exceeds elapsed time), shard diagnostics appended
 // (== the sequential order), and Facts shards merged into the dispatch opts.
-func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]entrymod.Graph, error) {
+func (resolver *Resolver) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]virtualmodules.Graph, error) {
 	families := typefunctions.Families
-	graphs := make([]entrymod.Graph, len(families))
+	graphs := make([]virtualmodules.Graph, len(families))
 	if !resolver.parallelRenderEnabled() || len(families) < 2 {
 		for familyIndex, spec := range families {
 			collectStart := time.Now()
@@ -303,12 +303,12 @@ var familyByPlainHash = func() map[string]typefunctions.FamilySpec {
 // rendered set grows monotonically toward the (finite) session type set. The
 // guard cap is defensive — hitting it leaves the remaining edges to the stub
 // pass, which preserves the build (runtime degrades to identity fallback).
-func (resolver *Resolver) resolveCrossFamilyEdges(graph entrymod.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
+func (resolver *Resolver) resolveCrossFamilyEdges(graph virtualmodules.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
 	seedDump := protocol.Dump{RunTypes: dump.RunTypes}
 	for iteration := 0; iteration < 8; iteration++ {
 		missingByFamily := map[string]map[string]bool{}
 		for _, entry := range graph {
-			if entry.Kind != entrymod.KindTypeFn {
+			if entry.Kind != virtualmodules.KindTypeFn {
 				continue
 			}
 			// Cross-family edges ride SoftDeps (hard Deps are same-family and
@@ -422,7 +422,7 @@ func demandedEntryKeys(sites []protocol.Site) ([]string, map[string]string) {
 // via reflection-site bindings and pure-fn modules via their own injected
 // registration sites — neither rides the fn-site demand list, so reachability
 // over it would under-approximate their liveness.
-func pruneUnreachableTypeFnEntries(graph entrymod.Graph, demanded []string) {
+func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string) {
 	live := make(map[string]bool, len(graph))
 	stack := make([]string, 0, len(graph))
 	enqueue := func(key string) {
@@ -432,7 +432,7 @@ func pruneUnreachableTypeFnEntries(graph entrymod.Graph, demanded []string) {
 		}
 	}
 	for key, entry := range graph {
-		if entry != nil && entry.Kind != entrymod.KindTypeFn {
+		if entry != nil && entry.Kind != virtualmodules.KindTypeFn {
 			enqueue(key)
 		}
 	}
@@ -454,35 +454,35 @@ func pruneUnreachableTypeFnEntries(graph entrymod.Graph, demanded []string) {
 		}
 	}
 	for key, entry := range graph {
-		if entry != nil && entry.Kind == entrymod.KindTypeFn && !live[key] {
+		if entry != nil && entry.Kind == virtualmodules.KindTypeFn && !live[key] {
 			delete(graph, key)
 		}
 	}
 }
 
-// moduleGrouping returns the entrymod.Grouping for the resolver's module
+// moduleGrouping returns the virtualmodules.Grouping for the resolver's module
 // mode. Nil (everything per-entry, the runtype bundle shaping its own module
 // via CollectEntries) for default/allModules; the allSingle partition
 // otherwise: fn/composite entries ride `fns/<familyTag>` bundles, pure fns
 // the `pf` bundle, the reflection facades fold into the runtypes bundle, and
 // missing stubs follow their demanding site's family (per-entry when no site
 // demanded them — soft-dep stubs keep their own resolvable module).
-func (resolver *Resolver) moduleGrouping() entrymod.Grouping {
+func (resolver *Resolver) moduleGrouping() virtualmodules.Grouping {
 	if resolver.opts.ModuleMode != constants.ModuleModeAllSingle {
 		return nil
 	}
-	return func(entry *entrymod.Entry) string {
+	return func(entry *virtualmodules.Entry) string {
 		switch entry.Kind {
-		case entrymod.KindTypeFn:
+		case virtualmodules.KindTypeFn:
 			return constants.FnsBundleDir + "/" + entry.FamilyTag
-		case entrymod.KindMissing:
+		case virtualmodules.KindMissing:
 			if entry.FamilyTag != "" {
 				return constants.FnsBundleDir + "/" + entry.FamilyTag
 			}
 			return ""
-		case entrymod.KindPureFn:
+		case virtualmodules.KindPureFn:
 			return constants.PureFnModuleDir
-		case entrymod.KindRunTypeBundle, entrymod.KindRunTypeFacade:
+		case virtualmodules.KindRunTypeBundle, virtualmodules.KindRunTypeFacade:
 			return constants.RunTypesBundleBasename
 		}
 		return ""
@@ -543,7 +543,7 @@ var circularGuardedFamilyTags = map[string]bool{
 // (the fn body never references it; only the runtime wrapper does). In the
 // default / allSingle bundle modes the dep is the single data bundle; in
 // allModules mode it is the type's own per-node module (key == typeId).
-func (resolver *Resolver) wireCircularRunTypeDeps(graph entrymod.Graph, dump protocol.Dump) {
+func (resolver *Resolver) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump protocol.Dump) {
 	circular := runtype.CircularGuardTypeIDs(dump)
 	if len(circular) == 0 {
 		return
@@ -552,7 +552,7 @@ func (resolver *Resolver) wireCircularRunTypeDeps(graph entrymod.Graph, dump pro
 	bundleKey := ""
 	if !perNode {
 		for key, entry := range graph {
-			if entry.Kind == entrymod.KindRunTypeBundle {
+			if entry.Kind == virtualmodules.KindRunTypeBundle {
 				bundleKey = key
 				break
 			}
@@ -562,7 +562,7 @@ func (resolver *Resolver) wireCircularRunTypeDeps(graph entrymod.Graph, dump pro
 		}
 	}
 	for _, entry := range graph {
-		if entry.Kind != entrymod.KindTypeFn || !circularGuardedFamilyTags[entry.FamilyTag] {
+		if entry.Kind != virtualmodules.KindTypeFn || !circularGuardedFamilyTags[entry.FamilyTag] {
 			continue
 		}
 		typeID := typeIDFromEntryKey(entry.Key)

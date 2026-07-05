@@ -105,7 +105,7 @@ Net effect: the offset protocol seam between Go and JS is removed; rewrite + map
 
 ### 2. Shared cache modules become real files
 
-Go writes the app-wide modules currently served virtually — the `runtypes.js` data bundle (one row per node app-wide), the per-reflection-root facades, and the per-`<fnHash>_<typeId>` function entries — as real `.js` files into the cache dir. Content-addressing already guarantees immutability for entry modules; **write-only-on-content-change** keeps the dev watcher from looping, and only the data bundle is rewritten (on `addedRunTypes`), mirroring today's invalidation. The emit assembler is [`internal/compiled/entrymod/entrymod.go`](../internal/compiled/entrymod/entrymod.go); the runtime tuple contract stays [`packages/ts-runtypes/src/runtypes/entryTuple.ts`](../packages/ts-runtypes/src/runtypes/entryTuple.ts).
+Go writes the app-wide modules currently served virtually — the `runtypes.js` data bundle (one row per node app-wide), the per-reflection-root facades, and the per-`<fnHash>_<typeId>` function entries — as real `.js` files into the cache dir. Content-addressing already guarantees immutability for entry modules; **write-only-on-content-change** keeps the dev watcher from looping, and only the data bundle is rewritten (on `addedRunTypes`), mirroring today's invalidation. The emit assembler is [`internal/compiler/virtualmodules/entrymod.go`](../internal/compiler/virtualmodules/entrymod.go); the runtime tuple contract stays [`packages/ts-runtypes/src/runtypes/entryTuple.ts`](../packages/ts-runtypes/src/runtypes/entryTuple.ts).
 
 ### 3. Import resolution
 

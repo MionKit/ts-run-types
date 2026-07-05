@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
+	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 )
 
 func TestCollectEntries_EmptyInput(t *testing.T) {
@@ -25,7 +25,7 @@ func TestCollectEntries_SingleEntry(t *testing.T) {
 	if entry == nil {
 		t.Fatalf("expected an entry keyed by 'rt::asJSONString', got %v", graph)
 	}
-	if entry.Kind != entrymod.KindPureFn {
+	if entry.Kind != virtualmodules.KindPureFn {
 		t.Errorf("Kind: got %v want KindPureFn", entry.Kind)
 	}
 	// 6-arg tail: key, bodyHash, paramNames, code, pureFnDependencies, createPureFn.
@@ -86,7 +86,7 @@ func TestCollectEntries_RenderedModuleShape(t *testing.T) {
 		{Namespace: "b", FunctionName: "y", Code: "return utl.usePureFn('a::x')();", BodyHash: "h2",
 			ParamNames: []string{}, PureFnDependencies: []string{"a::x"}},
 	})
-	modules, err := entrymod.RenderGrouped(graph, nil)
+	modules, err := virtualmodules.RenderGrouped(graph, nil)
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
