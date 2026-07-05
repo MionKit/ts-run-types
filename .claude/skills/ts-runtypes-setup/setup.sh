@@ -310,7 +310,7 @@ main() {
     *)
       bold "ts-runtypes setup"
       err "This skill is not ready for '$OS'. Supported platforms: Linux and macOS."
-      err "Install podman/Node/pnpm/Go manually, then use scripts/website/site.sh & scripts/website/bench-data/bench.sh."
+      err "Install podman/Node/pnpm/Go manually, then use pnpm rt website & pnpm rt bench."
       exit 3
       ;;
   esac

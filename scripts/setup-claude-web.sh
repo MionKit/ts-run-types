@@ -431,7 +431,7 @@ main "$@"
 # | "setup script" field, so at run time it is NOT `scripts/…` in a checkout|
 # | - it is a lone script in a temp path. It therefore MUST NOT source or   |
 # | call any other repo file (the ts-runtypes-setup skill's setup.sh,       |
-# | scripts/container/image.sh, scripts/lib-*.sh, pm/*.sh, …) and MUST NOT   |
+# | scripts/container/image.mjs, scripts/lib/*.mjs, pm/*.sh, …) and MUST NOT |
 # | derive the repo root from BASH_SOURCE. Every step is inlined on purpose.|
 # | If you factor something out into another file, this script breaks the   |
 # | moment it runs from the UI. Keep it standalone; DUPLICATE logic rather  |

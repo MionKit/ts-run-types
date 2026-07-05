@@ -34,7 +34,7 @@ This isolation is the whole point:
   only thing special about it is *build* mechanics — its validators are generated
   at build time by `ts-runtypes-devtools` spawning the **Go binary**, so that
   binary + the first-party packages are bind-mounted into its `node_modules` at run
-  time (see [`scripts/website/bench-data/bench.sh`](../scripts/website/bench-data/bench.sh) `mount_args`).
+  time (see [`scripts/website/bench-data/bench.mjs`](../scripts/website/bench-data/bench.mjs) `mount_args`).
 
 ## Totality — a validator **or** an explicit not-supported, for every case
 
@@ -109,7 +109,7 @@ signature accepts an explicit-`undefined` property value (`{a: undefined}`).
 The image is **deps-only**: it bakes per-competitor `node_modules` (from the
 manifests in [`_deps/`](_deps/)) and nothing first-party. ALL benchmark source —
 the shared suite, every competitor's source files, `typecost/`, `aggregate.mjs` —
-is bind-mounted at run time (`scripts/website/bench-data/bench.sh:mount_args`), so an image is
+is bind-mounted at run time (`scripts/website/bench-data/bench.mjs:mount_args`), so an image is
 invalidated only when a dependency manifest changes.
 
 | Inside the image (deps only)                           | Bind-mounted from the repo at run time                     |
@@ -130,7 +130,7 @@ pnpm rt bench typecost        # compile-time: per-competitor TS type-instantiati
 pnpm rt bench serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
 pnpm rt bench --website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
 pnpm rt bench smoke           # quick: build every competitor's dist (no run)
-# --- image publishing (maintainer); all delegate to scripts/container/image.sh ---
+# --- image publishing (maintainer); all delegate to scripts/container/image.mjs ---
 pnpm rt container build-image     # build the shared website+benchmark image locally
 pnpm rt container login           # log in to GHCR (needs a PAT; see SETUP.md)
 pnpm rt container push            # build + push the multi-arch image to GHCR
@@ -140,8 +140,8 @@ pnpm rt container pull            # pull the published image and tag it locally
 The benchmarks run in the **single shared image** built from
 [`container/website/Containerfile`](../website/Containerfile) (`FROM node:26-bookworm`): the
 website deps live at `/app`, the benchmark deps at `/bench` (`/bench/competitors/<name>`
-+ `/bench/typecost`), each its own isolated pnpm project. `scripts/container/image.sh` owns
-the image (build/push/pull) and `scripts/website/bench-data/bench.sh` delegates to it, then runs
++ `/bench/typecost`), each its own isolated pnpm project. `scripts/container/image.mjs` owns
+the image (build/push/pull) and `scripts/website/bench-data/bench.mjs` delegates to it, then runs
 the bench half under `/bench`. Node 26 unflags the global `Temporal` API, so every
 timing runs on native Temporal, the same runtime the published library targets, with
 **no `temporal-polyfill`**. Override the base with `RT_WEBSITE_BASE_IMAGE` (or
@@ -339,7 +339,7 @@ diverges from RunTypes' semantics. To add a whole new competitor, copy a
 `competitors/<name>/` source folder, add its `package.json` under
 `_deps/competitors/<name>/`, write a total `cases.ts`, add a COPY+install layer
 to [`Containerfile`](Containerfile), and add it to `competitor_list()` in
-`scripts/website/bench-data/bench.sh`.
+`scripts/website/bench-data/bench.mjs`.
 
 ## Cross-library validation alignment audit
 

@@ -257,7 +257,7 @@ version.json                     lockstep version (source of truth)
 .prettierrc                      Prettier config (markdown + playground runtime)
 ```
 
-`packages/*` is a pnpm workspace; publishing is a small script (`scripts/release/publish.sh`) over `pnpm publish`.
+`packages/*` is a pnpm workspace; publishing is a small script (`pnpm rt release npm`, `scripts/release/publish.mjs`) over `pnpm publish`.
 
 ## License
 

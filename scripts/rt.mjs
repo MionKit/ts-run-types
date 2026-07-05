@@ -133,7 +133,11 @@ async function runWebsite(args) {
     const {main} = await import('./website/site.mjs');
     return main([hasFlag(rest, '--docs') ? 'verify-docs' : 'smoke']);
   }
-  die('usage: rt website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview|check [--docs]|container-build>');
+  if (sub === 'shell') {
+    const {main} = await import('./website/site.mjs');
+    return main(['shell']);
+  }
+  die('usage: rt website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview|check [--docs]|container-build|shell>');
 }
 
 // ── bench ────────────────────────────────────────────────────────────────
@@ -217,6 +221,8 @@ website
                     [--quick] [--ssr] [--skip-playground]
   rt website preview              generate the static site, then serve it locally
   rt website check [--docs]       serves-a-page smoke (code-import + twoslash with --docs)
+  rt website container-build      container-only prod build (not the full pipeline)
+  rt website shell                debug shell inside the website container
 
 bench
   rt bench [--one <name>|--full|--website|--build-only] [--quick]

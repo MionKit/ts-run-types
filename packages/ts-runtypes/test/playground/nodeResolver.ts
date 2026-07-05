@@ -9,7 +9,7 @@
 // It ALSO injects the ts-runtypes source overlay the resolver type-checks
 // snippets against (the browser fetches runtypes-sources.json; here we build the
 // same overlay from packages/ts-runtypes/src via the shared builder). Both are
-// produced by container/website/scripts/build-playground.sh on the host; without
+// produced by container/website/scripts/build-playground.mjs on the host; without
 // the built WASM the suites skip (assetsBuilt() is false).
 import {existsSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -17,7 +17,7 @@ import vm from 'node:vm';
 import {buildRuntypesOverlay} from '../../../../scripts/website/playground-overlay.mjs';
 import {setRuntypesPackageSources, type Resolver} from '../../../../container/website/app/playground/index.ts';
 
-// Host-built WASM assets live in the repo cache dir (build-playground.sh output).
+// Host-built WASM assets live in the repo cache dir (build-playground.mjs output).
 const CACHE = fileURLToPath(new URL('../../../../.cache/rt-wasm/', import.meta.url));
 export const WASM_PATH = `${CACHE}ts-runtypes.wasm`;
 export const WASM_EXEC_PATH = `${CACHE}wasm_exec.js`;

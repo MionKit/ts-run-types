@@ -59,7 +59,7 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 // All inputs are env-overridable so the SAME script runs on the host (defaults:
 // the repo checkout) and INSIDE the Node 26 benchmark container, where the
 // marker package, the vite plugin and the Go binary are bind-mounted into the
-// ts-runtypes competitor context (see scripts/website/bench-data/bench.sh cmd_serialization).
+// ts-runtypes competitor context (see scripts/website/bench-data/bench.mjs cmdSerialization).
 const REPO_ROOT = process.env.RT_BENCH_REPO_ROOT ?? path.resolve(HERE, '..', '..', '..');
 const PACKAGE_ROOT = process.env.RT_BENCH_PACKAGE_ROOT ?? path.join(REPO_ROOT, 'packages/ts-runtypes');
 const VITE_ROOT = process.env.RT_BENCH_VITE_ROOT ?? REPO_ROOT;

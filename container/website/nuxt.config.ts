@@ -5,12 +5,12 @@ const isDev = process.env.NODE_ENV !== 'production'
 
 // Bind-mounted source on macOS/VM container hosts doesn't deliver fs events into
 // the container, so native watchers never fire. RT_WEBSITE_POLL=1 sets this env
-// (see scripts/website/site.sh) to make the watchers poll instead.
+// (see scripts/website/site.mjs) to make the watchers poll instead.
 const usePolling = process.env.CHOKIDAR_USEPOLLING === 'true'
 
 // The playground engine (app/playground) imports the ts-runtypes RUNTIME factories.
 // The compiled DIST is VENDORED into the project (git-ignored, host-synced by
-// container/website/scripts/build-playground.sh) rather than aliased to the
+// container/website/scripts/build-playground.mjs) rather than aliased to the
 // external repo-context mount, because Vite's dev server only serves modules inside
 // the project root. Vendoring the dist (not src) means Vite serves plain ESM with
 // no per-file TS transpile (which breaks on type-only re-exports in dev). Only

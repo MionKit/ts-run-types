@@ -5,7 +5,7 @@ import { resolve, sep } from 'node:path'
 //
 // RT_REPO_ROOT points at the directory that CONTAINS `packages/` (and, for
 // twoslash's external type defs, `node_modules/drizzle-orm`). It is set by
-// scripts/website/site.sh to the read-only-mounted repo context inside the container;
+// scripts/website/site.mjs to the read-only-mounted repo context inside the container;
 // when unset (host runs / tests) the caller's fallback keeps today's behaviour.
 // This indirection makes the website merge-agnostic: the packages can live in a
 // sibling checkout, be merged into this repo, or this repo merged into mion —
@@ -33,6 +33,6 @@ export function resolveInPackages(root: string, relPath: string): string {
 }
 
 // Read-only-mounted directory holding generated benchmark/test result JSON the
-// docs are built from (scripts/website/site.sh sets RT_DOCDATA=/app/.docdata).
+// docs are built from (scripts/website/site.mjs sets RT_DOCDATA=/app/.docdata).
 // Empty string when unset so callers can detect "no results available".
 export const DOCDATA_DIR = process.env.RT_DOCDATA ? resolve(process.env.RT_DOCDATA) : ''

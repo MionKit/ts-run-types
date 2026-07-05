@@ -1,8 +1,50 @@
 # scripts/ shell -> `.mjs` migration (unify the toolchain on Node)
 
-**Status:** proposed (investigation done; implementation deferred)
+**Status:** DONE — shipped across 6 staged commits (tiers 1-6) + a docs sweep (tier 7).
 **Scope:** the shell scripts under `scripts/` (+ `container/website/scripts/build-playground.sh`), plus every consumer that invokes them (root `package.json`, the three CI workflows + composite actions, and the cross-script calls). Docs that reference the paths. **No product code, no Go, no test code.**
 **Goal:** port the remaining `.sh` scripts to `.mjs` so the whole `scripts/` toolchain is one language, funnel every consumer through the single root `rt.mjs` entry point, and load `.env` once there. Delete the `registry.sh` <-> `load.mjs` duplication and the shell-sourcing glue.
+
+---
+
+## What shipped
+
+Every migrated `.sh` was ported; `scripts/` now contains **only** `.mjs` (the sole
+remaining `.sh` is `scripts/setup-claude-web.sh`, which installs Node itself — the
+one genuine pre-toolchain file). `rt.mjs` `loadEnv()`s once and dispatches migrated
+areas **in-process**; no consumer references a leaf shell path anymore.
+
+- **New shared libs:** `scripts/lib/env.mjs` (`loadEnv()` + `REGISTRY[]`, folding
+  `env/registry.sh` + `env/load.mjs`), `scripts/lib/proc.mjs` (CliError/die,
+  run/runOrThrow/capture/which, `styleText` loggers, prompt, sleep, hostGoArch),
+  `scripts/lib/engine.mjs` (podman + GHCR helpers, folding `container/lib.sh` +
+  `container/ghcr.sh`).
+- **Ported leaves:** `env/check.mjs`, `core/build.mjs`, `container/image.mjs`,
+  `website/site.mjs`, `website/build.mjs`, `container/website/scripts/build-playground.mjs`,
+  `website/bench-data/bench.mjs`, `release/{preflight,publish,unpublish}.mjs`.
+- **Deleted:** the 10 migrated `.sh` files + `env/load.mjs` + the shell-glue
+  `registry.sh`/`lib.sh`/`ghcr.sh`.
+- **Consumers rerouted:** `package.json` (`check:builds`/`check:env` → `rt`), all
+  three workflows (`ci.yml` build + smoke + path filter, `publish.yml`,
+  `release-gate.yml`), the `pull-shared-image` action text, the setup skill, and the
+  in-repo cross-references. New `rt website container-build` + `rt website shell`
+  verbs (the container-only prod build and debug shell).
+- **Mechanical wins realized:** `awk` podman-JSON parse → `JSON.parse`; `stat`/`find
+  -newer` → `statSync().mtimeMs` + `fs.globSync`; `gzip -9` → `zlib.gzipSync`; `curl`
+  polls → native `fetch`; `read -rp` → `node:readline/promises`; hand-rolled ANSI →
+  `styleText`; `command -v` → a `which()` helper; `${arr[@]+…}` guards → native
+  arrays. The macOS bash-3.2 ASCII-only policy is gone.
+- **`.env` no-override semantics** adopted everywhere (a real inline/CI env wins;
+  `.env` fills gaps only) — the intended behavior change from `set -a; . .env`.
+- **Incidental fix:** `build.sh`'s `site.zip` step was dead (a one-`../`-short
+  OUTPUT_DIR path); `build.mjs` anchors it correctly. See
+  [website-build-site-zip-path-bug.md](website-build-site-zip-path-bug.md).
+
+Verification (host): `pnpm run lint` (routes `check:builds` through `rt core build`),
+`pnpm run check-format`, `rt core smoke`, and the binary-spawning vitest slice pass;
+`build.mjs`'s A/B against `build.sh` matched every up-to-date/rebuild verdict across
+go/marker/plugin/linux targets; `build-playground.mjs` ran end-to-end; container
+argv for image/site/bench were dry-run-verified (echo engine) against the shell
+originals. Container serve/bench flows are the CI smoke + release-gate gates.
 
 ---
 
