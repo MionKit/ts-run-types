@@ -164,7 +164,8 @@ _Baseline metrics (re-measured in Phase 0 on a fresh build, Linux amd64 containe
 
 | # | Phase/Pass | Step (target + move) | Structural/Behavioral | Verified green | Commit |
 |---|---|---|---|---|---|
-| 0 | Phase 0 | Baseline captured (metrics above); tooling installed; green baseline confirmed on Go + JS suites | — (doc only) | go build+test, pnpm test | (this commit) |
+| 0 | Phase 0 | Baseline captured (metrics above); tooling installed; green baseline confirmed on Go + JS suites | — (doc only) | go build+test, pnpm test | fdd8655 |
+| 1 | A2 deps | `go mod tidy`: make the checker/parser/scanner shim requires explicit (were implicit via `replace`). Finding: **no removable deps** — every module requirement is the tsgo shim set + its transitive needs (fixed, vendored); binary-size wins must come from reachable-code cuts, not go.mod. | Structural | go build, go test ./internal/... | (this commit) |
 
 ---
 
