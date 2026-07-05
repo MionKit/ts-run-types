@@ -104,7 +104,7 @@ const ScalarModel = RT.object({
 
 // Temporal leaf formats (representative subset of the 6 orderable types — all
 // share the same MinMax bounds). Requires `ESNext.Temporal` in lib; the test
-// harness provides the ambient (test/temporal-ambient.d.ts).
+// harness provides the ambient (test/support/temporal-ambient.d.ts).
 const TemporalModel = RT.object({
   at: TFT.instant({min: '2020-01-01T00:00:00Z'}),
   day: RT.optional(TFT.plainDate({max: '2030-12-31'})),

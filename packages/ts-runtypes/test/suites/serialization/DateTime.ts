@@ -4,8 +4,8 @@
 // the type's own `toJSON()` (string on the wire) and restore via `.from()`;
 // binary uses numeric packing where available and a string fallback otherwise.
 //
-// Temporal is the polyfill global in tests (see test/setup.ts); types resolve
-// via test/temporal-ambient.d.ts. Each thunk spells out the concrete `<T>` at
+// Temporal is the polyfill global in tests (see test/support/setup.ts); types resolve
+// via test/support/temporal-ambient.d.ts. Each thunk spells out the concrete `<T>` at
 // the call site so the vite plugin injects the resolved id. By-value equality
 // for Temporal instances (no enumerable own keys) is handled in
 // util/equalsHelpers.ts (canonical-string compare + immutable pass-through).

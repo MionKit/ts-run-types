@@ -70,10 +70,10 @@ export default defineConfig({
     // default and timed out. Give every case comfortable headroom (mirrors the
     // playground project's timeout). Real hangs still fail, just later.
     testTimeout: 30000,
-    setupFiles: ['./test/setup.ts'],
+    setupFiles: ['./test/support/setup.ts'],
     // Removes the generated <PACKAGE_ROOT>/__runtypes output tree after the
     // whole suite (teardown only — see the file's note on globalSetup timing).
-    globalSetup: ['./test/global-cleanup.ts'],
+    globalSetup: ['./test/support/global-cleanup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

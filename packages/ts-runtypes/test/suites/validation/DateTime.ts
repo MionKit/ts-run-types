@@ -3,8 +3,8 @@
 // no child types; validation is a plain `instanceof` check (Date additionally
 // rejects Invalid Date). Mirrors the `ValidationCase` shape used by Atomic.
 //
-// Temporal is the polyfill global in tests (see test/setup.ts); the types
-// resolve via test/temporal-ambient.d.ts. The `createX<T>()` factories must be
+// Temporal is the polyfill global in tests (see test/support/setup.ts); the types
+// resolve via test/support/temporal-ambient.d.ts. The `createX<T>()` factories must be
 // called with a concrete type literally at the call site (the vite plugin
 // injects the resolved id there), so each thunk spells out its own factory and
 // the reflect thunks annotate a runtime value with the concrete type.

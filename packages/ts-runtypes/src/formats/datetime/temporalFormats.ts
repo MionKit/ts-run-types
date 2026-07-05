@@ -11,7 +11,7 @@
 // intersection, and silently drop the bounds. Temporal must instead be
 // globally available to the program being scanned: the consumer's own
 // tsconfig `lib` (which already includes it if they use Temporal), or the
-// test harness's ambient (test/temporal-ambient.d.ts). If it isn't, the
+// test harness's ambient (test/support/temporal-ambient.d.ts). If it isn't, the
 // scanner raises TMP001 rather than emit a no-op validator.
 //
 // The brand intersection is written INLINE rather than via the shared

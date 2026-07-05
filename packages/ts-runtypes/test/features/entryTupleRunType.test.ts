@@ -6,8 +6,8 @@
 // the bundle's combined footer normally covers.
 
 import {describe, expect, it} from 'vitest';
-import {initFromTuple, type EntryTuple, type RunTypeIni} from '../src/runtypes/entryTuple.ts';
-import {getRTUtils} from '../src/runtypes/rtUtils.ts';
+import {initFromTuple, type EntryTuple, type RunTypeIni} from '../../src/runtypes/entryTuple.ts';
+import {getRTUtils} from '../../src/runtypes/rtUtils.ts';
 
 // Tuple layout (kind 0): [entryKind, deps|undefined, ini, id, kind, ...trimmed scalars].
 function runTypeTuple(id: string, kind: number, deps?: () => readonly EntryTuple[], ini?: RunTypeIni): EntryTuple {

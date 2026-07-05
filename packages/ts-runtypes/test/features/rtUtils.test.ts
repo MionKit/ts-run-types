@@ -6,8 +6,8 @@
  * ######## */
 
 import {describe, it, expect} from 'vitest';
-import {getRTFnCaches, getRTUtils, entryCode, buildFactoryFromCode} from '../src/runtypes/rtUtils.ts';
-import type {TypesFunctionsCache, PureFunctionsCache, RunType, CompiledTypeFn} from '../src/runtypes/types.ts';
+import {getRTFnCaches, getRTUtils, entryCode, buildFactoryFromCode} from '../../src/runtypes/rtUtils.ts';
+import type {TypesFunctionsCache, PureFunctionsCache, RunType, CompiledTypeFn} from '../../src/runtypes/types.ts';
 
 const {rtFnsCache, pureFnsCache} = getRTFnCaches() as {rtFnsCache: TypesFunctionsCache; pureFnsCache: PureFunctionsCache};
 

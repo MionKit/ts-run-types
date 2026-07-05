@@ -24,8 +24,8 @@
 //     adapters/formatRelativeBounds.test.ts).
 //
 // PlainMonthDay/Duration have no ordering, so they carry no bound format and are
-// absent. Temporal is the polyfill global (test/setup.ts); types resolve via
-// test/temporal-ambient.d.ts + the ts-runtypes/formats/temporal
+// absent. Temporal is the polyfill global (test/support/setup.ts); types resolve via
+// test/support/temporal-ambient.d.ts + the ts-runtypes/formats/temporal
 // subpath. The `/formats` side-effect import registers the native-date runtime.
 
 import * as TF from 'ts-runtypes/formats';

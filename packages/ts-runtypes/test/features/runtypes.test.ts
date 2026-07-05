@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {getRunTypeId, type InjectRunTypeId} from '../src/index.ts';
+import {getRunTypeId, type InjectRunTypeId} from '../../src/index.ts';
 
 describe('ts-runtypes', () => {
   // Static form — caller supplies T, no value.

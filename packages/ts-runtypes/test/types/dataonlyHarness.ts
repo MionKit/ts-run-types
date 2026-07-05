@@ -29,7 +29,7 @@ function extractDataOnlyRegion(): string {
   return source.slice(start, end).replace(/^export (type|interface) /gm, '$1 ');
 }
 
-// Minimal ambient `Temporal` surface (mirrors test/temporal-ambient.d.ts) +
+// Minimal ambient `Temporal` surface (mirrors test/support/temporal-ambient.d.ts) +
 // the keep-Temporal augmentation of `DataOnlyNativeExtra`, so the harness
 // exercises the same keep-branch the shipped formats/temporal subpath wires up.
 const TEMPORAL_PREAMBLE = `

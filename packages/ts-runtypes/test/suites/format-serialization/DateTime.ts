@@ -6,8 +6,8 @@
 // like their unbranded base. This closes the format-serialization gap, which
 // previously had zero date/temporal coverage.
 //
-// Temporal is the polyfill global (test/setup.ts); types resolve via
-// test/temporal-ambient.d.ts + the ts-runtypes/formats/temporal
+// Temporal is the polyfill global (test/support/setup.ts); types resolve via
+// test/support/temporal-ambient.d.ts + the ts-runtypes/formats/temporal
 // subpath. By-value equality for Temporal instances is handled in
 // util/equalsHelpers.ts. The `/formats` side-effect import registers the
 // native-date format runtime.
