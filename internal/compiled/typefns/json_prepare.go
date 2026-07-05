@@ -220,18 +220,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		if rt.Child == nil {
 			return RTCode{Code: "", Type: CodeS}
 		}
-		iVar := ctx.NextLocalVar("i")
-		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childRT := ctx.CompileChild(rt.Child, CodeS)
-		ctx.SetChildAccessor("")
-		if childRT.Type == CodeNS {
-			return RTCode{Code: "", Type: CodeNS}
-		}
-		if childRT.Code == "" {
-			return RTCode{Code: "", Type: CodeS}
-		}
-		body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
-		return RTCode{Code: body, Type: CodeS}
+		return emitElementLoop(rt.Child, ctx, v, "0")
 	}
 	return RTCode{Code: "", Type: CodeNS}
 }
@@ -513,18 +502,7 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	// positional (no absorb), so dropping silently would emit a lossy
 	// validator. See docs/UNSUPPORTED-KINDS.md.
 	if isRestTupleMember(rt) {
-		iVar := ctx.NextLocalVar("i")
-		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childRT := ctx.CompileChild(rt.Child, CodeS)
-		ctx.SetChildAccessor("")
-		if childRT.Type == CodeNS {
-			return RTCode{Code: "", Type: CodeNS}
-		}
-		if childRT.Code == "" {
-			return RTCode{Code: "", Type: CodeS}
-		}
-		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
-		return RTCode{Code: body, Type: CodeS}
+		return emitElementLoop(rt.Child, ctx, v, positionStr(rt))
 	}
 	idxLit := positionStr(rt)
 	accessor := v + "[" + idxLit + "]"

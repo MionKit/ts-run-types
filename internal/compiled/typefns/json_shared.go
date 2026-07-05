@@ -79,3 +79,25 @@ func jsonWireSupports(rt *protocol.RunType) bool {
 	}
 	return false
 }
+
+// emitElementLoop compiles child under the subscript accessor `v[i]`
+// and wraps its statement-shaped code in a `for` loop from start to
+// v.length — the shared in-place traversal the mutating JSON families
+// (prepare / restore / compact-restore) use for arrays and rest tuple
+// tails. Empty child code collapses the loop to a noop; a CodeNS child
+// propagates so the walker latches the unsupported leaf and the
+// renderer emits alwaysThrow keyed off the child's kind.
+func emitElementLoop(child *protocol.RunType, ctx *EmitContext, v, start string) RTCode {
+	iVar := ctx.NextLocalVar("i")
+	ctx.SetChildAccessor(v + "[" + iVar + "]")
+	childRT := ctx.CompileChild(child, CodeS)
+	ctx.SetChildAccessor("")
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
+	}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
+	}
+	body := "for (let " + iVar + " = " + start + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
+	return RTCode{Code: body, Type: CodeS}
+}

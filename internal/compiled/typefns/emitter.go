@@ -1,6 +1,10 @@
 package typefns
 
-import "github.com/mionkit/ts-runtypes/internal/protocol"
+import (
+	"strconv"
+
+	"github.com/mionkit/ts-runtypes/internal/protocol"
+)
 
 // ArgSpec describes one parameter of the emitted rt function. Mirrors
 // the `args[key] = name` + `defaultParamValues[key] = default`
@@ -290,6 +294,27 @@ func (ctx *EmitContext) emitDepCall(childID, argsExpr, assignTo string) string {
 		return assignTo + " = " + call
 	}
 	return call
+}
+
+// emitPathTrackedDepCall wraps a dependency call in the
+// `pth.push(...) , <call> , pth.splice(-N)` envelope when static path
+// segments are pending, so the child's errors carry the right
+// access-path prefix. Shared by the validationErrors and
+// unknownKeyErrors families; returned as a comma-expression so the
+// caller can drop it into an expression slot (a parent's CodeE arm) or
+// a statement slot (CodeS) without restructuring. Mirrors the
+// BaseFnCompiler.callDependency branch at rtFnCompiler.ts:388-397.
+func (ctx *EmitContext) emitPathTrackedDepCall(childID string) string {
+	pthArg := ctx.ArgName("pλth")
+	errArg := ctx.ArgName("εrr")
+	callCode := ctx.emitDepCall(childID, ctx.Vλl+","+pthArg+","+errArg, "")
+	pathLit := ctx.AccessPathLiteral("")
+	pathLen := ctx.AccessPathLength("")
+	if pathLen == 0 {
+		return callCode
+	}
+	pushArgs := pathLit[1 : len(pathLit)-1] // strip `[` … `]` for push(...args)
+	return "(" + pthArg + ".push(" + pushArgs + ")," + callCode + "," + pthArg + ".splice(-" + strconv.Itoa(pathLen) + "))"
 }
 
 // CreateFnInContext is the EmitContext face of Walker.createFnInContext for
