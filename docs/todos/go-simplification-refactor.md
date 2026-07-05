@@ -120,6 +120,35 @@ The concrete target layout is **discovered during Phase B**, one move at a time;
 
 Notable movers to expect: the opaque **`internal/compiled/`** grab-bag (13 subpackages under a name that describes nothing) likely splits along the transform-vs-cache line; the oversized **`internal/resolver`** is the highest-churn/highest-complexity package and the best candidate to break into cohesive units *after* Phase A has thinned it.
 
+### Target layout (decided at Phase B start, 2026-07-05 — owner naming preference: descriptive > short)
+
+```
+internal/
+  compiler/            ← area 1: reading call sites → rewriting source
+    program/           tsgo Program loading (moved, name kept)
+    marker/            InjectRunTypeId / InjectTypeFnArgs scanning (moved)
+    builders/          value-first RT.x() builder-call recognition (moved)
+    comptimeargs/      CompTimeArgs literal validation (moved)
+    resolver/          call-site queries; scan + dispatch orchestrator (moved)
+    sourcerewrite/     ← compiled/transform  (byte-offset rewrites, EditBuffer, source maps)
+    virtualmodules/    ← compiled/entrymod   (virtual:rt/* module assembly)
+    batchcompile/      ← compile             (the --compile tsc-like batch)
+  cachegen/            ← area 2: cache generation
+    runtype/           ← compiled/runtype    (reflection cache, dedup, serialize)
+    runtype/typeid/    structural ids (rides its parent)
+    typefunctions/     ← compiled/typefns    (demand-driven per-family fn caches)
+    typefunctions/formats/{,all,datetime,numeric,string}
+    purefunctions/     ← compiled/purefns    (registerPureFnFactory extraction)
+    operations/        createX registry + fn hashes (moved, name kept)
+    diskcache/         ← cache/disk          (on-disk RT cache)
+    hashid/            short structural hash ids (moved, name kept)
+  enrichment/          ← area 3, renamed from enrich (FriendlyText / MockData)
+    astcheck/  cldr/  mirror/
+  protocol/  constants/  diag/  textpos/  jsquote/  testfixtures/    (shared, unchanged)
+```
+
+Package-name renames (import qualifier changes): `typefns → typefunctions`, `purefns → purefunctions`, `transform → sourcerewrite`, `entrymod → virtualmodules`, `compile → batchcompile`, `disk → diskcache`, `enrich → enrichment`. `protocol`/`textpos`/`jsquote` stay top-level shared (used across all three areas — the spec map's area-1 placement didn't survive the import-graph check). `cmd/` mains do not move (scripts spawn them by path). The resolver split into sub-units is deliberately NOT part of this pass — it needs its own design round; the move under `compiler/` is layout-only.
+
 ### Phase B constraints
 
 - **`git mv`** every move (preserve history). Renaming an `internal/` package changes its import path → the Go compiler flags every stale import, so fixes are mechanical and provable (`go build ./...` is the checker). One package move per step.
