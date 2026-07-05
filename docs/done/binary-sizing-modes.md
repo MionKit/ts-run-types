@@ -186,7 +186,7 @@ bufferSize?: number;                                // required for 'initial'
    Reuses the `'tb'` family entry (same `InjectTypeFnArgs<T, 'tb'>` injection as
    `createBinaryEncoder`) run against `createSizingSerializer`, so **no new cache
    family** and **no Go emitter change**. Verify the marker scanner recognises it by
-   the injected param (`internal/marker`) — expected to need no allowlist change.
+   the injected param (`internal/compiler/marker`) — expected to need no allowlist change.
 2. **`bufferSize` option** — the ergonomic form of `initial` (above).
 3. **Document the pre-built serializer pattern** — building one at a known size
    (`createBinarySizer` gives the safe number) and reusing it across encodes to pool

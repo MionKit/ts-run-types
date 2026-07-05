@@ -209,7 +209,7 @@ Source: [`internal/resolver/resolver.go`](../../internal/resolver/resolver.go).
   ([packages/vite-plugin-runtypes/src/index.ts:83](../../packages/vite-plugin-runtypes/src/index.ts#L83))
   — answering this question retires that note.
 - `program.Options.Conditions` — package-export resolution conditions
-  ([`internal/program/program.go`](../../internal/program/program.go)). The
+  ([`internal/compiler/program/program.go`](../../internal/compiler/program/program.go)). The
   enrichment CLI hard-codes `["source"]`; the resolver pipeline ignores
   user-supplied conditions today. Decide whether the tsconfig entry
   exposes `conditions?: string[]` so consumers can pick `worker` /

@@ -3,7 +3,7 @@ package comptimeargs
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 )
 
 // IsCompTimeArgsParamNode reports whether paramSymbol's declared type annotation

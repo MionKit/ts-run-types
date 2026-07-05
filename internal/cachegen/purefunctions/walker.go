@@ -6,9 +6,9 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/diag"
-	"github.com/mionkit/ts-runtypes/internal/marker"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 

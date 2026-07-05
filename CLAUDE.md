@@ -128,7 +128,7 @@ Full manual steps are in [SETUP.md](SETUP.md). After touching Go sources, rebuil
 - [`packages/ts-runtypes/vitest.config.ts`](packages/ts-runtypes/vitest.config.ts) — `resolve.conditions: ['source']` (mirrored on `ssr.resolve.conditions`) for vite's runtime resolver.
 - [`packages/ts-runtypes/tsconfig.test.json`](packages/ts-runtypes/tsconfig.test.json) — `customConditions: ["source"]` for tsgo's type-resolution pass.
 - Drop either flag and the self-import resolves to `dist/` instead, breaking dev tests when dist is missing or stale.
-- The marker scanner in [`internal/marker/marker.go`](internal/marker/marker.go) gates `InjectRunTypeId<T>` recognition by walking up from the declaration's source file to the nearest `package.json` and matching its `"name"` field — `node_modules`-resolved and source-resolved imports both work. **Don't reintroduce the old path-fragment heuristic.**
+- The marker scanner in [`internal/compiler/marker/marker.go`](internal/compiler/marker/marker.go) gates `InjectRunTypeId<T>` recognition by walking up from the declaration's source file to the nearest `package.json` and matching its `"name"` field — `node_modules`-resolved and source-resolved imports both work. **Don't reintroduce the old path-fragment heuristic.**
 - The Go test suite ([`internal/testfixtures/runtypes.d.ts`](internal/testfixtures/runtypes.d.ts)) uses the older ambient `declare module` form because the fixtures live under `internal/` without their own package.json; that path is also honored by the marker scanner — keep the overlay in sync with the marker package's public API.
 
 ## Rewrite mechanics

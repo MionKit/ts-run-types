@@ -11,15 +11,15 @@
 // any user wrapper that returns a `RunType<…>`.
 //
 // This is a leaf package: it imports only the AST/checker shims and
-// internal/marker (for DeclaredInModule). It must not import internal/resolver
-// or internal/comptimeargs — both depend on it.
+// internal/compiler/marker (for DeclaredInModule). It must not import internal/resolver
+// or internal/compiler/comptimeargs — both depend on it.
 package builders
 
 import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	vfspkg "github.com/microsoft/typescript-go/shim/vfs"
-	"github.com/mionkit/ts-runtypes/internal/marker"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 )
 
 // RunTypeName is the marker module's run-type interface symbol name. The
