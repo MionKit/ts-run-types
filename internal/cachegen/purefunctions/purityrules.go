@@ -1,4 +1,4 @@
-package purefns
+package purefunctions
 
 // Source of truth for the allow/forbid sets:
 // (ref: packages/devtools/src/eslint/rules/purityRules.ts)

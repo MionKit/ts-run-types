@@ -13,8 +13,8 @@ import (
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
-	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype"
 	"github.com/mionkit/ts-runtypes/internal/compiled/transform"
 	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
@@ -716,8 +716,8 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 				// so the type-fn redirects resolve their `cfn::` dep modules. Kept
 				// out of the per-file pure-fn signals (replacements / addedPureFns)
 				// — those track registerPureFnFactory rewrites, not overrides.
-				allPureFns := append(append([]purefns.Entry(nil), pureFnEntries...), resolver.overrideEntries...)
-				modules, modulesErr := resolver.collectEntryModules(scoped, rtOpts, purefns.CollectEntries(allPureFns), metrics)
+				allPureFns := append(append([]purefunctions.Entry(nil), pureFnEntries...), resolver.overrideEntries...)
+				modules, modulesErr := resolver.collectEntryModules(scoped, rtOpts, purefunctions.CollectEntries(allPureFns), metrics)
 				if modulesErr != nil {
 					return protocol.Response{Error: modulesErr.Error()}
 				}
@@ -997,11 +997,11 @@ func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 // that drops one of its pure-fn calls still leaves the session entry
 // behind (matches the runTypes cache's structural-dedup contract;
 // the orphan is harmless until the next process restart).
-func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefns.Entry, diagnostics []diag.Diagnostic, replacements []protocol.Replacement, changed bool) {
+func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefunctions.Entry, diagnostics []diag.Diagnostic, replacements []protocol.Replacement, changed bool) {
 	if resolver.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}
-	entries, diagnostics = purefns.ExtractFromProgramCached(resolver.checker, resolver.marker, resolver.Program, files, resolver.pureFnFileCache)
+	entries, diagnostics = purefunctions.ExtractFromProgramCached(resolver.checker, resolver.marker, resolver.Program, files, resolver.pureFnFileCache)
 	for _, entry := range entries {
 		key := entry.Key()
 		if existing, ok := resolver.pureFnHashes[key]; !ok || existing != entry.BodyHash {
@@ -1009,7 +1009,7 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 			changed = true
 		}
 	}
-	replacements = purefns.Replacements(entries, resolver.opts.ModuleMode == constants.ModuleModeAllSingle)
+	replacements = purefunctions.Replacements(entries, resolver.opts.ModuleMode == constants.ModuleModeAllSingle)
 	return entries, diagnostics, replacements, changed
 }
 

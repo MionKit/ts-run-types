@@ -3,8 +3,8 @@ package resolver
 import (
 	"time"
 
+	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/entrymod"
-	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
 	"github.com/mionkit/ts-runtypes/internal/compiled/typefns"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -113,7 +113,7 @@ func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entr
 		}
 		walkFiles = append(walkFiles, sf.FileName())
 	}
-	entries, diagnostics := purefns.ExtractFromProgramCached(resolver.checker, resolver.marker, resolver.Program, walkFiles, resolver.pureFnFileCache)
+	entries, diagnostics := purefunctions.ExtractFromProgramCached(resolver.checker, resolver.marker, resolver.Program, walkFiles, resolver.pureFnFileCache)
 	// Override cfn entries (whole-program) join the program pure-fn graph so the
 	// type-fn redirects resolve their `cfn::` dep modules on the OpDump /
 	// OpGenerate paths too — not just OpScanFiles. Without this the plugin's
@@ -123,5 +123,5 @@ func (resolver *Resolver) collectProgramPureFns(metrics *protocol.Metrics) (entr
 	if metrics != nil {
 		metrics.PureFnsMs = elapsedMs(pureFnsStart)
 	}
-	return purefns.CollectEntries(entries), diagnostics
+	return purefunctions.CollectEntries(entries), diagnostics
 }

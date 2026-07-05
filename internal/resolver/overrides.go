@@ -6,7 +6,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/diag"
 	"github.com/mionkit/ts-runtypes/internal/marker"
@@ -81,7 +81,7 @@ func (resolver *Resolver) ensureOverrides() {
 	// iteration). Deterministic file + source order keeps OVR001's "first wins"
 	// stable and the cfn entry list reproducible.
 	var raws []rawOverride
-	var entries []purefns.Entry
+	var entries []purefunctions.Entry
 	seen := map[string]struct{}{}
 	argSpans := map[string][]overrideArgSpan{}
 	for _, sourceFile := range resolver.Program.TS.SourceFiles() {
@@ -93,7 +93,7 @@ func (resolver *Resolver) ensureOverrides() {
 			if !ok {
 				return true
 			}
-			cfn, cfnOK := purefns.ExtractOverrideFn(resolver.checker, sourceFile, site.fnArg)
+			cfn, cfnOK := purefunctions.ExtractOverrideFn(resolver.checker, sourceFile, site.fnArg)
 			if !cfnOK {
 				return true
 			}

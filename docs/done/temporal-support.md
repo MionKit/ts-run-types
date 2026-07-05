@@ -307,7 +307,7 @@ options if the format family lands.
 
 If min/max bounds use `Temporal.<T>.compare` and `Temporal.Now.*`, those are
 inline calls — no new pure fns strictly required. Note that **`Temporal` is
-already on the pure-fn allowlist** (`internal/compiled/purefns/purityrules.go:66`),
+already on the pure-fn allowlist** (`internal/cachegen/purefunctions/purityrules.go:66`),
 so any validator/pure-fn body may already reference `Temporal.*` without
 tripping the purity checker. This is an existing, deliberate hook.
 

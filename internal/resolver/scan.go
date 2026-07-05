@@ -8,7 +8,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/builders"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiled/purefns"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiled/runtype/typeid"
 	"github.com/mionkit/ts-runtypes/internal/comptimeargs"
 	"github.com/mionkit/ts-runtypes/internal/constants"
@@ -844,7 +844,7 @@ func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []
 	if sourceFile == nil {
 		return nil
 	}
-	return purefns.CheckPurity(sourceFile, fnNode)
+	return purefunctions.CheckPurity(sourceFile, fnNode)
 }
 
 // checkCompTimeArgs validates the argument node passes the CompTimeArgs

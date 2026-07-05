@@ -150,7 +150,7 @@ internal/comptimeargs/           CompTimeArgs literal validation + extraction (C
 internal/cachegen/operations/             single source of truth for RT operations + fnHash computation
 internal/compiled/runtype/       *checker.Type → protocol.RunType projection + per-entry tuple collection + typeid/
 internal/compiled/typefns/       per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …)
-internal/compiled/purefns/       pure-fn helpers emitted inline
+internal/cachegen/purefunctions/       pure-fn helpers emitted inline
 internal/protocol/               stdio JSON request/response types
 internal/constants/              cross-package constants, mirrored to TS via cmd/gen-ts-constants
 internal/diag/                   diagnostic codes (codes_*.go) + the single wording source (messages.go)
