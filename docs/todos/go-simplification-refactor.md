@@ -1,6 +1,6 @@
 # Go-side simplification refactor (iterative) + module reorganization
 
-**Status:** proposed (process spec; not started)
+**Status:** in progress (Phase 0 done)
 **Scope:** the **Go code only** — `cmd/` + `internal/` (~52k src LOC / ~29k test / 313 files across 17 top-level `internal/` packages + 6 `cmd/` binaries). **Explicitly NOT** the JS/TS packages, the scripts, the website, or `third_party/` (off-limits).
 **Goal:** apply the [Code Simplification & Reduction guide](../CODE-SIMPLIFICATION-GUIDE.md) to the Go pipeline to make it smaller and simpler without changing behavior, then — as a final phase — reorganize the Go packages so their layout clearly reflects the product's areas.
 
@@ -153,11 +153,18 @@ Phase A stops when the remaining `deadcode`/`staticcheck`/`dupl`/`gocyclo` candi
 
 ## Progress log (fill one entry per step — this is where the "what" lives)
 
-_Baseline metrics (captured at spec time; re-measure the `…` fields in Phase 0 on a fresh build):_ src **51,832 LOC**, test **29,460 LOC**, files **313**; resolver bin **~29 MiB**, WASM **37.1 MiB raw / 8.2 MiB gzip**; top `gocyclo` …, `go build` time …, `go test` time …, initial `deadcode` count ….
+_Baseline metrics (re-measured in Phase 0 on a fresh build, Linux amd64 container):_
+
+- **Source:** src **51,832 LOC** (2,086,381 B), test **29,460 LOC** (1,177,001 B), **313** files, 6 mains, 17 top-level `internal/` packages.
+- **Binaries:** resolver `bin/ts-runtypes` **31,458,401 B** (~30.0 MiB); `extract-fn-bodies` **11,370,228 B** (~10.8 MiB); WASM **38,932,133 B raw / 8,638,598 B gzip -9**.
+- **Complexity:** `gocyclo > 15`: **100** funcs (top: `Resolver.dispatch` 61, `scanState.analyzeCall` 49, `ValidateEmitter.emitKindDefault` 43); `gocognit > 20`: **103** funcs (top: `dispatch` 119, `analyzeCall` 73, `CollectFamilyEntries` 67).
+- **Speed:** `go build ./...` ~41 s (cold-ish container cache); `go test ./internal/...` ~1 m 40 s; `pnpm test` ~3 m (green: 7,636 tests — two enrich hook-timeout flakes under heavy parallel load pass in isolation).
+- **Dead-set:** `deadcode ./cmd/...` **28** unreachable funcs; `deadcode -test` **6** (dead even from tests); `staticcheck` **9** findings (2×U1000, SA4006+SA4017, S1011, 2×ST1005, 2×SA1019).
+- **Tooling decision:** `deadcode`/`staticcheck`/`gocyclo`/`gocognit` installed and run ad-hoc (built with `GOTOOLCHAIN=go1.26.0` — the module needs go1.26 types). **No checked-in `.golangci.yml`** — a CI lint gate is a behavioral build change out of scope here; final sweep re-runs the tools to prove no regressions.
 
 | # | Phase/Pass | Step (target + move) | Structural/Behavioral | Verified green | Commit |
 |---|---|---|---|---|---|
-| — | — | _(planned per step, not pre-filled)_ | — | — | — |
+| 0 | Phase 0 | Baseline captured (metrics above); tooling installed; green baseline confirmed on Go + JS suites | — (doc only) | go build+test, pnpm test | (this commit) |
 
 ---
 
