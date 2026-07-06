@@ -1,7 +1,7 @@
 // Custom class serializer/deserializer registry adapter.
 //
-// Verifies the redesigned `registerClassSerializer(namespace, cls, handler?)`
-// surface: the client hands over the CLASS (not a name string), `serialize` is
+// Verifies the redesigned `registerClassSerializer(cls, handler?)` surface: the
+// client hands over the CLASS (no name string, no namespace), `serialize` is
 // optional (default: structural, same as any interface), and `deserialize` is
 // optional for a zero-arg class (default: `Object.assign(new cls(), data)`).
 // A registered class rebuilds a REAL instance (`instanceof`, methods live) in
@@ -9,14 +9,14 @@
 // binary (createBinaryEncoder / createBinaryDecoder) families; an UNREGISTERED
 // class round-trips structurally to a plain object (no throw).
 //
-// Marker-package test pattern: each factory thunk resolves its class type so
-// the vite-plugin marker scanner injects the runtype id; the class's symbol
-// name is the registry key. The registry is registered/cleared per test.
+// The registry is keyed by the class's TYPE ID (the plugin injects the trailing
+// InjectRunTypeId slot from the `new () => T` constructor param), so it matches
+// the emitted `utl.getClassSerializer(<rt.ID>)` lookup and is minification-safe.
 //
 // Pairing rule (CLAUDE.md): static form `createXxx<Foo>()` and reflect form
 // `createXxx(value)` are exercised as distinct cases; both resolve to the same
-// cache entry for equivalent T, so a serializer registered once under the
-// class name serves both.
+// cache entry for equivalent T, so a serializer registered once for the class
+// serves both.
 
 import {afterEach, describe, expect, it} from 'vitest';
 import {
@@ -25,6 +25,7 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   registerClassSerializer,
+  getRunTypeId,
 } from 'ts-runtypes';
 // Registry isolation helpers live next to the registry; not part of the
 // public barrel (tests reach in directly).
@@ -32,6 +33,7 @@ import {
   clearClassSerializers,
   unregisterClassSerializer,
   getClassSerializer,
+  isClassSerializerRegistered,
 } from '../../src/runtypes/classSerializerRegistry.ts';
 
 // ############################################################################
@@ -55,7 +57,7 @@ class Money {
 }
 
 function registerMoney(): void {
-  registerClassSerializer('billing', Money, {
+  registerClassSerializer(Money, {
     serialize: (m) => ({amount: String(m.amount), currency: m.currency}),
     deserialize: (data) => new Money(Number(data.amount), data.currency),
   });
@@ -138,7 +140,7 @@ class Vec {
 }
 
 function registerVec(): void {
-  registerClassSerializer('geo', Vec, {
+  registerClassSerializer(Vec, {
     // no serialize -> structural
     deserialize: (data) => new Vec(data.x, data.y),
   });
@@ -202,7 +204,7 @@ class Settings {
 
 describe('classSerializer / zero-arg class, nothing but the class', () => {
   it('static (JSON) — auto-instantiate: decoded value is instanceof Settings with methods live', () => {
-    registerClassSerializer('app', Settings);
+    registerClassSerializer(Settings);
     const encode = createJsonEncoder<Settings>();
     const decode = createJsonDecoder<Settings>();
 
@@ -221,7 +223,7 @@ describe('classSerializer / zero-arg class, nothing but the class', () => {
   });
 
   it('reflect (JSON) — auto-instantiate from a reflected sample', () => {
-    registerClassSerializer('app', Settings);
+    registerClassSerializer(Settings);
     const sample = new Settings();
     const input = new Settings();
     input.theme = 'solarized';
@@ -232,7 +234,7 @@ describe('classSerializer / zero-arg class, nothing but the class', () => {
   });
 
   it('static (binary) — auto-instantiate through the binary family', () => {
-    registerClassSerializer('app', Settings);
+    registerClassSerializer(Settings);
     const input = new Settings();
     input.fontSize = 20;
     const decoded = createBinaryDecoder<Settings>()(createBinaryEncoder<Settings>()(input)) as Settings;
@@ -242,7 +244,7 @@ describe('classSerializer / zero-arg class, nothing but the class', () => {
   });
 
   it('reflect (binary) — auto-instantiate through the binary family', () => {
-    registerClassSerializer('app', Settings);
+    registerClassSerializer(Settings);
     const sample = new Settings();
     const input = new Settings();
     input.theme = 'hc';
@@ -269,7 +271,7 @@ class Needy {
 
 describe('classSerializer / auto-instantiate failure surfaces CLS002', () => {
   it('static (JSON) — decode throws a CLS002 message naming the class + fix', () => {
-    registerClassSerializer('t', Needy);
+    registerClassSerializer(Needy);
     const encode = createJsonEncoder<Needy>();
     const decode = createJsonDecoder<Needy>();
 
@@ -278,12 +280,12 @@ describe('classSerializer / auto-instantiate failure surfaces CLS002', () => {
     expect(JSON.parse(json)).toEqual({value: 5});
 
     expect(() => decode(json)).toThrow(/CLS002/);
-    expect(() => decode(json)).toThrow(/t::Needy/);
+    expect(() => decode(json)).toThrow(/Needy/);
     expect(() => decode(json)).toThrow(/deserialize/);
   });
 
   it('reflect (binary) — decode throws CLS002 through the binary family', () => {
-    registerClassSerializer('t', Needy);
+    registerClassSerializer(Needy);
     const sample = {value: 0} as unknown as Needy;
     const buffer = createBinaryEncoder(sample)({value: 9} as unknown as Needy);
     expect(() => createBinaryDecoder(sample)(buffer)).toThrow(/CLS002/);
@@ -356,19 +358,19 @@ describe('classSerializer / registry isolation', () => {
 
   it('unregisterClassSerializer(cls) removes one entry, leaving others intact', () => {
     registerVec();
-    registerClassSerializer('app', Settings);
+    registerClassSerializer(Settings);
     unregisterClassSerializer(Vec);
 
     const decoded = createJsonDecoder<Vec>()(createJsonEncoder<Vec>()(new Vec(2, 2)) as string) as Vec;
     expect(decoded).not.toBeInstanceOf(Vec);
     expect(decoded.x).toBe(2);
     // The untouched 'Settings' registration is still present.
-    expect(getClassSerializer('Settings')).toBeDefined();
-    expect(getClassSerializer('Vec')).toBeUndefined();
+    expect(isClassSerializerRegistered(Settings)).toBe(true);
+    expect(isClassSerializerRegistered(Vec)).toBe(false);
   });
 
   it('re-registering the same class overwrites the prior handler (last wins)', () => {
-    registerClassSerializer('geo', Vec, {deserialize: (d) => new Vec(d.x + 100, d.y)});
+    registerClassSerializer(Vec, {deserialize: (d) => new Vec(d.x + 100, d.y)});
     registerVec(); // overwrites with the plain round-tripping handler
 
     const decoded = createJsonDecoder<Vec>()(createJsonEncoder<Vec>()(new Vec(3, 7)) as string) as Vec;
@@ -376,13 +378,11 @@ describe('classSerializer / registry isolation', () => {
     expect(decoded.x).toBe(3);
   });
 
-  it('stores the namespaced classID on the entry', () => {
-    registerClassSerializer('billing', Money, {deserialize: (d) => new Money(d.amount, d.currency)});
-    expect(getClassSerializer('Money')?.classID).toBe('billing::Money');
-  });
-
-  it('registerClassSerializer rejects an empty namespace', () => {
-    expect(() => registerClassSerializer('', Money, {deserialize: (d) => new Money(d.amount, d.currency)})).toThrow();
+  it('is keyed by type id — the class node id resolves the entry', () => {
+    // The registry is keyed by the injected type id, which equals getRunTypeId<T>().
+    registerClassSerializer(Money, {deserialize: (d) => new Money(d.amount, d.currency)});
+    expect(isClassSerializerRegistered(Money)).toBe(true);
+    expect(getClassSerializer(getRunTypeId<Money>())?.cls).toBe(Money);
   });
 });
 
@@ -407,7 +407,7 @@ interface Shape {
 }
 
 function registerPoint(): void {
-  registerClassSerializer('geo', Point, {
+  registerClassSerializer(Point, {
     deserialize: (data) => new Point(data.x, data.y),
   });
 }
