@@ -25,9 +25,6 @@ import type {
   StringifyJsonFn,
 } from '../createRTFunctions.ts';
 import type {ToBinaryFn, FromBinaryFn} from '../createRTFBinary.ts';
-// `DataOnly` (and its helpers) live in their own module — load-bearing and
-// exhaustively tested (see ./dataOnly.ts + test/types/dataonly.compile.test.ts).
-import type {DataOnly} from './dataOnly.ts';
 
 // ########################################### Pure functions #########################################
 
@@ -210,17 +207,11 @@ export type TypesFunctionsCache = Record<string, CompiledTypeFn>;
 /** Flat pure-function cache keyed by "<namespace>::<fnName>" — see `pureFnKey`. */
 export type PureFunctionsCache = Record<string, CompiledPureFunction>;
 
-export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
-
 // ########################################### Classes / helpers #########################################
 
-export interface AnyClass<T = any> {
-  new (...args: any[]): T;
-}
-
-export interface SerializableClass<T = any> {
-  new (): T;
-}
+// `AnyClass`, `SerializableClass` and `DeserializeClassFn` now live next to
+// the public registry in ./classSerializerRegistry.ts (the class-serializer
+// handler types).
 
 export type Mutable<T> = {
   -readonly [K in keyof T]: T[K];

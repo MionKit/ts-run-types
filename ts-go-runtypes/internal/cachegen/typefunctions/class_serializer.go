@@ -6,12 +6,27 @@ import (
 )
 
 // Custom class-serializer plumbing shared by the JSON + binary emitter
-// families. A plain user class (KindClass + SubKindNone) may have a custom
-// serialize/deserialize pair registered at runtime via
-// `registerClassSerializer(name, handler)`; the emitted factory looks the
-// handler up by class name through `utl.getClassSerializer(name)` and
-// routes (de)serialization through it when present, falling back to the
+// families. A plain user class (KindClass + SubKindNone) may have a
+// serializer registered at runtime via `registerClassSerializer(ns, cls,
+// handler?)`; the emitted factory looks the entry up by class name through
+// `utl.getClassSerializer(name)` and, when present, rebuilds a real instance
+// on decode (and optionally re-shapes the encode), falling back to the
 // structural object emit otherwise.
+//
+// Both handler halves are OPTIONAL, which shapes the emitted branches:
+//   - Encode routes through `entry.serialize` ONLY when it is present
+//     (`if (cs_<name> && cs_<name>.serialize)`); a registered class with no
+//     custom `serialize` encodes structurally, identical to an unregistered
+//     one — so the encode wire shape is the same and decode can recurse it.
+//   - Decode always rebuilds through `utl.deserializeClass(cs_<name>, data)`,
+//     which prefers `entry.deserialize` and otherwise auto-instantiates a
+//     zero-arg class (`Object.assign(new cls(), data)`), surfacing CLS002
+//     when the bare `new cls()` throws.
+//   - A registered class WITHOUT a custom `serialize` still runs the
+//     structural decode first (to recurse into nested props) and only then
+//     reconstructs the instance; a registered class WITH a custom `serialize`
+//     owns its wire shape, so decode hands the raw decoded value straight to
+//     `deserializeClass` with no structural recurse.
 //
 // The class name is `rt.TypeName`. Anonymous classes (TS gives them an
 // internal symbol name beginning with the 0xFE InternalSymbolName prefix,
@@ -97,7 +112,7 @@ func wrapPrepareWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v st
 	emitClassSerializerWarning(className, ctx)
 	csVar, decl := classSerializerLookup(className)
 	elseBody := structural.Code
-	branch := decl + ";if (" + csVar + ") {" + v + " = " + csVar + ".serialize(" + v + ")}"
+	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + v + " = " + csVar + ".serialize(" + v + ")}"
 	if elseBody != "" {
 		branch += " else {" + elseBody + "}"
 	}
@@ -136,7 +151,7 @@ func wrapSafeWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v strin
 		}
 		structuralReturn = "return " + expr
 	}
-	body := decl + ";if (" + csVar + ") return " + csVar + ".serialize(" + v + "); " + structuralReturn
+	body := decl + ";if (" + csVar + " && " + csVar + ".serialize) return " + csVar + ".serialize(" + v + "); " + structuralReturn
 	return RTCode{Code: body, Type: CodeRB}
 }
 
@@ -169,19 +184,24 @@ func wrapStringifyWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v 
 		}
 		structuralReturn = "return " + expr
 	}
-	body := decl + ";if (" + csVar + ") return JSON.stringify(" + csVar + ".serialize(" + v + ")); " + structuralReturn
+	body := decl + ";if (" + csVar + " && " + csVar + ".serialize) return JSON.stringify(" + csVar + ".serialize(" + v + ")); " + structuralReturn
 	return RTCode{Code: body, Type: CodeRB}
 }
 
 // wrapRestoreWithClassSerializer wraps the structural restoreFromJson body
 // (`rj` family — mutates / rebinds `v` to the reconstructed value) of a
-// plain user class in a runtime registry branch. Registered →
-// `v = cs_<name>.deserialize(v)`; else the existing structural restore
-// (which decodes to a prototype-less plain object):
+// plain user class in a runtime registry branch. Decode always rebuilds a
+// real instance through `utl.deserializeClass`; whether it recurses the
+// structural body first depends on whether encode used a custom `serialize`:
 //
-//	if (cs_<name>) { v = cs_<name>.deserialize(v) } else { <structural> }
+//	if (cs_<name> && cs_<name>.serialize) { v = utl.deserializeClass(cs_<name>, v) }
+//	else { <structural>; if (cs_<name>) v = utl.deserializeClass(cs_<name>, v) }
 //
-// Anonymous classes return the structural body unchanged. CodeNS propagates.
+// A custom `serialize` owns the wire shape (possibly not the declared props),
+// so its decode hands the raw value straight to deserialize with no structural
+// recurse. The default structural path decodes the declared props first, then
+// reconstructs the instance. Anonymous classes return the structural body
+// unchanged. CodeNS propagates.
 func wrapRestoreWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v string, structural RTCode) RTCode {
 	if structural.Type == CodeNS {
 		return structural
@@ -192,11 +212,13 @@ func wrapRestoreWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v st
 	}
 	emitClassSerializerWarning(className, ctx)
 	csVar, decl := classSerializerLookup(className)
-	elseBody := structural.Code
-	branch := decl + ";if (" + csVar + ") {" + v + " = " + csVar + ".deserialize(" + v + ")}"
-	if elseBody != "" {
-		branch += " else {" + elseBody + "}"
+	custom := v + " = utl.deserializeClass(" + csVar + ", " + v + ")"
+	structuralThenRebuild := structural.Code
+	if structuralThenRebuild != "" {
+		structuralThenRebuild += ";"
 	}
+	structuralThenRebuild += "if (" + csVar + ") " + custom
+	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + custom + "} else {" + structuralThenRebuild + "}"
 	return RTCode{Code: branch, Type: CodeS}
 }
 
@@ -223,7 +245,7 @@ func wrapToBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v, 
 	emitClassSerializerWarning(className, ctx)
 	csVar, decl := classSerializerLookup(className)
 	registered := ser + ".serString(JSON.stringify(" + csVar + ".serialize(" + v + ")))"
-	branch := decl + ";if (" + csVar + ") {" + registered + "}"
+	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + registered + "}"
 	if structural.Code != "" {
 		branch += " else {" + structural.Code + "}"
 	}
@@ -232,15 +254,16 @@ func wrapToBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v, 
 
 // wrapFromBinaryWithClassSerializer wraps the structural fromBinary body
 // (`fb` family — assigns the decoded value to `ret`) of a plain user class
-// in a runtime registry branch. Registered → string binary-decode →
-// JSON.parse → custom deserialize(); else the existing structural decode
-// (prototype-less plain object):
+// in a runtime registry branch. Byte-symmetric with
+// wrapToBinaryWithClassSerializer: a custom `serialize` wrote a JSON string
+// frame, so decode reads it back and rebuilds; the default structural path
+// wrote structural bytes, so decode reads those first and then reconstructs
+// the instance:
 //
-//	if (cs_<name>) { ret = cs_<name>.deserialize(JSON.parse(Des.desString())) }
-//	else { <structural> }
+//	if (cs_<name> && cs_<name>.serialize) { ret = utl.deserializeClass(cs_<name>, JSON.parse(Des.desString())) }
+//	else { <structural>; if (cs_<name>) ret = utl.deserializeClass(cs_<name>, ret) }
 //
-// Byte-symmetric with wrapToBinaryWithClassSerializer. Anonymous classes
-// return structural unchanged. CodeNS propagates.
+// Anonymous classes return structural unchanged. CodeNS propagates.
 func wrapFromBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, ret, des string, structural RTCode) RTCode {
 	if structural.Type == CodeNS {
 		return structural
@@ -251,11 +274,13 @@ func wrapFromBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, r
 	}
 	emitClassSerializerWarning(className, ctx)
 	csVar, decl := classSerializerLookup(className)
-	registered := ret + " = " + csVar + ".deserialize(JSON.parse(" + des + ".desString()))"
-	branch := decl + ";if (" + csVar + ") {" + registered + "}"
-	if structural.Code != "" {
-		branch += " else {" + structural.Code + "}"
+	custom := ret + " = utl.deserializeClass(" + csVar + ", JSON.parse(" + des + ".desString()))"
+	structuralThenRebuild := structural.Code
+	if structuralThenRebuild != "" {
+		structuralThenRebuild += ";"
 	}
+	structuralThenRebuild += "if (" + csVar + ") " + ret + " = utl.deserializeClass(" + csVar + ", " + ret + ")"
+	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + custom + "} else {" + structuralThenRebuild + "}"
 	return RTCode{Code: branch, Type: CodeS}
 }
 

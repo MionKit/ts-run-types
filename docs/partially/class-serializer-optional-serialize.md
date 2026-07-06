@@ -1,9 +1,49 @@
 # Class serializer redesign — optional `serialize`, class-derived identity, `rt$classID` wire tag
 
-**Status:** todo (design agreed, not started)
+**Status:** PARTIALLY DONE — the API redesign shipped; the `rt$classID` JSON-union
+discriminant (Phase 1b) and open-world polymorphism (Phase 2) are deferred.
 **Created:** 2026-07-06
 **Area:** JSON + binary codecs (`pj` / `pjs` / `sj` / `rj` / `tb` / `fb` families), union discriminator machinery, runtime registry
 **Supersedes:** the T7 class-serializer contract (both `serialize` + `deserialize` required, keyed by bare class name)
+
+## What shipped (this PR)
+
+The runtime API redesign and auto-instantiate, end to end (JSON + binary,
+monomorphic and nested / array positions), fully tested and documented:
+
+- **New signature** `registerClassSerializer(namespace, cls, handler?)` — the client
+  passes the class itself (not a name string). The entry stores
+  `classID = namespace + '::' + cls.name`, the constructor, and the optional halves.
+  Overloads make `deserialize` optional only for a `SerializableClass` (zero-arg
+  constructor) and required for any `AnyClass` (non-empty constructor).
+- **`serialize` optional** — omit for structural encode. The encode wrappers gate on
+  `cs && cs.serialize`.
+- **`deserialize` optional for zero-arg classes** — default is
+  `Object.assign(new cls(), decodedData)` via the new `utl.deserializeClass` helper;
+  the decode wrappers route through it. A registered class without a custom `serialize`
+  runs the structural decode first, then reconstructs the instance.
+- **CLS001** message updated to the new signature; **CLS002** added as a runtime error
+  when the auto `new cls()` throws (constructor needs args, no `deserialize`).
+- The dead `rtUtils` scaffolding (`setSerializableClass` / `setDeserializeFn` / …) was
+  deleted; `AnyClass` / `SerializableClass` / `DeserializeClassFn` moved next to the
+  single public registry (Open question 5: delete + unify — done).
+- Docs: website "Custom class serializers", the `custom-class-serializer.ts` example
+  (deserialize-only + zero-arg paths), CLS001 catalog, this ROADMAP.
+
+## What is deferred (follow-ups)
+
+- **Phase 1b — the `rt$classID` JSON-union discriminant.** A genuinely new decode mode:
+  today the flat-union machinery merges plain class members into a shared structural
+  prop set (their per-member serializer is bypassed) and the single decoder routes
+  purely by a numeric envelope index, with no structural-trial fallback. Binary needs
+  nothing (its per-member index already routes). Tracked in ROADMAP.
+- **Phase 2 — open-world polymorphism** (base-class / interface field → any registered
+  subclass). Needs a `classID`-keyed global registry index; no wire change.
+- **Custom `serialize` owning an arbitrary JSON wire shape** — a pre-existing limitation
+  surfaced during this work (the JSON decoder's structural `ukuw` pre-pass), filed
+  separately in [class-serializer-custom-wire-shape.md](../todos/class-serializer-custom-wire-shape.md).
+
+The original design below is unchanged for the deferred phases.
 
 ## Summary
 
