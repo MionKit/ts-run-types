@@ -82,7 +82,7 @@ surface (from the official docs):
 
 1. **Pre-step: materialize entry modules to `.next/rt/`.** Before `next dev` /
    `next build`, run a small orchestrator (either a Next.js `experimental.turbo`
-   startup hook if one lands, or just `pnpm rt next prepare`) that spawns the
+   startup hook if one lands, or just `pnpm rtx next prepare`) that spawns the
    resolver binary in scan-only mode, computes the entry-module content, and
    writes real files under `.next/rt/`. Same content-addressed IDs as the
    in-memory bundle, so cache keys are stable.

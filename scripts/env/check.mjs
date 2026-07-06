@@ -3,9 +3,9 @@
 // Reads the env-var registry from scripts/lib/env.mjs (the single source of truth,
 // mirrored by .env.sample) after loadEnv() has filled process.env from .env (dev).
 //
-// Usage (via `pnpm rt env …`, or `node scripts/env/check.mjs …`):
+// Usage (via `pnpm rtx env …`, or `node scripts/env/check.mjs …`):
 //   rt env                 status of every known var
-//   rt env push-image      verify the vars `pnpm rt container push` needs
+//   rt env push-image      verify the vars `pnpm rtx container push` needs
 //   rt env publish-npm     (info) where the npm publish secret lives
 //   rt env deploy-website  (info) where the Cloudflare secrets live
 //   rt env --create-env    create .env from .env.sample if missing
@@ -16,9 +16,9 @@ import {loadEnv, REGISTRY, REPO_ROOT} from '../lib/env.mjs';
 import {die, dim, green, red, reportCliError} from '../lib/proc.mjs';
 
 function usage() {
-  console.log(`Usage: pnpm rt env [TASK | --create-env]
+  console.log(`Usage: pnpm rtx env [TASK | --create-env]
   (no args)        status of every known RunTypes env var
-  push-image       verify the vars \`pnpm rt container push\` needs (GHCR token)
+  push-image       verify the vars \`pnpm rtx container push\` needs (GHCR token)
   publish-npm      info: the npm publish secret lives in GitHub, not .env
   deploy-website   info: the Cloudflare secrets live in GitHub, not .env
   --create-env     create .env from .env.sample if it does not exist`);
@@ -58,7 +58,7 @@ function verifyTask(task) {
     case 'push-image':
       if (isSet('GHCR_PAT')) return void console.log(`${green('ok')} push-image: GHCR token is configured.`);
       console.error(`${red('missing')} push-image needs GHCR_PAT (write:packages).`);
-      console.error('   fix: pnpm rt env --create-env   then set GHCR_PAT=... in .env');
+      console.error('   fix: pnpm rtx env --create-env   then set GHCR_PAT=... in .env');
       die('', 1);
       break;
     case 'publish-npm':

@@ -44,7 +44,7 @@ export function main() {
   console.log(`\n${green('══════════════════════════════════════════')}`);
   console.log(green('  All pre-publish checks passed!'));
   console.log(green('══════════════════════════════════════════'));
-  console.log('\nReady to publish. Run:\n  pnpm rt release npm\n');
+  console.log('\nReady to publish. Run:\n  pnpm rtx release npm\n');
 }
 
 if (import.meta.main) {

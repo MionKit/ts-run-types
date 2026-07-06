@@ -94,9 +94,9 @@ function ensurePrereqs(cfg) {
 // The bind-mount `-v …` args. The image is deps-only, so ALL first-party benchmark
 // source is mounted from the host under /bench.
 function mountArgs(cfg) {
-  if (!isExec(LINUX_BIN)) die(`bench: missing ${LINUX_BIN} - run 'pnpm rt bench prep' first.`);
-  if (!existsSync(join(MARKER_PKG, 'dist/index.js'))) die("bench: missing marker dist - run 'pnpm rt bench prep' first.");
-  if (!existsSync(join(PLUGIN_PKG, 'dist/index.js'))) die("bench: missing plugin dist - run 'pnpm rt bench prep' first.");
+  if (!isExec(LINUX_BIN)) die(`bench: missing ${LINUX_BIN} - run 'pnpm rtx bench prep' first.`);
+  if (!existsSync(join(MARKER_PKG, 'dist/index.js'))) die("bench: missing marker dist - run 'pnpm rtx bench prep' first.");
+  if (!existsSync(join(PLUGIN_PKG, 'dist/index.js'))) die("bench: missing plugin dist - run 'pnpm rtx bench prep' first.");
   mkdirSync(RESULTS_DIR, {recursive: true});
   const mo = cfg.mountOpts;
   const args = [];
@@ -244,9 +244,9 @@ const SERIALIZATION_SCRIPT = 'node gen-serialization.mjs --suite serialization &
 
 function cmdSerialization(cfg) {
   ensurePrereqs(cfg);
-  if (!isExec(LINUX_EXTRACT_BIN)) die(`bench: missing ${LINUX_EXTRACT_BIN} - run 'pnpm rt bench prep' first.`);
-  if (!existsSync(join(MARKER_PKG, 'dist/index.js'))) die("bench: missing marker dist - run 'pnpm rt bench prep' first.");
-  if (!existsSync(join(PLUGIN_PKG, 'dist/index.js'))) die("bench: missing plugin dist - run 'pnpm rt bench prep' first.");
+  if (!isExec(LINUX_EXTRACT_BIN)) die(`bench: missing ${LINUX_EXTRACT_BIN} - run 'pnpm rtx bench prep' first.`);
+  if (!existsSync(join(MARKER_PKG, 'dist/index.js'))) die("bench: missing marker dist - run 'pnpm rtx bench prep' first.");
+  if (!existsSync(join(PLUGIN_PKG, 'dist/index.js'))) die("bench: missing plugin dist - run 'pnpm rtx bench prep' first.");
   const out = process.env.RT_BENCH_SERIALIZATION_OUT || join(REPO_ROOT, 'container/website/public/bench-data');
   mkdirSync(out, {recursive: true});
   const tsgo = '/bench/competitors/ts-runtypes';
@@ -364,7 +364,7 @@ function cmdShell(cfg) {
 }
 
 function cmdClean(cfg) {
-  note("removing the typia .ttsc volume (the shared image is managed by 'pnpm rt container clean')");
+  note("removing the typia .ttsc volume (the shared image is managed by 'pnpm rtx container clean')");
   capture(cfg.engine, ['volume', 'rm', '-f', cfg.volTtsc]);
 }
 

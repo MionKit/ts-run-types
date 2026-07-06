@@ -13,7 +13,7 @@
 // /playground page loads public/playground-app/ — all git-ignored, so stages 3-5
 // regenerate them before the site build (stage 6) bakes them in.
 //
-// Usage (via `pnpm rt website build …`): [generate|build] [--quick] [--no-bench].
+// Usage (via `pnpm rtx website build …`): [generate|build] [--quick] [--no-bench].
 // --quick maps onto RT_BENCH_QUICK; --no-bench reuses existing suite+bench data.
 
 import {existsSync, globSync, mkdirSync, rmSync, statSync} from 'node:fs';
@@ -45,7 +45,7 @@ function requireBenchArtifacts() {
       missing = true;
     }
   }
-  if (missing) die("website build: run a full 'pnpm rt website build' once to generate suite-data + bench-data, then re-run with --no-bench.");
+  if (missing) die("website build: run a full 'pnpm rtx website build' once to generate suite-data + bench-data, then re-run with --no-bench.");
 }
 
 // Human-readable byte size (KB/MB), for the zip line.

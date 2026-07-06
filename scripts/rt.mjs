@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// rt — the internal RunTypes repo CLI. A single zero-dependency Node ESM
+// rtx — the internal RunTypes repo CLI. A single zero-dependency Node ESM
 // dispatcher over the area modules under scripts/ (core, website, bench,
 // container, env, release). INTERNAL tooling for maintainers — NOT a public CLI
-// for RunTypes. Run as `pnpm rt <area> <command>` (or `node scripts/rt.mjs …`).
+// for RunTypes. Run as `pnpm rtx <area> <command>` (or `node scripts/rt.mjs …`).
 //
 // THE entry point: loadEnv() runs once here, then dispatch imports the area
 // modules IN-PROCESS (they inherit the loaded process.env) or spawns the tools
 // they drive (go/podman/pnpm/vitest/git/npm) with stdio inherited. Leaves throw a
 // CliError on failure (never process.exit); this file catches it, prints, and sets
-// process.exitCode. See docs/todos/scripts-shell-to-mjs-migration.md.
+// process.exitCode. See docs/done/scripts-shell-to-mjs-migration.md.
 import {spawnSync} from 'node:child_process';
 import {main as coreBuild} from './core/build.mjs';
 import {loadEnv} from './lib/env.mjs';
@@ -20,7 +20,7 @@ function exec(cmd, args = [], extraEnv) {
   const env = extraEnv ? {...process.env, ...extraEnv} : process.env;
   const result = spawnSync(cmd, args, {stdio: 'inherit', env});
   if (result.error) {
-    console.error(`rt: failed to launch ${cmd}: ${result.error.message}`);
+    console.error(`rtx: failed to launch ${cmd}: ${result.error.message}`);
     return 1;
   }
   return typeof result.status === 'number' ? result.status : 1;
@@ -47,7 +47,7 @@ function takeFlag(args, flag, {valued = false} = {}) {
   return {value: args[i + 1], rest: [...args.slice(0, i), ...args.slice(i + 2)]};
 }
 const die = (msg, code = 1) => {
-  throw new CliError(`rt: ${msg}`, code);
+  throw new CliError(`rtx: ${msg}`, code);
 };
 
 // ── core: the engine (Go resolver + TS marker/plugin) ──────────────────────
@@ -81,7 +81,7 @@ function runCodegen(args) {
   }
   if (!check) return;
   const outputs = names.flatMap((name) => CODEGEN[name].outputs);
-  if (exec('git', ['diff', '--exit-code', '--', ...outputs]) !== 0) die('codegen drift — a committed Go→TS mirror is stale. Run `rt core codegen all` and commit.');
+  if (exec('git', ['diff', '--exit-code', '--', ...outputs]) !== 0) die('codegen drift — a committed Go→TS mirror is stale. Run `rtx core codegen all` and commit.');
 }
 
 function runCore(args) {
@@ -98,7 +98,7 @@ function runCore(args) {
     if (suite.config) return proxy('pnpm', ['exec', 'vitest', 'run', '--config', suite.config, ...extra], env);
     return proxy('pnpm', ['exec', 'vitest', 'run', ...suite.patterns, ...extra], env);
   }
-  die('usage: rt core <build|smoke|fuzz <suite>|codegen [--check]>');
+  die('usage: rtx core <build|smoke|fuzz <suite>|codegen [--check]>');
 }
 
 // ── website ────────────────────────────────────────────────────────────────
@@ -137,12 +137,12 @@ async function runWebsite(args) {
     const {main} = await import('./website/site.mjs');
     return main(['shell']);
   }
-  die('usage: rt website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview|check [--docs]|container-build|shell>');
+  die('usage: rtx website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview|check [--docs]|container-build|shell>');
 }
 
 // ── bench ────────────────────────────────────────────────────────────────
 const BENCH_SUB = new Set(['audit', 'typecost', 'compiletime', 'serialization', 'smoke', 'prep', 'clean', 'capture-env', 'shell', 'transform-wire', 'fullbench', 'website-bench', 'bench-one', 'build']);
-// Translate the rt-level flags (--one/--full/--website/--build-only) to bench.mjs's
+// Translate the rtx-level flags (--one/--full/--website/--build-only) to bench.mjs's
 // own sub-verbs; a bare sub-verb passes through, and the default is `bench`.
 function benchArgs(args) {
   if (args[0] && !args[0].startsWith('-') && BENCH_SUB.has(args[0])) return args;
@@ -187,7 +187,7 @@ function runRelease(args) {
     if (!noWebsite) plan.push(['node', ['scripts/website/build.mjs', 'generate']]);
   }
   if (hasFlag(args, '--dry-run')) {
-    console.log('rt release would run, in order:');
+    console.log('rtx release would run, in order:');
     for (const [cmd, a] of plan) console.log(`  ${cmd} ${a.join(' ')}`);
     console.log('(website deploy to Cloudflare Pages stays CI-only — see publish.yml)');
     return;
@@ -207,33 +207,33 @@ async function runContainer(args) {
 }
 
 // ── dispatch ────────────────────────────────────────────────────────────────
-const HELP = `rt — internal RunTypes dev/build/publish CLI  (run as: pnpm rt <area> <command>)
+const HELP = `rtx — internal RunTypes dev/build/publish CLI  (run as: pnpm rtx <area> <command>)
 
 core     the engine (Go resolver + TS marker/plugin)
-  rt core build [targets…]        build the binary + dev dists if stale
-  rt core smoke                   end-to-end smoke of the resolver + devtools
-  rt core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
-  rt core codegen [all|constants|kind|diag] [--check]   regenerate Go→TS mirrors
+  rtx core build [targets…]        build the binary + dev dists if stale
+  rtx core smoke                   end-to-end smoke of the resolver + devtools
+  rtx core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
+  rtx core codegen [all|constants|kind|diag] [--check]   regenerate Go→TS mirrors
 
 website
-  rt website dev [--agent]        hot-reload docs server (:3000, or :3100 --agent)
-  rt website build [--no-bench]   build the docs site (WITH benchmarks; --no-bench reuses data)
+  rtx website dev [--agent]        hot-reload docs server (:3000, or :3100 --agent)
+  rtx website build [--no-bench]   build the docs site (WITH benchmarks; --no-bench reuses data)
                     [--quick] [--ssr] [--skip-playground]
-  rt website preview              generate the static site, then serve it locally
-  rt website check [--docs]       serves-a-page smoke (code-import + twoslash with --docs)
-  rt website container-build      container-only prod build (not the full pipeline)
-  rt website shell                debug shell inside the website container
+  rtx website preview              generate the static site, then serve it locally
+  rtx website check [--docs]       serves-a-page smoke (code-import + twoslash with --docs)
+  rtx website container-build      container-only prod build (not the full pipeline)
+  rtx website shell                debug shell inside the website container
 
 bench
-  rt bench [--one <name>|--full|--website|--build-only] [--quick]
-  rt bench <audit|typecost|compiletime|serialization|smoke>
+  rtx bench [--one <name>|--full|--website|--build-only] [--quick]
+  rtx bench <audit|typecost|compiletime|serialization|smoke>
 
 release   npm publish + site build (deploy stays CI-only)
-  rt release [--preflight-only] [--no-website] [--dry-run]
-  rt release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
+  rtx release [--preflight-only] [--no-website] [--dry-run]
+  rtx release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
 
-container  rt container <build-image|ensure|login|push|pull|lock|clean>
-env        rt env [push-image|publish-npm|deploy-website|--create-env]
+container  rtx container <build-image|ensure|login|push|pull|lock|clean>
+env        rtx env [push-image|publish-npm|deploy-website|--create-env]
 
 verify     build if stale, then lint + typecheck + format check
 fmt        format (oxfmt + prettier + gofmt); --check is read-only
@@ -259,7 +259,7 @@ async function dispatch(argv) {
       process.stdout.write(HELP);
       return;
     default:
-      die(`unknown command '${verb}'. Run \`pnpm rt --help\`.`, 2);
+      die(`unknown command '${verb}'. Run \`pnpm rtx --help\`.`, 2);
   }
 }
 

@@ -2,7 +2,7 @@ name: Pull the shared website+benchmark image
 description: >
   Log in to GHCR and pull the prebuilt shared image, tagging it as the local
   working image (tsrt-website:dev). CI NEVER builds this image - it is produced
-  and pushed from local (pnpm rt container push). Fails the job if the
+  and pushed from local (pnpm rtx container push). Fails the job if the
   image can't be pulled, so a missing/stale image is a clear signal to republish
   from local rather than a silent slow local rebuild.
   The calling job must grant `permissions: packages: read`.
@@ -16,7 +16,7 @@ runs:
         echo "${{ github.token }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
         remote="ghcr.io/mionkit/tsrt-website:latest"
         if ! podman pull "$remote"; then
-          echo "::error::Could not pull $remote. CI does not build the shared image - rebuild it and run 'pnpm rt container push' from local, then retry." >&2
+          echo "::error::Could not pull $remote. CI does not build the shared image - rebuild it and run 'pnpm rtx container push' from local, then retry." >&2
           exit 1
         fi
         podman tag "$remote" tsrt-website:dev

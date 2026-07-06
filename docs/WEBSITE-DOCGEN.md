@@ -16,7 +16,7 @@ exemplar while the rest is filled in later.
 
 - **Pages / IA** — `container/website/content/6.test-suites/{1.validation,2.format-validation,3.serialization,4.format-serialization}.md` and `container/website/content/7.benchmarks/{1.validation,2.typecost}.md`. Every page opens with the shared real-world scenario (`packages/examples/src/suites/realworld.ts`).
 - **Components** — `container/website/app/components/content/{SuiteTable,BenchTable,RealWorldScenario}.vue`. Terminal-style tables; rows expand on hover/click and **lazy-fetch** their detail panel. A missing data file → tidy "not generated yet" notice (never an error).
-- **Pipeline** — `scripts/website/suite-data/export-validation.mjs` → `gendocs/`, then `scripts/website/suite-data/website-data.mjs` → `container/website/public/suite-data/`. Wired as `pnpm rt website build`.
+- **Pipeline** — `scripts/website/suite-data/export-validation.mjs` → `gendocs/`, then `scripts/website/suite-data/website-data.mjs` → `container/website/public/suite-data/`. Wired as `pnpm rtx website build`.
 - **Data shipped** — all four suite datasets under `container/website/public/suite-data/` (`validation` 160, `serialization` 137, `format-validation` 97, `format-serialization` 27) plus both bench datasets under `container/website/public/bench-data/` (`validation`, `typecost`) are committed, so the site needs no regeneration to serve them.
 
 | Page                               | Data         | State                                                             |
@@ -56,7 +56,7 @@ test/suites/<suite>/*.ts ──exporter──▶ gendocs/<suite>-suite.json   (t
    the index row + a per-case detail file. The `generated` field is the clean JIT
    function(s) extracted from the dumped tuple modules (it evals each
    `export const __rt_…=[…]` and keeps the slots that are real functions).
-3. **`pnpm rt website build`** chains both exporters + the transform.
+3. **`pnpm rtx website build`** chains both exporters + the transform.
 
 `gendocs/` is git-ignored (intermediate); `container/website/public/suite-data/` is
 committed and served at `/suite-data/…`.
@@ -157,12 +157,12 @@ npm scripts are folded into `gen:suite-docs`. Shipped:
 `scripts/website/bench-data/gen-docs.mjs` (`pnpm run gen:bench-docs`) builds both bench
 datasets:
 
-- **validation** — joins `container/benchmarks/results/<competitor>.json` (run `pnpm rt bench`)
+- **validation** — joins `container/benchmarks/results/<competitor>.json` (run `pnpm rtx bench`)
   into `container/website/public/bench-data/validation/`. 4 competitors (RunTypes,
   zod, typebox, ajv; **typia is opt-in** and skipped by default), 263 cases, the
   `validationErrors·accept` ops/sec column (the metric every competitor implements).
 - **typecost** — joins `container/benchmarks/results/<form>.typecost.json` (run
-  `pnpm rt bench typecost`) into `container/website/public/bench-data/typecost/`. 5 forms
+  `pnpm rtx bench typecost`) into `container/website/public/bench-data/typecost/`. 5 forms
   (RunTypes type/schema, typia, typebox, zod — no ajv; JSON Schema has no
   static type inference), 263 cases, TS type-instantiation **count** (lower is
   better).
@@ -173,7 +173,7 @@ parse (`extractCaseSources`). `BenchTable.vue` is unit-aware (`ops` → `1.2M/s`
 `count` → `1.2M`) and shows the metric label.
 
 > The bench run is containerized + heavy; `gen:bench-docs` only reads the result
-> JSON, so it's cheap to re-run after a fresh `pnpm rt bench` / `bench:typecost`.
+> JSON, so it's cheap to re-run after a fresh `pnpm rtx bench` / `bench:typecost`.
 > Possible follow-up: surface the validate (cheap-boolean) and reject-path columns
 > too — today the validation page shows the single universal `validationErrors·accept`
 > number.
@@ -181,13 +181,13 @@ parse (`extractCaseSources`). `BenchTable.vue` is unit-aware (`ops` → `1.2M/s`
 ## Regenerating / adding a suite
 
 ```bash
-pnpm rt website build        # all four suite exporters + the web transform
+pnpm rtx website build        # all four suite exporters + the web transform
 # or individually:
 pnpm run gen:validation-suite-json
 pnpm run gen:website-suite-data validation
 
 # benchmarks (containerized run first, then the cheap aggregation):
-pnpm rt bench && pnpm rt bench typecost
+pnpm rtx bench && pnpm rtx bench typecost
 pnpm run gen:bench-docs
 ```
 

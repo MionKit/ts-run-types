@@ -75,38 +75,38 @@ pnpm --filter ts-runtypes-devtools test         # single package
 pnpm --filter ts-runtypes test      # the other
 ```
 
-JS plugin tests in [packages/ts-runtypes-devtools/test/](packages/ts-runtypes-devtools/test/) spawn the Go binary — `pretest` rebuilds it. For the edit/see-tests loop use `pnpm rt dev` (builds if stale, then vitest watch); `pnpm rt dev --run` is the one-shot pass.
+JS plugin tests in [packages/ts-runtypes-devtools/test/](packages/ts-runtypes-devtools/test/) spawn the Go binary — `pretest` rebuilds it. For the edit/see-tests loop use `pnpm rtx dev` (builds if stale, then vitest watch); `pnpm rtx dev --run` is the one-shot pass.
 
 ---
 
 ## Containerized apps (docs website + benchmarks)
 
-Both apps share **one** podman image, so CI can pull it once and build the whole site (which renders benchmark data) end-to-end. They install their heavy node_modules **inside** that image (supply-chain isolation; the host never touches them), in two separate dirs with separate `node_modules`: the **website at `/app`**, the **benchmarks at `/bench`** (`/bench/competitors/<name>` + `/bench/typecost`, each its own isolated pnpm project). The image is **deps-only**: it bakes third-party `node_modules` plus the package-manager manifests and nothing else (no Go binary, no benchmark code, no website source). All first-party files (source + the website's Nuxt/TS/ESLint config) are bind-mounted at run time, so the image is invalidated only when a dependency manifest changes. Drivers: [scripts/container/image.mjs](scripts/container/image.mjs) owns the image (`pnpm rt container <cmd>`: build-image/push/pull/ensure/lock/clean; shared podman/GHCR helpers in [scripts/lib/engine.mjs](scripts/lib/engine.mjs)); [scripts/website/site.mjs](scripts/website/site.mjs) (`pnpm rt website …`) runs the site and [scripts/website/bench-data/bench.mjs](scripts/website/bench-data/bench.mjs) (`pnpm rt bench …`) runs the bench half under `/bench`, both delegating image ops to image.mjs.
+Both apps share **one** podman image, so CI can pull it once and build the whole site (which renders benchmark data) end-to-end. They install their heavy node_modules **inside** that image (supply-chain isolation; the host never touches them), in two separate dirs with separate `node_modules`: the **website at `/app`**, the **benchmarks at `/bench`** (`/bench/competitors/<name>` + `/bench/typecost`, each its own isolated pnpm project). The image is **deps-only**: it bakes third-party `node_modules` plus the package-manager manifests and nothing else (no Go binary, no benchmark code, no website source). All first-party files (source + the website's Nuxt/TS/ESLint config) are bind-mounted at run time, so the image is invalidated only when a dependency manifest changes. Drivers: [scripts/container/image.mjs](scripts/container/image.mjs) owns the image (`pnpm rtx container <cmd>`: build-image/push/pull/ensure/lock/clean; shared podman/GHCR helpers in [scripts/lib/engine.mjs](scripts/lib/engine.mjs)); [scripts/website/site.mjs](scripts/website/site.mjs) (`pnpm rtx website …`) runs the site and [scripts/website/bench-data/bench.mjs](scripts/website/bench-data/bench.mjs) (`pnpm rtx bench …`) runs the bench half under `/bench`, both delegating image ops to image.mjs.
 
-The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.npmrc`) live in a per-project **`_deps/`** dir: `container/website/_deps/` and `container/benchmarks/_deps/` (the latter mirroring `competitors/<name>/` + `typecost/`). They are deliberately kept **out of the host project roots** so you can't accidentally `pnpm install` at `container/website/` or a competitor dir. The single [`container/website/Containerfile`](container/website/Containerfile) `COPY`s `container/website/_deps/` into `/app`; `scripts/container/image.mjs` stages `container/benchmarks/_deps/` into the build context (as the git-ignored `.bench-deps/`) so the same Containerfile installs each competitor under `/bench`. To bump a **website** dependency, edit `container/website/_deps/package.json`, regenerate the lockfile in-container with `pnpm rt container lock`, then `pnpm rt container build-image` (+ `pnpm rt container push`). To bump a **benchmark** dependency, edit `container/benchmarks/_deps/competitors/<name>/package.json`, then rebuild + push the same way.
+The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.npmrc`) live in a per-project **`_deps/`** dir: `container/website/_deps/` and `container/benchmarks/_deps/` (the latter mirroring `competitors/<name>/` + `typecost/`). They are deliberately kept **out of the host project roots** so you can't accidentally `pnpm install` at `container/website/` or a competitor dir. The single [`container/website/Containerfile`](container/website/Containerfile) `COPY`s `container/website/_deps/` into `/app`; `scripts/container/image.mjs` stages `container/benchmarks/_deps/` into the build context (as the git-ignored `.bench-deps/`) so the same Containerfile installs each competitor under `/bench`. To bump a **website** dependency, edit `container/website/_deps/package.json`, regenerate the lockfile in-container with `pnpm rtx container lock`, then `pnpm rtx container build-image` (+ `pnpm rtx container push`). To bump a **benchmark** dependency, edit `container/benchmarks/_deps/competitors/<name>/package.json`, then rebuild + push the same way.
 
 | Surface     | pnpm script              | What it does                                                                       |
 | ----------- | ------------------------ | ---------------------------------------------------------------------------------- |
-| Website     | `pnpm rt website dev`   | Hot-reload dev server on `:3000` (bind-mounted source).                            |
-| Website     | `pnpm rt website check` | Build image (if stale) + boot dev server detached + curl `:3000` + tear down.      |
-| Website     | `pnpm rt website build` | Production build to `container/website/.output`.                                             |
-| Benchmarks  | `pnpm rt bench prep`    | Build the resolver binary (host + Linux cross) + JS packages on the host.          |
-| Benchmarks  | `pnpm rt bench`         | Build + run EVERY competitor in its own isolated container, then aggregate.         |
-| Benchmarks  | `pnpm rt bench --one <n>` | Build + run a SINGLE competitor + aggregate (fastest verification loop).            |
-| Benchmarks  | `pnpm rt bench smoke`   | Build every competitor's dist (no run) — minutes shorter.                           |
-| Benchmarks  | `pnpm rt bench typecost`| Per-competitor type-instantiation-cost benchmark.                                  |
-| Benchmarks  | `pnpm rt bench serialization` | ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER on Node 26 (native Temporal). |
-| Benchmarks  | `pnpm rt bench --website` | **One command** for ALL website benchmark data: validation + typecost + capture-env + serialization (+ formats), every measurement taken inside the Node 26 container, then the `gen-docs` host transform. |
+| Website     | `pnpm rtx website dev`   | Hot-reload dev server on `:3000` (bind-mounted source).                            |
+| Website     | `pnpm rtx website check` | Build image (if stale) + boot dev server detached + curl `:3000` + tear down.      |
+| Website     | `pnpm rtx website build` | Production build to `container/website/.output`.                                             |
+| Benchmarks  | `pnpm rtx bench prep`    | Build the resolver binary (host + Linux cross) + JS packages on the host.          |
+| Benchmarks  | `pnpm rtx bench`         | Build + run EVERY competitor in its own isolated container, then aggregate.         |
+| Benchmarks  | `pnpm rtx bench --one <n>` | Build + run a SINGLE competitor + aggregate (fastest verification loop).            |
+| Benchmarks  | `pnpm rtx bench smoke`   | Build every competitor's dist (no run) — minutes shorter.                           |
+| Benchmarks  | `pnpm rtx bench typecost`| Per-competitor type-instantiation-cost benchmark.                                  |
+| Benchmarks  | `pnpm rtx bench serialization` | ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER on Node 26 (native Temporal). |
+| Benchmarks  | `pnpm rtx bench --website` | **One command** for ALL website benchmark data: validation + typecost + capture-env + serialization (+ formats), every measurement taken inside the Node 26 container, then the `gen-docs` host transform. |
 
 The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles `bin/ts-runtypes-linux-<arch>` **and** `bin/extract-fn-bodies-linux-<arch>` (the serialization bench's source-body extractor) so the Linux container can execute them without a Go toolchain.
 
-> **Agents:** start the website with `pnpm rt website dev --agent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `RT_WEBSITE_POLL=1`.
+> **Agents:** start the website with `pnpm rtx website dev --agent` (not plain `dev`). It runs in a separate container (`tsrt-website-agent`) on the reserved port **`:3100`** and self-stops after ~5 min idle, so an agent-driven server never collides with a human's `:3000` and never lingers. Hot-reload polling auto-enables on macOS; force it anywhere with `RT_WEBSITE_POLL=1`.
 
 ### Playground (in-browser WASM, POC)
 
 The docs site has an interactive **playground** page (`/playground`) that resolves a TypeScript type **and runs the functions RunTypes generates for it** (validate, JSON/binary encode + decode, RunType graph) entirely in the browser, with no server round-trip. It is a Nuxt Vue component — [`container/website/app/components/content/RuntypesPlayground.vue`](container/website/app/components/content/RuntypesPlayground.vue) wraps the client-only Monaco UI [`container/website/app/components/playground/PlaygroundStage.client.vue`](container/website/app/components/playground/PlaygroundStage.client.vue), driven by the framework-agnostic engine at [`container/website/app/playground/`](container/website/app/playground/). Monaco + prettier are dependencies of the website image ([`container/website/_deps/package.json`](container/website/_deps/package.json)); the component imports the `ts-runtypes` runtime factories from source (aliased in [`nuxt.config.ts`](container/website/nuxt.config.ts)).
 
-Two inputs are **host-built** (the container is Node-only, with no Go toolchain): the resolver WASM and the ts-runtypes source overlay the resolver type-checks snippets against. The website driver builds and stages them automatically whenever it serves the site (`pnpm rt website dev` / `build` / `preview` / `check`), so `/playground` just works after a normal `pnpm rt website dev`. It needs the Go toolchain + bootstrapped submodule on the host (see [Bootstrap](#bootstrap)); when those are absent or the build fails the site still runs and only `/playground` shows an error state. Skip the auto-build with `RT_WEBSITE_SKIP_PLAYGROUND=1`.
+Two inputs are **host-built** (the container is Node-only, with no Go toolchain): the resolver WASM and the ts-runtypes source overlay the resolver type-checks snippets against. The website driver builds and stages them automatically whenever it serves the site (`pnpm rtx website dev` / `build` / `preview` / `check`), so `/playground` just works after a normal `pnpm rtx website dev`. It needs the Go toolchain + bootstrapped submodule on the host (see [Bootstrap](#bootstrap)); when those are absent or the build fails the site still runs and only `/playground` shows an error state. Skip the auto-build with `RT_WEBSITE_SKIP_PLAYGROUND=1`.
 
 You can also build the assets directly:
 
@@ -122,20 +122,20 @@ The docs site documents the runtime packages: its `<code-import>` and `::twoslas
 
 - `RT_WEBSITE_REPO_CONTEXT` — host path to the checkout containing `packages/`. **Default:** sibling `../mion` if present, else this repo. Override to point anywhere.
 - Only `packages/` (+ the drizzle-orm `.d.ts` allowlist) is mounted — never the repo root. The resolvers additionally **confine every `path=` read to `packages/`** (`resolveInPackages` in [`server/utils/repo-root.ts`](container/website/server/utils/repo-root.ts)); a path escaping it is rejected.
-- `pnpm rt website check --docs` boots the dev server and checks code-import + twoslash + the security boundary end-to-end (curl/grep, no browser).
+- `pnpm rtx website check --docs` boots the dev server and checks code-import + twoslash + the security boundary end-to-end (curl/grep, no browser).
 
 ### Docs read benchmark/test results from `.docdata/`
 
-`pnpm rt bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/container/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`RT_DOCDATA`), so doc-gen and content components consume results from there. (`RT_WEBSITE_DOCDATA` overrides the host dir.)
+`pnpm rtx bench` publishes per-competitor result JSON into the canonical **`<repo>/.docdata/container/benchmarks/`** (future test results go in `.docdata/tests/`). The website mounts `.docdata` **read-only** at `/app/.docdata` (`RT_DOCDATA`), so doc-gen and content components consume results from there. (`RT_WEBSITE_DOCDATA` overrides the host dir.)
 
-Every runtime command in [`scripts/website/bench-data/bench.mjs`](scripts/website/bench-data/bench.mjs) self-syncs prereqs by delegating to [`scripts/core/build.mjs`](scripts/core/build.mjs) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit. It then readies the shared image (by delegating to `scripts/container/image.mjs`), which under `*_USE_LOCAL` rebuilds when a **dependency** input changes (`container/website/Containerfile` or anything under `container/website/_deps/` or `container/benchmarks/_deps/`). All first-party source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm rt bench prep` remains available for explicit refresh.
+Every runtime command in [`scripts/website/bench-data/bench.mjs`](scripts/website/bench-data/bench.mjs) self-syncs prereqs by delegating to [`scripts/core/build.mjs`](scripts/core/build.mjs) (also used by `pretest`): it rebuilds the Go binary, the Linux cross-binary, the plugin dist, and the marker dist when any of them is stale or has a partial tsc emit. It then readies the shared image (by delegating to `scripts/container/image.mjs`), which under `*_USE_LOCAL` rebuilds when a **dependency** input changes (`container/website/Containerfile` or anything under `container/website/_deps/` or `container/benchmarks/_deps/`). All first-party source is bind-mounted, so editing it never triggers an image rebuild. Manual `pnpm rtx bench prep` remains available for explicit refresh.
 
 macOS-specific knobs:
 
-- `RT_WEBSITE_POLL=1 pnpm rt website dev` — VM file-watch needs filesystem polling.
+- `RT_WEBSITE_POLL=1 pnpm rtx website dev` — VM file-watch needs filesystem polling.
 - The skill calls `podman machine init` + `podman machine start` automatically; manually it's the same two commands.
 
-Behind a corporate / MITM proxy: pass `RT_WEBSITE_CA_CERT=... RT_WEBSITE_BUILD_NETWORK=host pnpm rt container build-image`. See `container/website/CONTAINER.md`.
+Behind a corporate / MITM proxy: pass `RT_WEBSITE_CA_CERT=... RT_WEBSITE_BUILD_NETWORK=host pnpm rtx container build-image`. See `container/website/CONTAINER.md`.
 
 ### Publishing & consuming the image via GHCR
 
@@ -145,20 +145,20 @@ The single deps-only image is published to the GitHub Container Registry as `ghc
 
 | Step | Command | Notes |
 | ---- | ------- | ----- |
-| Authenticate (once) | `pnpm rt container login` | Reads the PAT from `GHCR_PAT`, pipes via `--password-stdin`. Only needed for a **private** package. |
-| Run (consume) | `pnpm rt website dev` / `pnpm rt bench` | Pulls the latest published image, then runs. This is the default. |
-| Publish | `pnpm rt container push` | Builds the **multi-arch** (`linux/amd64,linux/arm64`) shared image and pushes it to `tsrt-website:latest`. |
-| Build/run locally | `RT_WEBSITE_USE_LOCAL=1 pnpm rt website dev` (or `RT_BENCH_USE_LOCAL=1`) | Skip the pull; build/use a local image. The maintainer/offline loop — also how you test a dep bump before pushing. |
-| Pull only | `pnpm rt container pull` | Fetch + retag without running. |
+| Authenticate (once) | `pnpm rtx container login` | Reads the PAT from `GHCR_PAT`, pipes via `--password-stdin`. Only needed for a **private** package. |
+| Run (consume) | `pnpm rtx website dev` / `pnpm rtx bench` | Pulls the latest published image, then runs. This is the default. |
+| Publish | `pnpm rtx container push` | Builds the **multi-arch** (`linux/amd64,linux/arm64`) shared image and pushes it to `tsrt-website:latest`. |
+| Build/run locally | `RT_WEBSITE_USE_LOCAL=1 pnpm rtx website dev` (or `RT_BENCH_USE_LOCAL=1`) | Skip the pull; build/use a local image. The maintainer/offline loop — also how you test a dep bump before pushing. |
+| Pull only | `pnpm rtx container pull` | Fetch + retag without running. |
 
-Dep-bump loop (host stays pnpm-free): edit `container/website/_deps/package.json` → `pnpm rt container lock` (regen the lockfile in-container) → `RT_WEBSITE_USE_LOCAL=1 pnpm rt website check` (verify the new local image) → `pnpm rt container push`.
+Dep-bump loop (host stays pnpm-free): edit `container/website/_deps/package.json` → `pnpm rtx container lock` (regen the lockfile in-container) → `RT_WEBSITE_USE_LOCAL=1 pnpm rtx website check` (verify the new local image) → `pnpm rtx container push`.
 
 GHCR env (see [scripts/lib/engine.mjs](scripts/lib/engine.mjs)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT`, `RT_WEBSITE_USE_LOCAL` / `RT_BENCH_USE_LOCAL` (opt out of the pull), `RT_WEBSITE_REMOTE_IMAGE` / `RT_BENCH_REMOTE_IMAGE` (both now default to the one shared image `ghcr.io/$GHCR_OWNER/tsrt-website:latest`).
 
 Notes:
 
 - **PAT scope:** push needs `write:packages` (pull of a private image needs `read:packages`). For pushing to the **org** namespace (`ghcr.io/mionkit/…`) use a **classic** PAT authorized for the MionKit org via SSO — fine-grained tokens need the org to opt in to package writes. If an org push is denied, publish under your personal namespace with `GHCR_OWNER=<you>`.
-- **Multi-arch on an arm64 Mac:** the `linux/amd64` half builds under QEMU emulation (slower); a local `build-image` is always pinned to the host arch so it runs native. The image does not pre-warm typia at build time, so the first benchmark run that includes typia compiles its native plugin (~200s) into a persisted named volume (`pnpm rt bench clean` drops it); later runs reuse it.
+- **Multi-arch on an arm64 Mac:** the `linux/amd64` half builds under QEMU emulation (slower); a local `build-image` is always pinned to the host arch so it runs native. The image does not pre-warm typia at build time, so the first benchmark run that includes typia compiles its native plugin (~200s) into a persisted named volume (`pnpm rtx bench clean` drops it); later runs reuse it.
 - **Visibility:** the GHCR package is **private by default**. Make it public (or grant the repo read access) so CI / other hosts can pull without authenticating. The image carries an `org.opencontainers.image.source` label so the package links to this repo.
 
 ---
@@ -301,8 +301,8 @@ The native resolver binary is distributed esbuild-style: it is cross-compiled pe
 > **Versioning:** standard semver on our own release cadence. The pinned tsgo / tsgolint revision is metadata only (the binary's `--version` output + the launcher's `package.json` `tsgo` field), never encoded into the package version.
 
 ```bash
-pnpm rt release preflight   # green-light: fresh install, all tests, lint, build
-pnpm rt release npm         # interactive: version -> build binaries -> publish
+pnpm rtx release preflight   # green-light: fresh install, all tests, lint, build
+pnpm rtx release npm         # interactive: version -> build binaries -> publish
 ```
 
 [`scripts/release/publish.mjs`](scripts/release/publish.mjs):
@@ -318,7 +318,7 @@ pnpm rt release npm         # interactive: version -> build binaries -> publish
 Unpublish a bad release:
 
 ```bash
-pnpm rt release unpublish <version>
+pnpm rtx release unpublish <version>
 ```
 
 ---
@@ -337,33 +337,33 @@ pnpm rt release unpublish <version>
 | `pnpm run changelog` fails: `git-cliff: command not found`     | git-cliff binary not installed (deliberately not an npm dep)                | `cargo install git-cliff` (or `brew install git-cliff` / a prebuilt release). Not needed to cut a release — CI uses `orhun/git-cliff-action`. |
 | Commit rejected by `commit-msg` hook                           | Message is not a valid Conventional Commit                                  | Re-commit with `type(scope): summary`, or run `pnpm run commit` for an interactive prompt.                                     |
 | `podman machine start` fails with `vfkit exited unexpectedly`  | Rosetta 2 missing on Apple Silicon                                          | `softwareupdate --install-rosetta --agree-to-license`, then re-run `podman machine start`.                                     |
-| `ts-runtypes-devtools` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm rt bench prep`.           |
+| `ts-runtypes-devtools` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm rtx bench prep`.           |
 | Marker package `tsc --build` fails with `Cannot find namespace 'Temporal'` | Missing `esnext.temporal` in the marker `tsconfig.json` `lib`           | Restore the `esnext.temporal` entry — its absence makes tsc skip declaration emit on the offending file, leaving `markers.d.ts` / `createRTFunctions.d.ts` missing and breaking call-site resolution. |
 | Bench errors `createValidate(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
 
 ---
 
-## The `rt` CLI (internal)
+## The `rtx` CLI (internal)
 
 Day-to-day dev, website, benchmark, and publish tasks run through one internal
-dispatcher, `pnpm rt <command>` ([scripts/rt.mjs](scripts/rt.mjs)). It is a thin
+dispatcher, `pnpm rtx <command>` ([scripts/rt.mjs](scripts/rt.mjs)). It is a thin
 front door over the same `scripts/*.sh` / `*.mjs` / `vitest` the workflows call —
 never a reimplementation — and it builds the resolver + dists first where needed,
-so it replaces the old per-script `check:builds` pre-hooks. Run `pnpm rt --help`
+so it replaces the old per-script `check:builds` pre-hooks. Run `pnpm rtx --help`
 for the full surface.
 
 ```bash
-pnpm rt dev                     # build if stale, then vitest in watch mode
-pnpm rt dev --run               # one-shot pass (== pnpm test)
-pnpm rt dev fuzz <suite> [--soak]  # unit|value|types|enrich|i18n|typemod|race|all
-pnpm rt dev smoke               # resolver + devtools end-to-end smoke
-pnpm rt website dev [--agent]   # hot-reload docs server (:3000, or :3100 --agent)
-pnpm rt website build [--no-bench] [--quick]   # build the docs site
-pnpm rt bench [--one <name>|--full|--website] [--quick]   # benchmarks
-pnpm rt verify                  # lint + typecheck + format check
-pnpm rt fmt [--check]           # format (oxfmt + prettier + gofmt)
-pnpm rt codegen all --check     # regenerate Go→TS mirrors, fail on drift
-pnpm rt publish [--dry-run]     # preflight -> npm -> website (interactive)
+pnpm rtx dev                     # build if stale, then vitest in watch mode
+pnpm rtx dev --run               # one-shot pass (== pnpm test)
+pnpm rtx dev fuzz <suite> [--soak]  # unit|value|types|enrich|i18n|typemod|race|all
+pnpm rtx dev smoke               # resolver + devtools end-to-end smoke
+pnpm rtx website dev [--agent]   # hot-reload docs server (:3000, or :3100 --agent)
+pnpm rtx website build [--no-bench] [--quick]   # build the docs site
+pnpm rtx bench [--one <name>|--full|--website] [--quick]   # benchmarks
+pnpm rtx verify                  # lint + typecheck + format check
+pnpm rtx fmt [--check]           # format (oxfmt + prettier + gofmt)
+pnpm rtx codegen all --check     # regenerate Go→TS mirrors, fail on drift
+pnpm rtx publish [--dry-run]     # preflight -> npm -> website (interactive)
 ```
 
 ## Workspace command cheatsheet

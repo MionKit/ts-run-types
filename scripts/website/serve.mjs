@@ -5,10 +5,10 @@
 // `python3 -m http.server` does not. No deps on purpose: works offline, needs no
 // install, and keeps the repo's dependency surface minimal.
 //
-// Run after `pnpm rt website build` (or pnpm rt website build) produces the output.
-//   pnpm rt website preview          # http://localhost:8080
-//   pnpm rt website preview 5000     # custom port (or PORT=5000)
-//   pnpm rt website preview        # one-shot: rt website build THEN serve (no benchmarks)
+// Run after `pnpm rtx website build` (or pnpm rtx website build) produces the output.
+//   pnpm rtx website preview          # http://localhost:8080
+//   pnpm rtx website preview 5000     # custom port (or PORT=5000)
+//   pnpm rtx website preview        # one-shot: rt website build THEN serve (no benchmarks)
 
 import {createServer} from 'node:http';
 import {createReadStream, existsSync, readFileSync, statSync} from 'node:fs';
@@ -62,7 +62,7 @@ function resolveFile(reqUrl) {
 }
 
 if (!isFile(path.join(ROOT, 'index.html'))) {
-  process.stderr.write(`No build found at ${ROOT}\nRun \`pnpm rt website build\` (or pnpm rt website build) first.\n`);
+  process.stderr.write(`No build found at ${ROOT}\nRun \`pnpm rtx website build\` (or pnpm rtx website build) first.\n`);
   process.exit(1);
 }
 
