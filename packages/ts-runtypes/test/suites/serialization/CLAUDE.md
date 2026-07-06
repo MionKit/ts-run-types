@@ -50,10 +50,23 @@ mutateEncoder: () => {
   that case. (`Classes.ts` and `format-serialization/ClassWithFormats.ts` are worked
   examples.)
 
-## Wiring a new group
+## Prefer an EXISTING group over a new one
 
-Add the group to [`index.ts`](./index.ts) (`SERIALIZATION_SPEC`, or
-`FORMAT_SERIALIZATION_SUITE` for format-serialization) and add a sibling `*.test.ts` that
-iterates the group through the `serializationAsserts` helpers. The id-integrity suite
-([`../id-integrity/serializers.test.ts`](../id-integrity/serializers.test.ts)) picks up
-every registered group automatically.
+Add a new case to the group it fits (a class is object-like → `Objects.ts`; a formatted
+DTO → `format-serialization/Realworld.ts`) rather than spinning up a new group. **Why:**
+every group name is a surface that multiple consumers must know about —
+
+- the round-trip runner (`*.test.ts`) and [`../id-integrity/serializers.test.ts`](../id-integrity/serializers.test.ts),
+- the website suite-table export ([`scripts/website/suite-data/export-serialization.mjs`](../../../../../scripts/website/suite-data/export-serialization.mjs)),
+- the benchmark data generator ([`scripts/website/bench-data/gen-serialization.mjs`](../../../../../scripts/website/bench-data/gen-serialization.mjs))
+  and the `SuiteTable` / `BenchTable` components that render them.
+
+An existing group already flows through ALL of them, so a case added to it is covered
+everywhere for free. A new group is a new key those consumers must pick up (and the
+`groupToFile` name mapping, aggregation counts, and any table layout must accommodate) —
+easy to under-wire and get partial coverage. Add a new group only when the cases are a
+genuinely new category, and then verify each consumer above.
+
+To add a group anyway: register it in [`index.ts`](./index.ts) (`SERIALIZATION_SPEC`, or
+`FORMAT_SERIALIZATION_SUITE`) and add a sibling `*.test.ts` iterating it through the
+`serializationAsserts` helpers.
