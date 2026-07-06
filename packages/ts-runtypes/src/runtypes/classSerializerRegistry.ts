@@ -99,6 +99,19 @@ export interface ClassSerializerEntry<T = any> {
 const classSerializers = new Map<string, ClassSerializerEntry>();
 const classToKey = new Map<AnyClass, string>();
 
+// Monotonic epoch bumped on every registry mutation. Emitted factory bodies
+// cache their `getClassSerializer(<id>)` result in the closure and only re-look
+// it up when the epoch moves — so the hot path is a single int compare per call
+// instead of a Map lookup, while `register` / `unregister` / `clear` still take
+// effect immediately (they bump the epoch, invalidating every cached entry).
+let epoch = 0;
+
+/** Current registry epoch. Emitted decode/encode bodies read this via
+ *  `utl.csEpoch()` to decide whether their cached serializer lookup is stale. */
+export function classSerializerEpoch(): number {
+  return epoch;
+}
+
 // Extract the registry key (the class's structural type id) from the injected
 // trailing `id` slot. The plugin injects the entry-module tuple (like
 // getRunTypeId); a wrapper / manual call may pass the bare id string. Without a
@@ -145,6 +158,7 @@ export function registerClassSerializer<T>(cls: AnyClass<T>, handler?: ClassSeri
     deserialize: handler?.deserialize as ((data: any) => any) | undefined,
   });
   classToKey.set(cls, key);
+  epoch++;
 }
 
 /** Internal lookup used by emitted factory bodies via
@@ -188,10 +202,12 @@ export function unregisterClassSerializer(cls: AnyClass): void {
   if (key === undefined) return;
   classSerializers.delete(key);
   classToKey.delete(cls);
+  epoch++;
 }
 
 /** Clear the whole registry (test isolation helper). */
 export function clearClassSerializers(): void {
   classSerializers.clear();
   classToKey.clear();
+  epoch++;
 }

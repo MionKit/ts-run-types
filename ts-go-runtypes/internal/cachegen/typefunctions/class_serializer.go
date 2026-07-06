@@ -67,21 +67,26 @@ func userClassName(rt *protocol.RunType) string {
 	return name
 }
 
-// classSerializerLookup returns the local const name holding the custom
-// serializer for the class with structural id typeID PLUS the inline
-// declaration statement that binds it. The registry is keyed by TYPE ID (the
-// `InjectRunTypeId` slot the registration injects), NOT the class name — so the
-// key is minification-stable and matches the class node's `rt.ID`. The lookup is
-// emitted INSIDE the returned function body (per-call), NOT in the closure
-// prologue — so the registry is consulted on every (de)serialization,
-// registration can happen anytime before a call, and `registerClassSerializer` /
-// clearing takes effect immediately even for an already-materialized factory.
-// Shape:
+// classSerializerLookup returns the local name holding the custom serializer for
+// the class with structural id typeID PLUS the inline refresh statement that
+// keeps it current. The registry is keyed by TYPE ID (the `InjectRunTypeId` slot
+// the registration injects), NOT the class name — so the key is
+// minification-stable and matches the class node's `rt.ID`.
 //
-//	const cs_<id> = utl.getClassSerializer('<id>')
-func classSerializerLookup(typeID string) (varName string, decl string) {
+// The entry is cached in the CLOSURE (a `let cs_<id>, cs_<id>_ep` context item)
+// and re-looked-up only when the registry epoch moves — so a hot (de)serialize
+// loop pays one int compare per call instead of a Map lookup, yet
+// `registerClassSerializer` / `unregister` / `clear` still take effect
+// immediately (they bump `utl.csEpoch()`, so the next call's guard misses and
+// re-reads). Shapes:
+//
+//	closure:  let cs_<id>, cs_<id>_ep = -1
+//	per-call: if (cs_<id>_ep !== utl.csEpoch()) { cs_<id> = utl.getClassSerializer('<id>'); cs_<id>_ep = utl.csEpoch(); }
+func classSerializerLookup(ctx *EmitContext, typeID string) (varName string, decl string) {
 	varName = "cs_" + sanitizeIdent(typeID)
-	decl = "const " + varName + " = utl.getClassSerializer(" + quoteJS(typeID) + ")"
+	epVar := varName + "_ep"
+	ctx.SetContextItem("csvar_"+typeID, "let "+varName+", "+epVar+" = -1")
+	decl = "if (" + epVar + " !== utl.csEpoch()) { " + varName + " = utl.getClassSerializer(" + quoteJS(typeID) + "); " + epVar + " = utl.csEpoch(); }"
 	return varName, decl
 }
 
@@ -117,7 +122,7 @@ func wrapPrepareWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v st
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(rt.ID)
+	csVar, decl := classSerializerLookup(ctx, rt.ID)
 	elseBody := structural.Code
 	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + v + " = " + csVar + ".serialize(" + v + ")}"
 	if elseBody != "" {
@@ -146,7 +151,7 @@ func wrapSafeWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v strin
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(rt.ID)
+	csVar, decl := classSerializerLookup(ctx, rt.ID)
 	// Normalise the structural value to a self-returning statement so the
 	// whole thing is one CodeRB block. CodeRB already returns; CodeE /
 	// empty become `return <expr>` (empty clone == identity == `return v`).
@@ -180,7 +185,7 @@ func wrapStringifyWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v 
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(rt.ID)
+	csVar, decl := classSerializerLookup(ctx, rt.ID)
 	structuralReturn := structural.Code
 	if structural.Type != CodeRB {
 		expr := structural.Code
@@ -218,7 +223,7 @@ func wrapRestoreWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v st
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(rt.ID)
+	csVar, decl := classSerializerLookup(ctx, rt.ID)
 	custom := v + " = utl.deserializeClass(" + csVar + ", " + v + ")"
 	structuralThenRebuild := structural.Code
 	if structuralThenRebuild != "" {
@@ -250,7 +255,7 @@ func wrapToBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v, 
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(rt.ID)
+	csVar, decl := classSerializerLookup(ctx, rt.ID)
 	registered := ser + ".serString(JSON.stringify(" + csVar + ".serialize(" + v + ")))"
 	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + registered + "}"
 	if structural.Code != "" {
@@ -280,7 +285,7 @@ func wrapFromBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, r
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(rt.ID)
+	csVar, decl := classSerializerLookup(ctx, rt.ID)
 	custom := ret + " = utl.deserializeClass(" + csVar + ", JSON.parse(" + des + ".desString()))"
 	structuralThenRebuild := structural.Code
 	if structuralThenRebuild != "" {

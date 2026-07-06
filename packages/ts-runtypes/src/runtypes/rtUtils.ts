@@ -20,6 +20,7 @@ import type {
 import {
   getClassSerializer as getClassSerializerImpl,
   deserializeClass as deserializeClassImpl,
+  classSerializerEpoch as classSerializerEpochImpl,
 } from './classSerializerRegistry.ts';
 import type {ClassSerializerEntry} from './classSerializerRegistry.ts';
 import type {DataOnly} from './dataOnly.ts';
@@ -148,6 +149,12 @@ const rtUtils = {
   // structural fallback. See classSerializerRegistry.ts.
   getClassSerializer(typeId: string): ClassSerializerEntry | undefined {
     return getClassSerializerImpl(typeId);
+  },
+  // Registry epoch — emitted bodies cache their getClassSerializer(<id>) result
+  // in the closure and re-look-up only when this moves (register/unregister/clear
+  // bump it), so the steady-state hot path is one int compare, not a Map lookup.
+  csEpoch(): number {
+    return classSerializerEpochImpl();
   },
   // Reconstruct a live instance from decoded data. Emitted decode bodies
   // call this for a registered class member; it prefers the registered

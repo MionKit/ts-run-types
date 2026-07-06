@@ -310,11 +310,14 @@ func (layout FlatLayout) atomicEncodeDispatch(v string, ctx *EmitContext) (prolo
 		// Key the lookup by the member's TYPE ID (matching the registry key), and
 		// use a distinct `cix_` var (class-identity) so it never collides with the
 		// child prepare/restore body's own `cs_` lookup declared by
-		// wrap*WithClassSerializer.
+		// wrap*WithClassSerializer. Epoch-cache it in the closure (same scheme as
+		// classSerializerLookup): re-look-up only when the registry epoch moves.
 		csVar := "cix_" + sanitizeIdent(m.Resolved.ID)
 		if !seenDecl[csVar] {
 			seenDecl[csVar] = true
-			decls = append(decls, "const "+csVar+" = utl.getClassSerializer("+quoteJS(m.Resolved.ID)+")")
+			epVar := csVar + "_ep"
+			ctx.SetContextItem("csvar_"+csVar, "let "+csVar+", "+epVar+" = -1")
+			decls = append(decls, "if ("+epVar+" !== utl.csEpoch()) { "+csVar+" = utl.getClassSerializer("+quoteJS(m.Resolved.ID)+"); "+epVar+" = utl.csEpoch(); }")
 		}
 		arms = append(arms, atomicDispatchArm{Member: m, Guard: csVar + " && " + v + " instanceof " + csVar + ".cls"})
 	}
