@@ -825,23 +825,25 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 
 	var clauses []string
 
+	// Class members dispatch by instance identity first, then non-class atomics,
+	// then a class structural fallback (atomicEncodeDispatch); each member's
+	// clone expression is built once and reused across its identity + structural
+	// arms.
+	prologue, arms := layout.atomicEncodeDispatch(v, ctx)
+	exprByIndex := make(map[int]string, len(layout.AtomicMembers))
 	for _, m := range layout.AtomicMembers {
 		memberExpr, ok := safeChildExpr(m.Ref, v, ctx)
 		if !ok {
 			return RTCode{Code: "", Type: CodeNS}
 		}
-		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
-		guard := validateExpr
-		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, validateExpr)
-		}
-		var resultExpr string
+		resultExpr := memberExpr
 		if layout.AtomicNeedsTuple {
 			resultExpr = "[" + strconv.Itoa(m.OriginalIndex) + "," + memberExpr + "]"
-		} else {
-			resultExpr = memberExpr
 		}
-		clauses = append(clauses, "if ("+guard+") return "+resultExpr+";")
+		exprByIndex[m.OriginalIndex] = resultExpr
+	}
+	for _, arm := range arms {
+		clauses = append(clauses, "if ("+arm.Guard+") return "+exprByIndex[arm.Member.OriginalIndex]+";")
 	}
 
 	if len(layout.ObjectMembers) > 0 {
@@ -894,7 +896,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 	}
 
 	errVar := flatUnionEncodeErrorVar(ctx)
-	body := strings.Join(clauses, " ") + " throw new Error(" + errVar + ")"
+	body := prologue + strings.Join(clauses, " ") + " throw new Error(" + errVar + ")"
 	return RTCode{Code: body, Type: CodeRB}
 }
 

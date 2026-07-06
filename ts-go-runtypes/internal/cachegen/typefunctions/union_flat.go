@@ -145,16 +145,16 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 
 	var clauses []string
 
-	// Atomic clauses — same shape as the non-flat union encode.
+	// Atomic clauses. Class members dispatch by instance identity first, then
+	// non-class atomics, then a class structural fallback (atomicEncodeDispatch).
+	// A class member's arm appears twice (identity + structural) selecting the
+	// same OriginalIndex, so compile each member's body exactly once.
+	prologue, arms := layout.atomicEncodeDispatch(v, ctx)
+	bodyByIndex := make(map[int]string, len(layout.AtomicMembers))
 	for _, m := range layout.AtomicMembers {
 		prepareRT := ctx.CompileChild(m.Ref, CodeS)
 		if prepareRT.Type == CodeNS {
 			return RTCode{Code: "", Type: CodeNS}
-		}
-		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
-		guard := validateExpr
-		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, validateExpr)
 		}
 		body := strings.TrimSpace(prepareRT.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
@@ -163,7 +163,10 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 		if layout.AtomicNeedsTuple {
 			body += v + " = [" + strconv.Itoa(m.OriginalIndex) + ", " + v + "]"
 		}
-		clause := "if (" + guard + ") {" + body + "}"
+		bodyByIndex[m.OriginalIndex] = body
+	}
+	for _, arm := range arms {
+		clause := "if (" + arm.Guard + ") {" + bodyByIndex[arm.Member.OriginalIndex] + "}"
 		if len(clauses) > 0 {
 			clause = " else " + clause
 		}
@@ -211,7 +214,7 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 
 	errVar := flatUnionEncodeErrorVar(ctx)
 	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return RTCode{Code: strings.Join(clauses, ""), Type: CodeS}
+	return RTCode{Code: prologue + strings.Join(clauses, ""), Type: CodeS}
 }
 
 // emitMergedPropPrepare returns the inline JS body that transforms a
@@ -452,6 +455,12 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 
 	var clauses []string
 
+	// Class members dispatch by instance identity first, then non-class atomics,
+	// then a class structural fallback (atomicEncodeDispatch); each member's
+	// JSON fragment is built once. A member whose stringify is empty contributes
+	// no arm (skipped), same as before.
+	prologue, arms := layout.atomicEncodeDispatch(v, ctx)
+	emitByIndex := make(map[int]string, len(layout.AtomicMembers))
 	for _, m := range layout.AtomicMembers {
 		childRT := ctx.CompileChild(m.Ref, CodeE)
 		if childRT.Type == CodeNS {
@@ -460,18 +469,18 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 		if childRT.Code == "" {
 			continue
 		}
-		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
-		guard := validateExpr
-		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, validateExpr)
-		}
-		var emitted string
+		emitted := childRT.Code
 		if layout.AtomicNeedsTuple {
 			emitted = "'[" + strconv.Itoa(m.OriginalIndex) + ",' + " + childRT.Code + " + ']'"
-		} else {
-			emitted = childRT.Code
 		}
-		clause := "if (" + guard + ") { return " + emitted + ";}"
+		emitByIndex[m.OriginalIndex] = emitted
+	}
+	for _, arm := range arms {
+		emitted, ok := emitByIndex[arm.Member.OriginalIndex]
+		if !ok {
+			continue
+		}
+		clause := "if (" + arm.Guard + ") { return " + emitted + ";}"
 		if len(clauses) > 0 {
 			clause = " else " + clause
 		}
@@ -596,7 +605,7 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 
 	errVar := flatUnionEncodeErrorVar(ctx)
 	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return RTCode{Code: strings.Join(clauses, ""), Type: CodeRB}
+	return RTCode{Code: prologue + strings.Join(clauses, ""), Type: CodeRB}
 }
 
 // emitMergedPropStringify returns a JS expression that evaluates to the

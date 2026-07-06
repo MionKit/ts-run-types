@@ -343,6 +343,14 @@ func unionJsonNoop(rt *protocol.RunType, ctx *EmitContext) bool {
 				}
 				continue
 			}
+			// A named plain user class routes as an atomic member that forces the
+			// `[idx, value]` envelope (buildFlatLayout.hasClassAtomic ⇒
+			// AtomicNeedsTuple) and reconstructs the instance on decode via the
+			// class-serializer restore wrapper — real code on both halves, never
+			// identity, even though its props are JSON-compatible.
+			if resolved.Kind == protocol.KindClass && userClassName(resolved) != "" {
+				return false
+			}
 			// Object bucket — merges into the [-1, merged] envelope ONLY when it
 			// carries a transform. A fully JSON-compatible object/record member
 			// round-trips raw (roundTripsRaw ⇒ AtomicNeedsTuple false ⇒ identity

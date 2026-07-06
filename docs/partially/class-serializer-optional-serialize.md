@@ -1,9 +1,9 @@
 # Class serializer redesign — optional `serialize`, class-derived identity, class-in-union reconstruction
 
-**Status:** PARTIALLY DONE — the API redesign shipped (PR #189). Class-in-union
-reconstruction (below) is IN PROGRESS via the **numeric member index**, which
-supersedes the original `rt$classID` string-tag design. Open-world polymorphism
-(Phase 2) stays deferred.
+**Status:** PARTIALLY DONE — the API redesign + class-in-union reconstruction
+shipped (via the **numeric member index**, which supersedes the original
+`rt$classID` string-tag design). Only open-world polymorphism (Phase 2) stays
+deferred.
 **Created:** 2026-07-06
 **Area:** JSON + binary codecs (`pj` / `pjs` / `sj` / `rj` / `tb` / `fb` families), flat-union machinery, type-id, runtime registry
 **Supersedes:** the T7 class-serializer contract (both `serialize` + `deserialize` required, keyed by bare class name)
@@ -39,7 +39,7 @@ monomorphic and nested / array positions), fully tested and documented:
   deleted; `AnyClass` / `SerializableClass` / `DeserializeClassFn` moved next to the
   single public registry.
 
-## Union reconstruction — final design
+## Union reconstruction — final design (shipped)
 
 ### 1. Type-id: fold the class name into a plain class's structural id
 
