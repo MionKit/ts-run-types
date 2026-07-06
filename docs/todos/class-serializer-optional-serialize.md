@@ -85,7 +85,7 @@ Keyed by a hand-typed class-name string. Exported from
 [`test/features/classSerializer.test.ts`](../../packages/ts-runtypes/test/features/classSerializer.test.ts).
 
 ### Routing is positional / static (no wire tag)
-[`internal/cachegen/typefunctions/class_serializer.go`](../../internal/cachegen/typefunctions/class_serializer.go)
+[`ts-go-runtypes/internal/cachegen/typefunctions/class_serializer.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/class_serializer.go)
 
 The compiler already knows a given position holds class `Money` (from the RunType graph,
 `rt.TypeName`), so each JSON/binary family emits a per-position branch:
@@ -104,9 +104,9 @@ symbol names, `name[0] == 0xFE`) are never routed and never warned about.
 user at the registry.
 
 ### Unions already discriminate on a property (JSON) or an index (binary)
-[`union_flat.go`](../../internal/cachegen/typefunctions/union_flat.go) /
-[`union_flat_layout.go`](../../internal/cachegen/typefunctions/union_flat_layout.go) /
-[`union_flat_binary.go`](../../internal/cachegen/typefunctions/union_flat_binary.go)
+[`union_flat.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/union_flat.go) /
+[`union_flat_layout.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/union_flat_layout.go) /
+[`union_flat_binary.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/union_flat_binary.go)
 
 This is the machinery `rt$classID` plugs into:
 - **JSON** — when object members share a required literal discriminant (`kind: "t0" | "t1"`),
@@ -234,9 +234,9 @@ binary class field.
 Treat each registered class in a union as if it declared
 `rt$classID: '<namespace>::<ClassName>'`, so it plugs into the existing discriminated-union
 machinery (`DiscName` / `DiscValues` / `hasDiscDispatch` in
-[`union_flat_layout.go`](../../internal/cachegen/typefunctions/union_flat_layout.go)).
+[`union_flat_layout.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/union_flat_layout.go)).
 The JSON object body is `'{' + parts.join(',') + '}'`
-([`json_stringify.go:437`](../../internal/cachegen/typefunctions/json_stringify.go#L437)),
+([`json_stringify.go:437`](../../ts-go-runtypes/internal/cachegen/typefunctions/json_stringify.go#L437)),
 so encode adds one `parts` fragment; decode reads `v.rt$classID`, matches the arm, calls
 that member's deserialize (or auto-`new`), and **strips** the key before it lands as a prop.
 
@@ -316,7 +316,7 @@ Two areas: the per-position registry branch (exists today) and the union-discrim
 integration (new).
 
 **Registry branch** — in / around
-[`class_serializer.go`](../../internal/cachegen/typefunctions/class_serializer.go):
+[`class_serializer.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/class_serializer.go):
 - **Encode wrappers** (`wrapPrepareWithClassSerializer`, `wrapSafeWith…`,
   `wrapStringifyWith…`): keep the `serialize`-or-structural branch; the structural arm now
   also serves as the default (no `serialize` registered). `wrapToBinaryWith…` /
@@ -328,8 +328,8 @@ integration (new).
 - `userClassName` / anonymous-class handling / CLS001 dedup: unchanged.
 
 **Union discriminant** (the `rt$classID` work) — in / around
-[`union_flat_layout.go`](../../internal/cachegen/typefunctions/union_flat_layout.go) /
-[`union_flat.go`](../../internal/cachegen/typefunctions/union_flat.go):
+[`union_flat_layout.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/union_flat_layout.go) /
+[`union_flat.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/union_flat.go):
 - When a JSON union has ≥2 registered-class members (or class + object), synthesize a
   discriminant: `DiscName = "rt$classID"`, each member's `DiscValues` = its `cs_*.classID`
   read from the registry (not a static literal — namespace is runtime). Emit the write on
@@ -347,7 +347,7 @@ not need bumping (it should not) and re-run the cache tests to be sure.
 ## Diagnostics
 
 - **CLS001** — update headline/detail in
-  [`messages.go:330`](../../internal/diagnostics/messages.go#L330) to the new signature:
+  [`messages.go:330`](../../ts-go-runtypes/internal/diagnostics/messages.go#L330) to the new signature:
   `registerClassSerializer('<ns>', <Class>, { deserialize })`. Keep it a **Warning**
   (structural fallback is still valid).
 - **CLS002 (new, runtime Error)** — a registered class with a non-empty constructor and
@@ -390,7 +390,7 @@ not need bumping (it should not) and re-run the cache tests to be sure.
   notes and the registry list (`registerClassSerializer` around line 215): new signature,
   the JSON-union-discriminant wire tag, encode-reads-classID, binary-uses-index, the
   positional-vs-union split.
-- **CLS001 message** — [`messages.go`](../../internal/diagnostics/messages.go) as above.
+- **CLS001 message** — [`messages.go`](../../ts-go-runtypes/internal/diagnostics/messages.go) as above.
   Regenerate the mirror: `pnpm run gen:diag-catalog` (updates
   `packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts`).
 - **[`docs/ROADMAP.md`](../../docs/ROADMAP.md)** — record Phase 2 (open-world polymorphic

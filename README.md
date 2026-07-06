@@ -33,17 +33,17 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 1. User code imports `InjectRunTypeId<T>` / `getRunTypeId<T>()` (static) or `getRunTypeId(val)` (reflection) from `ts-runtypes`. Any user-defined wrapper function may also declare `id?: InjectRunTypeId<T>` as its trailing parameter to opt into the same flow.
 2. The Vite plugin sends each source file to the Go binary's `scanFiles` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `InjectRunTypeId<T>` (declared in `ts-runtypes`) with `T` concretely bound. `scanFiles` accepts an array of files in a single request; opt-in flags (`includeRunTypes`, `includeCacheSource`) project the response down to just those files.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
-4. Every cache entry is its own real module, written to disk at build start: `<outDir>/types/<key>.js` (the cache key — bare type hash for runtypes, `<fnHash>_<typeId>` for function entries, `pf/<ns>/<fn>` for pure fns). `<outDir>` defaults to `<srcDir>/__runtypes` (inferred from tsconfig; the generated `types/` is gitignored, and the `__` prefix keeps it clear of a hand-authored `runtypes/` source dir). The transform injects the matching **relative** imports into each user file, so bundlers code-split and tree-shake entries natively — and resolve them with no per-bundler virtual-module plumbing, which is what makes the one plugin work the same on Vite/Rollup/webpack/Rspack/esbuild. Each module exports one positional tuple (`export const e = […]`); the runtime registers a tuple's dependency closure on first use and serves lookups from the `rtUtils` registry (module/naming constants come from [internal/constants/constants.go](internal/constants/constants.go)).
+4. Every cache entry is its own real module, written to disk at build start: `<outDir>/types/<key>.js` (the cache key — bare type hash for runtypes, `<fnHash>_<typeId>` for function entries, `pf/<ns>/<fn>` for pure fns). `<outDir>` defaults to `<srcDir>/__runtypes` (inferred from tsconfig; the generated `types/` is gitignored, and the `__` prefix keeps it clear of a hand-authored `runtypes/` source dir). The transform injects the matching **relative** imports into each user file, so bundlers code-split and tree-shake entries natively — and resolve them with no per-bundler virtual-module plumbing, which is what makes the one plugin work the same on Vite/Rollup/webpack/Rspack/esbuild. Each module exports one positional tuple (`export const e = […]`); the runtime registers a tuple's dependency closure on first use and serves lookups from the `rtUtils` registry (module/naming constants come from [ts-go-runtypes/internal/constants/constants.go](ts-go-runtypes/internal/constants/constants.go)).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — execution model, the sentinel markers, the reflection shape, and the factory reference (the intentional divergences are listed there and in [docs/ROADMAP.md](docs/ROADMAP.md)).
 
 ### Data flow
 
-- **Types are deduplicated twice.** [internal/cachegen/runtype/](internal/cachegen/runtype/) holds a cache keyed by both _pointer identity_ (the same `*checker.Type` visited via two paths) **and** _structural id_ (two distinct `Type` objects with the same shape). Both collapse to a single cache entry, so the emitted metadata is stable across runs.
-- **Structural ids are deterministic.** [internal/cachegen/runtype/typeid/](internal/cachegen/runtype/typeid/) mirrors the reference `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through the quickHash rolling hash (prime-37, letter-first alphanumeric alphabet) in [internal/cachegen/hashid](internal/cachegen/hashid/), yielding a 7-character hash.
-- **Rewrites are positioned by byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Go transform package ([internal/compiler/sourcerewrite/](internal/compiler/sourcerewrite/)) therefore converts every resolver offset to a UTF-16 index before editing (otherwise multibyte source characters would misalign the inserted hash) and applies the edits through an in-house `EditBuffer` (`editbuffer.go`), so `OpTransform` hands back finished code plus a real source map — breakpoints and stack traces land on the user's original lines. The plugin just forwards `{code, map}` to the bundler and ships **no runtime dependencies**: `EditBuffer` is a small from-scratch string-editor + source-map generator covering just the slice of `magic-string` the rewrite needs.
-- **Entry modules defer all wiring to runtime registration.** [internal/compiler/virtualmodules](internal/compiler/virtualmodules/) assembles one ES module per function entry: imports of the entry's DIRECT dependencies (leaves-first, alphabetical within a dependency level; recursive types collapse via SCC so cycles import each other safely — the transitive closure loads through the dep modules' own imports) and a lazy `deps()` thunk the runtime walks recursively. Runtype nodes are denser: they ride as rows of the single data bundle `<outDir>/types/runtypes.js` (one combined `ini(rtu)` patches reference slots through the registry), aliased by a tiny facade module per reflection root so each node exists exactly once app-wide. Tuples never reference imported bindings eagerly, so circular type graphs evaluate without TDZ hazards. Module naming/export constants come from [internal/constants/constants.go](internal/constants/constants.go) — the JS side reads the same values from a generated mirror (`pnpm run gen:ts-constants`), so the two halves can't drift. The Go side renders every module and the `generate` op writes it to disk (write-only-on-change, stale-file GC, inter-module imports relativized) — there's no JS-side renderer to keep in sync.
-- **The marker is detected by name _and_ declaring module.** [internal/compiler/marker](internal/compiler/marker/) checks both `InjectRunTypeId` and that the alias is declared in `ts-runtypes`, so a user's own `type InjectRunTypeId<T> = ...` declared elsewhere does not trigger rewrites.
+- **Types are deduplicated twice.** [ts-go-runtypes/internal/cachegen/runtype/](ts-go-runtypes/internal/cachegen/runtype/) holds a cache keyed by both _pointer identity_ (the same `*checker.Type` visited via two paths) **and** _structural id_ (two distinct `Type` objects with the same shape). Both collapse to a single cache entry, so the emitted metadata is stable across runs.
+- **Structural ids are deterministic.** [ts-go-runtypes/internal/cachegen/runtype/typeid/](ts-go-runtypes/internal/cachegen/runtype/typeid/) mirrors the reference `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through the quickHash rolling hash (prime-37, letter-first alphanumeric alphabet) in [ts-go-runtypes/internal/cachegen/hashid](ts-go-runtypes/internal/cachegen/hashid/), yielding a 7-character hash.
+- **Rewrites are positioned by byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Go transform package ([ts-go-runtypes/internal/compiler/sourcerewrite/](ts-go-runtypes/internal/compiler/sourcerewrite/)) therefore converts every resolver offset to a UTF-16 index before editing (otherwise multibyte source characters would misalign the inserted hash) and applies the edits through an in-house `EditBuffer` (`editbuffer.go`), so `OpTransform` hands back finished code plus a real source map — breakpoints and stack traces land on the user's original lines. The plugin just forwards `{code, map}` to the bundler and ships **no runtime dependencies**: `EditBuffer` is a small from-scratch string-editor + source-map generator covering just the slice of `magic-string` the rewrite needs.
+- **Entry modules defer all wiring to runtime registration.** [ts-go-runtypes/internal/compiler/virtualmodules](ts-go-runtypes/internal/compiler/virtualmodules/) assembles one ES module per function entry: imports of the entry's DIRECT dependencies (leaves-first, alphabetical within a dependency level; recursive types collapse via SCC so cycles import each other safely — the transitive closure loads through the dep modules' own imports) and a lazy `deps()` thunk the runtime walks recursively. Runtype nodes are denser: they ride as rows of the single data bundle `<outDir>/types/runtypes.js` (one combined `ini(rtu)` patches reference slots through the registry), aliased by a tiny facade module per reflection root so each node exists exactly once app-wide. Tuples never reference imported bindings eagerly, so circular type graphs evaluate without TDZ hazards. Module naming/export constants come from [ts-go-runtypes/internal/constants/constants.go](ts-go-runtypes/internal/constants/constants.go) — the JS side reads the same values from a generated mirror (`pnpm run gen:ts-constants`), so the two halves can't drift. The Go side renders every module and the `generate` op writes it to disk (write-only-on-change, stale-file GC, inter-module imports relativized) — there's no JS-side renderer to keep in sync.
+- **The marker is detected by name _and_ declaring module.** [ts-go-runtypes/internal/compiler/marker](ts-go-runtypes/internal/compiler/marker/) checks both `InjectRunTypeId` and that the alias is declared in `ts-runtypes`, so a user's own `type InjectRunTypeId<T> = ...` declared elsewhere does not trigger rewrites.
 
 ## Components
 
@@ -51,17 +51,17 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 
 | Path                                                       | Purpose                                                                                                      |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [cmd/ts-runtypes/main.go](cmd/ts-runtypes/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                      |
-| [internal/compiler/program](internal/compiler/program/)                      | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                                 |
-| [internal/compiler/resolver](internal/compiler/resolver/)                              | `scanFiles` / `dump` op dispatch; AST call-walk (`walk.go` + `scan.go`); asks checker for resolved signatures. |
-| [internal/compiler/marker](internal/compiler/marker/)                                  | `InjectRunTypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
-| [internal/cachegen/runtype/](internal/cachegen/runtype/)             | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup; JSON/TS-module renderers.                |
-| [internal/cachegen/runtype/typeid/](internal/cachegen/runtype/typeid/) | Structural-id computer mirroring the reference `_createTypeId`; deterministic, cycle-aware.                         |
-| [internal/cachegen/typefunctions/](internal/cachegen/typefunctions/)             | Per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …).                                             |
-| [internal/cachegen/hashid](internal/cachegen/hashid/)                                  | quickHash rolling hash → short alphanumeric id dictionary; configurable length.                                |
-| [internal/constants](internal/constants/)                            | Cross-package constants (cache module settings). Mirrored to TS via `cmd/gen-ts-constants`.                    |
-| [internal/protocol](internal/protocol/)                              | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                     |
-| [internal/testfixtures](internal/testfixtures/)                      | F1–F17 `.ts` inputs: atomic reflection kinds, primitives/objects/unions, inferred generics, marker variants.   |
+| [ts-go-runtypes/cmd/ts-runtypes/main.go](ts-go-runtypes/cmd/ts-runtypes/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                      |
+| [ts-go-runtypes/internal/compiler/program](ts-go-runtypes/internal/compiler/program/)                      | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                                 |
+| [ts-go-runtypes/internal/compiler/resolver](ts-go-runtypes/internal/compiler/resolver/)                              | `scanFiles` / `dump` op dispatch; AST call-walk (`walk.go` + `scan.go`); asks checker for resolved signatures. |
+| [ts-go-runtypes/internal/compiler/marker](ts-go-runtypes/internal/compiler/marker/)                                  | `InjectRunTypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
+| [ts-go-runtypes/internal/cachegen/runtype/](ts-go-runtypes/internal/cachegen/runtype/)             | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup; JSON/TS-module renderers.                |
+| [ts-go-runtypes/internal/cachegen/runtype/typeid/](ts-go-runtypes/internal/cachegen/runtype/typeid/) | Structural-id computer mirroring the reference `_createTypeId`; deterministic, cycle-aware.                         |
+| [ts-go-runtypes/internal/cachegen/typefunctions/](ts-go-runtypes/internal/cachegen/typefunctions/)             | Per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …).                                             |
+| [ts-go-runtypes/internal/cachegen/hashid](ts-go-runtypes/internal/cachegen/hashid/)                                  | quickHash rolling hash → short alphanumeric id dictionary; configurable length.                                |
+| [ts-go-runtypes/internal/constants](ts-go-runtypes/internal/constants/)                            | Cross-package constants (cache module settings). Mirrored to TS via `ts-go-runtypes/cmd/gen-ts-constants`.                    |
+| [ts-go-runtypes/internal/protocol](ts-go-runtypes/internal/protocol/)                              | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                     |
+| [ts-go-runtypes/internal/testfixtures](ts-go-runtypes/internal/testfixtures/)                      | F1–F17 `.ts` inputs: atomic reflection kinds, primitives/objects/unions, inferred generics, marker variants.   |
 
 ### JS side
 
@@ -71,7 +71,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | [packages/ts-runtypes-devtools](packages/ts-runtypes-devtools/)                                              | Cross-bundler plugin (unplugin: Vite/Rollup/webpack/Rspack/esbuild): spawns the Go binary, writes cache modules to real files under `<outDir>/types/`, injects relative imports per file. |
 | [packages/ts-runtypes-devtools/src/resolver-client.ts](packages/ts-runtypes-devtools/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
 | [packages/ts-runtypes-devtools/src/eslint/](packages/ts-runtypes-devtools/src/eslint/) | OXlint / ESLint-v9 lint plugin (`ts-runtypes-devtools/eslint`): compiler diagnostics live in the editor + the enrichment-hygiene commit gate. |
-| [internal/compiler/sourcerewrite/](internal/compiler/sourcerewrite/) | Applies the returned `Site[]` as byte-offset insertions (+ dedup import block + source map) in Go, via `OpTransform`. |
+| [ts-go-runtypes/internal/compiler/sourcerewrite/](ts-go-runtypes/internal/compiler/sourcerewrite/) | Applies the returned `Site[]` as byte-offset insertions (+ dedup import block + source map) in Go, via `OpTransform`. |
 
 ## Use
 
@@ -212,10 +212,10 @@ The repository contains a Go binary and a pnpm/Lerna workspace of JS packages. S
 
 ```bash
 git submodule update --init --recursive
-(cd third_party/tsgolint/typescript-go && git am --3way --no-gpg-sign ../patches/*.patch)
-go build -o bin/ts-runtypes ./cmd/ts-runtypes
+(cd ts-go-runtypes/third_party/tsgolint/typescript-go && git am --3way --no-gpg-sign ../patches/*.patch)
+go -C ts-go-runtypes build -o ../bin/ts-runtypes ./cmd/ts-runtypes
 pnpm install --frozen-lockfile
-go test ./internal/...
+go -C ts-go-runtypes test ./internal/...
 pnpm test
 ```
 
@@ -234,19 +234,19 @@ Round-trip serialization (`pnpm rtx bench serialization`) also reports `serializ
 ## Repository layout
 
 ```
-cmd/ts-runtypes/                CLI entry point
-internal/                        Go pipeline in three areas:
-internal/compiler/                 source transformers (program, marker, builders,
+ts-go-runtypes/cmd/ts-runtypes/ CLI entry point
+ts-go-runtypes/internal/         Go pipeline in three areas:
+ts-go-runtypes/internal/compiler/  source transformers (program, marker, builders,
                                     comptimeargs, resolver, sourcerewrite,
                                     virtualmodules, batchcompile)
-internal/cachegen/                 cache generation (runtype, typefunctions,
+ts-go-runtypes/internal/cachegen/  cache generation (runtype, typefunctions,
                                     purefunctions, operations, diskcache, hashid)
-internal/enrichment/               FriendlyText / MockData codegen (astcheck, cldr, mirror)
+ts-go-runtypes/internal/enrichment/ FriendlyText / MockData codegen (astcheck, cldr, mirror)
                                   shared: protocol, constants, diag, textpos,
                                   jsquote, testfixtures
 packages/ts-runtypes/        ts-runtypes — marker type + helpers
 packages/ts-runtypes-devtools/   Vite plugin, drives the binary
-third_party/tsgolint/            git submodule — tsgo shim layer + patches
+ts-go-runtypes/third_party/tsgolint/ git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design + factory reference
 docs/ROADMAP.md                  scope + known lossy mappings
 scripts/                         publish / unpublish / preflight / pack

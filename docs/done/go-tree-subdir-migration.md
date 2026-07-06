@@ -1,9 +1,23 @@
 # Move the Go tree into `ts-go-runtypes/` (root cleanup)
 
-**Status:** todo (investigated, plan agreed, not started)
+**Status:** DONE — shipped. Go tree relocated to `ts-go-runtypes/`; full verification gate green (`go build`/`vet`/`test ./internal/...`, `pnpm test` = 7678 passed, `pnpm run lint`, `typecheck`, and Go→TS codegen byte-identical).
 **Created:** 2026-07-06
-**Area:** Repo layout / build orchestration / CI / docs — NO Go source changes
+**Area:** Repo layout / build orchestration / CI / docs
 **Driver:** cosmetic root tidiness (single Go subdir instead of `cmd/` + `internal/` + `third_party/` + four `go.*` files loose at root)
+
+## What actually shipped (deviations from the plan below)
+
+The plan held almost exactly. Notable specifics:
+
+- **`bin/` stayed at repo root** (as planned) — every Go invocation runs with `cwd`/`-C` = `ts-go-runtypes/` while writing the binary to an absolute `REPO_ROOT/bin/` path.
+- **One Go source touch was required** (the plan assumed zero): `ts-go-runtypes/cmd/gen-ts-constants/main.go` hardcoded a **cwd-relative** output path (`os.WriteFile("packages/…")`), which broke once `go` ran from the subdir. Fixed by resolving the repo root via a walk-up for `package.json` (matching the repo's existing package.json-root convention), so it writes correctly regardless of invocation cwd. Verified: `gen:ts-constants` output is byte-identical to committed.
+- **Two stragglers beyond the plan's inventory:**
+  - `.oxlintrc.json` `ignorePatterns` had `third_party/**` + `internal/**` (root-anchored) → collapsed to `ts-go-runtypes/**`. Without this, oxlint walked the submodule's `typescript-go/testdata` baselines and failed. (Caught by the lint gate, exactly as predicted for shell/config paths.)
+  - `packages/ts-runtypes/test/util/enrichCases.ts` also spawns `go run ./cmd/extract-fn-bodies` (not in the Section C inventory) — routed through `GO_ROOT`.
+- **`GO_ROOT` lever** landed in `scripts/lib/env.mjs`; standalone scripts (`build-binaries.mjs`, the website export/bench scripts, `enrichCases.ts`) that don't import `env.mjs` define their own local `GO_ROOT`.
+- **CI** used `working-directory: ts-go-runtypes` on the Go-only steps (commands unchanged); the codegen-drift step stays at repo root (its `pnpm run gen:*` scripts use `go -C`).
+- **Submodule move** via `git mv` (git 2.43) rewrote both the top-level and the **nested** `typescript-go` gitdir pointers correctly — the nested-pointer fixup the plan flagged as likely-manual was handled automatically.
+- Docs (README, SETUP, CLAUDE.md, ARCHITECTURE, ROADMAP) + the active `class-serializer` todo re-prefixed. The `docs/done/` archive link sweep (Section J) was deferred as designed.
 
 ## Summary
 
