@@ -1,4 +1,4 @@
-import {registerClassSerializer, createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+import {registerClassSerializer, createJsonEncoder, createJsonDecoder, type DataOnly} from 'ts-runtypes';
 
 // A class with a non-empty constructor. The data goes on the wire structurally
 // (just its declared properties), so you only have to teach ts-runtypes how to
@@ -15,8 +15,8 @@ class Money {
 }
 
 registerClassSerializer(Money, {
-  // data-only projection -> a real instance
-  deserialize: (data) => new Money(data.amount, data.currency),
+  // `data` is the data-only projection (methods already gone) -> a real instance
+  deserialize: (data: DataOnly<Money>) => new Money(data.amount, data.currency),
 });
 
 // A class with a zero-argument constructor. There is nothing else to supply:
