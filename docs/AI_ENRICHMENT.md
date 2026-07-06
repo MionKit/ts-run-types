@@ -5,7 +5,7 @@
 >   structural node shapes — solution A), the pure-data `createFriendly<T>(map)`
 >   renderer, and the `createMockType<T>({ data })` integration — all exported from
 >   `ts-runtypes`;
-> - the Go CLI trio `describe` / `check` / `gen` (`internal/enrichment`, a separate
+> - the Go CLI trio `describe` / `check` / `gen` (`ts-go-runtypes/internal/enrichment`, a separate
 >   package), incl. **named-type-driven emission** (one `const` per named type) and
 >   the `check` diagnostics **FT002 / FT003 / FT005 / MD001**;
 > - **`gen --update` reconcile + `gen --prune`** — a value-preserving merge of an
@@ -183,7 +183,7 @@ interface RTValidationError {
 
 The `rt$errors` key is **`error.format.formatPath.at(-1)`**, and `type` is the base
 type-shape failure (a `RTValidationError` with no `.format`). The Go format emitters
-([`internal/cachegen/typefunctions/formats/`](../internal/cachegen/typefunctions/formats/))
+([`ts-go-runtypes/internal/cachegen/typefunctions/formats/`](../ts-go-runtypes/internal/cachegen/typefunctions/formats/))
 write one independent `if (fail) push(...)` per constraint, with the constraint
 name and value known at emit time:
 
@@ -215,7 +215,7 @@ the IDE), count-bearing keys accept a plural object, and non-failing params
 (`isCurrency` + the transformers `trim`/`lowercase`/`uppercase`/`capitalize`/
 `replace`/`replaceAll` — the `NonFailingParams` union in
 [`friendlyType.ts`](../packages/ts-runtypes/src/enrich/friendlyType.ts), mirrored
-by `nonFailingParams` in [`internal/enrichment/enrich.go`](../internal/enrichment/enrich.go))
+by `nonFailingParams` in [`ts-go-runtypes/internal/enrichment/enrich.go`](../ts-go-runtypes/internal/enrichment/enrich.go))
 never become keys. The richness of the friendly map is a function of how richly
 the type is annotated.
 
@@ -243,12 +243,12 @@ both legal in single-locale maps too:
 
 - **Plural templates.** A **count-bearing** constraint (`minLength` / `maxLength` /
   `min` / `max` / `lt` / `gt` — the shared `CountBearing` table in
-  [`internal/enrichment/classify.go`](../internal/enrichment/classify.go), read by emitter
+  [`ts-go-runtypes/internal/enrichment/classify.go`](../ts-go-runtypes/internal/enrichment/classify.go), read by emitter
   and checker alike so they can never disagree) may carry a plural OBJECT instead
   of a plain string: `minLength: {one: '…', other: '…'}`. Arm keys are CLDR
   cardinal categories; only `other` is mandatory (FT006); `gen` scaffolds the arm
   set of the source locale (tsconfig `i18n.sourceLocale`, default `en` — built-in
-  CLDR table in [`internal/enrichment/cldr/`](../internal/enrichment/cldr/) covering
+  CLDR table in [`ts-go-runtypes/internal/enrichment/cldr/`](../ts-go-runtypes/internal/enrichment/cldr/) covering
   en/es/zh/hi/ar/pt/ru/ja/de/fr/pl, all six categories for any other locale). The
   renderer selects the arm via `Intl.PluralRules` on the **violated bound**
   (`$[val]` — `minLength: 3` pluralizes for 3, NOT the received value's length); a
@@ -438,7 +438,7 @@ export type MockData<T> = MockNode<T>;
 `FriendlyText<T>` / `MockData<T>` const declarations, resolves `T`'s `RunType`, and
 runs a **kind-switch paired walk** of the authored object-literal against the
 `RunType` — the emitter convention, in
-[`internal/enrichment/validate.go`](../internal/enrichment/validate.go) over a tiny
+[`ts-go-runtypes/internal/enrichment/validate.go`](../ts-go-runtypes/internal/enrichment/validate.go) over a tiny
 `LiteralView` adapter (so the checks are unit-testable without a Program). Wired
 diagnostics: **FT002, FT003, FT005, MD001** (the others below are deferred).
 
@@ -530,7 +530,7 @@ wrong label for generation.
 
 - **The `gen` codegen emitter lives in Go.** It walks the `RunType` graph — a giant
   `switch` over `RunType.kind`, the same emitter pattern as
-  [`serialize.go`](../internal/cachegen/runtype/serialize.go) and the typefns
+  [`serialize.go`](../ts-go-runtypes/internal/cachegen/runtype/serialize.go) and the typefns
   families — and **emits new mirror files under `enrichDir` or appends to existing
   ones**. Keeping it Go-side reuses that walk; doing it in JS would mean shipping the graph to Node and
   re-implementing the kind-switch — duplicating the emitter for nothing. Because
@@ -651,7 +651,7 @@ file, the source breadcrumb is recomputed for the one-directory-deeper location
 (cross-mirror value-import specifiers are untouched — both endpoints move down one
 family segment, so the relative path between two mirror files is unchanged), and
 the legacy file is deleted (`SplitCombined` in
-[`internal/enrichment/mirror/split.go`](../internal/enrichment/mirror/split.go)). The
+[`ts-go-runtypes/internal/enrichment/mirror/split.go`](../ts-go-runtypes/internal/enrichment/mirror/split.go)). The
 guards are conservative: the legacy file's breadcrumb must resolve back to the
 same source, and an existing family file is never overwritten (a stderr warning
 asks for a hand-merge instead). Until migrated, `gen --check` flags a combined
@@ -1035,7 +1035,7 @@ production graph. No special registration-gating mechanism required.
   cross-file `import type` / value imports) **requires** `declFile` (+ `declName`) on
   the resolved type — not deferred. The binary already reads this internally
   (`symbol.Declarations → GetSourceFileOfNode()`; `declarationPos` in
-  [`serialize.go`](../internal/cachegen/runtype/serialize.go)) but does not serialize
+  [`serialize.go`](../ts-go-runtypes/internal/cachegen/runtype/serialize.go)) but does not serialize
   it — it's the "location" slot the protocol reserves but never populates. It's also
   what `describe` wants for prompt context, so it pays for itself.
 - **`$[val]` enrichment.** `format.val` is overloaded — the param for
@@ -1043,7 +1043,7 @@ production graph. No special registration-gating mechanism required.
   *absent* for date bounds. For `$[val]` to resolve uniformly to the declared
   bound, always carry the raw param value and stop overloading `val` with messages.
   A small, localized change to the format-error emit in
-  [`internal/cachegen/typefunctions/formats/emit.go`](../internal/cachegen/typefunctions/formats/emit.go).
+  [`ts-go-runtypes/internal/cachegen/typefunctions/formats/emit.go`](../ts-go-runtypes/internal/cachegen/typefunctions/formats/emit.go).
 - **No new emit family.** Unlike `validate`/`json`/`binary`, this feature adds **no**
   runtime codegen and nothing on the hot Vite path. The `gen` skeleton emitter is a
   one-shot CLI walk; there is no per-build emitter, no id-routing, and no registry.

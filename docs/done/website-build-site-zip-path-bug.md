@@ -1,6 +1,6 @@
 # website build: `site.zip` step was dead (OUTPUT_DIR path typo)
 
-**Status:** fixed incidentally during the scripts shell→.mjs migration (recorded here for the trail)
+**Status:** DONE — verified fixed and closed. The fix shipped earlier in the shell→.mjs migration; confirmed present in committed `scripts/website/build.mjs` (`OUTPUT_DIR = join(REPO_ROOT, 'container/website/.output')`, `zip` step gated on the real `public/` dir), so this tracking doc is moved to `docs/done/`.
 **Severity:** low (the zip is a side artifact — a manual-upload/backup convenience; it never fed the Cloudflare deploy, which uploads `container/website/.output/public`).
 
 ## What it was

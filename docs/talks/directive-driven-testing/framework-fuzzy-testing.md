@@ -667,13 +667,13 @@ like a stateful sync pipeline.
 > the enrichment pipeline stays consistent under _any_ sequence of edits to either
 > the source type or the generated file.
 >
-> Grounded in the real pipeline: CLI at [`cmd/ts-runtypes/enrich_cli.go`](../../../cmd/ts-runtypes/enrich_cli.go)
+> Grounded in the real pipeline: CLI at [`ts-go-runtypes/cmd/ts-runtypes/enrich_cli.go`](../../../ts-go-runtypes/cmd/ts-runtypes/enrich_cli.go)
 > (+ `enrich_reconcile.go`, `enrich_check.go`); the value-preserving merge in
-> [`internal/enrichment/mirror/reconcile.go`](../../../internal/enrichment/mirror/reconcile.go);
+> [`ts-go-runtypes/internal/enrichment/mirror/reconcile.go`](../../../ts-go-runtypes/internal/enrichment/mirror/reconcile.go);
 > node shapes in [`packages/ts-runtypes/src/enrich/friendlyType.ts`](../../../packages/ts-runtypes/src/enrich/friendlyType.ts)
 >
 > - `mockData.ts`; comptime-args validation in
->   [`internal/compiler/comptimeargs/comptimeargs.go`](../../../internal/compiler/comptimeargs/comptimeargs.go).
+>   [`ts-go-runtypes/internal/compiler/comptimeargs/comptimeargs.go`](../../../ts-go-runtypes/internal/compiler/comptimeargs/comptimeargs.go).
 >   Existing **example-based** tests
 >   ([`packages/ts-runtypes/test/suites/enrich/enrichReconcile.test.ts`](../../../packages/ts-runtypes/test/suites/enrich/enrichReconcile.test.ts),
 >   `enrichGen.test.ts`, `enrichCheck.test.ts`) already pin individual cases — the
@@ -889,7 +889,7 @@ express_):
    to _"a non-literal node inside a comptime-args `$errors` function → then what?"_:
    it is policed at **build/transform time** as **CTA001/002/003**, NOT by `check` —
    `check` deliberately treats a function-form `$errors` as opaque and walks past it
-   ([`internal/enrichment/validate.go`](../../../internal/enrichment/validate.go)). **MD003**
+   ([`ts-go-runtypes/internal/enrichment/validate.go`](../../../ts-go-runtypes/internal/enrichment/validate.go)). **MD003**
    (pool value vs field type) is build-time too. So a _check-driven_ fuzzer expresses
    R5 for **FT002 / FT005 / MD001** (unknown field, bad placeholder, unknown mock
    field) but **cannot** see CTA/MD003 — those need a second, build-driven harness.

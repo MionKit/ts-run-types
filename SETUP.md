@@ -4,7 +4,7 @@ Single setup document for RunTypes. Architecture + workflow rules live in [CLAUD
 
 > **Automated path:** the `ts-runtypes-setup` skill ([.claude/skills/ts-runtypes-setup/](.claude/skills/ts-runtypes-setup/)) drives this whole document end-to-end — host deps, submodule bootstrap + patches, `pnpm install`, Go + plugin builds, podman engine, and smoke verification. Run `bash .claude/skills/ts-runtypes-setup/setup.sh` and the rest of this doc is reference material.
 
-The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) and a **pnpm workspace** of JS packages under [packages/](packages/). Two **podman-containerized** apps ship alongside: the docs website ([container/website/](container/website/)) and the validation benchmarks ([container/benchmarks/](container/benchmarks/)).
+The repository contains a **Go binary** at [ts-go-runtypes/cmd/ts-runtypes/](ts-go-runtypes/cmd/ts-runtypes/) and a **pnpm workspace** of JS packages under [packages/](packages/). Two **podman-containerized** apps ship alongside: the docs website ([container/website/](container/website/)) and the validation benchmarks ([container/benchmarks/](container/benchmarks/)).
 
 ---
 
@@ -12,7 +12,7 @@ The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) 
 
 | Tool   | Version  | Needed by                                     | Source of truth                      |
 | ------ | -------- | --------------------------------------------- | ------------------------------------ |
-| Go     | ≥ 1.26   | resolver binary + benchmarks                  | `go.mod`                             |
+| Go     | ≥ 1.26   | resolver binary + benchmarks                  | `ts-go-runtypes/go.mod`              |
 | Node   | ≥ 26.0.0 | tests, builds, benchmarks host prep           | root `package.json` `engines.node`   |
 | pnpm   | ≥ 11.0.0 | the monorepo (workspace policies)             | `packageManager: pnpm@11.1.1`        |
 | git    | recent   | submodule + `git apply` are used              | -                                    |
@@ -30,7 +30,7 @@ The repository contains a **Go binary** at [cmd/ts-runtypes/](cmd/ts-runtypes/) 
 git clone git@github.com:mionkit/ts-runtypes.git
 cd ts-runtypes
 git submodule update --init --recursive
-(cd third_party/tsgolint/typescript-go && git apply --3way ../patches/*.patch)
+(cd ts-go-runtypes/third_party/tsgolint/typescript-go && git apply --3way ../patches/*.patch)
 pnpm install --frozen-lockfile
 ```
 
@@ -49,7 +49,7 @@ The Go module graph resolves against the patched `typescript-go` working tree �
 ### Go binary
 
 ```bash
-go build -o bin/ts-runtypes ./cmd/ts-runtypes
+go -C ts-go-runtypes build -o ../bin/ts-runtypes ./cmd/ts-runtypes
 ```
 
 The Vite plugin spawns this binary at JS test time and at build time — **build it before `pnpm test`**. The root `pretest` script runs [`scripts/core/build.mjs`](scripts/core/build.mjs) which auto-rebuilds the Go binary, the marker package dist, and the vite plugin dist when any of them is stale or partially emitted.
@@ -69,7 +69,7 @@ Outputs land in `packages/*/dist/`. The plugin's dist must be present for marker
 ## Test
 
 ```bash
-go test ./internal/...                          # Go suite
+go -C ts-go-runtypes test ./internal/...        # Go suite
 pnpm test                                       # all JS packages (Vitest projects)
 pnpm --filter ts-runtypes-devtools test         # single package
 pnpm --filter ts-runtypes test      # the other
@@ -114,7 +114,7 @@ You can also build the assets directly:
 node container/website/scripts/build-playground.mjs
 ```
 
-It compiles `cmd/ts-runtypes-wasm` (`GOOS=js GOARCH=wasm`) and emits the ts-runtypes source overlay, staging `ts-runtypes.wasm.gz`, `wasm_exec.js`, and `runtypes-sources.json` into `container/website/public/playground-app/` (git-ignored, reproducible). The build is **staleness-gated**: a fast mtime pre-check plus a `go tool buildid` compare over the Go inputs means it is an instant no-op when nothing changed and only recompiles the wasm on a real input change (gzip runs only when the bytes actually change) — so editing the Vue UI never rebuilds the wasm. Because `public/` is bind-mounted into the container, the staged files ride into both the dev server and the production build. The engine tests live at [`packages/ts-runtypes/test/playground/`](packages/ts-runtypes/test/playground/) and run under `pnpm test` (project `playground`); they need the host-built assets in `.cache/rt-wasm/` and skip without them.
+It compiles `ts-go-runtypes/cmd/ts-runtypes-wasm` (`GOOS=js GOARCH=wasm`) and emits the ts-runtypes source overlay, staging `ts-runtypes.wasm.gz`, `wasm_exec.js`, and `runtypes-sources.json` into `container/website/public/playground-app/` (git-ignored, reproducible). The build is **staleness-gated**: a fast mtime pre-check plus a `go tool buildid` compare over the Go inputs means it is an instant no-op when nothing changed and only recompiles the wasm on a real input change (gzip runs only when the bytes actually change) — so editing the Vue UI never rebuilds the wasm. Because `public/` is bind-mounted into the container, the staged files ride into both the dev server and the production build. The engine tests live at [`packages/ts-runtypes/test/playground/`](packages/ts-runtypes/test/playground/) and run under `pnpm test` (project `playground`); they need the host-built assets in `.cache/rt-wasm/` and skip without them.
 
 ### Website needs the packages it documents (repo context)
 
@@ -220,9 +220,9 @@ pnpm run changelog:unreleased  # prepend just the unreleased section to CHANGELO
 
 ```bash
 printf '%s\n%s\n' \
-  '{"op":"scanFiles","files":["internal/testfixtures/f17_runtype_id.ts"]}' \
+  '{"op":"scanFiles","files":["ts-go-runtypes/internal/testfixtures/f17_runtype_id.ts"]}' \
   '{"op":"dump"}' \
-  | bin/ts-runtypes --one-shot --tsconfig internal/testfixtures/tsconfig.json \
+  | bin/ts-runtypes --one-shot --tsconfig ts-go-runtypes/internal/testfixtures/tsconfig.json \
   > cache.json
 ```
 
@@ -271,12 +271,12 @@ Updating deps:
 
 ## Patching `tsgolint`'s `typescript-go`
 
-The `microsoft/typescript-go` checker does not expose call-site type queries out of the box; our patches in [third_party/tsgolint/patches/](third_party/tsgolint/patches/) add the minimal exports we need. **Never edit files under `third_party/` directly** — only the patch flow is supported.
+The `microsoft/typescript-go` checker does not expose call-site type queries out of the box; our patches in [ts-go-runtypes/third_party/tsgolint/patches/](ts-go-runtypes/third_party/tsgolint/patches/) add the minimal exports we need. **Never edit files under `ts-go-runtypes/third_party/` directly** — only the patch flow is supported.
 
 To add a new patch:
 
 ```bash
-cd third_party/tsgolint/typescript-go
+cd ts-go-runtypes/third_party/tsgolint/typescript-go
 # 1. Make changes and commit them in this nested repo.
 git commit -m "ts-runtypes: <description>"
 
@@ -288,7 +288,7 @@ git reset --hard HEAD~1
 git apply --3way ../patches/*.patch
 ```
 
-Commit the new `.patch` file under `third_party/tsgolint/patches/` so other contributors get it on the next `git submodule update`.
+Commit the new `.patch` file under `ts-go-runtypes/third_party/tsgolint/patches/` so other contributors get it on the next `git submodule update`.
 
 ---
 
@@ -330,7 +330,7 @@ pnpm rtx release unpublish <version>
 | `git apply` fails with "patch does not apply"                  | tsgolint upstream moved                                                     | Resolve manually with `git apply --3way --reject`, then resolve `.rej` files and refresh via `git format-patch`.               |
 | `pnpm install` rejects a dependency with "minimum release age" | `pnpm-workspace.yaml` blocks packages <30 days old                          | Wait or add a targeted entry under `minimumReleaseAgeExclude`.                                                                 |
 | `pnpm install` fails on a peer dep                             | `strictPeerDependencies: true`                                              | Add the peer to the package's `peerDependencies` or `devDependencies`.                                                         |
-| JS plugin tests error spawning the resolver                    | `bin/ts-runtypes` not built                                             | `pnpm run check:builds` or `go build -o bin/ts-runtypes ./cmd/ts-runtypes`.                                            |
+| JS plugin tests error spawning the resolver                    | `bin/ts-runtypes` not built                                             | `pnpm run check:builds` or `go -C ts-go-runtypes build -o ../bin/ts-runtypes ./cmd/ts-runtypes`.                       |
 | `pnpm run typecheck` errors "cannot find project" / missing reference | New package missing from root `tsconfig.json` `references`            | Add the package path to the root `tsconfig.json`.                                                                              |
 | oxlint fails to load with `Plugin 'runtypes' not found`        | Stale/missing `ts-runtypes-devtools` dist (the `jsPlugins` entry)              | Rebuild it: `pnpm --filter ts-runtypes-devtools run build` (or `pnpm run check:builds`).                                          |
 | Husky hook not firing                                          | `prepare` script did not run                                                | `pnpm install` again, or `pnpm exec husky` to force activation.                                                                |

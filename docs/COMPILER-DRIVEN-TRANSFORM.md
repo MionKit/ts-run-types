@@ -6,8 +6,8 @@ _Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file tran
 
 **Shipped (Phases 0, 1, 4 — the headline migration):**
 
-- **Phase 0 — `Transform` protocol.** `OpTransform` + `TransformResult`/`SourceMap` wire types in [`internal/protocol`](../internal/protocol/) and the TS mirror.
-- **Phase 1 — rewrite + source map in Go.** New package [`internal/compiler/sourcerewrite`](../internal/compiler/sourcerewrite/) is a byte-for-byte port of `rewrite.ts` + `edit-buffer.ts`. It works in UTF-16 internally because source-map **columns are UTF-16 code units** (the documented reason the "rewrite purely in bytes" idea is too glib — the offset _seam_ between Go and JS is removed, but the map still needs UTF-16 columns). Parity is pinned by golden tests generated from the real JS `rewrite()`. `dispatchTransform` (resolver) reuses the scan machinery, reads each file's authoritative source from the Program, and applies the transform.
+- **Phase 0 — `Transform` protocol.** `OpTransform` + `TransformResult`/`SourceMap` wire types in [`ts-go-runtypes/internal/protocol`](../ts-go-runtypes/internal/protocol/) and the TS mirror.
+- **Phase 1 — rewrite + source map in Go.** New package [`ts-go-runtypes/internal/compiler/sourcerewrite`](../ts-go-runtypes/internal/compiler/sourcerewrite/) is a byte-for-byte port of `rewrite.ts` + `edit-buffer.ts`. It works in UTF-16 internally because source-map **columns are UTF-16 code units** (the documented reason the "rewrite purely in bytes" idea is too glib — the offset _seam_ between Go and JS is removed, but the map still needs UTF-16 columns). Parity is pinned by golden tests generated from the real JS `rewrite()`. `dispatchTransform` (resolver) reuses the scan machinery, reads each file's authoritative source from the Program, and applies the transform.
 - **Phase 4 — thin Vite wrapper.** The plugin's `transform()` delegates to `OpTransform` and returns `{code, map}`; `rewrite.ts` + `edit-buffer.ts` are deleted (~520 LOC). `ResolverClient` gains `transform()`.
 
 **Architectural decisions (made because the spec author was away):**
@@ -18,7 +18,7 @@ _Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file tran
 **Remaining roadmap (the plugin-free portability extension):**
 
 - **Phase 2 — cache modules → real files** (`cacheDir`, write-only-on-content-change, computed-relative / `#rt/*` specifiers). The recommended low-risk route is to keep `virtual:rt/` as the universal internal scheme and rewrite specifiers to real-file paths **when materializing to disk** (a thin post-process), so the golden-tested `transform`/`entrymod` packages stay untouched.
-- **Phase 3 — standalone TS→TS CLI** under [`cmd/ts-runtypes/`](../cmd/ts-runtypes/), consuming Phase 2.
+- **Phase 3 — standalone TS→TS CLI** under [`ts-go-runtypes/cmd/ts-runtypes/`](../ts-go-runtypes/cmd/ts-runtypes/), consuming Phase 2.
 - **Phase 5 — config** (`cacheDir`, `importStyle`, `moduleOutput`).
 
 ## Context
@@ -56,7 +56,7 @@ These are non-negotiable and constrain every phase:
 
 1. **Never edit user source on disk.** The transform is in-memory / in-pipeline. The injected import block and the per-call-site bindings exist **only** in the transformed output. The source map maps generated → the **pristine** on-disk original (editing the file would defeat the map). This is exactly how Babel/SWC/esbuild transformers behave.
 2. **Dependency direction is generated → committed, never the reverse.** Generated cache modules may import committed files (e.g. enrichment); a committed file must never import a generated one. A fresh checkout with an empty cache dir must still typecheck, because committed source never references the cache (only post-transform output does).
-3. **Persistent daemon preserved.** Do not spawn the binary per file. Keep the long-lived process over [`internal/protocol`](../internal/protocol/) and add a transform request; whole-program state (the dedup'd type graph, the app-wide data bundle) lives in the daemon, and each per-file transform rides that accumulated state.
+3. **Persistent daemon preserved.** Do not spawn the binary per file. Keep the long-lived process over [`ts-go-runtypes/internal/protocol`](../ts-go-runtypes/internal/protocol/) and add a transform request; whole-program state (the dedup'd type graph, the app-wide data bundle) lives in the daemon, and each per-file transform rides that accumulated state.
 
 ## Current architecture (snapshot)
 
@@ -96,7 +96,7 @@ These are non-negotiable and constrain every phase:
 
 ### 1. Per-file transform moves into Go
 
-Add a `Transform` request to [`internal/protocol`](../internal/protocol/): input is `{ filePath, sourceBytes, options }`; output is `{ transformedCode, sourceMap, emittedModules[] }` (the list of cache specifiers this file now imports / that were (re)written). The transform:
+Add a `Transform` request to [`ts-go-runtypes/internal/protocol`](../ts-go-runtypes/internal/protocol/): input is `{ filePath, sourceBytes, options }`; output is `{ transformedCode, sourceMap, emittedModules[] }` (the list of cache specifiers this file now imports / that were (re)written). The transform:
 
 - applies call-site rewrites (`createValidate<T>()` → `createValidate(__rt_<fnHash>_<id>)`) and the single deduped import block at offset 0, all in **UTF-8 bytes** (the byte→char conversion is deleted);
 - generates a standard source map by porting the `EditBuffer` boundary algorithm from [`edit-buffer.ts`](../packages/ts-runtypes-devtools/src/edit-buffer.ts) into Go (mechanical — the algorithm was already ported once from magic-string; credit/license header carries over).
@@ -105,7 +105,7 @@ Net effect: the offset protocol seam between Go and JS is removed; rewrite + map
 
 ### 2. Shared cache modules become real files
 
-Go writes the app-wide modules currently served virtually — the `runtypes.js` data bundle (one row per node app-wide), the per-reflection-root facades, and the per-`<fnHash>_<typeId>` function entries — as real `.js` files into the cache dir. Content-addressing already guarantees immutability for entry modules; **write-only-on-content-change** keeps the dev watcher from looping, and only the data bundle is rewritten (on `addedRunTypes`), mirroring today's invalidation. The emit assembler is [`internal/compiler/virtualmodules/virtualmodules.go`](../internal/compiler/virtualmodules/virtualmodules.go); the runtime tuple contract stays [`packages/ts-runtypes/src/runtypes/entryTuple.ts`](../packages/ts-runtypes/src/runtypes/entryTuple.ts).
+Go writes the app-wide modules currently served virtually — the `runtypes.js` data bundle (one row per node app-wide), the per-reflection-root facades, and the per-`<fnHash>_<typeId>` function entries — as real `.js` files into the cache dir. Content-addressing already guarantees immutability for entry modules; **write-only-on-content-change** keeps the dev watcher from looping, and only the data bundle is rewritten (on `addedRunTypes`), mirroring today's invalidation. The emit assembler is [`ts-go-runtypes/internal/compiler/virtualmodules/virtualmodules.go`](../ts-go-runtypes/internal/compiler/virtualmodules/virtualmodules.go); the runtime tuple contract stays [`packages/ts-runtypes/src/runtypes/entryTuple.ts`](../packages/ts-runtypes/src/runtypes/entryTuple.ts).
 
 ### 3. Import resolution
 
@@ -126,17 +126,17 @@ Go emits transformed **TypeScript**, not JS. The user's existing toolchain perfo
 
 - **Default cache dir:** `node_modules/.cache/rt/` — transparent to the user and already covered by the existing `node_modules/` entry in [`.gitignore`](../.gitignore), so no new ignore rule is needed.
 - **Configurable:** a `cacheDir` option (binary flag + plugin option). A later switch to a user-source folder (e.g. `rt/types`, gitignored) is just a config change.
-- **Separate from the resolver disk cache.** The persisted resolver cache (`/runtypes-cache.json`, fingerprinted via [`internal/cachegen/diskcache/fingerprint.go`](../internal/cachegen/diskcache/fingerprint.go)) is a different artifact and is unaffected.
+- **Separate from the resolver disk cache.** The persisted resolver cache (`/runtypes-cache.json`, fingerprinted via [`ts-go-runtypes/internal/cachegen/diskcache/fingerprint.go`](../ts-go-runtypes/internal/cachegen/diskcache/fingerprint.go)) is a different artifact and is unaffected.
 - **Future committed surface (out of scope here):** `rt/enriched/` holds authored enrichment (`FriendlyText`/`MockData`), committed; `rt/types/` would hold generated modules if/when the cache moves into source. Invariant 2 keeps `types → enriched` one-directional.
 
 ## Migration phases
 
 | Phase | Deliverable |
 | --- | --- |
-| **0. Protocol** | Add the `Transform` request/response to [`internal/protocol`](../internal/protocol/). Keep the daemon model. |
+| **0. Protocol** | Add the `Transform` request/response to [`ts-go-runtypes/internal/protocol`](../ts-go-runtypes/internal/protocol/). Keep the daemon model. |
 | **1. Rewrite + map → Go** | Port `rewrite.ts` (offset application, dedup import block, call-site bindings) and `edit-buffer.ts` (boundary source map) into a Go transform package. Delete `makeByteToChar`. Golden tests for output + map. |
 | **2. Cache emission → disk** | Emit data bundle / facades / function entries as real files into `cacheDir`; write-only-on-content-change; inject computed-relative specifiers. |
-| **3. Standalone transform / CLI** | A `ts-runtypes` subcommand (and/or programmatic API) under [`cmd/ts-runtypes/`](../cmd/ts-runtypes/) that runs the TS → TS transform over a file set for the plugin-free path. |
+| **3. Standalone transform / CLI** | A `ts-runtypes` subcommand (and/or programmatic API) under [`ts-go-runtypes/cmd/ts-runtypes/`](../ts-go-runtypes/cmd/ts-runtypes/) that runs the TS → TS transform over a file set for the plugin-free path. |
 | **4. Thin Vite wrapper** | Rewrite `ts-runtypes-devtools` to call the `Transform` request + dev HMR only; remove `rewrite.ts` / `edit-buffer.ts`. |
 | **5. Config** | `cacheDir`, `importStyle: relative \| subpath`; preserve existing `emitMode`, `moduleMode`, `inlineMode`. Regenerate the TS constants mirror via `gen:ts-constants` if constants change. |
 | **6. Cleanup** | Remove dead JS, update tests + docs ([ARCHITECTURE.md](./ARCHITECTURE.md), [SETUP.md](../SETUP.md)), preserve the marker test-coverage rule (both `getRunTypeId` call shapes). |
