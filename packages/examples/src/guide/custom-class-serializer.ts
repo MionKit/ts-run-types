@@ -2,9 +2,8 @@ import {registerClassSerializer, createJsonEncoder, createJsonDecoder} from 'ts-
 
 // A class with a non-empty constructor. The data goes on the wire structurally
 // (just its declared properties), so you only have to teach ts-runtypes how to
-// build a real instance back: pass a namespace, the class itself, and a
-// `deserialize`. `serialize` is optional here (the default structural encode is
-// exactly right).
+// build a real instance back: pass the class itself and a `deserialize`.
+// `serialize` is optional here (the default structural encode is exactly right).
 class Money {
   constructor(
     public amount: number,
@@ -15,7 +14,7 @@ class Money {
   }
 }
 
-registerClassSerializer('billing', Money, {
+registerClassSerializer(Money, {
   // data-only projection -> a real instance
   deserialize: (data) => new Money(data.amount, data.currency),
 });
@@ -31,7 +30,7 @@ class Settings {
   }
 }
 
-registerClassSerializer('app', Settings);
+registerClassSerializer(Settings);
 
 type Account = {id: string; balance: Money; settings: Settings};
 

@@ -8,11 +8,11 @@
 // Custom (de)serializer registry for user-defined classes. The JSON (pj /
 // pjs / rj / sj) and binary (tb / fb) families consult this registry for
 // plain user classes (KindClass + SubKindNone): the emitted factory looks
-// the entry up by class name through `utl.getClassSerializer(name)` and,
-// when present, routes reconstruction (and optionally serialization)
-// through it instead of the structural object emit. When no entry is
-// registered the families fall back to the structural shape and the Go
-// compiler emits a build-time CLS001 Warning pointing the user here.
+// the entry up by the class's structural type id through
+// `utl.getClassSerializer(<id>)` and, when present, routes reconstruction
+// (and optionally serialization) through it instead of the structural object
+// emit. When no entry is registered the families fall back to the structural
+// shape and the Go compiler emits a build-time CLS001 Warning pointing here.
 //
 // A plain object / interface is pure data: everything it carries survives
 // JSON and comes back the same. A class instance is not — its prototype
@@ -38,13 +38,19 @@
 // emitters and are not overridable. validate / getValidationErrors are
 // unaffected: they always validate the class by its structural shape.
 //
-// `classID` (`<namespace>::<ClassName>`) is stored on every entry but is not
-// yet written to the wire: it is reserved for the future `rt$classID` JSON
-// union discriminant (Phase 1b, see docs/partially/class-serializer-optional-serialize.md).
-// Reconstruction today is positional — the compiler knows which class a given
-// position holds and looks the entry up by name at that position.
+// The registry is keyed by the class's structural TYPE ID (not its name): the
+// `registerClassSerializer` call carries a trailing injected `id?:
+// InjectRunTypeId<T>` slot (T inferred from the `new () => T` constructor
+// param), so the key is build-time-stable and matches the class node's `rt.ID`
+// the emitter bakes into `utl.getClassSerializer(<id>)`. Name keying would break
+// under class-name minification (`cls.name` mangled, but the emitted lookup is a
+// literal id) and collide same-name / different-shape classes. Reconstruction is
+// positional — the compiler knows which class a given position holds and looks
+// the entry up by that position's type id.
 
 import type {DataOnly} from './dataOnly.ts';
+import type {InjectRunTypeId} from '../markers.ts';
+import {isEntryTuple, initFromTuple, entryTupleKey, type EntryTuple} from './entryTuple.ts';
 
 /** Any class constructor. */
 export interface AnyClass<T = any> {
@@ -76,61 +82,81 @@ export interface ClassSerializerHandler<T> {
 }
 
 /** A stored registry entry. The emitted factory bodies read `.serialize` /
- *  `.deserialize` / `.classID` / `.cls` off it. */
+ *  `.deserialize` / `.cls` off it. */
 export interface ClassSerializerEntry<T = any> {
-  /** The class constructor — used to instantiate on the auto-instantiate path. */
+  /** The class constructor — used to instantiate on the auto-instantiate path
+   *  and as the `v instanceof cls` identity check in a union. */
   cls: AnyClass<T>;
-  /** Globally-unique identity `<namespace>::<ClassName>`. Reserved for the
-   *  future `rt$classID` JSON union discriminant; not yet written to the wire. */
-  classID: string;
   serialize?: (instance: T) => unknown;
   deserialize?: (data: DataOnly<T>) => T;
 }
 
-// Module-level registry, keyed by BARE class name (`cls.name`) so it matches
-// the emitted `utl.getClassSerializer(name)` lookup — the compiler keys off
-// `rt.TypeName` and needs no namespace. Last registration wins (re-registering
-// the same name overwrites — keeps HMR + per-test register/clear cycles simple).
+// Module-level registry, keyed by the class's structural TYPE ID (the injected
+// InjectRunTypeId slot), so it matches the emitted `utl.getClassSerializer(<id>)`
+// lookup exactly (the emitter keys off `rt.ID`). A reverse `cls → key` map backs
+// `unregisterClassSerializer(cls)` and registration introspection without needing
+// the id re-injected. Last registration wins.
 const classSerializers = new Map<string, ClassSerializerEntry>();
+const classToKey = new Map<AnyClass, string>();
+
+// Extract the registry key (the class's structural type id) from the injected
+// trailing `id` slot. The plugin injects the entry-module tuple (like
+// getRunTypeId); a wrapper / manual call may pass the bare id string. Without a
+// plugin there is no injected id, so registration can't be keyed — throw, since
+// the emitted codecs (which the plugin produces) could never match it anyway.
+function classSerializerKey(id: InjectRunTypeId<unknown> | undefined, cls: AnyClass): string {
+  if (isEntryTuple(id)) {
+    initFromTuple(id as EntryTuple);
+    return entryTupleKey(id as EntryTuple);
+  }
+  if (typeof id === 'string' && id.length > 0) return id;
+  throw new Error(
+    `[ts-runtypes] registerClassSerializer(${cls.name || '<anonymous>'}): no type id injected. ` +
+      `The ts-runtypes-devtools plugin must process the registration file so the class's ` +
+      `type id can be injected (the registry is keyed by type id, not name).`
+  );
+}
 
 // Zero-arg constructor: everything optional. The client literally just hands
 // over the class.
 export function registerClassSerializer<T>(
-  namespace: string,
   cls: SerializableClass<T>,
-  handler?: ClassSerializerHandler<T>
+  handler?: ClassSerializerHandler<T>,
+  id?: InjectRunTypeId<T>
 ): void;
 // Non-empty constructor: `deserialize` is REQUIRED (auto `new cls()` is unavailable).
 export function registerClassSerializer<T>(
-  namespace: string,
   cls: AnyClass<T>,
-  handler: ClassSerializerHandler<T> & {deserialize(data: DataOnly<T>): T}
+  handler: ClassSerializerHandler<T> & {deserialize(data: DataOnly<T>): T},
+  id?: InjectRunTypeId<T>
 ): void;
-/** Register a custom (de)serializer for a user-defined class. `namespace` is
- *  a short owner string (mirroring the `"namespace::fnName"` pure-fn key
- *  convention) that makes the on-wire `classID` globally unique; `cls` is the
- *  class itself, giving the runtime the constructor to instantiate and its
- *  name (no more hand-typed strings). Overwrites any prior registration for
- *  the same class name. */
-export function registerClassSerializer<T>(namespace: string, cls: AnyClass<T>, handler?: ClassSerializerHandler<T>): void {
-  if (!namespace) throw new Error('registerClassSerializer: namespace must be a non-empty string');
-  if (typeof cls !== 'function' || !cls.name) {
-    throw new Error('registerClassSerializer: cls must be a named class (an anonymous class cannot be routed)');
-  }
-  classSerializers.set(cls.name, {
+/** Register a custom (de)serializer for a user-defined class. Pass the class
+ *  itself; the runtime gets its constructor (to instantiate) and the plugin
+ *  injects the trailing `id` (the class's type id) that keys the registry.
+ *  Overwrites any prior registration for the same class. */
+export function registerClassSerializer<T>(cls: AnyClass<T>, handler?: ClassSerializerHandler<T>, id?: InjectRunTypeId<T>): void {
+  if (typeof cls !== 'function') throw new Error('registerClassSerializer: cls must be a class constructor');
+  const key = classSerializerKey(id, cls);
+  const prior = classToKey.get(cls);
+  if (prior && prior !== key) classSerializers.delete(prior);
+  classSerializers.set(key, {
     cls,
-    classID: namespace + '::' + cls.name,
     serialize: handler?.serialize as ((instance: any) => unknown) | undefined,
     deserialize: handler?.deserialize as ((data: any) => any) | undefined,
   });
+  classToKey.set(cls, key);
 }
 
 /** Internal lookup used by emitted factory bodies via
- *  `utl.getClassSerializer(<name>)`. Returns undefined when no entry is
- *  registered for the class name (the factory then uses the structural
- *  fallback). */
-export function getClassSerializer(className: string): ClassSerializerEntry | undefined {
-  return classSerializers.get(className);
+ *  `utl.getClassSerializer(<typeId>)`. Returns undefined when no entry is
+ *  registered for that type id (the factory then uses the structural fallback). */
+export function getClassSerializer(typeId: string): ClassSerializerEntry | undefined {
+  return classSerializers.get(typeId);
+}
+
+/** Test / introspection helper: is a serializer registered for this class? */
+export function isClassSerializerRegistered(cls: AnyClass): boolean {
+  return classToKey.has(cls);
 }
 
 /** Reconstruct a live instance from decoded data. Used by emitted decode
@@ -145,22 +171,27 @@ export function deserializeClass<T>(entry: ClassSerializerEntry<T>, data: DataOn
     return Object.assign(new entry.cls() as object, data) as T;
   } catch (err) {
     const original = err instanceof Error ? err.message : String(err);
+    const name = entry.cls.name || '<anonymous>';
     throw new Error(
-      `[CLS002] Cannot reconstruct class "${entry.classID}": the automatic \`new ${entry.cls.name}()\` failed, ` +
+      `[CLS002] Cannot reconstruct class "${name}": the automatic \`new ${name}()\` failed, ` +
         `so its constructor needs arguments. Register a \`deserialize\` handler: ` +
-        `registerClassSerializer('<namespace>', ${entry.cls.name}, {deserialize: (data) => new ${entry.cls.name}(/* … */)}). ` +
+        `registerClassSerializer(${name}, {deserialize: (data) => new ${name}(/* … */)}). ` +
         `Original error: ${original}`
     );
   }
 }
 
-/** Remove a single registered serializer (test isolation helper). Accepts the
- *  class or its bare name. */
-export function unregisterClassSerializer(cls: AnyClass | string): void {
-  classSerializers.delete(typeof cls === 'string' ? cls : cls.name);
+/** Remove a single registered serializer by class reference (test isolation
+ *  helper). Uses the reverse map, so no injected id is needed. */
+export function unregisterClassSerializer(cls: AnyClass): void {
+  const key = classToKey.get(cls);
+  if (key === undefined) return;
+  classSerializers.delete(key);
+  classToKey.delete(cls);
 }
 
 /** Clear the whole registry (test isolation helper). */
 export function clearClassSerializers(): void {
   classSerializers.clear();
+  classToKey.clear();
 }

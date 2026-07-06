@@ -7,11 +7,13 @@ import (
 
 // Custom class-serializer plumbing shared by the JSON + binary emitter
 // families. A plain user class (KindClass + SubKindNone) may have a
-// serializer registered at runtime via `registerClassSerializer(ns, cls,
-// handler?)`; the emitted factory looks the entry up by class name through
-// `utl.getClassSerializer(name)` and, when present, rebuilds a real instance
-// on decode (and optionally re-shapes the encode), falling back to the
-// structural object emit otherwise.
+// serializer registered at runtime via `registerClassSerializer(cls,
+// handler?)`; the emitted factory looks the entry up by the class's structural
+// TYPE ID through `utl.getClassSerializer(<rt.ID>)` and, when present, rebuilds
+// a real instance on decode (and optionally re-shapes the encode), falling back
+// to the structural object emit otherwise. Keying by type id (the injected
+// `InjectRunTypeId` slot) rather than the class name is minification-stable and
+// matches the class node's `rt.ID`.
 //
 // Both handler halves are OPTIONAL, which shapes the emitted branches:
 //   - Encode routes through `entry.serialize` ONLY when it is present
@@ -28,9 +30,11 @@ import (
 //     owns its wire shape, so decode hands the raw decoded value straight to
 //     `deserializeClass` with no structural recurse.
 //
-// The class name is `rt.TypeName`. Anonymous classes (TS gives them an
-// internal symbol name beginning with the 0xFE InternalSymbolName prefix,
-// e.g. "\xfeclass") carry no stable user-facing name, so they're never
+// `userClassName(rt)` (= `rt.TypeName`, empty for anonymous classes) is used
+// only as the ROUTABILITY GATE and the CLS001 warning text, NOT as the registry
+// key. Anonymous classes (TS gives them an internal symbol name beginning with
+// the 0xFE InternalSymbolName prefix, e.g. "\xfeclass") carry no stable
+// user-facing name, can't be passed to registerClassSerializer, and so are never
 // routed through the registry and never warned about — structural-only.
 //
 // Builtins (Date / Map / Set / RegExp / nonSerializable) are NOT handled
@@ -64,17 +68,20 @@ func userClassName(rt *protocol.RunType) string {
 }
 
 // classSerializerLookup returns the local const name holding the custom
-// serializer for className PLUS the inline declaration statement that binds
-// it. The lookup is emitted INSIDE the returned function body (per-call),
-// NOT in the closure prologue — so the registry is consulted on every
-// (de)serialization, registration can happen anytime before a call, and
-// `registerClassSerializer` / clearing takes effect immediately even for an
-// already-materialized factory. Shape:
+// serializer for the class with structural id typeID PLUS the inline
+// declaration statement that binds it. The registry is keyed by TYPE ID (the
+// `InjectRunTypeId` slot the registration injects), NOT the class name — so the
+// key is minification-stable and matches the class node's `rt.ID`. The lookup is
+// emitted INSIDE the returned function body (per-call), NOT in the closure
+// prologue — so the registry is consulted on every (de)serialization,
+// registration can happen anytime before a call, and `registerClassSerializer` /
+// clearing takes effect immediately even for an already-materialized factory.
+// Shape:
 //
-//	const cs_<name> = utl.getClassSerializer('<name>')
-func classSerializerLookup(className string) (varName string, decl string) {
-	varName = "cs_" + sanitizeIdent(className)
-	decl = "const " + varName + " = utl.getClassSerializer(" + quoteJS(className) + ")"
+//	const cs_<id> = utl.getClassSerializer('<id>')
+func classSerializerLookup(typeID string) (varName string, decl string) {
+	varName = "cs_" + sanitizeIdent(typeID)
+	decl = "const " + varName + " = utl.getClassSerializer(" + quoteJS(typeID) + ")"
 	return varName, decl
 }
 
@@ -110,7 +117,7 @@ func wrapPrepareWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v st
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(className)
+	csVar, decl := classSerializerLookup(rt.ID)
 	elseBody := structural.Code
 	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + v + " = " + csVar + ".serialize(" + v + ")}"
 	if elseBody != "" {
@@ -139,7 +146,7 @@ func wrapSafeWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v strin
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(className)
+	csVar, decl := classSerializerLookup(rt.ID)
 	// Normalise the structural value to a self-returning statement so the
 	// whole thing is one CodeRB block. CodeRB already returns; CodeE /
 	// empty become `return <expr>` (empty clone == identity == `return v`).
@@ -173,7 +180,7 @@ func wrapStringifyWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v 
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(className)
+	csVar, decl := classSerializerLookup(rt.ID)
 	structuralReturn := structural.Code
 	if structural.Type != CodeRB {
 		expr := structural.Code
@@ -211,7 +218,7 @@ func wrapRestoreWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v st
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(className)
+	csVar, decl := classSerializerLookup(rt.ID)
 	custom := v + " = utl.deserializeClass(" + csVar + ", " + v + ")"
 	structuralThenRebuild := structural.Code
 	if structuralThenRebuild != "" {
@@ -243,7 +250,7 @@ func wrapToBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v, 
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(className)
+	csVar, decl := classSerializerLookup(rt.ID)
 	registered := ser + ".serString(JSON.stringify(" + csVar + ".serialize(" + v + ")))"
 	branch := decl + ";if (" + csVar + " && " + csVar + ".serialize) {" + registered + "}"
 	if structural.Code != "" {
@@ -273,7 +280,7 @@ func wrapFromBinaryWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, r
 		return structural
 	}
 	emitClassSerializerWarning(className, ctx)
-	csVar, decl := classSerializerLookup(className)
+	csVar, decl := classSerializerLookup(rt.ID)
 	custom := ret + " = utl.deserializeClass(" + csVar + ", JSON.parse(" + des + ".desString()))"
 	structuralThenRebuild := structural.Code
 	if structuralThenRebuild != "" {

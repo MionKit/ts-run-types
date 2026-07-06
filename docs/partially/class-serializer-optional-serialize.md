@@ -1,31 +1,39 @@
 # Class serializer redesign — optional `serialize`, class-derived identity, class-in-union reconstruction
 
 **Status:** PARTIALLY DONE — the API redesign + class-in-union reconstruction
-shipped (via the **numeric member index**, which supersedes the original
-`rt$classID` string-tag design). Only open-world polymorphism (Phase 2) stays
+shipped (union discriminant = the **numeric member index**, superseding the
+original `rt$classID` string-tag design). The registry is keyed by the injected
+**type id** (namespace dropped). Only open-world polymorphism (Phase 2) stays
 deferred.
 **Created:** 2026-07-06
-**Area:** JSON + binary codecs (`pj` / `pjs` / `sj` / `rj` / `tb` / `fb` families), flat-union machinery, type-id, runtime registry
+**Area:** JSON + binary codecs (`pj` / `pjs` / `sj` / `rj` / `tb` / `fb` families), flat-union machinery, type-id, marker injection, runtime registry
 **Supersedes:** the T7 class-serializer contract (both `serialize` + `deserialize` required, keyed by bare class name)
 
-> **Design change (agreed with the maintainer):** the JSON-union discriminant is
-> the union's **existing numeric member index**, not a synthetic `rt$classID`
-> string field. The flat union already writes an `[idx, value]` envelope (the same
-> discriminant binary uses); routing each named class member through that per-member
-> index reuses the class-serializer encode/decode wrappers and needs no wire string.
-> The old `rt$classID` prose further below is kept for history but is NOT what
-> ships — read **"Union reconstruction — final design"** immediately below instead.
+> **Design changes (agreed with the maintainer):**
+> 1. The JSON-union discriminant is the union's **existing numeric member index**,
+>    not a synthetic `rt$classID` string. The flat union already writes an
+>    `[idx, value]` envelope (the same discriminant binary uses); routing each named
+>    class member through that per-member index reuses the class-serializer wrappers
+>    and needs no wire string. The old `rt$classID` prose below is kept for history.
+> 2. A compile-time (comptime-scanned) registration was considered and **rejected**:
+>    the client and server can register DIFFERENT serializers against the same build
+>    artifact, so registration state cannot be embedded in the emitted code or the
+>    type id. The lookup stays a runtime registry.
+> 3. The registry is keyed by the injected **type id**, NOT the class name, and the
+>    `namespace` parameter is dropped (it fed only the now-dead `rt$classID` string).
+>    See "Registry keying" below.
 
 ## What shipped (PR #189)
 
 The runtime API redesign and auto-instantiate, end to end (JSON + binary,
 monomorphic and nested / array positions), fully tested and documented:
 
-- **New signature** `registerClassSerializer(namespace, cls, handler?)` — the client
-  passes the class itself (not a name string). The entry stores
-  `classID = namespace + '::' + cls.name`, the constructor, and the optional halves.
-  Overloads make `deserialize` optional only for a `SerializableClass` (zero-arg
-  constructor) and required for any `AnyClass` (non-empty constructor).
+- **New signature** `registerClassSerializer(cls, handler?)` — the client passes the
+  class itself (not a name string, no namespace). A trailing `id?: InjectRunTypeId<T>`
+  slot is injected by the plugin (T infers from the `new () => T` constructor param),
+  and the registry is keyed by that type id (see "Registry keying"). The entry stores
+  the constructor + the optional halves. Overloads make `deserialize` optional only
+  for a `SerializableClass` (zero-arg constructor) and required for any `AnyClass`.
 - **`serialize` optional** — omit for structural encode. The encode wrappers gate on
   `cs && cs.serialize`.
 - **`deserialize` optional for zero-arg classes** — default is
@@ -39,21 +47,47 @@ monomorphic and nested / array positions), fully tested and documented:
   deleted; `AnyClass` / `SerializableClass` / `DeserializeClassFn` moved next to the
   single public registry.
 
+### 0. Registry keying — injected type id, no namespace
+
+The registry is keyed by the class's structural **type id**, not its name:
+
+- **Why not the name.** Name keying breaks under class-name minification (a prod
+  bundler mangles `cls.name` to `a`, but the compiler baked the literal `'Point'` into
+  the emitted lookup → miss → the class SILENTLY stops reconstructing), and it collides
+  two same-name / different-shape classes. The type id is build-time-stable and matches
+  the class node's `rt.ID` the emitter already uses.
+- **How the id reaches registration.** `registerClassSerializer<T>(cls, handler?, id?)`
+  declares a trailing `id?: InjectRunTypeId<T>`; the marker scanner injects T's entry
+  tuple (T inferred from `cls: new () => T`). Registration extracts the id string via
+  `entryTupleKey(id)` (mirroring `getRunTypeId`) and keys the map by it. **Verified by a
+  spike:** `idFromClass<T>(cls: new () => T, id?: InjectRunTypeId<T>)` injects the same
+  id as `getRunTypeId<T>()`.
+- **Emit side.** `class_serializer.go` emits `utl.getClassSerializer(<rt.ID>)` instead
+  of `getClassSerializer(<rt.TypeName>)`; the union `atomicEncodeDispatch` keys `cix_`
+  off the member id. The `userClassName(rt) != ""` gate stays (it only decides WHETHER
+  to emit a lookup — anonymous classes never route — not the key).
+- **Consequence.** `registerClassSerializer` becomes plugin-dependent (it needs the
+  injected id), consistent with the rest of the surface; a no-plugin registration could
+  never match plugin-emitted codecs anyway. `unregisterClassSerializer` takes the same
+  injected id (or tests use `clearClassSerializers`).
+
 ## Union reconstruction — final design (shipped)
 
 ### 1. Type-id: fold the class name into a plain class's structural id
 
-A plain user class routes reconstruction through the **name-keyed** registry
-(`utl.getClassSerializer(name)`). Two structurally-identical classes with different
-names (`class A {x:number}` vs `class B {x:number}`) previously collapsed to ONE
-structural id → one shared cache entry that bakes in a single name → mis-routes the
-other's (de)serialization, and in a union both members become one node so nothing can
-tell them apart. Fix: the plain-class (`KindClass` + `SubKindNone`) structural id now
-appends `#<ClassName>` outside the member group
+A plain user class routes reconstruction through the type-id-keyed registry (see
+"Registry keying"). Two structurally-identical classes with different names
+(`class A {x:number}` vs `class B {x:number}`) previously collapsed to ONE structural
+id → one shared cache entry → mis-routed (de)serialization, and in a union both members
+became one node so nothing could tell them apart. It also means the registry key
+(the id) would be identical for both. Fix: the plain-class (`KindClass` + `SubKindNone`)
+structural id now appends `#<ClassName>` outside the member group
 ([`typeid.go`](../../ts-go-runtypes/internal/cachegen/runtype/typeid/typeid.go), the
 `isClass` branch). Anonymous classes (0xFE internal symbol name, same test as
 `userClassName`) are never registered and keep the nameless id. Interfaces / object
-literals are unaffected (name-irrelevant pure data). **Done — Go suite green.**
+literals are unaffected (name-irrelevant pure data). This fold-in is what makes both
+the union routing AND the type-id registry key sound for same-shape classes.
+**Done — Go suite green.**
 
 ### 2. Route named class union members through the per-member index
 

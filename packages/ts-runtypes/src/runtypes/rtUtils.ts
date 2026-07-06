@@ -141,12 +141,13 @@ const rtUtils = {
       throw new Error(message);
     };
   },
-  // Custom user-class (de)serializer lookup. Emitted factory bodies for
-  // plain user classes (KindClass + SubKindNone) call this; a registered
-  // entry routes (de)serialization through it, otherwise the factory uses
-  // its structural fallback. See classSerializerRegistry.ts.
-  getClassSerializer(className: string): ClassSerializerEntry | undefined {
-    return getClassSerializerImpl(className);
+  // Custom user-class (de)serializer lookup, keyed by the class's structural
+  // type id. Emitted factory bodies for plain user classes (KindClass +
+  // SubKindNone) call this with the class node's `rt.ID`; a registered entry
+  // routes (de)serialization through it, otherwise the factory uses its
+  // structural fallback. See classSerializerRegistry.ts.
+  getClassSerializer(typeId: string): ClassSerializerEntry | undefined {
+    return getClassSerializerImpl(typeId);
   },
   // Reconstruct a live instance from decoded data. Emitted decode bodies
   // call this for a registered class member; it prefers the registered

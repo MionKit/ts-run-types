@@ -47,8 +47,8 @@ class Square {
 type Shape = Circle | Square;
 
 function registerShapes(): void {
-  registerClassSerializer('geo', Circle, {deserialize: (d) => new Circle(d.radius)});
-  registerClassSerializer('geo', Square, {deserialize: (d) => new Square(d.side)});
+  registerClassSerializer(Circle, {deserialize: (d) => new Circle(d.radius)});
+  registerClassSerializer(Square, {deserialize: (d) => new Square(d.side)});
 }
 
 describe('classSerializer union / distinct-shape classes (JSON)', () => {
@@ -124,8 +124,8 @@ class Loc {
 type Pair = Vec | Loc;
 
 function registerPair(): void {
-  registerClassSerializer('m', Vec, {deserialize: (d) => new Vec(d.x, d.y)});
-  registerClassSerializer('m', Loc, {deserialize: (d) => new Loc(d.x, d.y)});
+  registerClassSerializer(Vec, {deserialize: (d) => new Vec(d.x, d.y)});
+  registerClassSerializer(Loc, {deserialize: (d) => new Loc(d.x, d.y)});
 }
 
 describe('classSerializer union / same-shape classes distinguished by identity', () => {
@@ -166,7 +166,7 @@ type Money = Coin | {note: string};
 
 describe('classSerializer union / class + plain object', () => {
   it('static (JSON) — the class instance reconstructs, the plain object stays plain', () => {
-    registerClassSerializer('pay', Coin, {deserialize: (d) => new Coin(d.cents)});
+    registerClassSerializer(Coin, {deserialize: (d) => new Coin(d.cents)});
     const encode = createJsonEncoder<Money>();
     const decode = createJsonDecoder<Money>();
 
@@ -180,7 +180,7 @@ describe('classSerializer union / class + plain object', () => {
   });
 
   it('reflect (binary) — class instance vs plain object round-trip', () => {
-    registerClassSerializer('pay', Coin, {deserialize: (d) => new Coin(d.cents)});
+    registerClassSerializer(Coin, {deserialize: (d) => new Coin(d.cents)});
     const sample: Money = new Coin(0);
     const encode = createBinaryEncoder(sample);
     const decode = createBinaryDecoder(sample);
