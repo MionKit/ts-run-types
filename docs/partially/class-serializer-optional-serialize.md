@@ -68,8 +68,27 @@ The registry is keyed by the class's structural **type id**, not its name:
   to emit a lookup — anonymous classes never route — not the key).
 - **Consequence.** `registerClassSerializer` becomes plugin-dependent (it needs the
   injected id), consistent with the rest of the surface; a no-plugin registration could
-  never match plugin-emitted codecs anyway. `unregisterClassSerializer` takes the same
-  injected id (or tests use `clearClassSerializers`).
+  never match plugin-emitted codecs anyway. `unregisterClassSerializer(cls)` uses a
+  reverse `cls → key` map (no re-injection), or tests use `clearClassSerializers`.
+
+### Runtime access — epoch-cached closure lookup
+
+The emitted factory used to call `utl.getClassSerializer(<id>)` (a Map lookup) on every
+(de)serialization. It now caches the entry in the factory CLOSURE and re-looks-up only
+when the registry changes: the registry keeps a monotonic `epoch` (bumped on
+register / unregister / clear), exposed as `utl.csEpoch()`, and each class factory emits
+
+```
+closure:  let cs_<id>, cs_<id>_ep = -1
+per-call: if (cs_<id>_ep !== utl.csEpoch()) { cs_<id> = utl.getClassSerializer('<id>'); cs_<id>_ep = utl.csEpoch(); }
+```
+
+So a hot loop pays one int compare per call instead of a Map lookup, while
+register / clear still take effect immediately (they move the epoch, so the next call's
+guard misses and re-reads). This preserves the "register anytime, even on an
+already-materialized factory" contract. Comptime baking of registration was rejected
+(client and server can register different serializers against one build), so the runtime
+lookup stays — this just makes it cheap.
 
 ## Union reconstruction — final design (shipped)
 

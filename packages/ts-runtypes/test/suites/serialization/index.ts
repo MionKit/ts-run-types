@@ -1,6 +1,7 @@
 import {ATOMIC} from './Atomic.ts';
 import {ARRAYS} from './Arrays.ts';
 import {OBJECTS} from './Objects.ts';
+import {CLASSES} from './Classes.ts';
 import {RECORDS} from './Records.ts';
 import {TUPLES} from './Tuples.ts';
 import {FUNCTIONS} from './Functions.ts';
@@ -21,6 +22,7 @@ export const SERIALIZATION_SPEC = {
   ATOMIC,
   ARRAYS,
   OBJECTS,
+  CLASSES,
   RECORDS,
   TUPLES,
   FUNCTIONS,

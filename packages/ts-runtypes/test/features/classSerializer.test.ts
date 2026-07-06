@@ -459,3 +459,65 @@ describe('classSerializer / class as an array element', () => {
     for (const point of viaBinary) expect(point).toBeInstanceOf(Point);
   });
 });
+
+// ############################################################################
+// Same shape, different name -> distinct type ids + distinct emitted functions.
+// The `#<ClassName>` fold-in (typeid.go) is what keeps these apart; without it
+// they would collapse to one cache entry and one registry key.
+// ############################################################################
+
+// Structurally identical to Widget, different name.
+class Widget {
+  constructor(
+    public label: string,
+    public count: number
+  ) {}
+  tag(): string {
+    return `widget:${this.label}`;
+  }
+}
+class Gadget {
+  constructor(
+    public label: string,
+    public count: number
+  ) {}
+  tag(): string {
+    return `gadget:${this.label}`;
+  }
+}
+
+describe('classSerializer / same shape + different name are distinct', () => {
+  it('two same-shape classes get different type ids', () => {
+    const widgetId = getRunTypeId<Widget>();
+    const gadgetId = getRunTypeId<Gadget>();
+    expect(widgetId).not.toBe(gadgetId);
+  });
+
+  it('registering one does not route the other — distinct emitted functions', () => {
+    // Register a serializer for Widget ONLY. If the two shared a type id / cache
+    // entry / registry key, Gadget would wrongly reconstruct as a Widget (or the
+    // Widget lookup would leak). They must stay independent.
+    registerClassSerializer(Widget, {deserialize: (d) => new Widget(d.label, d.count)});
+
+    const w = createJsonDecoder<Widget>()(createJsonEncoder<Widget>()(new Widget('a', 1)) as string) as Widget;
+    expect(w).toBeInstanceOf(Widget);
+    expect(w.tag()).toBe('widget:a');
+
+    // Gadget is unregistered -> structural plain object, NOT a Widget.
+    const g = createJsonDecoder<Gadget>()(createJsonEncoder<Gadget>()(new Gadget('b', 2)) as string);
+    expect(g).not.toBeInstanceOf(Widget);
+    expect(g).not.toBeInstanceOf(Gadget);
+    expect(g).toEqual({label: 'b', count: 2});
+  });
+
+  it('each keys its own registry entry (both registered, no cross-talk)', () => {
+    registerClassSerializer(Widget, {deserialize: (d) => new Widget(d.label, d.count)});
+    registerClassSerializer(Gadget, {deserialize: (d) => new Gadget(d.label, d.count)});
+    expect(getClassSerializer(getRunTypeId<Widget>())?.cls).toBe(Widget);
+    expect(getClassSerializer(getRunTypeId<Gadget>())?.cls).toBe(Gadget);
+
+    const g = createJsonDecoder<Gadget>()(createJsonEncoder<Gadget>()(new Gadget('x', 9)) as string) as Gadget;
+    expect(g).toBeInstanceOf(Gadget);
+    expect(g.tag()).toBe('gadget:x');
+  });
+});
