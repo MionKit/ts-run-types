@@ -23,5 +23,5 @@
     {"path": "./packages/ts-runtypes-devtools"}
   ],
   "files": [],
-  "exclude": ["node_modules", "dist", ".dist", "third_party", "bin"]
+  "exclude": ["node_modules", "dist", ".dist", "ts-go-runtypes", "bin"]
 }

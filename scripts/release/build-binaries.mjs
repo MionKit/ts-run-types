@@ -19,6 +19,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const GO_ROOT = path.join(REPO_ROOT, 'ts-go-runtypes');
 const GO_MODULE = 'github.com/mionkit/ts-runtypes';
 const GO_PKG = './cmd/ts-runtypes';
 const STAGING_DIR = path.join(REPO_ROOT, 'dist-binaries');
@@ -46,7 +47,7 @@ function readVersion() {
 
 function readTsgoRevision() {
   try {
-    return execFileSync('git', ['-C', path.join(REPO_ROOT, 'third_party', 'tsgolint'), 'rev-parse', '--short', 'HEAD'], {
+    return execFileSync('git', ['-C', path.join(GO_ROOT, 'third_party', 'tsgolint'), 'rev-parse', '--short', 'HEAD'], {
       encoding: 'utf8',
     }).trim();
   } catch {
@@ -81,7 +82,7 @@ function buildPlatform(platform, version, tsgo, launcherPkg) {
   const goarm = platform.goarm ? ` GOARM=${platform.goarm}` : '';
   console.log(`  - ${name}  (GOOS=${platform.goos} GOARCH=${platform.goarch}${goarm})`);
   execFileSync('go', ['build', '-trimpath', `-ldflags=${ldflags}`, '-o', path.join(libDir, exeName(platform)), GO_PKG], {
-    cwd: REPO_ROOT,
+    cwd: GO_ROOT,
     env,
     stdio: 'inherit',
   });

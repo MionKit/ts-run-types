@@ -9,7 +9,7 @@
 // two-property brand object — `__rtFormatName` + `__rtFormatParams` —
 // instead of deepkit's TypeAnnotation tag. Both sides of the wire
 // agree on the same brand shape: the tsgo-backed format scanner in
-// `internal/cachegen/runtype/typeid/formats.go` looks for exactly
+// `ts-go-runtypes/internal/cachegen/runtype/typeid/formats.go` looks for exactly
 // these two sentinel properties and lifts them into the RunType's
 // FormatAnnotation field.
 

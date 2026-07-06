@@ -2,7 +2,8 @@
 // former scripts/release/preflight.sh. Runs the Go + JS test suites, lint, formatting
 // check, and a fresh build. Any failing step aborts (runOrThrow throws a CliError).
 
-import {loadEnv} from '../lib/env.mjs';
+import {join} from 'node:path';
+import {GO_ROOT, loadEnv, REPO_ROOT} from '../lib/env.mjs';
 import {green, reportCliError, run, runOrThrow} from '../lib/proc.mjs';
 
 const TOTAL = 6;
@@ -21,12 +22,12 @@ export function main() {
   // Step 2: Build the Go binary — JS plugin tests spawn it, so it must exist before
   // `pnpm test`. The binary //go:embeds the cache skeletons directly.
   printStep('Build Go binary');
-  runOrThrow('go', ['build', '-o', 'bin/ts-runtypes', './cmd/ts-runtypes']);
+  runOrThrow('go', ['build', '-o', join(REPO_ROOT, 'bin/ts-runtypes'), './cmd/ts-runtypes'], {cwd: GO_ROOT});
   run('./bin/ts-runtypes', ['--help'], {stdio: 'ignore'}); // smoke; failure tolerated (|| true)
 
   // Step 3: Go test suite.
   printStep('Go tests');
-  runOrThrow('go', ['test', './internal/...']);
+  runOrThrow('go', ['test', './internal/...'], {cwd: GO_ROOT});
 
   // Step 4: Lint & formatting.
   printStep('Lint & check formatting');

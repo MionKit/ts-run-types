@@ -142,7 +142,7 @@ ensure_podman_engine() {
 # Skipping it saves the bulk of the clone (verified: the binary builds and the
 # full `go test ./internal/...` suite passes with the corpus absent).
 ensure_submodules() {
-  local tsgolint_dir="$REPO_DIR/third_party/tsgolint"
+  local tsgolint_dir="$REPO_DIR/ts-go-runtypes/third_party/tsgolint"
   local tsgo_dir="$tsgolint_dir/typescript-go"
   if [ -f "$tsgolint_dir/go.mod" ] && { [ -d "$tsgo_dir/.git" ] || [ -f "$tsgo_dir/.git" ]; }; then
     ok "submodules present (tsgolint + typescript-go)"
@@ -156,7 +156,7 @@ ensure_submodules() {
   # Non-recursive, two steps: tsgolint, then typescript-go INSIDE it. No
   # --recursive, so the nested _submodules/TypeScript is never fetched.
   _init_submodules() {
-    ( cd "$REPO_DIR" && git submodule update --init third_party/tsgolint ) &&
+    ( cd "$REPO_DIR" && git submodule update --init ts-go-runtypes/third_party/tsgolint ) &&
     ( cd "$tsgolint_dir" && git submodule update --init typescript-go )
   }
   if _init_submodules; then
@@ -184,8 +184,8 @@ ensure_submodules() {
 # Apply the tsgolint patches to the typescript-go working tree. Idempotent: if a
 # patch already applies in reverse it is considered applied and skipped.
 apply_tsgolint_patches() {
-  local tsgo_dir="$REPO_DIR/third_party/tsgolint/typescript-go"
-  local patches_dir="$REPO_DIR/third_party/tsgolint/patches"
+  local tsgo_dir="$REPO_DIR/ts-go-runtypes/third_party/tsgolint/typescript-go"
+  local patches_dir="$REPO_DIR/ts-go-runtypes/third_party/tsgolint/patches"
   [ -d "$tsgo_dir" ] || { warn "typescript-go submodule missing - skipping patches"; return 0; }
   [ -d "$patches_dir" ] || { warn "patches/ missing - skipping"; return 0; }
 
@@ -254,7 +254,7 @@ install_workspace_deps() {
 build_go_binary() {
   command -v go >/dev/null 2>&1 || { warn "go missing - skipping binary build"; return 0; }
   local bin="$REPO_DIR/bin/ts-runtypes"
-  if [ -x "$bin" ] && [ -z "$(find "$REPO_DIR/cmd" "$REPO_DIR/internal" -type f -newer "$bin" -print -quit 2>/dev/null)" ]; then
+  if [ -x "$bin" ] && [ -z "$(find "$REPO_DIR/ts-go-runtypes/cmd" "$REPO_DIR/ts-go-runtypes/internal" -type f -newer "$bin" -print -quit 2>/dev/null)" ]; then
     ok "Go binary up-to-date (bin/ts-runtypes)"
     return 0
   fi
@@ -263,7 +263,7 @@ build_go_binary() {
     return 0
   fi
   bold "Building Go binary -> bin/ts-runtypes"
-  ( cd "$REPO_DIR" && go build -o bin/ts-runtypes ./cmd/ts-runtypes ) \
+  ( cd "$REPO_DIR/ts-go-runtypes" && go build -o "$REPO_DIR/bin/ts-runtypes" ./cmd/ts-runtypes ) \
     || { err "go build failed"; FAILED=1; return 1; }
   ok "Go binary built"
 }

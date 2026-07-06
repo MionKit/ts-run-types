@@ -22,6 +22,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const goRoot = resolve(repoRoot, 'ts-go-runtypes');
 const generatedTsPath = resolve(repoRoot, 'packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts');
 const websiteJsonPath = resolve(repoRoot, 'container/website/app/components/content/diagnostics-catalog.json');
 
@@ -93,7 +94,7 @@ function codePrefix(code) {
 
 // The authoritative dump: codes, severities, wording, prose — all from Go.
 const goDump = execFileSync('go', ['run', './cmd/gen-diag-catalog'], {
-  cwd: repoRoot,
+  cwd: goRoot,
   encoding: 'utf8',
   maxBuffer: 8 * 1024 * 1024,
 });

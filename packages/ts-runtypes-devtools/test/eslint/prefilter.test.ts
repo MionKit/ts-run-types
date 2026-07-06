@@ -22,8 +22,8 @@ import {
   TODO_TAG,
 } from '../../src/runtypes-constants.generated.ts';
 
-const TAGS_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrichment/mirror/tags.go'), 'utf8');
-const NAMES_GO = fs.readFileSync(path.resolve(__dirname, '../../../../internal/enrichment/names.go'), 'utf8');
+const TAGS_GO = fs.readFileSync(path.resolve(__dirname, '../../../../ts-go-runtypes/internal/enrichment/mirror/tags.go'), 'utf8');
+const NAMES_GO = fs.readFileSync(path.resolve(__dirname, '../../../../ts-go-runtypes/internal/enrichment/names.go'), 'utf8');
 
 describe('constant sync with internal/enrichment/mirror/tags.go', () => {
   it('tag literals match the Go definitions byte for byte', () => {

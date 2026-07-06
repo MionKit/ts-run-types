@@ -40,8 +40,8 @@ node_major() { command -v node >/dev/null 2>&1 && node -p 'process.versions.node
 # (identified by its unique module path). A fresh clone is fine - we only need
 # committed files, not the (uninitialized) submodules.
 _looks_like_repo() {
-  [ -f "$1/go.mod" ] && [ -f "$1/package.json" ] && [ -d "$1/cmd/ts-runtypes" ] \
-    && grep -q '^module github.com/mionkit/ts-runtypes' "$1/go.mod" 2>/dev/null
+  [ -f "$1/package.json" ] && [ -f "$1/ts-go-runtypes/go.mod" ] && [ -d "$1/ts-go-runtypes/cmd/ts-runtypes" ] \
+    && grep -q '^module github.com/mionkit/ts-runtypes' "$1/ts-go-runtypes/go.mod" 2>/dev/null
 }
 _resolve_repo_dir() {
   local cand d selfdir root gomod
@@ -65,9 +65,9 @@ _resolve_repo_dir() {
   for root in /home /root /workspace /app /srv; do
     [ -d "$root" ] || continue
     while IFS= read -r gomod; do
-      d="$(dirname "$gomod")"
+      d="$(dirname "$(dirname "$gomod")")"
       _looks_like_repo "$d" && { printf '%s' "$d"; return 0; }
-    done < <(find "$root" -maxdepth 4 -name go.mod -type f 2>/dev/null)
+    done < <(find "$root" -maxdepth 5 -path '*/ts-go-runtypes/go.mod' -type f 2>/dev/null)
   done
   return 1
 }
@@ -234,7 +234,7 @@ ensure_go() {
 # -----------------------------------------------------------------------------
 provision_submodules_light() {
   bold "Submodules (tsgolint + typescript-go; skipping the 620MB TypeScript corpus)"
-  local tsgolint="$REPO_DIR/third_party/tsgolint"
+  local tsgolint="$REPO_DIR/ts-go-runtypes/third_party/tsgolint"
   local tsgo="$tsgolint/typescript-go"
   if [ -f "$tsgolint/go.mod" ] && { [ -d "$tsgo/.git" ] || [ -f "$tsgo/.git" ]; }; then
     ok "submodules present"
@@ -247,7 +247,7 @@ provision_submodules_light() {
   # Non-recursive, two steps: tsgolint, then typescript-go INSIDE it. No
   # --recursive, so the nested _submodules/TypeScript is never fetched.
   _light_submodule_init() {
-    ( cd "$REPO_DIR" && git submodule update --init third_party/tsgolint ) &&
+    ( cd "$REPO_DIR" && git submodule update --init ts-go-runtypes/third_party/tsgolint ) &&
     ( cd "$tsgolint" && git submodule update --init typescript-go )
   }
   if _light_submodule_init; then
@@ -274,8 +274,8 @@ provision_submodules_light() {
 # -----------------------------------------------------------------------------
 apply_tsgolint_patches() {
   bold "tsgolint patches"
-  local tsgo_dir="$REPO_DIR/third_party/tsgolint/typescript-go"
-  local patches_dir="$REPO_DIR/third_party/tsgolint/patches"
+  local tsgo_dir="$REPO_DIR/ts-go-runtypes/third_party/tsgolint/typescript-go"
+  local patches_dir="$REPO_DIR/ts-go-runtypes/third_party/tsgolint/patches"
   [ -d "$tsgo_dir" ] || { warn "typescript-go missing - skipping patches"; return 0; }
   [ -d "$patches_dir" ] || { warn "patches/ missing - skipping"; return 0; }
   local patches=("$patches_dir"/*.patch)
@@ -317,11 +317,11 @@ build_go_binary() {
   bold "Go resolver binary -> bin/ts-runtypes"
   command -v go >/dev/null 2>&1 || { err "go missing - cannot build the binary"; FAILED=1; return 1; }
   local bin="$REPO_DIR/bin/ts-runtypes"
-  if [ -x "$bin" ] && [ -z "$(find "$REPO_DIR/cmd" "$REPO_DIR/internal" -type f -newer "$bin" -print -quit 2>/dev/null)" ]; then
+  if [ -x "$bin" ] && [ -z "$(find "$REPO_DIR/ts-go-runtypes/cmd" "$REPO_DIR/ts-go-runtypes/internal" -type f -newer "$bin" -print -quit 2>/dev/null)" ]; then
     ok "binary up-to-date"; return 0
   fi
   [ "$CHECK_ONLY" = 1 ] && { warn "binary missing or stale - re-run without --check"; return 0; }
-  ( cd "$REPO_DIR" && go build -o bin/ts-runtypes ./cmd/ts-runtypes ) && ok "binary built" || { err "go build failed"; FAILED=1; }
+  ( cd "$REPO_DIR/ts-go-runtypes" && go build -o "$REPO_DIR/bin/ts-runtypes" ./cmd/ts-runtypes ) && ok "binary built" || { err "go build failed"; FAILED=1; }
 }
 
 # -----------------------------------------------------------------------------

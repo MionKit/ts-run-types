@@ -1,9 +1,9 @@
 {
   "files.watcherExclude": {
-    "third_party/**": true
+    "ts-go-runtypes/third_party/**": true
   },
   "search.exclude": {
-    "third_party": true
+    "ts-go-runtypes/third_party": true
   },
   // The project moved from ESLint + Prettier to OXC (oxlint + oxfmt).
   // Format the whole file (not just modified regions) and run lint autofixes

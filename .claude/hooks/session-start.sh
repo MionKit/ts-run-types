@@ -46,11 +46,11 @@ if command -v go >/dev/null 2>&1; then
 else miss "go (not on PATH)"; fi
 
 # --- third-party required deps: submodules + patches -------------------------
-tsgo="$REPO/third_party/tsgolint/typescript-go"
-if [ -f "$REPO/third_party/tsgolint/go.mod" ] && [ -f "$tsgo/go.mod" ]; then pass "submodules (tsgolint + typescript-go)"
-else miss "submodules (third_party/tsgolint[/typescript-go] not initialized)"; fi
+tsgo="$REPO/ts-go-runtypes/third_party/tsgolint/typescript-go"
+if [ -f "$REPO/ts-go-runtypes/third_party/tsgolint/go.mod" ] && [ -f "$tsgo/go.mod" ]; then pass "submodules (tsgolint + typescript-go)"
+else miss "submodules (ts-go-runtypes/third_party/tsgolint[/typescript-go] not initialized)"; fi
 
-patches_dir="$REPO/third_party/tsgolint/patches"
+patches_dir="$REPO/ts-go-runtypes/third_party/tsgolint/patches"
 if [ -d "$tsgo" ] && [ -d "$patches_dir" ]; then
   total=0; applied=0
   for p in "$patches_dir"/*.patch; do

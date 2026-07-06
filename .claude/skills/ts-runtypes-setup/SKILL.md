@@ -39,7 +39,7 @@ idempotent and skips when already satisfied:
   `vfkit` backend needs it and silently exits 1 without it.
 - **macOS only:** if the podman engine is unreachable, runs `podman machine
   init` (when no machine exists) + `podman machine start`.
-- Initializes the `third_party/tsgolint` submodule + its nested
+- Initializes the `ts-go-runtypes/third_party/tsgolint` submodule + its nested
   `typescript-go` submodule with a **non-recursive** two-step init (tsgolint,
   then `typescript-go` inside it) — deliberately NOT `--recursive`, so the
   620MB corpus nested one level deeper (`typescript-go/_submodules/TypeScript`,
@@ -56,7 +56,7 @@ idempotent and skips when already satisfied:
   global gitconfig clones the public submodule over direct HTTPS (the CA bundle
   + HTTPS proxy still come from env vars, so TLS keeps working); a normal host
   succeeds on the first attempt and never reaches the retry.
-- Applies the `third_party/tsgolint/patches/*.patch` set to the
+- Applies the `ts-go-runtypes/third_party/tsgolint/patches/*.patch` set to the
   `typescript-go` working tree with `git apply --3way`. For each patch it
   first tries `git apply --reverse --check` to detect "already applied" and
   skip - the step is safe to re-run.

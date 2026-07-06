@@ -61,6 +61,7 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 // marker package, the vite plugin and the Go binary are bind-mounted into the
 // ts-runtypes competitor context (see scripts/website/bench-data/bench.mjs cmdSerialization).
 const REPO_ROOT = process.env.RT_BENCH_REPO_ROOT ?? path.resolve(HERE, '..', '..', '..');
+const GO_ROOT = path.join(REPO_ROOT, 'ts-go-runtypes');
 const PACKAGE_ROOT = process.env.RT_BENCH_PACKAGE_ROOT ?? path.join(REPO_ROOT, 'packages/ts-runtypes');
 const VITE_ROOT = process.env.RT_BENCH_VITE_ROOT ?? REPO_ROOT;
 const OUT_BASE = process.env.RT_BENCH_OUT_DIR ?? path.join(REPO_ROOT, 'container/website/public/bench-data');
@@ -156,7 +157,7 @@ const LARGE_ITERS = QUICK ? 25 : 150;
 function ensureBinary() {
   if (!fs.existsSync(BIN)) {
     process.stderr.write(`ts-runtypes binary not found at ${BIN}\n`);
-    process.stderr.write(`build it with: go build -o bin/ts-runtypes ./cmd/ts-runtypes\n`);
+    process.stderr.write(`build it with: pnpm run check:builds\n`);
     process.exit(1);
   }
 }
@@ -205,7 +206,7 @@ function runGoExtractor(groups) {
   for (const group of groups) {
     const groupFile = path.join(SUITE_DIR, `${groupToFile(group)}.ts`);
     const res = spawnSync(cmd, [...baseArgs, '--file', groupFile, '--identifier', group], {
-      cwd: REPO_ROOT,
+      cwd: EXTRACT_BIN ? REPO_ROOT : GO_ROOT,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     });

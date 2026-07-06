@@ -34,7 +34,7 @@
 
 import {cpSync, existsSync, globSync, mkdirSync, readFileSync, renameSync, rmSync, statSync} from 'node:fs';
 import {dirname, join} from 'node:path';
-import {loadEnv, REPO_ROOT} from '../lib/env.mjs';
+import {GO_ROOT, loadEnv, REPO_ROOT} from '../lib/env.mjs';
 import {capture, die, hostGoArch, info, red, reportCliError, run, success, which} from '../lib/proc.mjs';
 
 const GO_MODULE = 'github.com/mionkit/ts-runtypes';
@@ -69,7 +69,7 @@ function goVersionLdflags() {
   } catch {
     version = 'dev';
   }
-  const tsgo = capture('git', ['-C', join(REPO_ROOT, 'third_party/tsgolint'), 'rev-parse', '--short', 'HEAD']).stdout.trim() || 'dev';
+  const tsgo = capture('git', ['-C', join(GO_ROOT, 'third_party/tsgolint'), 'rev-parse', '--short', 'HEAD']).stdout.trim() || 'dev';
   return `-X ${GO_MODULE}/internal/constants.Version=${version} -X ${GO_MODULE}/internal/constants.TsgoVersion=${tsgo}`;
 }
 
@@ -90,7 +90,7 @@ function checkGo() {
   if (!existsSync(GO_BIN)) {
     info('Building bin/ts-runtypes (missing; may take a moment on a cold cache)...');
     mkdirSync(dirname(GO_BIN), {recursive: true});
-    if (run('go', ['build', '-ldflags', ldflags, '-o', GO_BIN, GO_PKG]) !== 0) fail('Build failed.');
+    if (run('go', ['build', '-ldflags', ldflags, '-o', GO_BIN, GO_PKG], {cwd: GO_ROOT}) !== 0) fail('Build failed.');
     return success('Built bin/ts-runtypes.');
   }
 
@@ -99,7 +99,7 @@ function checkGo() {
   info('Verifying bin/ts-runtypes matches current source...');
   const tmpBin = tempBesideBin(GO_BIN);
   try {
-    if (run('go', ['build', '-ldflags', ldflags, '-o', tmpBin, GO_PKG]) !== 0) fail('Reference build failed.');
+    if (run('go', ['build', '-ldflags', ldflags, '-o', tmpBin, GO_PKG], {cwd: GO_ROOT}) !== 0) fail('Reference build failed.');
     const diskId = buildId(GO_BIN);
     const refId = buildId(tmpBin);
     if (!diskId || !refId) fail('Could not read build IDs from bin/ts-runtypes or reference binary.');
@@ -133,13 +133,13 @@ function checkLinuxGo() {
     if (!existsSync(linuxBin) || statSync(linuxBin).size === 0) {
       info(`Cross-building (linux/${goarch})...`);
       if (!which('go')) fail('Go toolchain not found.');
-      if (run('go', ['build', '-ldflags', goVersionLdflags(), '-o', linuxBin, GO_PKG], {env: {GOOS: 'linux', GOARCH: goarch}}) !== 0) fail('Cross-build failed.');
+      if (run('go', ['build', '-ldflags', goVersionLdflags(), '-o', linuxBin, GO_PKG], {cwd: GO_ROOT, env: {GOOS: 'linux', GOARCH: goarch}}) !== 0) fail('Cross-build failed.');
       return success(`Built bin/ts-runtypes-linux-${goarch}.`);
     }
     // Compare against a freshly cross-compiled reference; same approach as `go`.
     const tmpBin = tempBesideBin(linuxBin);
     try {
-      if (run('go', ['build', '-ldflags', goVersionLdflags(), '-o', tmpBin, GO_PKG], {env: {GOOS: 'linux', GOARCH: goarch}}) !== 0) fail('Cross-build (reference) failed.');
+      if (run('go', ['build', '-ldflags', goVersionLdflags(), '-o', tmpBin, GO_PKG], {cwd: GO_ROOT, env: {GOOS: 'linux', GOARCH: goarch}}) !== 0) fail('Cross-build (reference) failed.');
       const diskId = buildId(linuxBin);
       const refId = buildId(tmpBin);
       if (!diskId || diskId !== refId) {
@@ -178,7 +178,7 @@ function checkLinuxExtract() {
   info(`Checking bin/extract-fn-bodies-linux-${goarch}...`);
   const tmpBin = tempBesideBin(linuxBin);
   try {
-    if (run('go', ['build', '-o', tmpBin, EXTRACT_PKG], {env: {GOOS: 'linux', GOARCH: goarch}}) !== 0) fail('Cross-build failed.');
+    if (run('go', ['build', '-o', tmpBin, EXTRACT_PKG], {cwd: GO_ROOT, env: {GOOS: 'linux', GOARCH: goarch}}) !== 0) fail('Cross-build failed.');
     const diskId = buildId(linuxBin);
     const refId = buildId(tmpBin);
     if (!existsSync(linuxBin) || !diskId || diskId !== refId) {
