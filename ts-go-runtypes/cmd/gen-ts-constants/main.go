@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -32,9 +33,30 @@ import (
 const vitePluginConstantsPath = "packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts"
 
 func main() {
-	if err := writeFile(vitePluginConstantsPath, buildVitePluginConstants()); err != nil {
+	if err := writeFile(filepath.Join(repoRoot(), vitePluginConstantsPath), buildVitePluginConstants()); err != nil {
 		fmt.Fprintln(os.Stderr, "gen-ts-constants:", err)
 		os.Exit(1)
+	}
+}
+
+// repoRoot walks up from the working directory to the monorepo root (the
+// directory holding package.json), so the output path resolves the same whether
+// this tool is invoked from the repo root or from the Go module dir
+// (ts-go-runtypes/, e.g. via `go -C ts-go-runtypes run ./cmd/gen-ts-constants`).
+func repoRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "."
+	}
+	for {
+		if _, statErr := os.Stat(filepath.Join(dir, "package.json")); statErr == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "."
+		}
+		dir = parent
 	}
 }
 

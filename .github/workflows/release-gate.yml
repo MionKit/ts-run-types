@@ -49,12 +49,14 @@ jobs:
         shell: bash
         run: echo "version=$(node -p "require('./version.json').version")" >> "$GITHUB_OUTPUT"
       - name: Go test suite
+        working-directory: ts-go-runtypes
         run: go test ./internal/...
       - name: Go formatting + vet (our code only; never third_party)
+        working-directory: ts-go-runtypes
         run: |
           unformatted="$(gofmt -l cmd internal)"
           if [ -n "$unformatted" ]; then
-            echo "These Go files are not gofmt-clean (run: gofmt -w cmd internal):" >&2
+            echo "These Go files are not gofmt-clean (run: pnpm run format):" >&2
             echo "$unformatted" >&2
             exit 1
           fi

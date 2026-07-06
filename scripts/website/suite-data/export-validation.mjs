@@ -40,6 +40,7 @@ loadEnv(); // load .env (dev) so RT_BENCH_* knobs apply when run directly
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
+const GO_ROOT = path.join(REPO_ROOT, 'ts-go-runtypes');
 // Suite selection — `--suite validation` (default) or `--suite format-validation`.
 // Both use the ValidationCase shape (FormatValidationCase extends ValidationCase).
 const SUITE_CONFIGS = {
@@ -157,7 +158,7 @@ function runGoExtractor(groups) {
   for (const group of groups) {
     const groupFile = path.join(SUITE_DIR, `${groupToFile(group)}.ts`);
     const res = spawnSync('go', ['run', './cmd/extract-fn-bodies', '--file', groupFile, '--identifier', group], {
-      cwd: REPO_ROOT,
+      cwd: GO_ROOT,
       encoding: 'utf8',
     });
     if (res.error) {
@@ -176,7 +177,7 @@ function runGoExtractor(groups) {
 function ensureBinary() {
   if (!fs.existsSync(BIN)) {
     process.stderr.write(`ts-runtypes binary not found at ${BIN}\n`);
-    process.stderr.write(`build it with: go build -o bin/ts-runtypes ./cmd/ts-runtypes\n`);
+    process.stderr.write(`build it with: pnpm run check:builds\n`);
     process.exit(1);
   }
 }

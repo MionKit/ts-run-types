@@ -17,6 +17,11 @@ import {fileURLToPath} from 'node:url';
 
 export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
+// The Go tree lives under ts-go-runtypes/ (cmd/, internal/, third_party/, go.*).
+// Every `go`/`gofmt` invocation runs with cwd: GO_ROOT so the `./cmd/...` and
+// `./internal/...` package specs resolve; binary output stays under REPO_ROOT/bin.
+export const GO_ROOT = join(REPO_ROOT, 'ts-go-runtypes');
+
 let loaded = false;
 // Load the repo-root .env into process.env (dev only), once. No-op when CI is set
 // or .env is absent; safe to call from anywhere (rt.mjs and every leaf footer).

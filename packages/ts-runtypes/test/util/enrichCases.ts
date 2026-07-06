@@ -1,5 +1,5 @@
 // Shared harness for the AI-enrichment generation suite: extract every case's
-// `case()` arrow-function body from a category file via `cmd/extract-fn-bodies`,
+// `case()` arrow-function body from a category file via `ts-go-runtypes/cmd/extract-fn-bodies`,
 // then split each body by the `// ##### … #####` markers into its `src` /
 // `friendly` / `mock` spans. See docs/AI_ENRICHMENT_TEST_PLAN.md.
 
@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {resolve, dirname} from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, '../../../..');
+const GO_ROOT = resolve(HERE, '../../../../ts-go-runtypes');
 const CASES_DIR = resolve(HERE, '../suites/enrich/cases');
 
 // The four marker-delimited spans of a `case()` body. `result` is the runtime
@@ -24,7 +24,7 @@ export interface CaseSpans {
 // mirrors the const's object nesting: `{ <caseKey>: { case: "<body text>" } }`.
 function extractFnBodies(categoryFile: string, constName: string): Record<string, {case?: string}> {
   const result = spawnSync('go', ['run', './cmd/extract-fn-bodies', '--file', categoryFile, '--identifier', constName], {
-    cwd: REPO_ROOT,
+    cwd: GO_ROOT,
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
   });

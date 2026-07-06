@@ -18,7 +18,7 @@
 import {gzipSync} from 'node:zlib';
 import {cpSync, copyFileSync, existsSync, globSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {loadEnv, REPO_ROOT} from '../../../scripts/lib/env.mjs';
+import {GO_ROOT, loadEnv, REPO_ROOT} from '../../../scripts/lib/env.mjs';
 import {capture, die, note, reportCliError, run, warn, which} from '../../../scripts/lib/proc.mjs';
 
 const WEBSITE_DIR = join(REPO_ROOT, 'container/website');
@@ -35,7 +35,8 @@ const VENDOR_DIR = join(WEBSITE_DIR, 'app/playground/.vendor/ts-runtypes-dist');
 
 const WASM_PKG = './cmd/ts-runtypes-wasm';
 // Every Go input the wasm links; if none is newer than the stamp, tier 1 short-circuits.
-const WASM_INPUTS = ['cmd/ts-runtypes-wasm', 'internal', 'go.mod', 'go.sum'];
+// Repo-relative under the Go tree (anyNewer joins each with REPO_ROOT).
+const WASM_INPUTS = ['ts-go-runtypes/cmd/ts-runtypes-wasm', 'ts-go-runtypes/internal', 'ts-go-runtypes/go.mod', 'ts-go-runtypes/go.sum'];
 // The source overlay tracks only the marker package's src.
 const SOURCES_INPUT = 'packages/ts-runtypes/src';
 
@@ -85,7 +86,7 @@ function buildWasmIfStale() {
   try {
     // No version ldflags: the asset is dev-only, and matching flags is what lets the
     // buildid compare cache (see core/build.mjs checkGo). Keep it flagless.
-    if (run('go', ['build', '-o', tmp, WASM_PKG], {env: {GOOS: 'js', GOARCH: 'wasm'}}) !== 0) die('==> ERROR: wasm build failed.');
+    if (run('go', ['build', '-o', tmp, WASM_PKG], {cwd: GO_ROOT, env: {GOOS: 'js', GOARCH: 'wasm'}}) !== 0) die('==> ERROR: wasm build failed.');
     const diskId = capture('go', ['tool', 'buildid', RAW_WASM]).stdout.trim();
     const refId = capture('go', ['tool', 'buildid', tmp]).stdout.trim();
     if (existsSync(RAW_WASM) && diskId && diskId === refId) {

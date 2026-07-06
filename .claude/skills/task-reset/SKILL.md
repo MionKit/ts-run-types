@@ -5,7 +5,7 @@ description: Reset the workspace to start a fresh task in the same shell session
 
 # task-reset
 
-Reset git state for a new task while keeping the existing build environment intact. Cold-bootstrapping this repo is expensive (Go toolchain build of `bin/ts-runtypes`, `third_party/tsgolint` + nested `microsoft/typescript-go` submodules, the patched `git am` step, `pnpm install` with the 30-day minimum-release-age policy). The point of `/task-reset` is to reset *only* git state and skip all of that.
+Reset git state for a new task while keeping the existing build environment intact. Cold-bootstrapping this repo is expensive (Go toolchain build of `bin/ts-runtypes`, `ts-go-runtypes/third_party/tsgolint` + nested `microsoft/typescript-go` submodules, the patched `git am` step, `pnpm install` with the 30-day minimum-release-age policy). The point of `/task-reset` is to reset *only* git state and skip all of that.
 
 PRs in this repo are **rebased** into `main`, so when an old task's PR lands, `main` ends up containing commits with the same content as the old branch but with **different SHAs**. Plan accordingly when deciding whether to delete the old branch.
 
@@ -91,7 +91,7 @@ Use **AskUserQuestion** to ask whether the user wants to compact the conversatio
 
 - Do NOT run `pnpm install` — `node_modules/` is already in place and the policy file ([pnpm-workspace.yaml](../../../pnpm-workspace.yaml)) makes fresh resolves slow and fragile.
 - Do NOT rebuild `bin/ts-runtypes` — it's already built; the old branch produced it and the file is gitignored.
-- Do NOT touch `third_party/` — submodules and their patches stay exactly as they are. `.gitmodules` has `ignore = dirty` for `third_party/tsgolint`, so changes there are invisible to `git status` and easy to lose.
+- Do NOT touch `ts-go-runtypes/third_party/` — submodules and their patches stay exactly as they are. `.gitmodules` has `ignore = dirty` for `ts-go-runtypes/third_party/tsgolint`, so changes there are invisible to `git status` and easy to lose.
 - Do NOT run `pnpm run clean` — it defeats the point of the skill.
 - Do NOT force-push, force-reset, or `git clean -fd` without explicit user confirmation.
 

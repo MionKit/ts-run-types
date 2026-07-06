@@ -22,7 +22,7 @@
   },
   "ignorePatterns": [
     "node_modules/**",
-    "third_party/**",
+    "ts-go-runtypes/**",
     "**/dist/**",
     "**/.dist/**",
     "**/coverage/**",
@@ -33,7 +33,6 @@
     "container/**",
     "docs/**",
     "bin/**",
-    "internal/**",
     "scripts/**",
     "benchmarks/**",
     ".claude/**",
