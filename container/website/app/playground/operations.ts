@@ -91,7 +91,7 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'createJsonEncoder',
     blurb: 'Encode in place, keeping unknown keys.',
     detail:
-      'Transforms leaves in place with no clone allocation, so it is the fastest option — but it mutates the object you pass in and keeps undeclared keys on the wire.',
+      'Transforms leaves in place with no clone allocation, so it is the fastest option — but it mutates the object you pass in and keeps undeclared keys on the wire. When no special encoding is needed, it is equivalent to a direct JSON.stringify.',
     needsInput: true,
     varName: 'toJson',
     options: "{strategy: 'mutate'}",
