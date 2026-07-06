@@ -1,31 +1,45 @@
 import {registerClassSerializer, createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
 
-// Your own class. ts-runtypes can't guess how to put it on the wire, so
-// you teach it once: a serialize/deserialize pair keyed by the class name.
+// A class with a non-empty constructor. The data goes on the wire structurally
+// (just its declared properties), so you only have to teach ts-runtypes how to
+// build a real instance back: pass a namespace, the class itself, and a
+// `deserialize`. `serialize` is optional here (the default structural encode is
+// exactly right).
 class Money {
   constructor(
     public amount: number,
     public currency: string
   ) {}
+  format(): string {
+    return `${(this.amount / 100).toFixed(2)} ${this.currency}`;
+  }
 }
 
-registerClassSerializer<Money>('Money', {
-  // instance -> JSON-ready data (the pipeline stringifies this for you)
-  serialize: (m) => `${m.amount} ${m.currency}`,
-  // parsed data -> rebuilt instance
-  deserialize: (data) => {
-    const [amount, currency] = String(data).split(' ');
-    return new Money(Number(amount), currency);
-  },
+registerClassSerializer('billing', Money, {
+  // data-only projection -> a real instance
+  deserialize: (data) => new Money(data.amount, data.currency),
 });
 
-type Invoice = {id: string; total: Money};
+// A class with a zero-argument constructor. There is nothing else to supply:
+// the client just hands over the class. Decode rebuilds it with `new Settings()`
+// and copies the decoded properties over.
+class Settings {
+  theme = 'light';
+  fontSize = 12;
+  summary(): string {
+    return `${this.theme}/${this.fontSize}`;
+  }
+}
 
-const encode = createJsonEncoder<Invoice>();
-const decode = createJsonDecoder<Invoice>();
+registerClassSerializer('app', Settings);
 
-const json = encode({id: 'inv_1', total: new Money(4999, 'USD')})!;
-const back = decode(json); // back.total is a real Money instance again
+type Account = {id: string; balance: Money; settings: Settings};
 
-export {Money, encode, decode, back};
-export type {Invoice};
+const encode = createJsonEncoder<Account>();
+const decode = createJsonDecoder<Account>();
+
+const json = encode({id: 'acc_1', balance: new Money(4999, 'USD'), settings: new Settings()})!;
+const back = decode(json); // back.balance is a real Money, back.settings a real Settings
+
+export {Money, Settings, encode, decode, back};
+export type {Account};

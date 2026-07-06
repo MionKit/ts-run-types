@@ -1,21 +1,22 @@
-// Custom class serializer/deserializer registry adapter (T7).
+// Custom class serializer/deserializer registry adapter.
 //
-// Verifies that `registerClassSerializer(name, {serialize, deserialize})`
-// routes a plain user class through the custom handler in BOTH the JSON
-// (createJsonEncoder / createJsonDecoder, default options) and binary
-// (createBinaryEncoder / createBinaryDecoder) families, reconstructing a
-// REAL instance (`instanceof Foo`, props equal). An UNREGISTERED class
-// round-trips structurally to a plain object (no throw).
+// Verifies the redesigned `registerClassSerializer(namespace, cls, handler?)`
+// surface: the client hands over the CLASS (not a name string), `serialize` is
+// optional (default: structural, same as any interface), and `deserialize` is
+// optional for a zero-arg class (default: `Object.assign(new cls(), data)`).
+// A registered class rebuilds a REAL instance (`instanceof`, methods live) in
+// BOTH the JSON (createJsonEncoder / createJsonDecoder, default options) and
+// binary (createBinaryEncoder / createBinaryDecoder) families; an UNREGISTERED
+// class round-trips structurally to a plain object (no throw).
 //
-// Marker-package test pattern: each factory thunk declares its class
-// inline so the vite-plugin marker scanner sees the type and injects the
-// runtype id; the class's symbol name is the registry key. The
-// registry is registered/cleared per test to avoid cross-test leakage.
+// Marker-package test pattern: each factory thunk resolves its class type so
+// the vite-plugin marker scanner injects the runtype id; the class's symbol
+// name is the registry key. The registry is registered/cleared per test.
 //
-// Pairing rule (CLAUDE.md): static form `createXxx<Foo>()` and reflect
-// form `createXxx(value)` are exercised as distinct cases; both resolve
-// to the same cache entry for equivalent T, so a serializer registered
-// once under the class name serves both.
+// Pairing rule (CLAUDE.md): static form `createXxx<Foo>()` and reflect form
+// `createXxx(value)` are exercised as distinct cases; both resolve to the same
+// cache entry for equivalent T, so a serializer registered once under the
+// class name serves both.
 
 import {afterEach, describe, expect, it} from 'vitest';
 import {
@@ -33,29 +34,30 @@ import {
   getClassSerializer,
 } from '../../src/runtypes/classSerializerRegistry.ts';
 
-// A single class definition reused across thunks. Declaring it at module
-// scope (not inside each thunk) keeps `instanceof` identity stable across
-// encode + decode within a test, while the marker scanner still resolves
-// `Foo` by its structural shape + name.
-class Foo {
+// ############################################################################
+// Custom serialize + deserialize — the full-control path, new signature.
+// ############################################################################
+
+// A class with a non-empty constructor. `serialize` re-shapes the value within
+// the declared property names (here it stores `amount` as a string), and
+// `deserialize` rebuilds the instance. A custom `serialize` must stay within
+// the declared object shape: the JSON decoder runs a structural pre-pass over
+// the wire value, so a non-object / renamed-key custom shape is not supported
+// on the JSON decode path (see docs/todos/class-serializer-custom-wire-shape.md).
+class Money {
   constructor(
-    public x: number,
-    public label: string
+    public amount: number,
+    public currency: string
   ) {}
-  // A method to prove structural fallback drops it but the custom
-  // deserializer restores a real instance that has it.
   describe(): string {
-    return `${this.label}=${this.x}`;
+    return `${this.amount} ${this.currency}`;
   }
 }
 
-function registerFoo(): void {
-  registerClassSerializer<Foo>('Foo', {
-    serialize: (f) => ({x: f.x, label: f.label}),
-    deserialize: (d) => {
-      const data = d as {x: number; label: string};
-      return new Foo(data.x, data.label);
-    },
+function registerMoney(): void {
+  registerClassSerializer('billing', Money, {
+    serialize: (m) => ({amount: String(m.amount), currency: m.currency}),
+    deserialize: (data) => new Money(Number(data.amount), data.currency),
   });
 }
 
@@ -63,78 +65,236 @@ afterEach(() => {
   clearClassSerializers();
 });
 
-describe('classSerializer / JSON round-trip (registered)', () => {
-  it('static — createJsonEncoder<Foo> / createJsonDecoder<Foo> reconstruct a real Foo', () => {
-    registerFoo();
-    const encode = createJsonEncoder<Foo>();
-    const decode = createJsonDecoder<Foo>();
+describe('classSerializer / custom serialize + deserialize (JSON)', () => {
+  it('static — createJsonEncoder<Money> / createJsonDecoder<Money> reconstruct a real Money', () => {
+    registerMoney();
+    const encode = createJsonEncoder<Money>();
+    const decode = createJsonDecoder<Money>();
 
-    const input = new Foo(42, 'answer');
-    const json = encode(input);
-    // serialize() returned JSON-ready data; the pipeline stringified it.
+    const json = encode(new Money(4999, 'USD'));
     expect(typeof json).toBe('string');
-    expect(JSON.parse(json as string)).toEqual({x: 42, label: 'answer'});
+    // The custom serialize arm ran: `amount` is on the wire as a STRING, which
+    // the structural encode would never produce (it would keep the number).
+    expect(json as string).toContain('"4999"');
 
-    const decoded = decode(json as string) as Foo;
-    expect(decoded).toBeInstanceOf(Foo);
-    expect(decoded.x).toBe(42);
-    expect(decoded.label).toBe('answer');
-    expect(decoded.describe()).toBe('answer=42');
+    const decoded = decode(json as string) as Money;
+    expect(decoded).toBeInstanceOf(Money);
+    expect(decoded.amount).toBe(4999);
+    expect(decoded.currency).toBe('USD');
+    expect(decoded.describe()).toBe('4999 USD');
   });
 
-  it('reflect — createJsonEncoder(value) / createJsonDecoder(value) reconstruct a real Foo', () => {
-    registerFoo();
-    const sample = new Foo(0, '');
+  it('reflect — createJsonEncoder(value) / createJsonDecoder(value) reconstruct a real Money', () => {
+    registerMoney();
+    const sample = new Money(0, '');
     const encode = createJsonEncoder(sample);
     const decode = createJsonDecoder(sample);
 
-    const input = new Foo(7, 'seven');
-    const json = encode(input);
-    expect(JSON.parse(json as string)).toEqual({x: 7, label: 'seven'});
-
-    const decoded = decode(json as string) as Foo;
-    expect(decoded).toBeInstanceOf(Foo);
-    expect(decoded.x).toBe(7);
-    expect(decoded.label).toBe('seven');
+    const decoded = decode(encode(new Money(150, 'EUR')) as string) as Money;
+    expect(decoded).toBeInstanceOf(Money);
+    expect(decoded.amount).toBe(150);
+    expect(decoded.currency).toBe('EUR');
   });
 });
 
-describe('classSerializer / binary round-trip (registered)', () => {
-  it('static — createBinaryEncoder<Foo> / createBinaryDecoder<Foo> reconstruct a real Foo', () => {
-    registerFoo();
-    const encode = createBinaryEncoder<Foo>();
-    const decode = createBinaryDecoder<Foo>();
+describe('classSerializer / custom serialize + deserialize (binary)', () => {
+  it('static — createBinaryEncoder<Money> / createBinaryDecoder<Money> reconstruct a real Money', () => {
+    registerMoney();
+    const encode = createBinaryEncoder<Money>();
+    const decode = createBinaryDecoder<Money>();
 
-    const input = new Foo(99, 'binary');
-    const buffer = encode(input);
-    const decoded = decode(buffer) as Foo;
-
-    expect(decoded).toBeInstanceOf(Foo);
-    expect(decoded.x).toBe(99);
-    expect(decoded.label).toBe('binary');
-    expect(decoded.describe()).toBe('binary=99');
+    const decoded = decode(encode(new Money(99, 'GBP'))) as Money;
+    expect(decoded).toBeInstanceOf(Money);
+    expect(decoded.amount).toBe(99);
+    expect(decoded.currency).toBe('GBP');
   });
 
-  it('reflect — createBinaryEncoder(value) / createBinaryDecoder(value) reconstruct a real Foo', () => {
-    registerFoo();
-    const sample = new Foo(0, '');
-    const encode = createBinaryEncoder(sample);
+  it('reflect — createBinaryEncoder(value) / createBinaryDecoder(value) reconstruct a real Money', () => {
+    registerMoney();
+    const sample = new Money(0, '');
     const decode = createBinaryDecoder(sample);
-
-    const input = new Foo(-3, 'neg');
-    const buffer = encode(input);
-    const decoded = decode(buffer) as Foo;
-
-    expect(decoded).toBeInstanceOf(Foo);
-    expect(decoded.x).toBe(-3);
-    expect(decoded.label).toBe('neg');
+    const decoded = decode(createBinaryEncoder(sample)(new Money(-3, 'JPY'))) as Money;
+    expect(decoded).toBeInstanceOf(Money);
+    expect(decoded.amount).toBe(-3);
+    expect(decoded.currency).toBe('JPY');
   });
 });
+
+// ############################################################################
+// serialize OMITTED -> structural encode; deserialize still rebuilds.
+// ############################################################################
+
+// A class with a non-empty constructor but NO custom serialize: it encodes
+// structurally (declared props), exactly like an interface of the same shape.
+// `deserialize` is required by the overloads (non-empty constructor).
+class Vec {
+  constructor(
+    public x: number,
+    public y: number
+  ) {}
+  len(): number {
+    return Math.hypot(this.x, this.y);
+  }
+}
+
+function registerVec(): void {
+  registerClassSerializer('geo', Vec, {
+    // no serialize -> structural
+    deserialize: (data) => new Vec(data.x, data.y),
+  });
+}
+
+describe('classSerializer / serialize omitted -> structural encode', () => {
+  it('static (JSON) — structural payload (declared props, no rt$classID), decode rebuilds a real Vec', () => {
+    registerVec();
+    const encode = createJsonEncoder<Vec>();
+    const decode = createJsonDecoder<Vec>();
+
+    const json = encode(new Vec(3, 4)) as string;
+    // Monomorphic position: the wire is the plain structural object, and it
+    // carries NO synthetic rt$classID tag.
+    const wire = JSON.parse(json);
+    expect(wire).toEqual({x: 3, y: 4});
+    expect('rt$classID' in wire).toBe(false);
+
+    const decoded = decode(json) as Vec;
+    expect(decoded).toBeInstanceOf(Vec);
+    expect(decoded.len()).toBe(5);
+  });
+
+  it('reflect (JSON) — structural encode, decode rebuilds a real Vec', () => {
+    registerVec();
+    const sample = new Vec(0, 0);
+    const decoded = createJsonDecoder(sample)(createJsonEncoder(sample)(new Vec(6, 8)) as string) as Vec;
+    expect(decoded).toBeInstanceOf(Vec);
+    expect(decoded.len()).toBe(10);
+  });
+
+  it('static (binary) — structural encode, decode rebuilds a real Vec', () => {
+    registerVec();
+    const decoded = createBinaryDecoder<Vec>()(createBinaryEncoder<Vec>()(new Vec(5, 12))) as Vec;
+    expect(decoded).toBeInstanceOf(Vec);
+    expect(decoded.len()).toBe(13);
+  });
+
+  it('reflect (binary) — structural encode, decode rebuilds a real Vec', () => {
+    registerVec();
+    const sample = new Vec(0, 0);
+    const decoded = createBinaryDecoder(sample)(createBinaryEncoder(sample)(new Vec(8, 15))) as Vec;
+    expect(decoded).toBeInstanceOf(Vec);
+    expect(decoded.len()).toBe(17);
+  });
+});
+
+// ############################################################################
+// deserialize OMITTED for a zero-arg class -> auto `new cls()` + assign.
+// ############################################################################
+
+// A zero-arg class: the client literally just hands over the class. Both
+// halves default (structural encode, auto-instantiate decode).
+class Settings {
+  theme = 'light';
+  fontSize = 12;
+  summary(): string {
+    return `${this.theme}/${this.fontSize}`;
+  }
+}
+
+describe('classSerializer / zero-arg class, nothing but the class', () => {
+  it('static (JSON) — auto-instantiate: decoded value is instanceof Settings with methods live', () => {
+    registerClassSerializer('app', Settings);
+    const encode = createJsonEncoder<Settings>();
+    const decode = createJsonDecoder<Settings>();
+
+    const input = new Settings();
+    input.theme = 'dark';
+    input.fontSize = 16;
+
+    const json = encode(input) as string;
+    expect(JSON.parse(json)).toEqual({theme: 'dark', fontSize: 16});
+
+    const decoded = decode(json) as Settings;
+    expect(decoded).toBeInstanceOf(Settings);
+    expect(decoded.theme).toBe('dark');
+    expect(decoded.fontSize).toBe(16);
+    expect(decoded.summary()).toBe('dark/16');
+  });
+
+  it('reflect (JSON) — auto-instantiate from a reflected sample', () => {
+    registerClassSerializer('app', Settings);
+    const sample = new Settings();
+    const input = new Settings();
+    input.theme = 'solarized';
+    const decoded = createJsonDecoder(sample)(createJsonEncoder(sample)(input) as string) as Settings;
+    expect(decoded).toBeInstanceOf(Settings);
+    expect(decoded.theme).toBe('solarized');
+    expect(decoded.summary()).toBe('solarized/12');
+  });
+
+  it('static (binary) — auto-instantiate through the binary family', () => {
+    registerClassSerializer('app', Settings);
+    const input = new Settings();
+    input.fontSize = 20;
+    const decoded = createBinaryDecoder<Settings>()(createBinaryEncoder<Settings>()(input)) as Settings;
+    expect(decoded).toBeInstanceOf(Settings);
+    expect(decoded.fontSize).toBe(20);
+    expect(decoded.summary()).toBe('light/20');
+  });
+
+  it('reflect (binary) — auto-instantiate through the binary family', () => {
+    registerClassSerializer('app', Settings);
+    const sample = new Settings();
+    const input = new Settings();
+    input.theme = 'hc';
+    const decoded = createBinaryDecoder(sample)(createBinaryEncoder(sample)(input)) as Settings;
+    expect(decoded).toBeInstanceOf(Settings);
+    expect(decoded.theme).toBe('hc');
+  });
+});
+
+// ############################################################################
+// Non-empty constructor without deserialize -> CLS002 at decode.
+// ############################################################################
+
+// A class TS sees as zero-arg (so the auto-instantiate overload accepts it),
+// but whose constructor cannot run without real arguments. The auto
+// `new cls()` throws, which `deserializeClass` surfaces as CLS002.
+class Needy {
+  value: number;
+  constructor() {
+    // Real code would read a required argument here; simulate the failure.
+    throw new Error('Needy cannot be constructed without arguments');
+  }
+}
+
+describe('classSerializer / auto-instantiate failure surfaces CLS002', () => {
+  it('static (JSON) — decode throws a CLS002 message naming the class + fix', () => {
+    registerClassSerializer('t', Needy);
+    const encode = createJsonEncoder<Needy>();
+    const decode = createJsonDecoder<Needy>();
+
+    // Encode reads the structural props off a plain shape; no constructor call.
+    const json = encode({value: 5} as unknown as Needy) as string;
+    expect(JSON.parse(json)).toEqual({value: 5});
+
+    expect(() => decode(json)).toThrow(/CLS002/);
+    expect(() => decode(json)).toThrow(/t::Needy/);
+    expect(() => decode(json)).toThrow(/deserialize/);
+  });
+
+  it('reflect (binary) — decode throws CLS002 through the binary family', () => {
+    registerClassSerializer('t', Needy);
+    const sample = {value: 0} as unknown as Needy;
+    const buffer = createBinaryEncoder(sample)({value: 9} as unknown as Needy);
+    expect(() => createBinaryDecoder(sample)(buffer)).toThrow(/CLS002/);
+  });
+});
+
+// ############################################################################
+// Unregistered class -> structural plain object (no throw).
+// ############################################################################
 
 describe('classSerializer / unregistered class falls back to structural plain object', () => {
-  // A SECOND class, never registered. Its serialization must succeed
-  // (warn + structural fallback, NOT a throw) and round-trip the declared
-  // props to a prototype-less plain object.
   class Bar {
     constructor(
       public n: number,
@@ -149,10 +309,9 @@ describe('classSerializer / unregistered class falls back to structural plain ob
     const encode = createJsonEncoder<Bar>();
     const decode = createJsonDecoder<Bar>();
 
-    const input = new Bar(5, 'five');
     let json: string | undefined;
     expect(() => {
-      json = encode(input) as string;
+      json = encode(new Bar(5, 'five')) as string;
     }).not.toThrow();
     expect(JSON.parse(json as string)).toEqual({n: 5, tag: 'five'});
 
@@ -160,7 +319,6 @@ describe('classSerializer / unregistered class falls back to structural plain ob
     expect(decoded).not.toBeInstanceOf(Bar);
     expect(decoded.n).toBe(5);
     expect(decoded.tag).toBe('five');
-    // structural fallback drops the prototype, so no methods survive.
     expect((decoded as {greet?: unknown}).greet).toBeUndefined();
   });
 
@@ -168,10 +326,9 @@ describe('classSerializer / unregistered class falls back to structural plain ob
     const encode = createBinaryEncoder<Bar>();
     const decode = createBinaryDecoder<Bar>();
 
-    const input = new Bar(8, 'eight');
     let buffer: ReturnType<typeof encode>;
     expect(() => {
-      buffer = encode(input);
+      buffer = encode(new Bar(8, 'eight'));
     }).not.toThrow();
     const decoded = decode(buffer!) as Bar;
 
@@ -181,63 +338,58 @@ describe('classSerializer / unregistered class falls back to structural plain ob
   });
 });
 
+// ############################################################################
+// Registry isolation — clear / unregister / last-wins, new signature.
+// ############################################################################
+
 describe('classSerializer / registry isolation', () => {
   it('clearing the registry reverts a previously-registered class to structural fallback', () => {
-    // Register, then clear: the decoder must NOT reconstruct an instance.
-    registerFoo();
+    registerVec();
     clearClassSerializers();
 
-    const encode = createJsonEncoder<Foo>();
-    const decode = createJsonDecoder<Foo>();
-    const json = encode(new Foo(1, 'one')) as string;
-    expect(JSON.parse(json)).toEqual({x: 1, label: 'one'});
-
-    const decoded = decode(json) as Foo;
-    expect(decoded).not.toBeInstanceOf(Foo);
+    const decode = createJsonDecoder<Vec>();
+    const decoded = decode(createJsonEncoder<Vec>()(new Vec(1, 1)) as string) as Vec;
+    expect(decoded).not.toBeInstanceOf(Vec);
     expect(decoded.x).toBe(1);
-    expect(decoded.label).toBe('one');
+    expect(decoded.y).toBe(1);
   });
 
-  it('unregisterClassSerializer removes one entry, leaving others intact', () => {
-    // Register Foo + a second class; unregister only Foo. Foo reverts to
-    // structural fallback while the other serializer keeps working.
-    registerFoo();
-    registerClassSerializer<Foo>('Other', {serialize: (v) => v, deserialize: (d) => d as Foo});
-    unregisterClassSerializer('Foo');
+  it('unregisterClassSerializer(cls) removes one entry, leaving others intact', () => {
+    registerVec();
+    registerClassSerializer('app', Settings);
+    unregisterClassSerializer(Vec);
 
-    const encode = createJsonEncoder<Foo>();
-    const decode = createJsonDecoder<Foo>();
-    const decoded = decode(encode(new Foo(2, 'two')) as string) as Foo;
-    // Foo lookup is gone -> structural fallback (plain object).
-    expect(decoded).not.toBeInstanceOf(Foo);
+    const decoded = createJsonDecoder<Vec>()(createJsonEncoder<Vec>()(new Vec(2, 2)) as string) as Vec;
+    expect(decoded).not.toBeInstanceOf(Vec);
     expect(decoded.x).toBe(2);
-    // The untouched 'Other' registration is still present.
-    expect(getClassSerializer('Other')).toBeDefined();
-    expect(getClassSerializer('Foo')).toBeUndefined();
+    // The untouched 'Settings' registration is still present.
+    expect(getClassSerializer('Settings')).toBeDefined();
+    expect(getClassSerializer('Vec')).toBeUndefined();
   });
 
-  it('re-registering the same name overwrites the prior handler (last wins)', () => {
-    // First handler tags the instance; the second (final) one wins.
-    registerClassSerializer<Foo>('Foo', {
-      serialize: (f) => ({x: f.x, label: 'FIRST'}),
-      deserialize: (d) => new Foo((d as Foo).x, 'FIRST'),
-    });
-    registerFoo(); // overwrites with the round-tripping handler
+  it('re-registering the same class overwrites the prior handler (last wins)', () => {
+    registerClassSerializer('geo', Vec, {deserialize: (d) => new Vec(d.x + 100, d.y)});
+    registerVec(); // overwrites with the plain round-tripping handler
 
-    const decoded = createJsonDecoder<Foo>()(createJsonEncoder<Foo>()(new Foo(3, 'kept')) as string) as Foo;
-    expect(decoded).toBeInstanceOf(Foo);
-    expect(decoded.label).toBe('kept');
+    const decoded = createJsonDecoder<Vec>()(createJsonEncoder<Vec>()(new Vec(3, 7)) as string) as Vec;
+    expect(decoded).toBeInstanceOf(Vec);
+    expect(decoded.x).toBe(3);
   });
 
-  it('registerClassSerializer rejects an empty class name', () => {
-    expect(() => registerClassSerializer('', {serialize: (v) => v, deserialize: (d) => d})).toThrow();
+  it('stores the namespaced classID on the entry', () => {
+    registerClassSerializer('billing', Money, {deserialize: (d) => new Money(d.amount, d.currency)});
+    expect(getClassSerializer('Money')?.classID).toBe('billing::Money');
+  });
+
+  it('registerClassSerializer rejects an empty namespace', () => {
+    expect(() => registerClassSerializer('', Money, {deserialize: (d) => new Money(d.amount, d.currency)})).toThrow();
   });
 });
 
-// Nested + collection positions: the registry branch is emitted wherever a
-// plain user class node appears, not only at the root. These prove a custom
-// serializer fires for a class held as an object property and as an array
-// element, through both the JSON and binary families.
+// ############################################################################
+// Nested + array positions: the registry branch is emitted wherever a plain
+// user class node appears, not only at the root.
+// ############################################################################
 
 class Point {
   constructor(
@@ -255,12 +407,8 @@ interface Shape {
 }
 
 function registerPoint(): void {
-  registerClassSerializer<Point>('Point', {
-    serialize: (p) => ({x: p.x, label: 'pt', y: p.y}),
-    deserialize: (d) => {
-      const data = d as {x: number; y: number};
-      return new Point(data.x, data.y);
-    },
+  registerClassSerializer('geo', Point, {
+    deserialize: (data) => new Point(data.x, data.y),
   });
 }
 
@@ -271,8 +419,6 @@ describe('classSerializer / nested class as an object property', () => {
     const decode = createJsonDecoder<Shape>();
 
     const input: Shape = {name: 'box', origin: new Point(3, 4)};
-    // The decoder return is `DataOnly<Shape>` (Point's `mag()` projected away);
-    // the registered serializer reconstructs a REAL Point, so cast back to Shape.
     const decoded = decode(encode(input) as string) as Shape;
     expect(decoded.name).toBe('box');
     expect(decoded.origin).toBeInstanceOf(Point);
@@ -285,7 +431,6 @@ describe('classSerializer / nested class as an object property', () => {
     const decode = createBinaryDecoder<Shape>();
 
     const input: Shape = {name: 'box', origin: new Point(6, 8)};
-    // See JSON case: cast `DataOnly<Shape>` back to the real reconstructed Shape.
     const decoded = decode(encode(input)) as Shape;
     expect(decoded.name).toBe('box');
     expect(decoded.origin).toBeInstanceOf(Point);
@@ -296,14 +441,21 @@ describe('classSerializer / nested class as an object property', () => {
 describe('classSerializer / class as an array element', () => {
   it('JSON — every registered class in an array reconstructs a real instance', () => {
     registerPoint();
-    const encode = createJsonEncoder<Point[]>();
-    const decode = createJsonDecoder<Point[]>();
-
-    const input = [new Point(1, 0), new Point(0, 1)];
-    const decoded = decode(encode(input) as string);
+    const decoded = createJsonDecoder<Point[]>()(createJsonEncoder<Point[]>()([new Point(1, 0), new Point(0, 1)]) as string);
     expect(decoded).toHaveLength(2);
     for (const point of decoded) expect(point).toBeInstanceOf(Point);
     expect(decoded[0].x).toBe(1);
     expect(decoded[1].y).toBe(1);
+  });
+
+  it('both codecs agree — JSON and binary reconstruct identical instances', () => {
+    registerPoint();
+    const input = [new Point(3, 4), new Point(5, 12)];
+    // Decoders return `DataOnly<Point>[]` (mag() projected away); the registered
+    // serializer rebuilds REAL Points, so cast back to exercise the method.
+    const viaJson = createJsonDecoder<Point[]>()(createJsonEncoder<Point[]>()(input) as string) as Point[];
+    const viaBinary = createBinaryDecoder<Point[]>()(createBinaryEncoder<Point[]>()(input)) as Point[];
+    expect(viaBinary.map((p) => [p.x, p.y, p.mag()])).toEqual(viaJson.map((p) => [p.x, p.y, p.mag()]));
+    for (const point of viaBinary) expect(point).toBeInstanceOf(Point);
   });
 });

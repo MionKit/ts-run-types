@@ -9,9 +9,6 @@ import type {
   CompiledTypeFn,
   TypesFunctionsCache,
   PureFunctionsCache,
-  DeserializeClassFn,
-  AnyClass,
-  SerializableClass,
   CompiledPureFunction,
   PureFunction,
   RunType,
@@ -20,8 +17,12 @@ import type {
   InitializedTypeFn,
   Mutable,
 } from './types.ts';
-import {getClassSerializer as getClassSerializerImpl} from './classSerializerRegistry.ts';
-import type {ClassSerializer} from './classSerializerRegistry.ts';
+import {
+  getClassSerializer as getClassSerializerImpl,
+  deserializeClass as deserializeClassImpl,
+} from './classSerializerRegistry.ts';
+import type {ClassSerializerEntry} from './classSerializerRegistry.ts';
+import type {DataOnly} from './dataOnly.ts';
 import type {CompTimeArgs} from '../markers.ts';
 
 /**
@@ -42,8 +43,6 @@ export function isRunTypeSchema(val: unknown): val is RunType {
 const rtFnsCache: TypesFunctionsCache = {};
 const pureFnsCache: PureFunctionsCache = {};
 const runTypesCache: RunTypesCache = {};
-const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
-const serializableClassRegistry = new Map<string, SerializableClass>();
 
 const rtUtils = {
   addToRTCache(comp: CompiledTypeFn) {
@@ -137,35 +136,6 @@ const rtUtils = {
   hasRunType(id: string): boolean {
     return !!runTypesCache[id];
   },
-  setSerializableClass<C extends SerializableClass>(cls: C) {
-    const className = cls.name;
-    const existingClass = serializableClassRegistry.get(className);
-    if (existingClass && existingClass !== cls) throw new Error(`Deserializable Class ${className} already registered`);
-    serializableClassRegistry.set(className, cls);
-  },
-  useSerializeClass(className: string): SerializableClass {
-    const cls = serializableClassRegistry.get(className);
-    if (!cls) throw new Error(`Serializable class with name ${className} not found, be sure to register it first`);
-    return cls;
-  },
-  getSerializeClass(className: string): SerializableClass | undefined {
-    return serializableClassRegistry.get(className);
-  },
-  setDeserializeFn<C extends AnyClass>(cls: C, deserializeFn: DeserializeClassFn<InstanceType<C>>) {
-    const className = cls.name;
-    const fn = deserializeFnsRegistry.get(className);
-    if (fn && fn !== deserializeFn) throw new Error(`Deserialize function for class ${className} already exists`);
-    if (fn) return;
-    deserializeFnsRegistry.set(className, deserializeFn);
-  },
-  useDeserializeFn(className: string): DeserializeClassFn<any> {
-    const fn = deserializeFnsRegistry.get(className);
-    if (!fn) throw new Error(`Deserialize function for class ${className} not found, be sure to register it first`);
-    return fn;
-  },
-  getDeserializeFn(className: string): DeserializeClassFn<any> | undefined {
-    return deserializeFnsRegistry.get(className);
-  },
   alwaysThrowFactory(message: string): () => never {
     return () => {
       throw new Error(message);
@@ -173,10 +143,17 @@ const rtUtils = {
   },
   // Custom user-class (de)serializer lookup. Emitted factory bodies for
   // plain user classes (KindClass + SubKindNone) call this; a registered
-  // handler routes (de)serialization through it, otherwise the factory
-  // uses its structural fallback. See classSerializerRegistry.ts.
-  getClassSerializer(className: string): ClassSerializer | undefined {
+  // entry routes (de)serialization through it, otherwise the factory uses
+  // its structural fallback. See classSerializerRegistry.ts.
+  getClassSerializer(className: string): ClassSerializerEntry | undefined {
     return getClassSerializerImpl(className);
+  },
+  // Reconstruct a live instance from decoded data. Emitted decode bodies
+  // call this for a registered class member; it prefers the registered
+  // `deserialize`, else auto-instantiates a zero-arg class and copies the
+  // decoded props (surfacing CLS002 when the bare `new cls()` throws).
+  deserializeClass<T>(entry: ClassSerializerEntry<T>, data: DataOnly<T>): T {
+    return deserializeClassImpl(entry, data);
   },
 };
 

@@ -70,10 +70,16 @@ export {registerPureFnFactory, type PureFnId} from './runtypes/pureFn.ts';
 // before any materialised factory calls utl.getPureFn('rt::…').
 import './runtypes/pure-fns-utils.ts';
 
-// Custom class serializer registry — register a serialize/deserialize pair
-// for a user-defined class so the JSON + binary families route through it
-// instead of the structural object emit. See classSerializerRegistry.ts.
-export {registerClassSerializer, type ClassSerializer} from './runtypes/classSerializerRegistry.ts';
+// Custom class serializer registry — register a class (with an optional
+// serialize/deserialize handler) so the JSON + binary families rebuild a real
+// instance instead of decoding to a plain object. See classSerializerRegistry.ts.
+export {
+  registerClassSerializer,
+  type ClassSerializerHandler,
+  type AnyClass,
+  type SerializableClass,
+  type DeserializeClassFn,
+} from './runtypes/classSerializerRegistry.ts';
 
 // Type-format base machinery — the per-format types live under
 // `src/formats/` (the `ts-runtypes/formats` subpath); the
