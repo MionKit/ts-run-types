@@ -2029,9 +2029,16 @@ export const LARGE_OBJECTS = {
   large_class_union: {
     title: 'Large Class Union',
     description:
-      'Three-member discriminated union of large class instances where decode returns plain objects, since class instances do not survive a JSON round-trip.',
+      'Three-member discriminated union of large class instances. These classes are UNREGISTERED, so decode returns plain objects; a registered class serializer would rebuild the instance.',
     serializeNotes:
-      'Members are picked by the `kind` discriminant (`classA`/`classB`/`classC`); each carries Date (`when`/`releasedAt`/`processedAt`, ISO-string on the wire) and bigint (`total`/`score`, decimal-string on the wire) members, and decode returns plain objects rather than the original class instances.',
+      'Named class union members route through the flat union per-member INDEX dispatch (`[idx, value]`), not the merged `[-1, …]` object branch — so a registered class could reconstruct per member. Each carries Date (`when`/`releasedAt`/`processedAt`, ISO-string on the wire) and bigint (`total`/`score`, decimal-string on the wire) members; unregistered here, decode returns plain objects.',
+    // The value-first schema builder models these as `RT.object(...)` (object
+    // literals, which stay in the merged `[-1, …]` branch), while the type-first
+    // side is a CLASS union that now routes per-member for potential
+    // reconstruction. The two therefore diverge on the wire by design — the
+    // schema surface cannot express a class — so skip the schema-equivalence
+    // driver (round-trip + binary coverage still run).
+    idDivergent: true,
     mutateEncoder: () => {
       class LargeClassA {
         kind!: 'classA';

@@ -1,6 +1,8 @@
 package typefunctions
 
 import (
+	"strings"
+
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -70,6 +72,14 @@ type FlatAtomic struct {
 	Ref           *protocol.RunType
 	Resolved      *protocol.RunType
 	OriginalIndex int
+	// ClassName is the user-facing class name when this atomic member is a
+	// named plain user class (KindClass + SubKindNone) routed through
+	// per-member index dispatch so its class-serializer wrapper reconstructs
+	// the instance. Empty for every other atomic member (atomics, indexed
+	// objects, Date/Map/Set classes). When set, the encoders guard this
+	// member's arm by instance identity (`cs_<name> && v instanceof
+	// cs_<name>.cls`) ahead of the structural fallback.
+	ClassName string
 }
 
 type FlatObject struct {
@@ -170,6 +180,19 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 				layout.AtomicMembers = append(layout.AtomicMembers, FlatAtomic{Ref: ref, Resolved: resolved, OriginalIndex: i})
 				continue
 			}
+			// A named plain user class routes through per-member INDEX dispatch
+			// (the atomic bucket), NOT the object merge: it compiles via
+			// CompileChild, hitting the KindClass encode/decode arms — i.e. the
+			// class-serializer wrappers — so decode reconstructs the instance and
+			// the numeric member index discriminates which class. An anonymous
+			// class (never registrable) or a plain object literal stays in the
+			// merge as before.
+			if resolved.Kind == protocol.KindClass {
+				if name := userClassName(resolved); name != "" {
+					layout.AtomicMembers = append(layout.AtomicMembers, FlatAtomic{Ref: ref, Resolved: resolved, OriginalIndex: i, ClassName: name})
+					continue
+				}
+			}
 			layout.ObjectMembers = append(layout.ObjectMembers, FlatObject{Ref: ref, Resolved: resolved})
 			continue
 		}
@@ -198,6 +221,14 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 	// object/record branch whose members are all JSON-compatible no longer
 	// forces the wrap — that's the record-union optimisation.
 	layout.AtomicNeedsTuple = !layout.roundTripsRaw(ctx)
+	// A named class atomic member reconstructs on decode (a transform), and it
+	// is JSON-compatible (its props round-trip), so roundTripsRaw would
+	// otherwise leave the union identity-decoded with no `[idx, value]`
+	// envelope — losing both the member index AND the reconstruction. Force the
+	// envelope whenever a class atomic is present so the decoder runs.
+	if layout.hasClassAtomic() {
+		layout.AtomicNeedsTuple = true
+	}
 
 	// Per-prop NeedsSubWrap — single-candidate or no-candidate props
 	// never need a sub-wrap; multi-candidate props wrap iff at least
@@ -219,6 +250,89 @@ func buildFlatLayout(rt *protocol.RunType, ctx *EmitContext) FlatLayout {
 	}
 
 	return layout
+}
+
+// hasClassAtomic reports whether any atomic member is a named plain user class
+// routed through per-member index dispatch (FlatAtomic.ClassName set).
+func (layout FlatLayout) hasClassAtomic() bool {
+	for _, m := range layout.AtomicMembers {
+		if m.ClassName != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// atomicStructuralGuard is the JS boolean that selects an atomic member by its
+// STRUCTURAL shape — the leaf `typeof` / `=== null` fast path or the cross-family
+// `val_<member>` check, wrapped in the object-null guard for object-like kinds.
+// This is the guard every non-class atomic member uses, and the fallback guard a
+// class atomic member uses after its instance-identity arm.
+func atomicStructuralGuard(resolved *protocol.RunType, ctx *EmitContext, v string) string {
+	validateExpr := unionMemberValidateCheck(resolved, ctx, v)
+	if isObjectLikeKind(resolved.Kind) {
+		return objectGuard(v, validateExpr)
+	}
+	return validateExpr
+}
+
+// atomicDispatchArm names one encode arm: the member it selects (by index into
+// AtomicMembers) and the JS boolean guard that routes a value to it.
+type atomicDispatchArm struct {
+	Member FlatAtomic
+	Guard  string
+}
+
+// atomicEncodeDispatch returns the class-serializer lookup prologue and the
+// ORDERED atomic-member encode arms shared by every flat JSON encoder (pj / pjs
+// / sj). Ordering is what makes class reconstruction sound:
+//
+//  1. Class members by instance identity (`cs_<name> && v instanceof
+//     cs_<name>.cls`) — precise even for two same-shape classes (distinct
+//     prototypes), and skipped when the class is unregistered (`cs_<name>`
+//     undefined).
+//  2. Non-class atomic members by their structural guard (unchanged).
+//  3. Class members by their STRUCTURAL guard — the fallback for an unregistered
+//     class instance or a plain object assignable to a class-union position
+//     (best-effort: two same-shape classes fall to the first, which is harmless
+//     since an unregistered class decodes structurally either way).
+//
+// A class member therefore appears in TWO arms (identity + structural) selecting
+// the SAME OriginalIndex; each encoder compiles that member's body once and
+// renders it in both arms. The prologue declares `cs_<name>` once per class.
+func (layout FlatLayout) atomicEncodeDispatch(v string, ctx *EmitContext) (prologue string, arms []atomicDispatchArm) {
+	var decls []string
+	seenDecl := make(map[string]bool)
+	for _, m := range layout.AtomicMembers {
+		if m.ClassName == "" {
+			continue
+		}
+		// Distinct `cix_` var (class-identity) so it never collides with the
+		// child prepare/restore body's own `cs_` lookup declared by
+		// wrap*WithClassSerializer.
+		csVar := "cix_" + sanitizeIdent(m.ClassName)
+		if !seenDecl[csVar] {
+			seenDecl[csVar] = true
+			decls = append(decls, "const "+csVar+" = utl.getClassSerializer("+quoteJS(m.ClassName)+")")
+		}
+		arms = append(arms, atomicDispatchArm{Member: m, Guard: csVar + " && " + v + " instanceof " + csVar + ".cls"})
+	}
+	for _, m := range layout.AtomicMembers {
+		if m.ClassName != "" {
+			continue
+		}
+		arms = append(arms, atomicDispatchArm{Member: m, Guard: atomicStructuralGuard(m.Resolved, ctx, v)})
+	}
+	for _, m := range layout.AtomicMembers {
+		if m.ClassName == "" {
+			continue
+		}
+		arms = append(arms, atomicDispatchArm{Member: m, Guard: atomicStructuralGuard(m.Resolved, ctx, v)})
+	}
+	if len(decls) > 0 {
+		prologue = strings.Join(decls, ";") + ";"
+	}
+	return prologue, arms
 }
 
 // atomicOnlyJsonIdentity reports whether the union lays out as JSON-identity

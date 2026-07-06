@@ -85,22 +85,26 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 
 	var clauses []string
 
-	// Atomic members — `if (validate) { writeDiscriminator(idx); encode; }`.
+	// Atomic members — `if (guard) { writeDiscriminator(idx); encode; }`. Class
+	// members dispatch by instance identity first, then non-class atomics, then a
+	// class structural fallback (atomicEncodeDispatch) — the same ordering the
+	// JSON encoders use, so a value from one of two SAME-shape classes writes the
+	// correct member index instead of the first structural match.
+	prologue, arms := layout.atomicEncodeDispatch(v, ctx)
+	bodyByIndex := make(map[int]string, len(layout.AtomicMembers))
 	for _, m := range layout.AtomicMembers {
 		childRT := ctx.CompileChild(m.Ref, CodeS)
 		if childRT.Type == CodeNS {
 			return RTCode{Code: "", Type: CodeNS}
 		}
-		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
-		guard := validateExpr
-		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, validateExpr)
-		}
 		body := writeDiscriminator(ser, width, m.OriginalIndex)
 		if childRT.Code != "" {
 			body += ";" + strings.TrimSpace(childRT.Code)
 		}
-		clause := "if (" + guard + ") {" + body + "}"
+		bodyByIndex[m.OriginalIndex] = body
+	}
+	for _, arm := range arms {
+		clause := "if (" + arm.Guard + ") {" + bodyByIndex[arm.Member.OriginalIndex] + "}"
 		if len(clauses) > 0 {
 			clause = " else " + clause
 		}
@@ -186,7 +190,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 
 	errVar := flatUnionEncodeBinaryErrorVar(ctx)
 	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return RTCode{Code: strings.Join(clauses, ""), Type: CodeS}
+	return RTCode{Code: prologue + strings.Join(clauses, ""), Type: CodeS}
 }
 
 // emitMergedPropToBinary mirrors emitMergedPropPrepare for the binary
