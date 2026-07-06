@@ -359,7 +359,7 @@ export async function main(args) {
     case 'smoke': return cmdSmoke(cfg);
     case 'verify-docs': return cmdVerifyDocs(cfg);
     case 'shell': return cmdShell(cfg);
-    default: die(`site: unknown command '${cmd ?? ''}'. Try: dev | build | generate | smoke | verify-docs | shell  (image lifecycle: pnpm rt container build-image|ensure|login|push|pull|lock|clean)`);
+    default: die(`site: unknown command '${cmd ?? ''}'. Try: dev | build | generate | smoke | verify-docs | shell  (image lifecycle: pnpm rtx container build-image|ensure|login|push|pull|lock|clean)`);
   }
 }
 

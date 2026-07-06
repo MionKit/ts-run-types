@@ -15,23 +15,23 @@ Drive the project's docs website ([container/website/](../../../container/websit
 
 ## Start the website, then test it
 
-The site cannot run on the host — its `node_modules` live only in the image. Use [scripts/website/site.mjs](../../../scripts/website/site.mjs) (`pnpm rt website dev --agent`) to bring it up, then point the browser at `http://localhost:3100`.
+The site cannot run on the host — its `node_modules` live only in the image. Use [scripts/website/site.mjs](../../../scripts/website/site.mjs) (`pnpm rtx website dev --agent`) to bring it up, then point the browser at `http://localhost:3100`.
 
 ### 1. Start the dev server (agent mode, hot-reload)
 
-**As an agent, always start with `--agent`.** It runs the site in a separate container (`tsrt-website-agent`) on the reserved port **3100**, so you never collide with a human running `pnpm rt website dev` on `:3000`. It's detached (no `&` needed) and self-stops after ~5 min idle, so a forgotten server cleans itself up. Target **3100** in every command below.
+**As an agent, always start with `--agent`.** It runs the site in a separate container (`tsrt-website-agent`) on the reserved port **3100**, so you never collide with a human running `pnpm rtx website dev` on `:3000`. It's detached (no `&` needed) and self-stops after ~5 min idle, so a forgotten server cleans itself up. Target **3100** in every command below.
 
 ```bash
 # start the agent dev server (detached, self-stopping, on :3100)
-pnpm rt website dev --agent
+pnpm rtx website dev --agent
 
 # wait until it answers (Nuxt cold start can take ~30-60s)
 until curl -fsS http://localhost:3100 -o /dev/null; do sleep 2; done
 echo "website up on http://localhost:3100"
 ```
 
-> Only use plain `pnpm rt website dev` (foreground, `:3000`) if you specifically need the human-facing port — it will collide with a user's running server.
-> A one-shot health check with no browser is `pnpm rt website check` (starts a bg server, curls `:3000`, stops).
+> Only use plain `pnpm rtx website dev` (foreground, `:3000`) if you specifically need the human-facing port — it will collide with a user's running server.
+> A one-shot health check with no browser is `pnpm rtx website check` (starts a bg server, curls `:3000`, stops).
 
 ### 2. Drive it with the browser
 
@@ -54,7 +54,7 @@ playwright-cli --raw eval "document.body.innerText" | grep -i "expected snippet 
 playwright-cli --raw eval "document.querySelectorAll('pre.shiki, .twoslash').length"
 ```
 
-> There is also a non-browser doc verifier: `pnpm rt website check --docs` (curl/grep based).
+> There is also a non-browser doc verifier: `pnpm rtx website check --docs` (curl/grep based).
 
 ### 4. Debug a page
 

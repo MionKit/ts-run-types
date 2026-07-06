@@ -13,8 +13,8 @@
 #   7. Builds the Go resolver binary at bin/ts-runtypes.
 #   8. Builds the ts-runtypes-devtools dist (consumers depend on it).
 #
-# After this, the smoke checks (`pnpm rt dev smoke`,
-# `pnpm rt website check`, `pnpm rt bench smoke`) verify the binary +
+# After this, the smoke checks (`pnpm rtx dev smoke`,
+# `pnpm rtx website check`, `pnpm rtx bench smoke`) verify the binary +
 # plugin wiring AND the containers actually build + run end-to-end.
 #
 # Architecture:
@@ -310,7 +310,7 @@ main() {
     *)
       bold "ts-runtypes setup"
       err "This skill is not ready for '$OS'. Supported platforms: Linux and macOS."
-      err "Install podman/Node/pnpm/Go manually, then use pnpm rt website & pnpm rt bench."
+      err "Install podman/Node/pnpm/Go manually, then use pnpm rtx website & pnpm rtx bench."
       exit 3
       ;;
   esac
@@ -331,7 +331,7 @@ main() {
   bold "Required for the docs website + benchmarks"
   check_dep podman "$PODMAN_MIN" "podman --version | awk '{print \$3}'" 1
 
-  bold "Required for the benchmarks (host build via 'pnpm rt bench prep')"
+  bold "Required for the benchmarks (host build via 'pnpm rtx bench prep')"
   check_dep node "$NODE_MIN" "node --version | tr -d v" 0
   check_dep pnpm "$PNPM_MIN" "pnpm --version" 0
   check_dep go   "$GO_MIN"   "go version | awk '{print \$3}' | sed 's/^go//'" 0
@@ -355,14 +355,14 @@ main() {
   if [ "$CHECK_ONLY" = 1 ]; then
     echo "  bash .claude/skills/ts-runtypes-setup/setup.sh   # run autonomous setup"
   else
-    echo "  pnpm rt dev smoke         # binary + plugin wiring smoke (~1s)"
-    echo "  pnpm rt website check    # build image + boot dev server + curl :3000 + stop"
-    echo "  pnpm rt bench smoke      # build image + vite-build the benchmark in-container"
-    echo "  pnpm rt website dev      # docs site -> http://localhost:3000"
-    echo "  pnpm rt bench            # full validation benchmark"
-    echo "  pnpm rt bench typecost   # type-checking-cost benchmark"
+    echo "  pnpm rtx dev smoke         # binary + plugin wiring smoke (~1s)"
+    echo "  pnpm rtx website check    # build image + boot dev server + curl :3000 + stop"
+    echo "  pnpm rtx bench smoke      # build image + vite-build the benchmark in-container"
+    echo "  pnpm rtx website dev      # docs site -> http://localhost:3000"
+    echo "  pnpm rtx bench            # full validation benchmark"
+    echo "  pnpm rtx bench typecost   # type-checking-cost benchmark"
     if [ "$OS" = Darwin ]; then
-      echo "  (macOS: RT_WEBSITE_POLL=1 pnpm rt website dev  for reliable hot reload)"
+      echo "  (macOS: RT_WEBSITE_POLL=1 pnpm rtx website dev  for reliable hot reload)"
     fi
   fi
 

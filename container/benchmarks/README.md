@@ -93,7 +93,7 @@ The first build compiles typia's native plugin once (~200s, "once per cache key"
 via ttsc's own embedded Go toolchain. Since the image is deps-only (no source at
 build time), this compile happens on the **first run that includes typia** rather
 than at image build, writing into a persisted named volume (`competitors/typia/node_modules/.ttsc`)
-so every later run reuses it; `pnpm rt bench clean` drops the volume.
+so every later run reuses it; `pnpm rtx bench clean` drops the volume.
 
 typia entries copy the per-case literal `T` verbatim from the ts-go competitor
 (the type must be written at the `createIs<T>()` call site, like ts-go's
@@ -123,18 +123,18 @@ invalidated only when a dependency manifest changes.
 From the repo root:
 
 ```bash
-pnpm rt bench prep            # build the Go binaries (host + Linux cross) + first-party JS packages on the host (one-time)
-pnpm rt bench                 # build + validate + throughput for EVERY competitor + aggregate
-pnpm rt bench --one zod         # the same for a SINGLE competitor (fastest verification loop)
-pnpm rt bench typecost        # compile-time: per-competitor TS type-instantiation cost
-pnpm rt bench serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
-pnpm rt bench --website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
-pnpm rt bench smoke           # quick: build every competitor's dist (no run)
+pnpm rtx bench prep            # build the Go binaries (host + Linux cross) + first-party JS packages on the host (one-time)
+pnpm rtx bench                 # build + validate + throughput for EVERY competitor + aggregate
+pnpm rtx bench --one zod         # the same for a SINGLE competitor (fastest verification loop)
+pnpm rtx bench typecost        # compile-time: per-competitor TS type-instantiation cost
+pnpm rtx bench serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
+pnpm rtx bench --website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
+pnpm rtx bench smoke           # quick: build every competitor's dist (no run)
 # --- image publishing (maintainer); all delegate to scripts/container/image.mjs ---
-pnpm rt container build-image     # build the shared website+benchmark image locally
-pnpm rt container login           # log in to GHCR (needs a PAT; see SETUP.md)
-pnpm rt container push            # build + push the multi-arch image to GHCR
-pnpm rt container pull            # pull the published image and tag it locally
+pnpm rtx container build-image     # build the shared website+benchmark image locally
+pnpm rtx container login           # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm rtx container push            # build + push the multi-arch image to GHCR
+pnpm rtx container pull            # pull the published image and tag it locally
 ```
 
 The benchmarks run in the **single shared image** built from
@@ -160,7 +160,7 @@ toolchain is needed in-container), and writes `serialization` +
 the docs site renders — runtime validation + typecost + `capture-env` +
 serialization (+ formats), every measurement taken inside the Node 26 container,
 then the `gen-bench-docs` host transform. (Suite-doc panels — schema / generated
-code — are a separate `pnpm rt website build`.)
+code — are a separate `pnpm rtx website build`.)
 
 The run commands **pull the latest published `ghcr.io/mionkit/tsrt-website:latest`
 (the shared image) by default** (cheap no-op when current), falling back to a local
@@ -276,9 +276,9 @@ process-start — and typia's one-time ~200s `ttsc` plugin compile, cached in th
 volume — never lands in a measured tier; each number is the **median of N** (default 5).
 
 ```bash
-pnpm rt bench compiletime                              # ts-runtypes + typia, three tiers
-RT_COMPILETIME_COMPETITORS="ts-runtypes" pnpm rt bench compiletime   # one library
-RT_COMPILETIME_N=10 pnpm rt bench compiletime             # more repeats
+pnpm rtx bench compiletime                              # ts-runtypes + typia, three tiers
+RT_COMPILETIME_COMPETITORS="ts-runtypes" pnpm rtx bench compiletime   # one library
+RT_COMPILETIME_N=10 pnpm rtx bench compiletime             # more repeats
 ```
 
 Results land in `results/{ts-runtypes,typia}.compiletime.json` (`strip_ms`,
@@ -332,7 +332,7 @@ aggregate.mjs           results/*.json → comparison table + coverage; sets the
 
 Edit the relevant `competitors/<name>/cases.ts`: change a `NOT_SUPPORTED` entry to
 a builder `() => { const s = <schema>; return (v) => <validate>(v, s); }` (the
-`CaseKey` union catches typo'd keys at compile time). Run `pnpm rt bench --one
+`CaseKey` union catches typo'd keys at compile time). Run `pnpm rtx bench --one
 <name>` with `RT_BENCH_NO_TIMING=1` and fix any reported mismatch — or downgrade it
 back to `NOT_SUPPORTED` (with a one-line reason) when the library genuinely
 diverges from RunTypes' semantics. To add a whole new competitor, copy a
@@ -350,13 +350,13 @@ against the SHARED samples (never its override) to surface and explain every
 cross-library divergence. It is analysis only and changes no case file.
 
 ```bash
-pnpm rt bench audit        # build + audit-run every competitor, then aggregate + classify
+pnpm rtx bench audit        # build + audit-run every competitor, then aggregate + classify
 ```
 
 Tooling lives in [`_audit/`](_audit/); the committed write-up is
 [`docs/cross-library-validation-alignment-report.md`](../docs/cross-library-validation-alignment-report.md).
 The audit also feeds the website's **Correctness** benchmark page (an `alignment` bench
-in `scripts/website/bench-data/gen-docs.mjs`); `pnpm rt bench --website` runs the audit so that page's
+in `scripts/website/bench-data/gen-docs.mjs`); `pnpm rtx bench --website` runs the audit so that page's
 data regenerates with the rest.
 
 ## Behind a corporate / MITM proxy
@@ -369,7 +369,7 @@ explicitly (file or dir) to override, and point the build at the proxy network:
 ```bash
 RT_BENCH_CA_CERT=/usr/local/share/ca-certificates \
 RT_BENCH_BUILD_NETWORK=host \
-  pnpm rt container build-image
+  pnpm rtx container build-image
 ```
 
 The Go binary + first-party packages are built on the host by `bench:prep` and

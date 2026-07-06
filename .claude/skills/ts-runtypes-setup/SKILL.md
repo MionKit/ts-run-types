@@ -18,13 +18,13 @@ to the user the first time any step exits non-zero.
 
 ```bash
 bash .claude/skills/ts-runtypes-setup/setup.sh   # 1. host deps + project bootstrap
-pnpm rt dev smoke                                # 2. Go binary + vite plugin wiring smoke
-pnpm rt website check                            # 3. docs website smoke
-pnpm rt bench smoke                              # 4. benchmarks smoke
+pnpm rtx dev smoke                                # 2. Go binary + vite plugin wiring smoke
+pnpm rtx website check                            # 3. docs website smoke
+pnpm rtx bench smoke                              # 4. benchmarks smoke
 ```
 
-After all four pass, the repo is ready: `pnpm rt website dev`,
-`pnpm rt bench`, and `pnpm test` will all work.
+After all four pass, the repo is ready: `pnpm rtx website dev`,
+`pnpm rtx bench`, and `pnpm test` will all work.
 
 ### What each step does
 
@@ -75,7 +75,7 @@ Pass `--check` to report status only, never install or build anything.
 Exit codes: `0` ok / `1` a required install or bootstrap step failed / `3`
 unsupported OS or no supported package manager.
 
-**2. `pnpm rt dev smoke`** - end-to-end smoke for the Go resolver
+**2. `pnpm rtx dev smoke`** - end-to-end smoke for the Go resolver
 binary + vite plugin wiring ([scripts/core/smoke.mjs](../../../scripts/core/smoke.mjs)).
 Spawns `bin/ts-runtypes` in `--inline-server` mode, installs three tiny
 in-memory fixtures (`getRunTypeId<T>()` static, `getRunTypeId(v)` reflect,
@@ -88,7 +88,7 @@ vite plugin dist when any is stale or partially emitted, so the smoke is
 usable standalone.
 Runs in ~1s when healthy. Exits 0/1.
 
-**3. `pnpm rt website check`** - readies the website podman image then runs the
+**3. `pnpm rtx website check`** - readies the website podman image then runs the
 dev server. The images are **deps-only** and published to GHCR, so by default
 `scripts/container/image.mjs:ensure_image` PULLS the latest `ghcr.io/mionkit/tsrt-website:latest`
 (`ghcr_try_pull_retag`; cheap no-op when already current), falling back to a
@@ -99,14 +99,14 @@ for HTTP 200 + a `<title>...</title>` response (90s timeout, override with
 (`RT_WEBSITE_USE_LOCAL=1` builds/uses a local image instead of pulling - for offline
 or maintainer runs.)
 
-**4. `pnpm rt bench smoke`** - via `scripts/website/bench-data/bench.mjs:ensure_prereqs`,
+**4. `pnpm rtx bench smoke`** - via `scripts/website/bench-data/bench.mjs:ensure_prereqs`,
 self-syncs the host Go binary, the Linux cross-binary (`bin/ts-runtypes-linux-<arch>`),
 the marker dist and the plugin dist (rebuilds whichever is stale), and readies
 the shared image (PULLS `ghcr.io/mionkit/tsrt-website:latest` by default;
 `RT_BENCH_USE_LOCAL=1` to build locally). The benchmark source is bind-mounted at
 run time, so the container build (`pnpm run build`) exercises both the resolver
 binary (via the vite plugin) and the benchmark sources end-to-end. Exits 0/1.
-Skips the full bench loop (which takes minutes); for that, run `pnpm rt bench`
+Skips the full bench loop (which takes minutes); for that, run `pnpm rtx bench`
 afterwards.
 
 ## Layout
@@ -132,7 +132,7 @@ version constants in sync.
 - **Linux** - verified (podman 4.9.3 via apt; other distros use dnf/pacman/zypper).
 - **macOS** - supported: installs via Homebrew, manages the `podman machine` VM
   (`init` if missing, `start` if down). For long dev sessions use
-  `RT_WEBSITE_POLL=1 pnpm rt website dev` (VM file-watch needs polling).
+  `RT_WEBSITE_POLL=1 pnpm rtx website dev` (VM file-watch needs polling).
 - **Any other OS** - the script prints a not-ready message and exits `3`.
 
 ## Notes

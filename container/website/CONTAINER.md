@@ -42,19 +42,19 @@ All commands run from the **repo root**. Running the site is
 
 ```bash
 # --- run the site (site.mjs) ---
-pnpm rt website dev           # dev server with hot reload  -> http://localhost:3000
-pnpm rt website build         # production build            -> container/website/.output
-pnpm rt website build      # static prerender            -> container/website/.output/public
-pnpm rt website check          # verify the mion repo context (packages/) is built
-pnpm rt website check --docs   # check code-import + twoslash render (curl/grep)
-pnpm rt website shell         # debug shell inside the container
+pnpm rtx website dev           # dev server with hot reload  -> http://localhost:3000
+pnpm rtx website build         # production build            -> container/website/.output
+pnpm rtx website build      # static prerender            -> container/website/.output/public
+pnpm rtx website check          # verify the mion repo context (packages/) is built
+pnpm rtx website check --docs   # check code-import + twoslash render (curl/grep)
+pnpm rtx website shell         # debug shell inside the container
 # --- image lifecycle (image.mjs) ---
-pnpm rt container build-image   # build the image locally (maintainer)
-pnpm rt container lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
-pnpm rt container login         # log in to GHCR (needs a PAT; see SETUP.md)
-pnpm rt container push          # build + push the multi-arch image to GHCR
-pnpm rt container pull          # pull the published image and tag it locally
-pnpm rt container clean         # remove the image + cache volumes
+pnpm rtx container build-image   # build the image locally (maintainer)
+pnpm rtx container lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
+pnpm rtx container login         # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm rtx container push          # build + push the multi-arch image to GHCR
+pnpm rtx container pull          # pull the published image and tag it locally
+pnpm rtx container clean         # remove the image + cache volumes
 ```
 
 The images are published to GHCR, so **`website:dev` (and the other run commands)
@@ -85,14 +85,14 @@ built `.d.ts` from `packages/`. Those packages live in the **mion** checkout, wh
 — so the website works whether mion is a sibling checkout (today) or merged in
 later. Only `packages/` (+ a drizzle-orm `.d.ts` allowlist) is exposed, and every
 `path=` read is confined to `packages/` (`server/utils/repo-root.ts`). Run
-`pnpm rt website check` to confirm the context is built and `pnpm rt website check --docs`
+`pnpm rtx website check` to confirm the context is built and `pnpm rtx website check --docs`
 to check both mechanisms render.
 
 On **macOS** (podman runs in a Linux VM), inotify events don't always cross the
 VM mount boundary — run with polling:
 
 ```bash
-RT_WEBSITE_POLL=1 pnpm rt website dev
+RT_WEBSITE_POLL=1 pnpm rtx website dev
 ```
 
 ## Behind a corporate / MITM egress proxy
@@ -106,9 +106,9 @@ use host networking:
 # RT_WEBSITE_CA_CERT may be a single .crt file or a directory of .crt files.
 RT_WEBSITE_CA_CERT=/usr/local/share/ca-certificates \
 RT_WEBSITE_BUILD_NETWORK=host \
-  pnpm rt container build-image
+  pnpm rtx container build-image
 
-RT_WEBSITE_RUN_NETWORK=host pnpm rt website dev
+RT_WEBSITE_RUN_NETWORK=host pnpm rtx website dev
 ```
 
 The certs are copied into `container/website/.cacerts/` (git-ignored) and trusted via

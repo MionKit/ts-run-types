@@ -60,7 +60,7 @@ jobs:
           fi
           go vet ./cmd/... ./internal/...
       # Prod parity with ci.yml: the committed Go→TS mirrors must stay in sync.
-      # Equivalent to `pnpm run rt core codegen all --check`.
+      # Equivalent to `pnpm rtx core codegen all --check`.
       - name: Codegen drift (Go→TS mirrors must be in sync)
         run: |
           pnpm run gen:ts-constants
@@ -77,7 +77,7 @@ jobs:
       - name: Full JS suite (builds the resolver + dists via pretest; runs fuzz)
         run: pnpm test
       # pnpm test above never sets RT_FUZZ_RACE, so enrichRace self-skips there;
-      # the concurrency coverage rides here. Equivalent to `pnpm run rt core fuzz race`.
+      # the concurrency coverage rides here. Equivalent to `pnpm rtx core fuzz race`.
       - name: Concurrent CLI race fuzz (RT_FUZZ_RACE gate)
         run: RT_FUZZ_RACE=1 pnpm exec vitest run enrichRace
       # Re-run the full main gate here too (lint/typecheck/format) so a prod PR
@@ -180,13 +180,13 @@ jobs:
       # Builds the Go resolver binary + the marker/plugin packages on the runner
       # (these are mounted into the pulled image at run time).
       - name: Prep ts-runtypes toolchain
-        run: pnpm run rt bench prep
+        run: pnpm rtx bench prep
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Run the benchmark (build + run, in the container)
-        run: pnpm run rt bench bench
+        run: pnpm rtx bench bench
       - name: Type-checking cost (TS type instantiations)
-        run: pnpm run rt bench typecost
+        run: pnpm rtx bench typecost
 
   website-build:
     name: static docs site build (podman)
@@ -206,7 +206,7 @@ jobs:
       # The container-only prod build (not the full data pipeline) - produces
       # container/website/.output.
       - name: Production build inside the container
-        run: pnpm run rt website container-build
+        run: pnpm rtx website container-build
       - name: Upload build output
         uses: actions/upload-artifact@v7
         with:

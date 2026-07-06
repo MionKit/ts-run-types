@@ -25,7 +25,7 @@
     }
   },
   "scripts": {
-    "rt": "node scripts/rt.mjs",
+    "rtx": "node scripts/rt.mjs",
     "pretest": "pnpm run check:builds",
     "test": "vitest run",
     "check:builds": "node scripts/rt.mjs core build",
