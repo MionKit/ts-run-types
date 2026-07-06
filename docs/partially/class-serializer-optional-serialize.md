@@ -1,12 +1,22 @@
-# Class serializer redesign — optional `serialize`, class-derived identity, `rt$classID` wire tag
+# Class serializer redesign — optional `serialize`, class-derived identity, class-in-union reconstruction
 
-**Status:** PARTIALLY DONE — the API redesign shipped; the `rt$classID` JSON-union
-discriminant (Phase 1b) and open-world polymorphism (Phase 2) are deferred.
+**Status:** PARTIALLY DONE — the API redesign shipped (PR #189). Class-in-union
+reconstruction (below) is IN PROGRESS via the **numeric member index**, which
+supersedes the original `rt$classID` string-tag design. Open-world polymorphism
+(Phase 2) stays deferred.
 **Created:** 2026-07-06
-**Area:** JSON + binary codecs (`pj` / `pjs` / `sj` / `rj` / `tb` / `fb` families), union discriminator machinery, runtime registry
+**Area:** JSON + binary codecs (`pj` / `pjs` / `sj` / `rj` / `tb` / `fb` families), flat-union machinery, type-id, runtime registry
 **Supersedes:** the T7 class-serializer contract (both `serialize` + `deserialize` required, keyed by bare class name)
 
-## What shipped (this PR)
+> **Design change (agreed with the maintainer):** the JSON-union discriminant is
+> the union's **existing numeric member index**, not a synthetic `rt$classID`
+> string field. The flat union already writes an `[idx, value]` envelope (the same
+> discriminant binary uses); routing each named class member through that per-member
+> index reuses the class-serializer encode/decode wrappers and needs no wire string.
+> The old `rt$classID` prose further below is kept for history but is NOT what
+> ships — read **"Union reconstruction — final design"** immediately below instead.
+
+## What shipped (PR #189)
 
 The runtime API redesign and auto-instantiate, end to end (JSON + binary,
 monomorphic and nested / array positions), fully tested and documented:
@@ -21,29 +31,89 @@ monomorphic and nested / array positions), fully tested and documented:
 - **`deserialize` optional for zero-arg classes** — default is
   `Object.assign(new cls(), decodedData)` via the new `utl.deserializeClass` helper;
   the decode wrappers route through it. A registered class without a custom `serialize`
-  runs the structural decode first, then reconstructs the instance.
+  runs the structural decode first (→ `DataOnly`), then reconstructs the instance, so
+  `deserialize(data: DataOnly<T>): T` always receives the data-only projection.
 - **CLS001** message updated to the new signature; **CLS002** added as a runtime error
   when the auto `new cls()` throws (constructor needs args, no `deserialize`).
 - The dead `rtUtils` scaffolding (`setSerializableClass` / `setDeserializeFn` / …) was
   deleted; `AnyClass` / `SerializableClass` / `DeserializeClassFn` moved next to the
-  single public registry (Open question 5: delete + unify — done).
-- Docs: website "Custom class serializers", the `custom-class-serializer.ts` example
-  (deserialize-only + zero-arg paths), CLS001 catalog, this ROADMAP.
+  single public registry.
 
-## What is deferred (follow-ups)
+## Union reconstruction — final design
 
-- **Phase 1b — the `rt$classID` JSON-union discriminant.** A genuinely new decode mode:
-  today the flat-union machinery merges plain class members into a shared structural
-  prop set (their per-member serializer is bypassed) and the single decoder routes
-  purely by a numeric envelope index, with no structural-trial fallback. Binary needs
-  nothing (its per-member index already routes). Tracked in ROADMAP.
-- **Phase 2 — open-world polymorphism** (base-class / interface field → any registered
-  subclass). Needs a `classID`-keyed global registry index; no wire change.
+### 1. Type-id: fold the class name into a plain class's structural id
+
+A plain user class routes reconstruction through the **name-keyed** registry
+(`utl.getClassSerializer(name)`). Two structurally-identical classes with different
+names (`class A {x:number}` vs `class B {x:number}`) previously collapsed to ONE
+structural id → one shared cache entry that bakes in a single name → mis-routes the
+other's (de)serialization, and in a union both members become one node so nothing can
+tell them apart. Fix: the plain-class (`KindClass` + `SubKindNone`) structural id now
+appends `#<ClassName>` outside the member group
+([`typeid.go`](../../ts-go-runtypes/internal/cachegen/runtype/typeid/typeid.go), the
+`isClass` branch). Anonymous classes (0xFE internal symbol name, same test as
+`userClassName`) are never registered and keep the nameless id. Interfaces / object
+literals are unaffected (name-irrelevant pure data). **Done — Go suite green.**
+
+### 2. Route named class union members through the per-member index
+
+The flat union already splits members into an **atomic** bucket (per-member
+`[idx, value]` dispatch) and an **object** bucket (merged into one `[-1, merged]`
+branch). Plain classes currently fall into the object bucket, so their properties are
+structurally merged and the class-serializer wrapper is bypassed. Change:
+
+- **Layout** ([`union_flat_layout.go`](../../ts-go-runtypes/internal/cachegen/typefunctions/union_flat_layout.go)):
+  bucket a named plain class (`userClassName != ""`) into **AtomicMembers** (keeping its
+  `OriginalIndex`), NOT ObjectMembers. It then compiles via `CompileChild`, hitting the
+  `KindClass` encode/decode arms — i.e. the class-serializer wrappers already shipped.
+- **Force the envelope**: a plain class is `isJsonCompatible` (number props round-trip),
+  so a class union would otherwise `roundTripsRaw` and decode as identity. When the
+  layout has ≥1 named class atomic member, force `AtomicNeedsTuple` so the `[idx, value]`
+  envelope is written and the decoder runs (and can reconstruct).
+- **Encode guard** (pj / pjs / sj): a class member's arm is guarded by **instance
+  identity** — `cs_<name> && v instanceof cs_<name>.cls` — read from the registry.
+  `instanceof` separates same-shape classes cleanly (distinct prototypes), and an
+  unregistered class (`cs_<name>` undefined) skips the identity arm. Identity arms are
+  emitted BEFORE a **structural fallback** (the normal `unionMemberValidateCheck`) so a
+  plain object assignable to a class-union position still routes (best-effort: same-shape
+  fallback picks the first match). The selected member's `OriginalIndex` goes in the
+  envelope.
+- **Decode**: unchanged. The shared `emitUnionRestoreFromJsonFlat` already dispatches
+  atomic members by `[idx, value]`; the class member's restore arm is the normal
+  `CompileChild` restore = the class restore wrapper (structural restore → `DataOnly`,
+  then `utl.deserializeClass`). So `deserialize` runs only after the value is restored
+  to `DataOnly`, exactly as at a monomorphic position.
+- **Binary**: already correct — `union_flat_binary.go` writes/reads a per-member index
+  and compiles members via `CompileChild`, so class members reconstruct with no change.
+
+### 3. Scope + behaviour
+
+- Triggers ONLY for a union that contains ≥1 named class member. A union with no class
+  members (including discriminated unions of plain object literals) is byte-for-byte
+  unchanged and keeps its discriminator fast-path.
+- Applies to **any** named class union member, independent of whether the members share
+  a natural discriminator: reconstruction must be consistent ("a class in a union always
+  comes back as an instance"), and registration is a runtime fact the build can't see.
+  An unregistered class member falls back to a structural plain object, same as today,
+  just inside the `[idx, value]` envelope.
+- No wire string is added. No new family. No new structural-id hash input beyond the
+  class-name fold in (1). Confirm the disk-cache fingerprint needs no bump and re-run the
+  mode-parity + cache tests.
+
+### 4. Still deferred
+
+- **Phase 2 — open-world polymorphism** (a base-class / interface field reconstructs any
+  registered subclass, candidate set not statically known). Needs a `classID`-keyed
+  global registry index and open dispatch. Recorded in ROADMAP.
 - **Custom `serialize` owning an arbitrary JSON wire shape** — a pre-existing limitation
-  surfaced during this work (the JSON decoder's structural `ukuw` pre-pass), filed
-  separately in [class-serializer-custom-wire-shape.md](../todos/class-serializer-custom-wire-shape.md).
+  (the JSON decoder's structural `ukuw` pre-pass), filed in
+  [class-serializer-custom-wire-shape.md](../todos/class-serializer-custom-wire-shape.md).
 
-The original design below is unchanged for the deferred phases.
+---
+
+_The sections below are the ORIGINAL design record. The `rt$classID` string tag they
+describe is superseded by the numeric-member-index design above; kept for historical
+context and for the Phase-2 polymorphism notes._
 
 ## Summary
 
