@@ -340,9 +340,27 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 		return collectionID(int(protocol.SubKindNonSerializable), ids, false)
 	}
 	if isClass(tsType) {
-		// Generic user class — composition of property ids (sorted for determinism).
+		// Generic user class — composition of property ids (sorted for
+		// determinism), PLUS the class name. Unlike an interface / object
+		// literal (pure structural data, name irrelevant), a class routes
+		// reconstruction through the name-keyed class-serializer registry
+		// (`utl.getClassSerializer(name)`). Two structurally-identical classes
+		// with different names (`class A {x:number}` vs `class B {x:number}`)
+		// must therefore NOT share a structural id, or they collapse to one
+		// cache entry that bakes in a single name and mis-routes the other's
+		// (de)serialization — and, in a union, both members become one node so
+		// the `rt$classID` discriminant can't tell them apart. Anonymous classes
+		// (TS internal symbol name, 0xFE prefix — same test as `userClassName`)
+		// are never registered, so they keep the nameless structural id.
 		ids := computer.memberIDs(tsType, true)
-		return collectionID(int(protocol.KindClass), ids, false)
+		id := collectionID(int(protocol.KindClass), ids, false)
+		// Append the class name as an unambiguous suffix outside the `{…}`
+		// member group (a bare `name:` token inside could collide with a
+		// property literally named `name`). `#` never appears in a member id.
+		if symbol := tsType.Symbol(); symbol != nil && symbol.Name != "" && symbol.Name[0] != 0xFE {
+			id += "#" + symbol.Name
+		}
+		return id
 	}
 
 	// Free function — bare callable with no own properties. Encode the
