@@ -4,6 +4,10 @@
 // the Date field still round-trips via ISO string, and decode reconstructs a
 // real instance. The value-first schema variants are 'not-supported' (a class is
 // not expressible as an `RT.*` model), so the id-integrity driver skips them.
+//
+// NOTE: the `Invoice` class is defined INSIDE each thunk (never module scope),
+// even though it repeats — the website doc pipeline extracts each thunk as a
+// standalone, self-contained code sample.
 import * as TF from 'ts-runtypes/formats';
 import type {SerializationCase} from './types.ts';
 import 'ts-runtypes/formats';
@@ -15,22 +19,6 @@ import {
   createJsonEncoder,
 } from 'ts-runtypes';
 
-class Invoice {
-  constructor(
-    public ref: string,
-    public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
-    public issued: Date
-  ) {}
-  total(): number {
-    return this.cents / 100;
-  }
-}
-
-// Registered per-thunk (idempotent; the registry is keyed by Invoice's type id).
-function reg(): void {
-  registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-}
-
 export const CLASS_WITH_FORMATS = {
   invoice_currency_and_date: {
     title: 'Class with a currency-format field + Date',
@@ -39,50 +27,152 @@ export const CLASS_WITH_FORMATS = {
     serializeNotes:
       'Class serializer keyed by type id; the currency format still packs to 2 bytes on the binary wire inside the class body. Value-first schema is not-supported (a class is not an `RT.*` model).',
     mutateEncoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createJsonEncoder<Invoice>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createJsonEncoder<Invoice>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createJsonEncoder<Invoice>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createJsonEncoder<Invoice>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createJsonDecoder<Invoice>();
     },
     preserveDecoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createJsonDecoder<Invoice>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createJsonDecoder<Invoice>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createBinaryEncoder<Invoice>();
     },
     binaryDecoder: () => {
-      reg();
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
       return createBinaryDecoder<Invoice>();
     },
     schemaEncoder: 'not-supported',
     schemaDecoder: 'not-supported',
     schemaBinaryEncoder: 'not-supported',
     schemaBinaryDecoder: 'not-supported',
-    getTestData: () => ({
-      values: [
-        new Invoice('A-1', 1999, new Date('2024-01-02T03:04:05.000Z')),
-        new Invoice('B-2', 0, new Date('2020-12-31T00:00:00.000Z')),
-      ],
-    }),
+    getTestData: () => {
+      class Invoice {
+        constructor(
+          public ref: string,
+          public cents: TF.Currency<{integer: true; min: 0; max: 65535}>,
+          public issued: Date
+        ) {}
+        total(): number {
+          return this.cents / 100;
+        }
+      }
+      return {
+        values: [
+          new Invoice('A-1', 1999, new Date('2024-01-02T03:04:05.000Z')),
+          new Invoice('B-2', 0, new Date('2020-12-31T00:00:00.000Z')),
+        ],
+      };
+    },
   },
 } as const satisfies Record<string, SerializationCase>;
