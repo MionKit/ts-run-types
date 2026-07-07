@@ -1,6 +1,6 @@
 # Rename published packages to the `@ts-runtypes/*` npm scope
 
-**Status:** substantially done + verified (2026-07-07). Core rename (published packages, Go marker/enrichment, ~500 import sites, binary pipeline, CI, config) is complete and `pnpm test` / `go test` / `pnpm run lint` / `pnpm run format` all pass. Peer-dep move + rolldown + esbuild-drop landed with it. **Remaining (non-functional follow-ups):** doc-prose `\`ts-runtypes\`` package references (README/ARCHITECTURE/etc. — must disambiguate the package `@ts-runtypes/core` from the kept tsconfig-plugin identifier `ts-runtypes`), the benchmark harness (a pre-existing `@mionjs/ts-runtypes` mount in `container/benchmarks/typecost/typecost.mjs` + the typecost tsconfig paths + competitor source), website-content prose, and internal comment cosmetics.
+**Status:** DONE — shipped in [PR #191](https://github.com/MionKit/ts-run-types/pull/191) (2026-07-07). The core rename (published packages, Go marker/enrichment, ~500 import sites, binary pipeline, CI, config) is complete and verified: `pnpm test` (7736 passed), `go test`, `pnpm run lint`, and `pnpm run format` all pass. The `@ts-runtypes/bin` peer-dep move, the `/rolldown` entry, and the `allowBuilds: esbuild` drop landed with it. **Remaining non-functional follow-ups moved to → [`docs/todos/scope-rename-followups.md`](../todos/scope-rename-followups.md).**
 **Created:** 2026-07-07
 
 ## Goal
