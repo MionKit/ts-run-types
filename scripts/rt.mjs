@@ -125,9 +125,14 @@ async function runWebsite(args) {
     return main(['build', ...rest]);
   }
   if (sub === 'preview') {
-    const {main} = await import('./website/site.mjs');
-    await main(['generate']);
-    return proxy('node', ['scripts/website/serve.mjs', ...rest]);
+    // --no-build: skip the (re)generate and serve the existing .output/public as-is
+    // (serve.mjs fails loud if no build is there). Otherwise generate, then serve.
+    const {value: noBuild, rest: pass} = takeFlag(rest, '--no-build');
+    if (!noBuild) {
+      const {main} = await import('./website/site.mjs');
+      await main(['generate']);
+    }
+    return proxy('node', ['scripts/website/serve.mjs', ...pass]);
   }
   if (sub === 'check') {
     const {main} = await import('./website/site.mjs');
@@ -137,7 +142,7 @@ async function runWebsite(args) {
     const {main} = await import('./website/site.mjs');
     return main(['shell']);
   }
-  die('usage: rtx website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview|check [--docs]|container-build|shell>');
+  die('usage: rtx website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview [--no-build]|check [--docs]|container-build|shell>');
 }
 
 // ── bench ────────────────────────────────────────────────────────────────
@@ -219,7 +224,7 @@ website
   rtx website dev [--agent]        hot-reload docs server (:3000, or :3100 --agent)
   rtx website build [--no-bench]   build the docs site (WITH benchmarks; --no-bench reuses data)
                     [--quick] [--ssr] [--skip-playground]
-  rtx website preview              generate the static site, then serve it locally
+  rtx website preview [--no-build] serve the static site locally; regenerates it first unless --no-build
   rtx website check [--docs]       serves-a-page smoke (code-import + twoslash with --docs)
   rtx website container-build      container-only prod build (not the full pipeline)
   rtx website shell                debug shell inside the website container

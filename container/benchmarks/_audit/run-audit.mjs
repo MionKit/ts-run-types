@@ -16,8 +16,14 @@
 
 import {readdirSync, readFileSync, writeFileSync, mkdirSync} from 'node:fs';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 
-const RESULTS_DIR = process.env.RT_BENCH_RESULTS_DIR ?? path.resolve(process.cwd(), 'results');
+// Self-locate the results dir from this script's own path (mirrors classify.mjs), so
+// the aggregator is correct no matter the caller's cwd — bench.mjs invokes it via the
+// run() helper, whose cwd is REPO_ROOT, not container/benchmarks/.
+const AUDIT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const BENCH_DIR = path.resolve(AUDIT_DIR, '..');
+const RESULTS_DIR = process.env.RT_BENCH_RESULTS_DIR ?? path.join(BENCH_DIR, 'results');
 const OUT_DIR = process.env.RT_AUDIT_OUT_DIR ?? RESULTS_DIR;
 const PREFERRED = ['ts-runtypes', 'zod', 'typebox', 'ajv', 'typia'];
 
