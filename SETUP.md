@@ -32,6 +32,7 @@ cd ts-runtypes
 git submodule update --init --recursive
 (cd ts-go-runtypes/third_party/tsgolint/typescript-go && git apply --3way ../patches/*.patch)
 pnpm install --frozen-lockfile
+pnpm exec husky                   # wire the git commit hooks (separate step — see below)
 ```
 
 What this does:
@@ -39,6 +40,7 @@ What this does:
 1. Pulls `oxc-project/tsgolint` (which nests `microsoft/typescript-go`).
 2. Applies the five vendored patches to the `typescript-go` working tree via `git apply --3way` — no commits needed (CI-safe, no git identity required). The patches are upstream tsgolint artifacts; never edit them.
 3. Installs workspace deps from the committed lockfile.
+4. Wires husky's git hooks — `commit-msg` → commitlint (Conventional Commits, feeding the git-cliff changelog) and `pre-commit` → lint-staged. This is a SEPARATE, explicit step because `ignoreScripts: true` (the pnpm supply-chain policy) blocks husky's `prepare` from auto-running on install, and git hooks are per-clone local state (`core.hooksPath`), never cloned. Skip it and your commits aren't checked locally — CI's `commitlint` job still gates PRs, but you lose the fast local feedback.
 
 The Go module graph resolves against the patched `typescript-go` working tree — `go build` will fail without the patches.
 

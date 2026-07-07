@@ -27,6 +27,13 @@ name: ci
 # local — it is not a CI artifact). typia is skipped (RT_BENCH_NO_TYPIA) for now
 # because its native plugin compiles ~200s at run time and is not yet baked into
 # the image; the prod gate's `benchmarks` job exercises typia.
+#
+# A FIFTH job, `commitlint`, gates PR commit messages against Conventional
+# Commits. It is PR-only and light (no submodules/Go): the auto-changelog
+# (git-cliff) is generated from those messages, so every commit that lands must
+# conform. This is the SERVER-SIDE gate — the local .husky/commit-msg hook only
+# fires on clones that ran `pnpm exec husky` (ignoreScripts blocks husky's
+# prepare from auto-wiring), so CI is what actually enforces it.
 on:
   pull_request:
     branches: [main]
@@ -120,6 +127,32 @@ jobs:
         run: pnpm run lint
       - name: JS suite (everything except test/fuzz — 151 files)
         run: pnpm exec vitest run --exclude '**/test/fuzz/**'
+
+  # ── commitlint: Conventional Commits gate on the PR's commits ──────────────
+  # Validates every commit in the PR range against commitlint.config.js. PR-only
+  # (github.event_name gate) — a push to main carries commits already vetted here
+  # via their PR. Deliberately light: no submodules, no Go, no resolver build —
+  # just the deps commitlint needs (ignoreScripts blocks any build scripts).
+  commitlint:
+    name: commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - name: Install deps (commitlint only needs the JS workspace)
+        run: pnpm install --frozen-lockfile
+      - name: Lint PR commit messages (Conventional Commits)
+        run: >-
+          pnpm exec commitlint --verbose
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
 
   # Decides WHETHER the container smoke runs (container inputs / driver scripts
   # changed). Kept as its own tiny job so `smoke` can gate on it without a

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
-SETUP_DATE="2026-07-04"
+SETUP_DATE="2026-07-07"
 # ----------------------------------------------------------------------------
 set -uo pipefail
 
@@ -311,7 +311,25 @@ install_workspace_deps() {
 }
 
 # -----------------------------------------------------------------------------
-# 7. Build the Go resolver binary at bin/ts-runtypes (skips when up-to-date).
+# 7. Wire husky's git commit hooks (commit-msg -> commitlint, pre-commit ->
+#    lint-staged). Separate from install: `ignoreScripts` (the pnpm supply-chain
+#    policy) blocks husky's `prepare` from auto-running, and core.hooksPath is
+#    per-clone LOCAL git state a clone never carries - so without this, commits
+#    made in the web env skip the checks. Idempotent + non-fatal (CI still gates).
+# -----------------------------------------------------------------------------
+wire_husky() {
+  bold "husky git hooks (commit-msg -> commitlint, pre-commit -> lint-staged)"
+  command -v pnpm >/dev/null 2>&1 || { warn "pnpm missing - cannot wire husky hooks"; return 0; }
+  if [ "$(git -C "$REPO_DIR" config --get core.hooksPath 2>/dev/null || true)" = ".husky/_" ]; then
+    ok "husky hooks already wired"; return 0
+  fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "husky hooks not wired - re-run without --check"; return 0; }
+  ( cd "$REPO_DIR" && pnpm exec husky ) && ok "husky hooks wired" \
+    || warn "husky wiring failed - commits won't be checked locally (CI still gates)"
+}
+
+# -----------------------------------------------------------------------------
+# 8. Build the Go resolver binary at bin/ts-runtypes (skips when up-to-date).
 # -----------------------------------------------------------------------------
 build_go_binary() {
   bold "Go resolver binary -> bin/ts-runtypes"
@@ -325,7 +343,7 @@ build_go_binary() {
 }
 
 # -----------------------------------------------------------------------------
-# 8. Build ts-runtypes-devtools dist (consumers + the marker typecheck read it).
+# 9. Build ts-runtypes-devtools dist (consumers + the marker typecheck read it).
 # -----------------------------------------------------------------------------
 build_devtools() {
   bold "ts-runtypes-devtools dist"
@@ -339,7 +357,7 @@ build_devtools() {
 }
 
 # -----------------------------------------------------------------------------
-# 9. Keep the placeholder .env from shadowing real environment secrets.
+# 10. Keep the placeholder .env from shadowing real environment secrets.
 #    A dev .env (created by the interactive skill, or a stray checkout) has empty
 #    secret rows (GHCR_PAT= etc.). lib-env.sh sources .env with `set -a`, so an
 #    empty assignment OVERWRITES the value the web env injects - breaking GHCR
@@ -362,7 +380,7 @@ neutralize_placeholder_env() {
 }
 
 # -----------------------------------------------------------------------------
-# 10. GHCR login so a later `pnpm rtx website dev` / `pnpm run bench` can PULL the
+# 11. GHCR login so a later `pnpm rtx website dev` / `pnpm run bench` can PULL the
 #     private tsrt-website image instead of rebuilding it. Login is auth only - it
 #     pulls nothing, so it stays within the setup time budget.
 # -----------------------------------------------------------------------------
@@ -404,6 +422,7 @@ main() {
   provision_submodules_light
   apply_tsgolint_patches
   install_workspace_deps
+  wire_husky
   build_go_binary
   build_devtools
   neutralize_placeholder_env
@@ -458,11 +477,13 @@ main "$@"
 #      clone + ~2m15s Go build + rest under the ~5 min setup budget.
 #   5. tsgolint patches (idempotent).
 #   6. pnpm install --frozen-lockfile.
-#   7. Go resolver binary -> bin/ts-runtypes.
-#   8. ts-runtypes-devtools dist.
-#   9. .env de-clobber - the dev .env's empty secret rows would shadow the
+#   7. husky git hooks (commit-msg -> commitlint, pre-commit -> lint-staged);
+#      ignoreScripts blocks husky's `prepare`, so wire core.hooksPath explicitly.
+#   8. Go resolver binary -> bin/ts-runtypes.
+#   9. ts-runtypes-devtools dist.
+#  10. .env de-clobber - the dev .env's empty secret rows would shadow the
 #      GHCR_PAT the web env injects (lib-env.sh sources .env with `set -a`).
-#  10. GHCR login - the tsrt-website image is PRIVATE. NOTE: actually PULLING it
+#  11. GHCR login - the tsrt-website image is PRIVATE. NOTE: actually PULLING it
 #      also needs the egress policy to allow the GHCR blob host
 #      pkg-containers.githubusercontent.com; ghcr.io auth + manifest alone are
 #      not enough. That is a network-policy matter, not this script's - here we

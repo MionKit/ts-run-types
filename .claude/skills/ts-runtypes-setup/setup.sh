@@ -10,8 +10,9 @@
 #   4. Bootstraps the tsgolint + typescript-go submodules.
 #   5. Applies the tsgolint patches to the working tree (idempotent).
 #   6. Runs `pnpm install --frozen-lockfile` if node_modules is stale.
-#   7. Builds the Go resolver binary at bin/ts-runtypes.
-#   8. Builds the ts-runtypes-devtools dist (consumers depend on it).
+#   7. Wires husky's git commit hooks (ignoreScripts blocks the auto-install).
+#   8. Builds the Go resolver binary at bin/ts-runtypes.
+#   9. Builds the ts-runtypes-devtools dist (consumers depend on it).
 #
 # After this, the smoke checks (`pnpm rtx dev smoke`,
 # `pnpm rtx website check`, `pnpm rtx bench smoke`) verify the binary +
@@ -249,6 +250,27 @@ install_workspace_deps() {
   ok "workspace deps installed"
 }
 
+# Wire husky's git hooks so commits are checked locally (commit-msg -> commitlint,
+# pre-commit -> lint-staged). Separate from install: `ignoreScripts: true` blocks
+# husky's `prepare` from auto-running, and core.hooksPath is per-clone local state
+# that is never cloned. Idempotent (skips when already wired) and non-fatal: CI's
+# commitlint job still gates PRs even if local wiring fails.
+wire_husky() {
+  command -v pnpm >/dev/null 2>&1 || { warn "pnpm missing - cannot wire husky hooks"; return 0; }
+  if [ "$(git -C "$REPO_DIR" config --get core.hooksPath 2>/dev/null || true)" = ".husky/_" ]; then
+    ok "husky git hooks already wired"
+    return 0
+  fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "husky git hooks not wired - re-run without --check (or run: pnpm exec husky)"
+    return 0
+  fi
+  bold "Wiring husky git hooks (pnpm exec husky)"
+  ( cd "$REPO_DIR" && pnpm exec husky ) \
+    || { warn "husky wiring failed - commits won't be checked locally (CI still gates)"; return 0; }
+  ok "husky git hooks wired (commit-msg -> commitlint, pre-commit -> lint-staged)"
+}
+
 # Build the Go resolver binary at bin/ts-runtypes. Skips when up-to-date
 # relative to the Go sources.
 build_go_binary() {
@@ -345,6 +367,7 @@ main() {
 
   bold "Workspace deps + project build"
   install_workspace_deps
+  wire_husky
   build_go_binary
   build_vite_plugin
 
