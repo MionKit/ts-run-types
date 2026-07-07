@@ -6,8 +6,8 @@
 // hand-built `RTValidationError[]` (no Go pipeline needed).
 
 import {describe, it, expect} from 'vitest';
-import type * as TF from 'ts-runtypes/formats';
-import {createFriendly, createFriendlyI18n, resolveLocale, type FriendlyText, type RTValidationError} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createFriendly, createFriendlyI18n, resolveLocale, type FriendlyText, type RTValidationError} from '@ts-runtypes/core';
 
 interface User {
   name: TF.String<{minLength: 2}>;

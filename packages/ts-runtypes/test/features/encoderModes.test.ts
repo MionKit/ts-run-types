@@ -15,7 +15,7 @@
 // so a separate strip variant was redundant.
 
 import {describe, expect, it} from 'vitest';
-import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
 
 type Sample = {a: string; n: bigint};
 

@@ -1,4 +1,4 @@
-import {registerMockingFunction, RunTypeKind, type FormatAnnotation} from 'ts-runtypes';
+import {registerMockingFunction, RunTypeKind, type FormatAnnotation} from '@ts-runtypes/core';
 
 // Want mock data to look a certain way for a kind? Register a mock fn for
 // that ReflectionKind. Return `undefined` to fall back to the default mock.

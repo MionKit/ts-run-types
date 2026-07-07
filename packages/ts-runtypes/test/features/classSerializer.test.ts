@@ -26,7 +26,7 @@ import {
   createBinaryDecoder,
   registerClassSerializer,
   getRunTypeId,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 // Registry isolation helpers live next to the registry; not part of the
 // public barrel (tests reach in directly).
 import {

@@ -6,10 +6,10 @@
 // `Intl.NumberFormat(locale, {style: 'currency', currency})` with the
 // app-supplied currency code. WHICH currency a value is in is runtime data,
 // deliberately never fixed in the type.
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
-import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
+import '@ts-runtypes/core/formats';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const CURRENCY = {

@@ -5,9 +5,9 @@
 // validate + getValidationErrors (static / reflect / deserialize-static /
 // deserialize-reflect) + mockType; the getValidationErrors format-payload forms assert
 // the exact format error survives every resolution path.
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
-import 'ts-runtypes/formats';
+import '@ts-runtypes/core/formats';
 import {
   createValidate,
   createGetValidationErrors,
@@ -15,7 +15,7 @@ import {
   createStandardSchema,
   registerFormatPattern,
   type DataOnly,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 // Custom patterns registered once at module load — the call sites the

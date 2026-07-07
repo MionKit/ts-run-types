@@ -10,9 +10,9 @@
 // ambient test/support/temporal-ambient.d.ts + the
 // ts-runtypes/formats/temporal subpath.
 
-import type * as TFT from 'ts-runtypes/formats/temporal';
+import type * as TFT from '@ts-runtypes/core/formats/temporal';
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors, createMockType} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType} from '@ts-runtypes/core';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 

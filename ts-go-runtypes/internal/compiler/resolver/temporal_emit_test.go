@@ -29,7 +29,7 @@ func emitSourcesFor(t *testing.T, typeName string) *protocol.Response {
 // family under assertion (binary→createBinaryEncoder/createBinaryDecoder).
 func emitSourcesForFn(t *testing.T, fnName, typeName string) *protocol.Response {
 	t.Helper()
-	code := `import {` + fnName + `} from 'ts-runtypes';
+	code := `import {` + fnName + `} from '@ts-runtypes/core';
 export const _ = ` + fnName + `<Temporal.` + typeName + `>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
@@ -67,7 +67,7 @@ func TestTemporal_EmitRestoreFromJson(t *testing.T) {
 
 func TestTemporal_EmitStringifyJson(t *testing.T) {
 	// sj is demand-driven now: only createJsonEncoder(direct) → [sj] seeds it.
-	code := `import {createJsonEncoder} from 'ts-runtypes';
+	code := `import {createJsonEncoder} from '@ts-runtypes/core';
 export const _ = createJsonEncoder<Temporal.Instant>(undefined, {strategy: 'direct'});
 `
 	r := setupInline(t, map[string]string{"a.ts": code})

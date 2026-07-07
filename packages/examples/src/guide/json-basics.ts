@@ -1,4 +1,4 @@
-import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
 
 // A type with members JSON.stringify quietly mangles: a Date and a Map.
 type Session = {

@@ -1,4 +1,4 @@
-import {getRunType, RunTypeKind, type RunType} from 'ts-runtypes';
+import {getRunType, RunTypeKind, type RunType} from '@ts-runtypes/core';
 
 type Order = {
   id: string;

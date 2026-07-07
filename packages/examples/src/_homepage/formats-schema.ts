@@ -1,6 +1,6 @@
-import * as TF from 'ts-runtypes/formats';
-import {createValidate, type Static} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
+import * as TF from '@ts-runtypes/core/formats';
+import {createValidate, type Static} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
 
 // The same formats, schema-first — the RT.* builders.
 const account = RT.object({

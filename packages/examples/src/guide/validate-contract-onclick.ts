@@ -1,4 +1,4 @@
-import {createValidate} from 'ts-runtypes';
+import {createValidate} from '@ts-runtypes/core';
 
 // The classic gotcha. `onClick` is a function — not serializable — so the
 // validator drops it and only checks `name`. You get a build-time Warning

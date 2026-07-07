@@ -1,4 +1,4 @@
-import {getRunType, RunTypeKind} from 'ts-runtypes';
+import {getRunType, RunTypeKind} from '@ts-runtypes/core';
 
 // One real type — the single source of truth.
 type Order = {

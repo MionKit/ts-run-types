@@ -36,13 +36,13 @@ var proseByCode = map[string]prose{
 		Summary: "The type you validate is a built-in that carries runtime state, like a `WeakMap`, a `WeakSet`, or a typed array such as `Uint8Array`. None of these survive a JSON round trip, so a guard that passed for one would claim a safety it cannot deliver. Validate a plain shape, or convert the value before you validate it.",
 		Fix: `const bytes = Array.from(myUint8Array);
 const isData = createValidate<number[]>();`,
-		Example: `import {createValidate} from 'ts-runtypes';
+		Example: `import {createValidate} from '@ts-runtypes/core';
 export const isData = createValidate<Uint8Array>();`,
 	},
 	CodeVLSymbolRoot: {
 		Summary: "The type is a bare `symbol`. Every symbol has its own runtime identity, so it cannot round trip across a network or a process boundary. Use a stable string union instead.",
 		Fix:     `type Status = 'pending' | 'active' | 'done';`,
-		Example: `import {createValidate} from 'ts-runtypes';
+		Example: `import {createValidate} from '@ts-runtypes/core';
 export const isData = createValidate<symbol>();`,
 	},
 	CodeVLFunctionPropDropped: {
@@ -53,13 +53,13 @@ export const isData = createValidate<symbol>();`,
 	},
 	CodeVLMethodDropped: {
 		Summary: "A function-valued member, written as a method like `greet(): string` or as a function-typed property like `onClick: () => void`, is behavior, not data, so it is left out of the validated shape. Expose the data you need as a plain property instead.",
-		Example: `import {createValidate} from 'ts-runtypes';
+		Example: `import {createValidate} from '@ts-runtypes/core';
 interface User { name: string; greet(): string; }
 export const isUser = createValidate<User>();`,
 	},
 	CodeVLStaticDropped: {
 		Summary: "Static members live on the class, not on an instance. Validation works on instance shape, so statics are left out.",
-		Example: `import {createValidate} from 'ts-runtypes';
+		Example: `import {createValidate} from '@ts-runtypes/core';
 class Config { static version = 1; name = ''; }
 export const isConfig = createValidate<Config>();`,
 	},
@@ -73,19 +73,19 @@ export const isConfig = createValidate<Config>();`,
 	},
 	CodeVLUnionMemberDropped: {
 		Summary: "A union is validated as the members that have a data form. `Date | symbol` validates as `Date`. If every member has no data form the projection is `never`, and validation throws at build time instead.",
-		Example: `import {createValidate} from 'ts-runtypes';
+		Example: `import {createValidate} from '@ts-runtypes/core';
 export const isData = createValidate<Date | symbol>();`,
 	},
 	CodeVLNonSerializablePropDrop: {
 		Summary: "A property whose value is a symbol, a Promise, or a non-serializable built-in has no data form, so `{ id: symbol }` validates as `{}`. A value that is only structurally unserializable, like `symbol[]` or `Map<string, symbol>`, cannot be dropped without changing the shape, so that case throws at build time instead.",
-		Example: `import {createValidate} from 'ts-runtypes';
+		Example: `import {createValidate} from '@ts-runtypes/core';
 interface Box { id: symbol; name: string; }
 export const isBox = createValidate<Box>();`,
 	},
 	CodeVLRootAnyUnknown: {
 		Summary: "`any` and `unknown` describe anything, so a structural check has nothing to compare against. The guard is always true. Narrow the type to the shape you expect.",
 		Fix:     `const isUser = createValidate<User>(); // instead of <unknown>`,
-		Example: `import {createValidate} from 'ts-runtypes';
+		Example: `import {createValidate} from '@ts-runtypes/core';
 export const isAnything = createValidate<unknown>();`,
 	},
 
@@ -93,12 +93,12 @@ export const isAnything = createValidate<unknown>();`,
 
 	CodeVENonSerializableRoot: {
 		Summary: "Same case as `VL001`, from `createGetValidationErrors`. The type is a built-in that carries runtime state and cannot survive a JSON round trip. Report errors against a plain shape, or convert the value first.",
-		Example: `import {createGetValidationErrors} from 'ts-runtypes';
+		Example: `import {createGetValidationErrors} from '@ts-runtypes/core';
 export const errorsOf = createGetValidationErrors<Uint8Array>();`,
 	},
 	CodeVESymbolRoot: {
 		Summary: "Same case as `VL002`, from `createGetValidationErrors`. The type is a bare `symbol`, which cannot round trip. Use a string union instead.",
-		Example: `import {createGetValidationErrors} from 'ts-runtypes';
+		Example: `import {createGetValidationErrors} from '@ts-runtypes/core';
 export const errorsOf = createGetValidationErrors<symbol>();`,
 	},
 	CodeVEFunctionPropDropped: {
@@ -108,13 +108,13 @@ export const errorsOf = createGetValidationErrors<symbol>();`,
 	},
 	CodeVEMethodDropped: {
 		Summary: "Same case as `VL011`, from `createGetValidationErrors`. A method or function-typed property is behavior, not data, so it is left out of the report.",
-		Example: `import {createGetValidationErrors} from 'ts-runtypes';
+		Example: `import {createGetValidationErrors} from '@ts-runtypes/core';
 interface User { name: string; greet(): string; }
 export const errorsOf = createGetValidationErrors<User>();`,
 	},
 	CodeVEStaticDropped: {
 		Summary: "Same case as `VL012`, from `createGetValidationErrors`. Static members are not part of instance data, so they are left out.",
-		Example: `import {createGetValidationErrors} from 'ts-runtypes';
+		Example: `import {createGetValidationErrors} from '@ts-runtypes/core';
 class Config { static version = 1; name = ''; }
 export const errorsOf = createGetValidationErrors<Config>();`,
 	},
@@ -125,13 +125,13 @@ export const errorsOf = createGetValidationErrors<Config>();`,
 	},
 	CodeVENonSerializablePropDrop: {
 		Summary: "Same case as `VL015`, from `createGetValidationErrors`. A property whose value has no data form is left out of the report.",
-		Example: `import {createGetValidationErrors} from 'ts-runtypes';
+		Example: `import {createGetValidationErrors} from '@ts-runtypes/core';
 interface Box { id: symbol; name: string; }
 export const errorsOf = createGetValidationErrors<Box>();`,
 	},
 	CodeVERootAnyUnknown: {
 		Summary: "Same idea as `VL021`, from `createGetValidationErrors`. On `any` or `unknown` there is nothing to compare against, so the report is always empty. Narrow the type to the shape you expect.",
-		Example: `import {createGetValidationErrors} from 'ts-runtypes';
+		Example: `import {createGetValidationErrors} from '@ts-runtypes/core';
 export const errorsOf = createGetValidationErrors<unknown>();`,
 	},
 
@@ -143,7 +143,7 @@ export const errorsOf = createGetValidationErrors<unknown>();`,
 	// reproduces the miss (the diag-example harness always has them present).
 	CodeMissingPureFnDep: {
 		Summary: "A generated validator or encoder calls a helper (a pure function) that was never registered, so the built output would fail the moment it runs. This almost always means a source file that registers the helper with `registerPureFnFactory` is not part of the compile. Import the `ts-runtypes` entry that provides it, or include the file that registers it, so the build can see the definition.",
-		Fix: `import {registerPureFnFactory} from 'ts-runtypes';
+		Fix: `import {registerPureFnFactory} from '@ts-runtypes/core';
 registerPureFnFactory('rt::newRunTypeErr', (utl) => (message) => new Error(message));`,
 	},
 }

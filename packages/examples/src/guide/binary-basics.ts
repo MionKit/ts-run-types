@@ -1,4 +1,4 @@
-import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
 
 type Telemetry = {
   deviceId: string;

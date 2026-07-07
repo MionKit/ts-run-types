@@ -1,4 +1,4 @@
-import {registerPureFnFactory} from 'ts-runtypes';
+import {registerPureFnFactory} from '@ts-runtypes/core';
 
 // Pure functions are tiny, self-contained helpers the build can inline into
 // the generated (JIT) code. The factory returns the real function; it must

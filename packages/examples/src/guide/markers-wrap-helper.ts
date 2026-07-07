@@ -1,4 +1,4 @@
-import {getRTUtils, type InjectRunTypeId} from 'ts-runtypes';
+import {getRTUtils, type InjectRunTypeId} from '@ts-runtypes/core';
 
 // Wrap ts-runtypes into your OWN helper. Declare a trailing
 // `id?: InjectRunTypeId<T>` parameter and the build fills it in at every

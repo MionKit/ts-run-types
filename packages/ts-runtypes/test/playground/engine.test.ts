@@ -35,8 +35,8 @@ const INVALID = {id: 'not-a-number', name: 'ada', tags: []};
 // (header import + footer call). Pure string helpers - no resolver needed.
 describe('surrounding-code templating', () => {
   it('factoryImport renders the ts-runtypes import line', () => {
-    expect(factoryImport('createValidate')).toBe("import { createValidate } from 'ts-runtypes';");
-    expect(factoryImport('createJsonEncoder')).toBe("import { createJsonEncoder } from 'ts-runtypes';");
+    expect(factoryImport('createValidate')).toBe("import { createValidate } from '@ts-runtypes/core';");
+    expect(factoryImport('createJsonEncoder')).toBe("import { createJsonEncoder } from '@ts-runtypes/core';");
   });
 
   it('factoryCall renders the type-first call, appending the injected arg when given', () => {
@@ -188,8 +188,8 @@ describeIf('playground engine (WASM, live execution)', () => {
   });
 
   it('mockInvalid works in the value-first schema form (mode: schema)', async () => {
-    const schema = `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    const schema = `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
       id: TF.number(),
@@ -259,7 +259,7 @@ type MyType = { outer: Inner };`;
     expect(code).toMatch(/const validate = createValidate<MyType>\(__rt_[A-Za-z0-9_]+\);/);
     expect(code).not.toContain('undefined, __rt_');
     // The user's import + type body survive verbatim.
-    expect(code).toContain("import { createValidate } from 'ts-runtypes';");
+    expect(code).toContain("import { createValidate } from '@ts-runtypes/core';");
     expect(code).toContain('id: number;');
   });
 
@@ -276,8 +276,8 @@ type MyType = { outer: Inner };`;
   });
 
   it('transformedSource injects the id after the schema in the value-first form (mode: schema)', async () => {
-    const schema = `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    const schema = `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 const MyType = RT.object({id: TF.number(), name: TF.string()});`;
     const code = await transformedSource('createJsonEncoder', 'toJson', schema, undefined, 'schema');
     expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'virtual:rt\/.+';/m);
@@ -286,8 +286,8 @@ const MyType = RT.object({id: TF.number(), name: TF.string()});`;
 
   it('handles a circular (recursive) type in both type and schema forms', async () => {
     const typeForm = `type MyType = { id: number; name: string; children: MyType[] };`;
-    const schemaForm = `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    const schemaForm = `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 const MyType = RT.circular(RT.object({ id: TF.number(), name: TF.string(), children: RT.array(RT.self()) }));`;
     const tree = {id: 1, name: 'root', children: [{id: 2, name: 'leaf', children: []}]};
     const badNested = {id: 1, name: 'root', children: [{id: 'nope', name: 'leaf', children: []}]};
@@ -309,8 +309,8 @@ const MyType = RT.circular(RT.object({ id: TF.number(), name: TF.string(), child
   });
 
   it('runs the value-first schema form (mode: schema)', async () => {
-    const schema = `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    const schema = `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
       id: TF.number(),

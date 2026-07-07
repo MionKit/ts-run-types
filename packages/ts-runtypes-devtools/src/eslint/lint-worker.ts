@@ -25,7 +25,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parentPort, workerData} from 'node:worker_threads';
-import {getExePath} from 'ts-runtypes-bin';
+import {getExePath} from '@ts-runtypes/bin';
 import type {Diagnostic} from '../protocol.ts';
 import {
   buildResolverArgs,

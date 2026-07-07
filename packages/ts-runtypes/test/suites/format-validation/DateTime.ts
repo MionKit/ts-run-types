@@ -28,11 +28,11 @@
 // test/support/temporal-ambient.d.ts + the ts-runtypes/formats/temporal
 // subpath. The `/formats` side-effect import registers the native-date runtime.
 
-import * as TF from 'ts-runtypes/formats';
-import * as TFT from 'ts-runtypes/formats/temporal';
+import * as TF from '@ts-runtypes/core/formats';
+import * as TFT from '@ts-runtypes/core/formats/temporal';
 import type {FormatValidationCase} from './types.ts';
-import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
+import '@ts-runtypes/core/formats';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;

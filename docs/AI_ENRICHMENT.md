@@ -620,7 +620,7 @@ consts in `mock/`, each family file importing only its own wrapper type:
 ```ts
 // runtypes/generated/friendly/models/user.ts — GENERATED, COMMITTED, hand-editable.
 import type { User, Post } from '../../../../models/user';
-import type { FriendlyText } from 'ts-runtypes';
+import type { FriendlyText } from '@ts-runtypes/core';
 
 export const friendlyUser: FriendlyText<User> = { /* … */ };
 export const friendlyPost: FriendlyText<Post> = { /* … */ };
@@ -629,7 +629,7 @@ export const friendlyPost: FriendlyText<Post> = { /* … */ };
 ```ts
 // runtypes/generated/mock/models/user.ts — same source, the mock family's mirror.
 import type { User, Post } from '../../../../models/user';
-import type { MockData } from 'ts-runtypes';
+import type { MockData } from '@ts-runtypes/core';
 
 export const mockUser: MockData<User> = { /* … */ };
 export const mockPost: MockData<Post> = { /* … */ };

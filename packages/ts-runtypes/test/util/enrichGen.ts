@@ -26,7 +26,7 @@ const laneDir = (lane: Lane): string => resolve(TMP_ROOT, lane);
 
 // One temp module per case carries `import type * as TF` + the case's `src`
 // (a `type Target = …;` declaration) re-exported so the program keeps it.
-const TEMP_HEADER = "import type * as TF from 'ts-runtypes/formats';\n";
+const TEMP_HEADER = "import type * as TF from '@ts-runtypes/core/formats';\n";
 
 // What the gen CLI returns per file.
 interface GenSkeletons {
@@ -151,7 +151,7 @@ export function checkCategory(fileBase: string, constName: string): Record<strin
     const filePath = resolve(dir, `${fileBase}__${caseKey}.rt.ts`);
     const source =
       `${TEMP_HEADER}` +
-      "import type {FriendlyText, MockData} from 'ts-runtypes';\n" +
+      "import type {FriendlyText, MockData} from '@ts-runtypes/core';\n" +
       `${span.src}\n` +
       `const friendlyTarget: FriendlyText<Target> = ${span.friendly};\n` +
       `const mockTarget: MockData<Target> = ${span.mock};\n` +

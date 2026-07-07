@@ -1,4 +1,4 @@
-import type * as TF from 'ts-runtypes/formats';
+import type * as TF from '@ts-runtypes/core/formats';
 import {
   createValidate,
   createGetValidationErrors,
@@ -8,7 +8,7 @@ import {
   createBinaryDecoder,
   createMockType,
   createStandardSchema,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 
 // start-type
 // One real-world type — the single source of truth for everything below.

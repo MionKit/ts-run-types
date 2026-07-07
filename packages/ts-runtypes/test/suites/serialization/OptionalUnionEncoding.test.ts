@@ -4,9 +4,9 @@
 // (`{"active":[1,false]}`) fails loudly.
 // See docs/todos/optional-boolean-union-encoding.md.
 import {describe, expect, it} from 'vitest';
-import {createJsonDecoder, createJsonEncoder, getRunTypeId} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+import {createJsonDecoder, createJsonEncoder, getRunTypeId} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 // A property value encoded as `:[<digit>…` is the union-envelope artifact.
 const ENVELOPE = /:\[\d/;

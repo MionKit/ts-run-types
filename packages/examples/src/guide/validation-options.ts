@@ -1,4 +1,4 @@
-import {createValidate} from 'ts-runtypes';
+import {createValidate} from '@ts-runtypes/core';
 
 type Flag = {kind: 'on' | 'off'; values: number[]};
 

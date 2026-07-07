@@ -14,7 +14,7 @@ import (
 // scanTemporal returns the root RunType for getRunTypeId<Temporal.<typeName>>().
 func scanTemporal(t *testing.T, typeName string) *protocol.RunType {
 	t.Helper()
-	code := `import {getRunTypeId} from 'ts-runtypes';
+	code := `import {getRunTypeId} from '@ts-runtypes/core';
 export const _ = getRunTypeId<Temporal.` + typeName + `>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
@@ -81,7 +81,7 @@ func TestTemporal_ScanAllTypes(t *testing.T) {
 // a user interface literally named PlainDate (no Temporal parent) is NOT
 // treated as the builtin.
 func TestTemporal_UserTypeNamedPlainDateNotDetected(t *testing.T) {
-	code := `import {getRunTypeId} from 'ts-runtypes';
+	code := `import {getRunTypeId} from '@ts-runtypes/core';
 interface PlainDate { year: number; month: number; day: number; }
 export const _ = getRunTypeId<PlainDate>();
 `

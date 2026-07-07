@@ -4,9 +4,9 @@
 // cases — proving the guard is format-agnostic. Minimal coverage: one cyclic
 // case + one acyclic DAG control.
 
-import type * as TF from 'ts-runtypes/formats';
-import {createGetValidationErrors, createValidate} from 'ts-runtypes';
-import 'ts-runtypes/formats';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createGetValidationErrors, createValidate} from '@ts-runtypes/core';
+import '@ts-runtypes/core/formats';
 import type {CircularGuardValidationCase} from '../../util/circularGuardAsserts.ts';
 
 const UUID_V4 = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';

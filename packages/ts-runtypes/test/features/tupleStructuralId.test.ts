@@ -16,7 +16,7 @@
 // internal/cachegen/runtype/typeid/structural_test.go
 // → TestStructural_TupleRestNotDeduplicatedWithFixed.
 
-import {createValidate} from 'ts-runtypes';
+import {createValidate} from '@ts-runtypes/core';
 import {describe, expect, it} from 'vitest';
 
 describe('tuple structural-id distinctness (regression)', () => {

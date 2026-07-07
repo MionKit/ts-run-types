@@ -1,4 +1,4 @@
-import {createValidate} from 'ts-runtypes';
+import {createValidate} from '@ts-runtypes/core';
 
 // Unions are read precisely — each member is validated.
 type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; side: number};

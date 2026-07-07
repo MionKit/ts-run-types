@@ -5,7 +5,7 @@
 // parameter is `InjectRunTypeId<T>` *and* whose alias is declared inside the
 // configured marker module — both checks must pass for a call to be
 // rewritten.
-declare module 'ts-runtypes' {
+declare module '@ts-runtypes/core' {
   // Branded-string sentinel — only the phantom `T` matters to the checker.
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
 

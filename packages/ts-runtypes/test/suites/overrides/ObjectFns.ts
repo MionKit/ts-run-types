@@ -18,7 +18,7 @@ import {
   overrideUnknownKeysToUndefined,
   createFormatTransform,
   overrideFormatTransform,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 
 type HukTarget = {readonly __brand: 'hukOverride'; a: number};
 overrideHasUnknownKeys<HukTarget>((v) => (v as {x?: number}).x === 1);

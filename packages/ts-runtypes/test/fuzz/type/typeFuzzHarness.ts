@@ -28,7 +28,7 @@ import {
   createBinaryDecoder,
   createBinarySizer,
   createMockType,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import {binarySizeEstimateFromTuple} from '../../../src/runtypes/entryTuple.ts';
 import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {
@@ -113,7 +113,7 @@ export function renderFixture(gen: GeneratedType): string {
   createBinaryEncoder,
   createBinaryDecoder,
   getRunTypeId,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 ${decls}
 type T = ${rootExpr};
 createValidate<T>();

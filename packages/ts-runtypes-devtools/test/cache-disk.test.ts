@@ -59,7 +59,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     try {
       await renderValidateFor(client, {
         'user.ts': `
-          import {createValidate} from 'ts-runtypes';
+          import {createValidate} from '@ts-runtypes/core';
           export const isStr = createValidate<string>();
         `,
       });
@@ -98,7 +98,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDir = path.join(scratchRoot, 'roundtrip');
     const sources = {
       'roundtrip.ts': `
-        import {createValidate} from 'ts-runtypes';
+        import {createValidate} from '@ts-runtypes/core';
         export const a = createValidate<string>();
         export const b = createValidate<number>();
         export const c = createValidate<{x: string; y: number}>();
@@ -133,7 +133,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDirAlt = path.join(scratchRoot, 'fp-alt');
     const sources = {
       'fp.ts': `
-        import {createValidate} from 'ts-runtypes';
+        import {createValidate} from '@ts-runtypes/core';
         export const isStr = createValidate<string>();
       `,
     };

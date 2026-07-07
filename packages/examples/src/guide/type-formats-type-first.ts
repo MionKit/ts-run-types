@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import {createValidate} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createValidate} from '@ts-runtypes/core';
 
 // Type-first formats: import a Format* alias and annotate. The constraint
 // lives in the type — the build reads it and validates accordingly.

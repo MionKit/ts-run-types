@@ -1,5 +1,5 @@
-import type {FriendlyText} from 'ts-runtypes';
-import {createFriendlyI18n} from 'ts-runtypes';
+import type {FriendlyText} from '@ts-runtypes/core';
+import {createFriendlyI18n} from '@ts-runtypes/core';
 import type {Order} from './i18n-currency-type';
 
 const friendlyOrder: FriendlyText<Order> = {

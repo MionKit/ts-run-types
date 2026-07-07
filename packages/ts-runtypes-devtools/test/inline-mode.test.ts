@@ -42,11 +42,11 @@ async function valKeysFor(client: ResolverClient, file: string) {
   return {scan, site, keys};
 }
 
-describe('ts-runtypes-devtools / inlining policy', () => {
+describe('@ts-runtypes/devtools / inlining policy', () => {
   register('DEFAULT: interface A {a: number; b: string[]} emits ONE validation module', async () => {
     // The headline contract: the unnamed string[] member rides the
     // interface's own module as a context fn — no separate array module.
-    const code = `import {createValidate} from 'ts-runtypes';
+    const code = `import {createValidate} from '@ts-runtypes/core';
 interface A {a: number; b: string[]}
 export const isA = createValidate<A>();
 `;
@@ -71,7 +71,7 @@ export const isA = createValidate<A>();
   });
 
   register('DEFAULT reflect: getRunTypeId over the same parent keeps the single-module layout', async () => {
-    const code = `import {createValidate, getRunTypeId} from 'ts-runtypes';
+    const code = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 type Parent = {tags: string[]};
 export const isParent = createValidate<Parent>();
 const p = {tags: ['a']} as Parent;
@@ -90,7 +90,7 @@ export const reflectedId = getRunTypeId(p);
   });
 
   register('DEFAULT: a NAMED alias array stays an external shared module (dedupe)', async () => {
-    const code = `import {createValidate} from 'ts-runtypes';
+    const code = `import {createValidate} from '@ts-runtypes/core';
 type Tags = string[];
 type Parent = {tags: Tags};
 export const isParent = createValidate<Parent>();
@@ -102,7 +102,7 @@ export const isParent = createValidate<Parent>();
   });
 
   register('allInternal: name-blind — even the NAMED alias array inlines', async () => {
-    const code = `import {createValidate} from 'ts-runtypes';
+    const code = `import {createValidate} from '@ts-runtypes/core';
 type Tags = string[];
 type Parent = {tags: Tags};
 export const isParent = createValidate<Parent>();
@@ -121,7 +121,7 @@ export const isParent = createValidate<Parent>();
     // carries TypeName="DataOnly<NamedInterface>", so DefaultIsRTInlined
     // keeps it external and the nested ICircular reference rides its own
     // shared entry.
-    const code = `import {createValidate, type DataOnly} from 'ts-runtypes';
+    const code = `import {createValidate, type DataOnly} from '@ts-runtypes/core';
 interface ICircular {
   name: string;
   child?: ICircular;

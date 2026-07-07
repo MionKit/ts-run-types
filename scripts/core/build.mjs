@@ -242,8 +242,8 @@ function checkPkgDist(pkgDir, srcName, sentinels, pkgName) {
   }
 }
 
-const checkMarkerDist = () => checkPkgDist(MARKER_PKG_DIR, 'packages/ts-runtypes', MARKER_SENTINELS, 'ts-runtypes');
-const checkPluginDist = () => checkPkgDist(PLUGIN_PKG_DIR, 'packages/ts-runtypes-devtools', PLUGIN_SENTINELS, 'ts-runtypes-devtools');
+const checkMarkerDist = () => checkPkgDist(MARKER_PKG_DIR, 'packages/ts-runtypes', MARKER_SENTINELS, '@ts-runtypes/core');
+const checkPluginDist = () => checkPkgDist(PLUGIN_PKG_DIR, 'packages/ts-runtypes-devtools', PLUGIN_SENTINELS, '@ts-runtypes/devtools');
 
 // ── dispatch ────────────────────────────────────────────────────────────────
 

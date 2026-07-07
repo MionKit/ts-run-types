@@ -12,11 +12,11 @@ import {describe, expect} from 'vitest';
 import {ReflectionKind} from '../src/protocol.ts';
 import {evalCacheFor, runTest} from './helpers/inline.ts';
 
-describe('ts-runtypes-devtools / bounded-scope contract', () => {
+describe('@ts-runtypes/devtools / bounded-scope contract', () => {
   runTest(
     'unreferenced type aliases do not appear in the rendered cache',
     {
-      'scope.ts': `import {createValidate, getRunTypeId} from 'ts-runtypes';
+      'scope.ts': `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 
 // Referenced — has a marker call; should be projected.
 type Referenced = {a: string; b: number};

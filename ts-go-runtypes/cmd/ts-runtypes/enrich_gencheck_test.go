@@ -23,7 +23,7 @@ func TestParseBreadcrumb(t *testing.T) {
 		{
 			name: "source breadcrumb after dsl import",
 			contents: "import type { User, Post } from '../../src/models/user';\n" +
-				"import type { FriendlyType, MockData } from 'ts-runtypes';\n\n" +
+				"import type { FriendlyType, MockData } from '@ts-runtypes/core';\n\n" +
 				"export const friendlyUser = {};\n",
 			wantNames: []string{"User", "Post"},
 			wantSpec:  "../../src/models/user",
@@ -31,7 +31,7 @@ func TestParseBreadcrumb(t *testing.T) {
 		},
 		{
 			name: "dsl import first still skipped",
-			contents: "import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
+			contents: "import type { FriendlyType, MockData } from '@ts-runtypes/core';\n" +
 				"import type { Address } from './address';\n",
 			wantNames: []string{"Address"},
 			wantSpec:  "./address",
@@ -46,7 +46,7 @@ func TestParseBreadcrumb(t *testing.T) {
 		},
 		{
 			name:     "no source breadcrumb",
-			contents: "import type { FriendlyType } from 'ts-runtypes';\nexport const x = {};\n",
+			contents: "import type { FriendlyType } from '@ts-runtypes/core';\nexport const x = {};\n",
 			wantOK:   false,
 		},
 	}
@@ -174,7 +174,7 @@ func TestCheckMirrorFile_Clean(t *testing.T) {
 	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
 	mirror := filepath.Join(dir, "runtypes", "generated", "friendly", "models", "user.ts")
 	writeTestFile(t, mirror, "import type { User } from '../../../../src/models/user';\n"+
-		"import type { FriendlyType } from 'ts-runtypes';\n\nexport const friendlyUser = {};\n")
+		"import type { FriendlyType } from '@ts-runtypes/core';\n\nexport const friendlyUser = {};\n")
 
 	findings := checkMirrorFile(mirror, "")
 	if len(findings) != 0 {
@@ -191,7 +191,7 @@ func TestCheckMirrorFile_LegacyCombinedDrifts(t *testing.T) {
 	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
 	mirror := filepath.Join(dir, "runtypes", "generated", "models", "user.ts")
 	writeTestFile(t, mirror, "import type { User } from '../../../src/models/user';\n"+
-		"import type { FriendlyType, MockData } from 'ts-runtypes';\n\nexport const friendlyUser = {};\n")
+		"import type { FriendlyType, MockData } from '@ts-runtypes/core';\n\nexport const friendlyUser = {};\n")
 
 	findings := checkMirrorFile(mirror, "")
 	if len(findings) != 1 || findings[0].Code != "GE001" {

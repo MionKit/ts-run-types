@@ -35,7 +35,7 @@ import {
   type StripUnknownKeysFn,
   type UnknownKeyErrorsFn,
   type UnknownKeysToUndefinedFn,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 // PrepareForJsonFn / RestoreFromJsonFn / StringifyJsonFn live in
 // createRTFunctions.ts but are no longer re-exported from index.ts
 // (the underlying primitives are internal to the createJsonEncoder /

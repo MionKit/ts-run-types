@@ -14,7 +14,7 @@
 //  1. Name match — the type alias' symbol name must equal the configured
 //     marker name (defaults below).
 //  2. Module-of-origin match — the alias must be declared inside the
-//     configured marker package (default "ts-runtypes"). This
+//     configured marker package (default "@ts-runtypes/core"). This
 //     stops a user's own `type InjectRunTypeId<T> = ...` (or similarly
 //     named local brand) from accidentally triggering rewrites.
 package marker
@@ -76,7 +76,7 @@ const DefaultCompTimeFnArgsName = "CompTimeFnArgs"
 const DefaultPureFunctionName = "PureFunction"
 
 // DefaultModule is the package the marker types must be declared in.
-const DefaultModule = "ts-runtypes"
+const DefaultModule = "@ts-runtypes/core"
 
 // Spec describes a single marker the scanner should recognise.
 type Spec struct {

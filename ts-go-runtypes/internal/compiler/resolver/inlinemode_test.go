@@ -33,7 +33,7 @@ func setupInlineModeAllInternal(t testing.TB, sources map[string]string) *resolv
 
 // pairedArraySource exercises both marker forms (static + reflection) per
 // the marker test coverage rule, over a parent embedding an UNNAMED array.
-const pairedArraySource = `import {createValidate, getRunTypeId} from 'ts-runtypes';
+const pairedArraySource = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 type Parent = {tags: string[]};
 export const isParent = createValidate<Parent>();
 export const staticId = getRunTypeId<Parent>();
@@ -73,7 +73,7 @@ func TestInlineMode_Default_UnnamedArrayDropsChildEntry(t *testing.T) {
 	}
 }
 
-const namedAliasArraySource = `import {createValidate, getRunTypeId} from 'ts-runtypes';
+const namedAliasArraySource = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 type Tags = string[];
 type Parent = {tags: Tags};
 export const isParent = createValidate<Parent>();
@@ -110,7 +110,7 @@ func TestInlineMode_AllInternal_NamedArrayInlines(t *testing.T) {
 // Those edges must keep riding SoftDeps so resolveCrossFamilyEdges renders
 // the member validate entries even though no site demands them directly.
 func TestInlineMode_Default_InlinedUnionKeepsCrossFamilyValMembers(t *testing.T) {
-	source := `import {createBinaryEncoder} from 'ts-runtypes';
+	source := `import {createBinaryEncoder} from '@ts-runtypes/core';
 export const enc = createBinaryEncoder<{u: {a: {n: number}} | {a: {s: string}}}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": source})
@@ -161,7 +161,7 @@ func moduleSources(resp protocol.Response) []string {
 // external (a self-call), or the inline expansion recurses until OOM —
 // this exact shape froze the full-suite dump when allInternal first landed.
 func TestInlineMode_Default_CircularAliasThroughOptionalPropTerminates(t *testing.T) {
-	source := `import {createJsonEncoder} from 'ts-runtypes';
+	source := `import {createJsonEncoder} from '@ts-runtypes/core';
 type U = Date | number | string | {a?: U; b?: string} | U[];
 export const enc = createJsonEncoder<U>(undefined, {strategy: 'mutate'});
 `

@@ -9,9 +9,9 @@
 // id. (A `TF.string()` builder carries `TF.String<{}>`, which converges with
 // `TF.String<{}>`, not the bare `string`; behaviour is identical either way.)
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';
 import {
   array,
   tuple,
@@ -37,8 +37,8 @@ import {
   nonNullable,
   readonly,
   returnType,
-} from 'ts-runtypes/schema';
-import 'ts-runtypes/formats';
+} from '@ts-runtypes/core/schema';
+import '@ts-runtypes/core/formats';
 
 describe('compose builders — array', () => {
   it('validates and converges with the type-first array', () => {

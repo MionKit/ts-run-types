@@ -15,7 +15,7 @@ import (
 
 // Minimal ambient marker declaration so `ts-runtypes` resolves in a bare temp
 // project (the marker scanner honors the `declare module` form).
-const runtypesDTS = `declare module 'ts-runtypes' {
+const runtypesDTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 }
@@ -35,7 +35,7 @@ const tsconfigJSON = `{
 }
 `
 
-const fooTS = `import {getRunTypeId} from 'ts-runtypes';
+const fooTS = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 export const userId = getRunTypeId<User>();
 `

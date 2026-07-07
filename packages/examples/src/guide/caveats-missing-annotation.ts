@@ -1,4 +1,4 @@
-import {getRunTypeId} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
 
 // getRunTypeId reads the STATIC type of what you hand it. If the value
 // has no useful type, there's nothing to read.

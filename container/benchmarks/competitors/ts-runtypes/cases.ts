@@ -8,9 +8,9 @@
 // propagating position) opt out with NOT_SUPPORTED. This map also drives the
 // runtime ts-go column and typecost's ts-go-type column. TOTAL over every key.
 
-import type * as TF from 'ts-runtypes/formats';
-import type * as TFT from 'ts-runtypes/formats/temporal';
-import {createValidate, createGetValidationErrors, registerFormatPattern} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import type * as TFT from '@ts-runtypes/core/formats/temporal';
+import {createValidate, createGetValidationErrors, registerFormatPattern} from '@ts-runtypes/core';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 
 // Custom string-format patterns the STRING_FORMAT.pattern_* cases reference —

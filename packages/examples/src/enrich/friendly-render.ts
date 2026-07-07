@@ -1,4 +1,4 @@
-import {createFriendly, createGetValidationErrors} from 'ts-runtypes';
+import {createFriendly, createGetValidationErrors} from '@ts-runtypes/core';
 import type {User} from './user';
 import {friendlyUser} from './friendly-user';
 

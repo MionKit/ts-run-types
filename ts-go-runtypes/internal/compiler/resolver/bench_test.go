@@ -22,14 +22,14 @@ import (
 // the pointer cache; Cache().Clear() additionally drops the structural
 // table + hash dicts). Dump-based render benchmarks are stationary as-is.
 
-const benchAtomicTS = `import {createValidate, getRunTypeId} from 'ts-runtypes';
+const benchAtomicTS = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 export const a = createValidate<string>();
 export const b = createValidate<number>();
 export const c = createValidate<boolean>();
 export const d = getRunTypeId<string[]>();
 `
 
-const benchObjectTS = `import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+const benchObjectTS = `import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
 interface Address {street: string; city: string; zip?: string}
 interface User {
   id: number;
@@ -48,7 +48,7 @@ export const enc = createJsonEncoder<User>();
 export const dec = createJsonDecoder<User>();
 `
 
-const benchUnionTS = `import {createValidate, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+const benchUnionTS = `import {createValidate, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
 type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; size: number} | {kind: 'rect'; w: number; h: number};
 type Mixed = string | number | Date | {a: string} | string[];
 export const v = createValidate<Shape>();
@@ -63,7 +63,7 @@ export const bd = createBinaryDecoder<Mixed>();
 // projection, structural-id text building, and the per-family walkers.
 var benchLargeTS = func() string {
 	var sb strings.Builder
-	sb.WriteString("import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder} from 'ts-runtypes';\n")
+	sb.WriteString("import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';\n")
 	sb.WriteString("interface Big {\n")
 	for i := 0; i < 12; i++ {
 		fmt.Fprintf(&sb, "  s%d: string; n%d: number; o%d?: {a: string; b: number[]; c: 'x' | 'y' | %d}; d%d: Date;\n", i, i, i, i, i)
@@ -212,7 +212,7 @@ func benchMultiFileSources(n int) (map[string]string, []string) {
 	for i := 0; i < n; i++ {
 		name := fmt.Sprintf("f%02d.ts", i)
 		var sb strings.Builder
-		sb.WriteString("import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder} from 'ts-runtypes';\n")
+		sb.WriteString("import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';\n")
 		fmt.Fprintf(&sb, "interface Address%d {street: string; city: string; zip?: string}\n", i)
 		fmt.Fprintf(&sb, "interface User%d {\n", i)
 		fmt.Fprintf(&sb, "  id: number;\n  name: string;\n  email: string;\n  active: boolean;\n")

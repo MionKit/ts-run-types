@@ -50,7 +50,7 @@ func gateCodes(resp protocol.Response) []string {
 // and asserts they converge with each other AND with an inline structural twin.
 func TestExternalModule_GetRunTypeIdConverges(t *testing.T) {
 	const types = `export interface User { name: string; age: number; }`
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 import type {User} from './types';
 declare const u: User;
 export const reflectId = getRunTypeId(u);
@@ -76,7 +76,7 @@ export const inlineId = getRunTypeId<{name: string; age: number}>();
 // inline twin for both validate and the JSON encoder family.
 func TestExternalModule_CreateXConverges(t *testing.T) {
 	const types = `export interface User { name: string; age: number; }`
-	const code = `import {createValidate, createJsonEncoder} from 'ts-runtypes';
+	const code = `import {createValidate, createJsonEncoder} from '@ts-runtypes/core';
 import type {User} from './types';
 export const importedVal = createValidate<User>();
 export const inlineVal = createValidate<{name: string; age: number}>();
@@ -103,7 +103,7 @@ export const inlineJson = createJsonEncoder<{name: string; age: number}>();
 // the inlined and the spread-merged equivalents.
 func TestExternalModule_WholeConstOptionBag(t *testing.T) {
 	const opts = `export const strict = {noLiterals: true, noIsArrayCheck: true} as const;`
-	const code = `import {createValidate} from 'ts-runtypes';
+	const code = `import {createValidate} from '@ts-runtypes/core';
 import {strict} from './opts';
 export const whole = createValidate<string>(undefined, strict);
 export const spread = createValidate<string>(undefined, {...strict});
@@ -134,13 +134,13 @@ export const none = createValidate<string>();
 // rejected with CTA004 instead of silently selecting a possibly-wrong variant.
 func TestExternalModule_WidenedConstRejected(t *testing.T) {
 	cases := map[string]map[string]string{
-		"same-module": {"call.ts": `import {createValidate} from 'ts-runtypes';
+		"same-module": {"call.ts": `import {createValidate} from '@ts-runtypes/core';
 const loose = {noLiterals: true};
 export const bad = createValidate<string>(undefined, loose);
 `},
 		"cross-module": {
 			"opts.ts": `export const loose = {noLiterals: true};`,
-			"call.ts": `import {createValidate} from 'ts-runtypes';
+			"call.ts": `import {createValidate} from '@ts-runtypes/core';
 import {loose} from './opts';
 export const bad = createValidate<string>(undefined, loose);
 `},
@@ -163,19 +163,19 @@ func TestExternalModule_PureFnExternalHandleRejected(t *testing.T) {
 	cases := map[string]map[string]string{
 		"imported": {
 			"lib.ts": `export const isString = (v: unknown) => typeof v === 'string';`,
-			"call.ts": `import {withValidator} from 'ts-runtypes';
+			"call.ts": `import {withValidator} from '@ts-runtypes/core';
 import {isString} from './lib';
 withValidator<string>(isString);
 `},
-		"exported-const": {"call.ts": `import {withValidator} from 'ts-runtypes';
+		"exported-const": {"call.ts": `import {withValidator} from '@ts-runtypes/core';
 export const isString = (v: unknown) => typeof v === 'string';
 withValidator<string>(isString);
 `},
-		"exported-function": {"call.ts": `import {withValidator} from 'ts-runtypes';
+		"exported-function": {"call.ts": `import {withValidator} from '@ts-runtypes/core';
 export function isString(v: unknown) { return typeof v === 'string'; }
 withValidator<string>(isString);
 `},
-		"export-statement": {"call.ts": `import {withValidator} from 'ts-runtypes';
+		"export-statement": {"call.ts": `import {withValidator} from '@ts-runtypes/core';
 const isString = (v: unknown) => typeof v === 'string';
 export {isString};
 withValidator<string>(isString);
@@ -201,7 +201,7 @@ func TestExternalModule_PureFnInlineAccepted(t *testing.T) {
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
-			code := "import {withValidator} from 'ts-runtypes';\n" + body + "\n"
+			code := "import {withValidator} from '@ts-runtypes/core';\n" + body + "\n"
 			resp := scanExternal(t, pureFunctionDts, map[string]string{"call.ts": code})
 			if codes := gateCodes(resp); len(codes) != 0 {
 				t.Fatalf("expected no PFN/CTA gate for an inline pure-fn, got %v", codes)
@@ -220,7 +220,7 @@ func TestExternalModule_PureFnNamedLocalRejected(t *testing.T) {
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
-			code := "import {withValidator} from 'ts-runtypes';\n" + body + "\n"
+			code := "import {withValidator} from '@ts-runtypes/core';\n" + body + "\n"
 			resp := scanExternal(t, pureFunctionDts, map[string]string{"call.ts": code})
 			codes := gateCodes(resp)
 			if len(codes) != 1 || codes[0] != diagnostics.CodePureFunctionNotLiteral {

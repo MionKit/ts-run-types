@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import type {FriendlyText} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import type {FriendlyText} from '@ts-runtypes/core';
 
 interface Signup {
   name: TF.String<{minLength: 2; maxLength: 60}>;

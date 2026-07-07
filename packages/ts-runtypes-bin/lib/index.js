@@ -25,14 +25,14 @@ function resolvePackageJson(specifier) {
 
 // Returns the absolute path to the ts-runtypes resolver binary for the host
 // platform. In an installed tree it locates the matching optional dependency
-// `ts-runtypes-binary-<platform>-<arch>`; inside this repo's source tree it
+// `@ts-runtypes/binary-<platform>-<arch>`; inside this repo's source tree it
 // falls back to the locally built `bin/ts-runtypes`. Throws a clear error when
 // neither is available (unsupported platform, or the optional dep was skipped).
 export function getExePath() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const normalized = here.replace(/\\/g, '/');
   const platformKey = `${process.platform}-${process.arch}`;
-  const platformPackage = `ts-runtypes-binary-${platformKey}`;
+  const platformPackage = `@ts-runtypes/binary-${platformKey}`;
 
   // Dev: running from the workspace source (packages/ts-runtypes-bin/lib) —
   // prefer the locally built binary so the monorepo needs no platform package.

@@ -14,7 +14,7 @@
 // the wiring (overload return = `DataOnly<T>`, identity on clean DTOs).
 
 import {describe, it, expect} from 'vitest';
-import {createJsonDecoder, createBinaryDecoder, type DataOnly} from 'ts-runtypes';
+import {createJsonDecoder, createBinaryDecoder, type DataOnly} from '@ts-runtypes/core';
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Expect<T extends true> = T;

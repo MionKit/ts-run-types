@@ -1,4 +1,4 @@
-import {createHasUnknownKeys} from 'ts-runtypes';
+import {createHasUnknownKeys} from '@ts-runtypes/core';
 
 type User = {id: number; name: string};
 

@@ -1,4 +1,4 @@
-import {createBinaryEncoder, createBinaryDecoder, createBinarySizer} from 'ts-runtypes';
+import {createBinaryEncoder, createBinaryDecoder, createBinarySizer} from '@ts-runtypes/core';
 
 type Tick = {symbol: string; price: number};
 

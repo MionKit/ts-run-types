@@ -17,7 +17,7 @@
 import {describe, expect, it} from 'vitest';
 import {hasBinary, withInlineSources, evalEntryModules, instantiateRunTypes} from './helpers/inline.ts';
 
-describe('ts-runtypes-devtools / validate precompiler', () => {
+describe('@ts-runtypes/devtools / validate precompiler', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('emits a working RTCompiledFn entry for `string`', async () => {
@@ -25,7 +25,7 @@ describe('ts-runtypes-devtools / validate precompiler', () => {
     // validate family this test inspects, and getRunTypeId<string>() drives
     // the runtype bundle (a createX-only file emits ZERO runtype modules).
     const sources = {
-      'string.ts': `import {createValidate, getRunTypeId} from 'ts-runtypes';
+      'string.ts': `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 createValidate<string>();
 getRunTypeId<string>();
 `,

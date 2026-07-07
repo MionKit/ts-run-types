@@ -1,6 +1,6 @@
-import * as TF from 'ts-runtypes/formats';
-import {createValidate, type Static} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
+import * as TF from '@ts-runtypes/core/formats';
+import {createValidate, type Static} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
 
 // Schema-first formats: the same constraints as builders. TF.email(),
 // TF.uuidv4(), TF.int32(), TF.positive() — pick the style you like.

@@ -11,7 +11,12 @@
 // but scoped to the subset of behavior currently exercised.
 
 import {describe, expect, it} from 'vitest';
-import {createHasUnknownKeys, createStripUnknownKeys, createUnknownKeyErrors, createUnknownKeysToUndefined} from 'ts-runtypes';
+import {
+  createHasUnknownKeys,
+  createStripUnknownKeys,
+  createUnknownKeyErrors,
+  createUnknownKeysToUndefined,
+} from '@ts-runtypes/core';
 
 describe('hasUnknownKeys', () => {
   it('returns false when the value matches the schema', () => {

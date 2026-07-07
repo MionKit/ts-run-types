@@ -1,4 +1,4 @@
-import {createValidate} from 'ts-runtypes';
+import {createValidate} from '@ts-runtypes/core';
 
 // Your TypeScript type. The single source of truth — nothing else to write.
 type User = {

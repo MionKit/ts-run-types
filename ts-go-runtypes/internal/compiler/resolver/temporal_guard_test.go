@@ -33,7 +33,7 @@ func temporalNotLoadedDiags(t *testing.T, code string, suppressAmbient bool) []d
 }
 
 func TestTemporalGuard_FiresWhenLibMissing(t *testing.T) {
-	code := `import {getRunTypeId} from 'ts-runtypes';
+	code := `import {getRunTypeId} from '@ts-runtypes/core';
 export const _ = getRunTypeId<Temporal.PlainDate>();
 `
 	diags := temporalNotLoadedDiags(t, code, true)
@@ -49,7 +49,7 @@ export const _ = getRunTypeId<Temporal.PlainDate>();
 }
 
 func TestTemporalGuard_SilentWhenLibLoaded(t *testing.T) {
-	code := `import {getRunTypeId} from 'ts-runtypes';
+	code := `import {getRunTypeId} from '@ts-runtypes/core';
 export const _ = getRunTypeId<Temporal.PlainDate>();
 `
 	// Ambient present (default) → Temporal.PlainDate is a real type → no diag.
@@ -59,7 +59,7 @@ export const _ = getRunTypeId<Temporal.PlainDate>();
 }
 
 func TestTemporalGuard_FiresForNestedTemporalProperty(t *testing.T) {
-	code := `import {getRunTypeId} from 'ts-runtypes';
+	code := `import {getRunTypeId} from '@ts-runtypes/core';
 export const _ = getRunTypeId<{createdAt: Temporal.Instant; name: string}>();
 `
 	diags := temporalNotLoadedDiags(t, code, true)
@@ -74,7 +74,7 @@ export const _ = getRunTypeId<{createdAt: Temporal.Instant; name: string}>();
 // A user type literally named `Temporal.Foo` (not a builtin) or a bare
 // `PlainDate` must NOT trip the guard.
 func TestTemporalGuard_IgnoresNonBuiltinNames(t *testing.T) {
-	code := `import {getRunTypeId} from 'ts-runtypes';
+	code := `import {getRunTypeId} from '@ts-runtypes/core';
 interface PlainDate { y: number }
 export const _ = getRunTypeId<PlainDate>();
 `

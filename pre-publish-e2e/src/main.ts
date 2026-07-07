@@ -1,4 +1,4 @@
-import {createValidate, getRunTypeId} from 'ts-runtypes';
+import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 
 export interface User {
   id: number;

@@ -55,7 +55,7 @@ const PICK_DEBOUNCE_MS = 150;
 // Ambient declarations so the editor type-checks the snippet: the createX factories
 // (the engine appends the call). The schema / formats modules the user imports are
 // registered separately; the WASM resolver, not Monaco, is the source of truth.
-const EDITOR_DTS = `declare module 'ts-runtypes' {
+const EDITOR_DTS = `declare module '@ts-runtypes/core' {
   export function createValidate<T>(val?: T): (v: unknown) => v is T;
   export function createGetValidationErrors<T>(val?: T): (v: unknown) => unknown[];
   export function createJsonEncoder<T>(val?: T): (v: T) => unknown;

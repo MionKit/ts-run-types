@@ -28,7 +28,7 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
       'user.ts': 'export interface User {\n  name: string;\n}\n',
       'mirror.ts':
         "import type { User } from './user';\n" +
-        "import type { FriendlyText } from 'ts-runtypes';\n\n" +
+        "import type { FriendlyText } from '@ts-runtypes/core';\n\n" +
         '/** @rtType User#u1 @rtIds {name: n1} */\n' +
         `${TODO_LINE}\n` +
         'export const friendlyUser: FriendlyText<User> = {\n' +
@@ -36,7 +36,7 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
         "  nope: {rt$label: 'Gone'},\n" +
         '};\n',
       'widget.ts':
-        "import {createValidate} from 'ts-runtypes';\n\n" +
+        "import {createValidate} from '@ts-runtypes/core';\n\n" +
         'interface Widget {\n  label: string;\n  onClick: () => void;\n}\n\n' +
         'export const isWidget = createValidate<Widget>();\n',
     });

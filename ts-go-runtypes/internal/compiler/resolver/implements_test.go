@@ -14,7 +14,7 @@ import (
 // =========================================================================
 
 func TestClassImplements_SingleInterface(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface I { a: string; }
 class C implements I { a: string = ''; }
 getRunTypeId<C>();
@@ -33,7 +33,7 @@ getRunTypeId<C>();
 }
 
 func TestClassImplements_MultipleInterfaces(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface I1 { a: string; }
 interface I2 { b: number; }
 class C implements I1, I2 { a: string = ''; b: number = 0; }
@@ -55,7 +55,7 @@ getRunTypeId<C>();
 }
 
 func TestClassImplements_DoesNotAffectChildren(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface I { a: string; b: number; }
 class C implements I {
   a: string = '';
@@ -74,7 +74,7 @@ getRunTypeId<C>();
 }
 
 func TestClassImplements_ExtendsAndImplements(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface I { tag: 'i'; }
 class B { x: string = ''; }
 class C extends B implements I { tag: 'i' = 'i'; }
@@ -98,7 +98,7 @@ getRunTypeId<C>();
 }
 
 func TestClassImplements_EmptyForPlainClass(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 class C { x: string = ''; }
 getRunTypeId<C>();
 `

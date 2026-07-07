@@ -1,4 +1,4 @@
-import type {FriendlyText} from 'ts-runtypes';
+import type {FriendlyText} from '@ts-runtypes/core';
 import type {User} from './user';
 
 export const friendlyUser: FriendlyText<User> = {

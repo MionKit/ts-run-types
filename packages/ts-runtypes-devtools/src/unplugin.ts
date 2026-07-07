@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import {createUnplugin} from 'unplugin';
-import {getExePath} from 'ts-runtypes-bin';
+import {getExePath} from '@ts-runtypes/bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
 import {applyEdits, sourceHash} from './apply-edits.ts';
@@ -133,7 +133,7 @@ export interface PluginOptions {
 // package that re-exports or vendors them (keeping the brand) is recognised
 // automatically with no config. Only a fully custom marker brand needs the
 // escape hatch: embed the Go resolver directly and pass marker.Options{Specs}.
-const MARKER_MODULE = 'ts-runtypes';
+const MARKER_MODULE = '@ts-runtypes/core';
 
 // ts-runtypes-devtools is built on unplugin: ONE factory, many bundler entry
 // points (ts-runtypes-devtools/vite, /rollup, /webpack, /rspack, /esbuild are
@@ -307,7 +307,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   }
 
   return {
-    name: 'ts-runtypes-devtools',
+    name: '@ts-runtypes/devtools',
     // Must run BEFORE vite/esbuild's built-in TypeScript transform. The
     // resolver returns byte offsets into the ORIGINAL source — if the
     // plugin saw code after esbuild stripped type syntax, every offset

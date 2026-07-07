@@ -14,7 +14,7 @@
 // internal/cachegen/typefunctions/index_sig_array_reject_test.go.
 
 import {describe, test, expect} from 'vitest';
-import {createValidate, createGetValidationErrors} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';
 
 describe('verr/validate agreement on non-plain-object inputs to record types (O4)', () => {
   test('Record<string, number> — [] is the minimal disagreement repro', () => {

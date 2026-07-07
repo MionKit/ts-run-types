@@ -9,7 +9,7 @@
 // `.byteLength` is exactly the on-wire byte count for a top-level value.
 
 import {describe, expect, it} from 'vitest';
-import {createBinaryEncoder} from 'ts-runtypes';
+import {createBinaryEncoder} from '@ts-runtypes/core';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 

@@ -7,10 +7,10 @@
 // raw write overflows (a DataView throw, or a silent Uint8Array write that leaves
 // index past the buffer) and the round-trip fails.
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect, beforeAll, afterAll} from 'vitest';
-import * as RT from 'ts-runtypes/schema';
-import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+import * as RT from '@ts-runtypes/core/schema';
+import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
 import {setSerializationOptions} from '../../../src/runtypes/dataView.ts';
 
 beforeAll(() => setSerializationOptions({defaultBufferSize: 1, sizeHistory: new Map()}));

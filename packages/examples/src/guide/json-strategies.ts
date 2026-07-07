@@ -1,4 +1,4 @@
-import {createJsonEncoder} from 'ts-runtypes';
+import {createJsonEncoder} from '@ts-runtypes/core';
 
 type Profile = {name: string; age: number};
 

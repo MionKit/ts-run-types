@@ -95,7 +95,7 @@ const COMPILE_CYCLES = QUICK ? 1 : 3;
 // Ambient overlay so the synthetic compile-pass files can import the marker
 // package without resolving a real package.json. Mirrors the validation
 // suite's RUNTYPES_DTS, extended with the JSON serializer signatures.
-const RUNTYPES_DTS = `declare module 'ts-runtypes' {
+const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
@@ -607,7 +607,7 @@ function buildSynthetic(body) {
   // Self-declaring cases name format types via the `TF.*` / `TFT.*` namespaces with no
   // file-level import; inject the namespace overlays so they keep their brand and the
   // generated codec shows the real format handling instead of a plain-string fallback.
-  const imports = [`import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';`];
+  const imports = [`import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';`];
   if (/\bTF\./.test(body)) imports.push(`import type * as TF from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   if (/\bTFT\./.test(body)) imports.push(`import type * as TFT from '../${TEMPORAL_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   return `${imports.join('\n')}\nconst _probe = () => {\n${body}\n};\n`;

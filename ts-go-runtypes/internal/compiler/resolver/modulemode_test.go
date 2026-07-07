@@ -29,7 +29,7 @@ func setupInlineMode(t testing.TB, sources map[string]string, mode string) *reso
 // pairedSources puts BOTH marker forms in one file: the static form
 // (getRunTypeId<T>() / createValidate<T>()) and the reflection form
 // (getRunTypeId(value)) — per the marker test coverage rule.
-const pairedSource = `import {createValidate, getRunTypeId} from 'ts-runtypes';
+const pairedSource = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 export const isUser = createValidate<User>();
 export const staticId = getRunTypeId<User>();
@@ -94,7 +94,7 @@ func TestModuleMode_AllSingle_FacadeThunkHoisted(t *testing.T) {
 	// ≥ facadeHoistMin (3) reflection roots: every folded facade shares the
 	// same bundle deps thunk, so it's hoisted into ONE `const rtL=…` reused by
 	// each facade instead of a repeated `()=>[__rt_runtypes]`.
-	source := `import {getRunTypeId} from 'ts-runtypes';
+	source := `import {getRunTypeId} from '@ts-runtypes/core';
 type A = {a: string};
 type B = {b: number};
 type C = {c: boolean};
@@ -131,7 +131,7 @@ export const d = getRunTypeId<D>();
 
 func TestModuleMode_AllSingle_FacadeThunkInlineBelowThreshold(t *testing.T) {
 	// 2 roots (< facadeHoistMin) → no hoist; each facade keeps its inline thunk.
-	source := `import {getRunTypeId} from 'ts-runtypes';
+	source := `import {getRunTypeId} from '@ts-runtypes/core';
 type A = {a: string};
 type B = {b: number};
 export const a = getRunTypeId<A>();
@@ -197,7 +197,7 @@ func TestModuleMode_AllSingle_CrossFamilyBundleImport(t *testing.T) {
 	// cross-family edges (the TestDemandScope_ItSeededByCrossFamilyUnion
 	// fixture) — in allSingle the tb bundle must import those entries as
 	// NAMED exports of the val bundle.
-	source := `import {createBinaryEncoder} from 'ts-runtypes';
+	source := `import {createBinaryEncoder} from '@ts-runtypes/core';
 export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
 `
 	r := setupInlineMode(t, map[string]string{"a.ts": source}, constants.ModuleModeAllSingle)
@@ -232,7 +232,7 @@ func TestModuleMode_AllSingle_PureFnBundleAndNamedReplacement(t *testing.T) {
 			"  export function registerPureFnFactory(pureFnId: CompTimeArgs<PureFnId>, factory: PureFunction<(utl: unknown) => unknown> | null): unknown;\n"+
 			"  export function createJsonDecoder",
 		1)
-	source := `import {registerPureFnFactory} from 'ts-runtypes';
+	source := `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const _ = registerPureFnFactory('test::double', function (utl) {
   return function double(x: number): number { return x * 2; };
 });
@@ -259,7 +259,7 @@ export const _ = registerPureFnFactory('test::double', function (utl) {
 func TestModuleMode_AllModules_PerNodeRunTypes(t *testing.T) {
 	// Static + reflection forms both demand the runtype graph; per-node mode
 	// renders one module per node (kind 0) and no bundle/facade kinds.
-	source := `import {getRunTypeId} from 'ts-runtypes';
+	source := `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 export const staticId = getRunTypeId<User>();
 const u = {id: 1, name: 'm'} as User;

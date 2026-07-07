@@ -1,4 +1,4 @@
-import {createMockType} from 'ts-runtypes';
+import {createMockType} from '@ts-runtypes/core';
 
 type Account = {
   balance: number;

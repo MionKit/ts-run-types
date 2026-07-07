@@ -1,4 +1,4 @@
-import {createMockType} from 'ts-runtypes';
+import {createMockType} from '@ts-runtypes/core';
 import type {User} from './user';
 import {mockUser} from './mock-user';
 

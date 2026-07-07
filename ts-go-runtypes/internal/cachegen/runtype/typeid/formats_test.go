@@ -15,7 +15,7 @@ import (
 // same way the production ts-runtypes/formats type will — two
 // sentinel properties carrying the format name and the literal params —
 // so the scanner exercises the real detection path, not a parallel one.
-const runtypesWithFormatsDTS = `declare module 'ts-runtypes' {
+const runtypesWithFormatsDTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function getRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
@@ -71,8 +71,8 @@ func runFormatScan(t *testing.T, code string) *protocol.RunType {
 
 func TestFormatAnnotation_PopulatedOnBrandedString(t *testing.T) {
 	root := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type FixtureFormat = TypeFormat<string, 'fixture', {tag: 1}>;
 getRunTypeId<FixtureFormat>();
 `)
@@ -95,14 +95,14 @@ getRunTypeId<FixtureFormat>();
 
 func TestFormatAnnotation_Idempotency_SameParamsSameID(t *testing.T) {
 	rootA := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type FmtA = TypeFormat<string, 'fixture', {maxLength: 10}>;
 getRunTypeId<FmtA>();
 `)
 	rootB := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type FmtB = TypeFormat<string, 'fixture', {maxLength: 10}>;
 getRunTypeId<FmtB>();
 `)
@@ -113,14 +113,14 @@ getRunTypeId<FmtB>();
 
 func TestFormatAnnotation_DistinctParamsDistinctID(t *testing.T) {
 	root10 := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type Fmt10 = TypeFormat<string, 'fixture', {maxLength: 10}>;
 getRunTypeId<Fmt10>();
 `)
 	root20 := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type Fmt20 = TypeFormat<string, 'fixture', {maxLength: 20}>;
 getRunTypeId<Fmt20>();
 `)
@@ -131,14 +131,14 @@ getRunTypeId<Fmt20>();
 
 func TestFormatAnnotation_KeyOrderIndependent(t *testing.T) {
 	rootAB := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type FmtAB = TypeFormat<string, 'fixture', {a: 1, b: 2}>;
 getRunTypeId<FmtAB>();
 `)
 	rootBA := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type FmtBA = TypeFormat<string, 'fixture', {b: 2, a: 1}>;
 getRunTypeId<FmtBA>();
 `)
@@ -149,12 +149,12 @@ getRunTypeId<FmtBA>();
 
 func TestFormatAnnotation_BareKindDistinctFromBrand(t *testing.T) {
 	rootBare := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string>();
 `)
 	rootBranded := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type Branded = TypeFormat<string, 'fixture', {maxLength: 10}>;
 getRunTypeId<Branded>();
 `)
@@ -179,14 +179,14 @@ getRunTypeId<Branded>();
 // whose alias carries a brand name would shift id).
 func TestFormatAnnotation_BrandNameIsIdNeutral(t *testing.T) {
 	unbranded := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type Plain = TypeFormat<string, 'fixture', {maxLength: 10}>;
 getRunTypeId<Plain>();
 `)
 	branded := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type Branded = TypeFormat<string, 'fixture', {maxLength: 10}, 'MyBrand'>;
 getRunTypeId<Branded>();
 `)
@@ -204,8 +204,8 @@ getRunTypeId<Branded>();
 	}
 	// A DIFFERENT brand name is just as id-neutral — the name never enters the id.
 	otherBrand := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type Other = TypeFormat<string, 'fixture', {maxLength: 10}, 'OtherBrand'>;
 getRunTypeId<Other>();
 `)
@@ -269,14 +269,14 @@ func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
 // through the full scan → structural id (not just the key fn).
 func TestFormatAnnotation_SamplesDedupEndToEnd(t *testing.T) {
 	a := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type T = TypeFormat<string, 'stringFormat', {maxLength: 10; mockSamples: ['a', 'b']}>;
 getRunTypeId<T>();
 `)
 	b := runFormatScan(t, `
-import {getRunTypeId} from 'ts-runtypes';
-import type {TypeFormat} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
 type T = TypeFormat<string, 'stringFormat', {maxLength: 10; mockSamples: ['x', 'y', 'z']}>;
 getRunTypeId<T>();
 `)

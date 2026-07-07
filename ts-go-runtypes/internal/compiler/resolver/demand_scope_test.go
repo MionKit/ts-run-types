@@ -40,7 +40,7 @@ func scopeScan(t *testing.T, code string) protocol.Response {
 // for createGetValidationErrors call sites, not for getRunTypeId or createValidate.
 func TestDemandScope_ValidationErrorsScopedToItsCallSites(t *testing.T) {
 	// Reflection only: no verr.
-	reflect := scopeScan(t, `import {getRunTypeId} from 'ts-runtypes';
+	reflect := scopeScan(t, `import {getRunTypeId} from '@ts-runtypes/core';
 export const _ = getRunTypeId<{a: string; b: number}>();
 `)
 	if len(reflect.RunTypes) == 0 {
@@ -51,7 +51,7 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 	}
 
 	// createValidate demands `it`, not `te` — so still no verr.
-	validate := scopeScan(t, `import {createValidate} from 'ts-runtypes';
+	validate := scopeScan(t, `import {createValidate} from '@ts-runtypes/core';
 export const _ = createValidate<{a: string}>();
 `)
 	if hasFamilyEntry(validate, "validationErrors") {
@@ -59,7 +59,7 @@ export const _ = createValidate<{a: string}>();
 	}
 
 	// createGetValidationErrors demands `te`.
-	validationErrors := scopeScan(t, `import {createGetValidationErrors} from 'ts-runtypes';
+	validationErrors := scopeScan(t, `import {createGetValidationErrors} from '@ts-runtypes/core';
 export const _ = createGetValidationErrors<{a: string}>();
 `)
 	if !hasFamilyEntry(validationErrors, "validationErrors") {
@@ -71,7 +71,7 @@ export const _ = createGetValidationErrors<{a: string}>();
 // emits verr entries for the parent AND its non-inlined children (so dependency
 // calls resolve), even though only the parent has a call site.
 func TestDemandScope_ValidationErrorsTransitiveChildren(t *testing.T) {
-	resp := scopeScan(t, `import {createGetValidationErrors} from 'ts-runtypes';
+	resp := scopeScan(t, `import {createGetValidationErrors} from '@ts-runtypes/core';
 interface Child { c: string }
 interface Parent { child: Child[] }
 export const _ = createGetValidationErrors<Parent>();
@@ -86,7 +86,7 @@ export const _ = createGetValidationErrors<Parent>();
 // getRunTypeId-only (reflection) file emits ZERO val_ entries (no createValidate
 // site, no other family referencing val_ cross-family).
 func TestDemandScope_ItScopedReflectionOnly(t *testing.T) {
-	resp := scopeScan(t, `import {getRunTypeId} from 'ts-runtypes';
+	resp := scopeScan(t, `import {getRunTypeId} from '@ts-runtypes/core';
 export const _ = getRunTypeId<{a: string; b: number}>();
 `)
 	if len(resp.RunTypes) == 0 {
@@ -100,7 +100,7 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 // TestDemandScope_ItScopedToCreateValidate — a createValidate call site demands the
 // `it` family, so its val entry is emitted.
 func TestDemandScope_ItScopedToCreateValidate(t *testing.T) {
-	resp := scopeScan(t, `import {createValidate} from 'ts-runtypes';
+	resp := scopeScan(t, `import {createValidate} from '@ts-runtypes/core';
 export const _ = createValidate<{a: string}>();
 `)
 	if !hasFamilyEntry(resp, "validate") {
@@ -117,7 +117,7 @@ export const _ = createValidate<{a: string}>();
 // round-trip silently corrupts (missing val_<member> ⇒ `?? true` ⇒ first
 // member always matches).
 func TestDemandScope_ItSeededByCrossFamilyUnion(t *testing.T) {
-	resp := scopeScan(t, `import {createBinaryEncoder} from 'ts-runtypes';
+	resp := scopeScan(t, `import {createBinaryEncoder} from '@ts-runtypes/core';
 export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
 `)
 	// Sanity: the binary family IS demanded by createBinaryEncoder.

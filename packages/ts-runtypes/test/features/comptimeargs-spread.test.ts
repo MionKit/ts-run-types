@@ -13,10 +13,10 @@
 // shapes (static `getRunTypeId<T>()` and reflection `getRunTypeId(value)`) and
 // asserts hash equivalence between them.
 import {describe, expect, test} from 'vitest';
-import {createValidate, createJsonEncoder, getRunTypeId, type Static} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
-import 'ts-runtypes/formats';
+import {createValidate, createJsonEncoder, getRunTypeId, type Static} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
+import '@ts-runtypes/core/formats';
 
 describe('CompTimeArgs spread — builders', () => {
   test('object spread converges with the inlined object (both getRunTypeId shapes)', () => {

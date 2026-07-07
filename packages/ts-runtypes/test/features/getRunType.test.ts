@@ -6,9 +6,9 @@
 // least one asserts the two forms converge on the same entry.)
 
 import {describe, it, expect} from 'vitest';
-import {getRunType, getRunTypeId, RunTypeKind} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+import {getRunType, getRunTypeId, RunTypeKind} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 describe('getRunType — reflected RunType node accessor', () => {
   it('(static) returns the traversable node for T', () => {

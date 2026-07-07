@@ -14,11 +14,11 @@ function findMember(types: RunType[], root: RunType, name: string): RunType | un
   return undefined;
 }
 
-describe('ts-runtypes-devtools / rewrite', () => {
+describe('@ts-runtypes/devtools / rewrite', () => {
   runTest(
     'F9 static: rewrites getRunTypeId<User>() to pass a hash site id',
     {
-      'user.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `,
@@ -42,7 +42,7 @@ getRunTypeId<User>();
   runTest(
     'F9 reflect: rewrites getRunTypeId(u) to pass a hash site id',
     {
-      'user-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);
@@ -64,7 +64,7 @@ getRunTypeId(u);
   runTest(
     'multi-fn marker: createStandardSchema injects an ARRAY of two entry tuples',
     {
-      'std.ts': `import {createStandardSchema} from 'ts-runtypes';
+      'std.ts': `import {createStandardSchema} from '@ts-runtypes/core';
 createStandardSchema<string>();
 `,
     },
@@ -97,7 +97,7 @@ createStandardSchema<string>();
       // Formatter-wrapped value-first call with a trailing comma in its OWN
       // argument list. The injected binding must NOT add a second comma after
       // the existing one — `f(user, , …)` is a syntax error.
-      'trailing-comma.ts': `import {createValidate} from 'ts-runtypes';
+      'trailing-comma.ts': `import {createValidate} from '@ts-runtypes/core';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
 export const isUser = createValidate(
   user,
@@ -133,7 +133,7 @@ export const isUser = createValidate(
   runTest(
     'F10 static: cache contains User alias with reflection-shape propertySignatures',
     {
-      'user.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `,
@@ -149,7 +149,7 @@ getRunTypeId<User>();
   runTest(
     'F10 reflect: cache contains User alias with reflection-shape propertySignatures',
     {
-      'user-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);
@@ -184,7 +184,7 @@ getRunTypeId(u);
   runTest(
     'F6 static: getRunTypeId<routes>() carries nested object+function shape',
     {
-      'router-static.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'router-static.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
 `,
     },
@@ -204,7 +204,7 @@ const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
   runTest(
     'F6 reflect: getRunTypeId(routes) infers nested object+function shape',
     {
-      'router-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'router-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRunTypeId(routes);
@@ -241,7 +241,7 @@ const myAPI = getRunTypeId(routes);
   runTest(
     'dedup static: re-resolving the same file adds no new types',
     {
-      'primitive-static.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'primitive-static.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 const info = getRunTypeId<string>();
 `,
     },
@@ -253,7 +253,7 @@ const info = getRunTypeId<string>();
   runTest(
     'dedup reflect: re-resolving the same file adds no new types',
     {
-      'primitive-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'primitive-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 const userName: string = 'mario';
 const info = getRunTypeId(userName);
 `,
@@ -274,11 +274,11 @@ const info = getRunTypeId(userName);
   }
 });
 
-describe('ts-runtypes-devtools / generated module', () => {
+describe('@ts-runtypes/devtools / generated module', () => {
   runTest(
     'F17 static: rendered cache module exports a knotted reflection RunType graph',
     {
-      'router-static.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'router-static.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
 `,
     },
@@ -290,7 +290,7 @@ const myAPI = getRunTypeId<{sayHello: (name: string) => string}>();
   runTest(
     'F17 reflect: rendered cache module exports a knotted reflection RunType graph',
     {
-      'router-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'router-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRunTypeId(routes);
@@ -346,7 +346,7 @@ const myAPI = getRunTypeId(routes);
   runTest(
     "CLI --out-modules writes per-entry modules identical in shape to the plugin's output",
     {
-      'router.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'router.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRunTypeId(routes);
@@ -382,7 +382,7 @@ const myAPI = getRunTypeId(routes);
   runTest(
     'multibyte static: byte offsets convert to char indices before insertion',
     {
-      'user-mb.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user-mb.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 // preamble with multibyte chars — em-dash and 🦄 emoji — before the site
 type User = {id: number; name: string};
 getRunTypeId<User>();
@@ -405,7 +405,7 @@ getRunTypeId<User>();
   runTest(
     'multibyte reflect: byte offsets convert to char indices before insertion',
     {
-      'user-mb-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user-mb-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 // preamble with multibyte chars — em-dash and 🦄 emoji — before the site
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
@@ -431,7 +431,7 @@ getRunTypeId(u);
   runTest(
     'source map static: original lines survive the injected import block',
     {
-      'user-map.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user-map.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `,
@@ -447,7 +447,7 @@ getRunTypeId<User>();
   runTest(
     'source map reflect: original lines survive the injected import block',
     {
-      'user-map-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user-map-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);

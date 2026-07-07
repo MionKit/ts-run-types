@@ -35,9 +35,9 @@ async function withModeClient<T>(
   }
 }
 
-describe('ts-runtypes-devtools / moduleMode', () => {
+describe('@ts-runtypes/devtools / moduleMode', () => {
   register('allSingle static: getRunTypeId<T>() imports its binding as a NAMED export of the runtypes bundle', async () => {
-    const code = `import {getRunTypeId} from 'ts-runtypes';
+    const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 export const staticId = getRunTypeId<User>();
 `;
@@ -52,7 +52,7 @@ export const staticId = getRunTypeId<User>();
   });
 
   register('allSingle reflect: getRunTypeId(value) imports its binding as a NAMED export of the runtypes bundle', async () => {
-    const code = `import {getRunTypeId} from 'ts-runtypes';
+    const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 export const reflectedId = getRunTypeId(u);
@@ -68,7 +68,7 @@ export const reflectedId = getRunTypeId(u);
   });
 
   register('allSingle createX: two validate sites dedupe into ONE family-bundle import statement', async () => {
-    const code = `import {createValidate} from 'ts-runtypes';
+    const code = `import {createValidate} from '@ts-runtypes/core';
 interface Alpha { alphaProp: string }
 interface Beta { betaProp: number }
 export const isAlpha = createValidate<Alpha>();
@@ -94,7 +94,7 @@ export const isBeta = createValidate<Beta>();
 
   register('allSingle runtime: the hoisted rtL thunk resolves the bundle and a folded facade registers its root', async () => {
     // ≥3 reflection roots → the facade deps thunk is hoisted to one `rtL`.
-    const code = `import {getRunTypeId} from 'ts-runtypes';
+    const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type A = {a: string};
 type B = {b: number};
 type C = {c: boolean};
@@ -148,7 +148,7 @@ export const d = getRunTypeId<D>();
   });
 
   register('allModules static: getRunTypeId<T>() imports a per-node module (kind 0) with child imports', async () => {
-    const code = `import {getRunTypeId} from 'ts-runtypes';
+    const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 export const staticId = getRunTypeId<User>();
 `;
@@ -168,7 +168,7 @@ export const staticId = getRunTypeId<User>();
   });
 
   register('allModules reflect: getRunTypeId(value) resolves to the same per-node layout', async () => {
-    const code = `import {getRunTypeId} from 'ts-runtypes';
+    const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 export const reflectedId = getRunTypeId(u);

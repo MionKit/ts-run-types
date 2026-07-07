@@ -14,7 +14,7 @@ import (
 // `ts-runtypes` module declaration. setupInline always
 // overlays it under the test cwd so caller snippets stay terse, the
 // same trick the FE helper uses (packages/ts-runtypes-devtools/test/helpers/inline.ts:30).
-const runtypesDTS = `declare module 'ts-runtypes' {
+const runtypesDTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};

@@ -13,8 +13,8 @@
 //   - 'not-supported'    → " (not supported)";   assert silently early-returns
 
 import {expect} from 'vitest';
-import {runTypeErrorsToIssues, createFriendly} from 'ts-runtypes';
-import type {RTValidationError} from 'ts-runtypes';
+import {runTypeErrorsToIssues, createFriendly} from '@ts-runtypes/core';
+import type {RTValidationError} from '@ts-runtypes/core';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 

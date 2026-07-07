@@ -1,14 +1,14 @@
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import type {SerializationCase} from './types.ts';
-import * as RT from 'ts-runtypes/schema';
-import 'ts-runtypes/formats';
+import * as RT from '@ts-runtypes/core/schema';
+import '@ts-runtypes/core/formats';
 import {
   createBinaryDecoder,
   createBinaryEncoder,
   createJsonDecoder,
   createJsonEncoder,
   registerClassSerializer,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 
 // Real-world DTOs whose fields carry type-formats, taken to the wire. A format brand
 // (uuid / email) constrains validation only — on the wire it is the plain underlying

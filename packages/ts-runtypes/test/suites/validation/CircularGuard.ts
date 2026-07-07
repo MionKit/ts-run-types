@@ -5,7 +5,7 @@
 // of recursing forever. Acyclic controls (DAG, disarmed) prove the guard stays
 // inert when there is no real cycle / when not armed.
 
-import {createGetValidationErrors, createValidate} from 'ts-runtypes';
+import {createGetValidationErrors, createValidate} from '@ts-runtypes/core';
 import type {CircularGuardValidationCase} from '../../util/circularGuardAsserts.ts';
 
 export const CIRCULAR_GUARD = {

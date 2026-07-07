@@ -1,6 +1,6 @@
 # RunTypes Architectural Guidelines
 
-For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the single setup document. The [ts-runtypes-setup skill](.claude/skills/ts-runtypes-setup/) automates host bootstrap end-to-end.
+For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the single setup document. **To set up or repair a local dev environment (submodules + patches, `bin/ts-runtypes`, workspace deps, package dists), run the [ts-runtypes-setup skill](.claude/skills/ts-runtypes-setup/) — it drives the whole host bootstrap end-to-end. Don't hand-roll a bootstrap.** ([scripts/setup-claude-web.sh](scripts/setup-claude-web.sh) is the Linux web-container variant only — never for local/macOS; it hard-exits off Linux and redirects you to the skill.)
 
 ## Dual-language repo: Go binary + JS workspace
 

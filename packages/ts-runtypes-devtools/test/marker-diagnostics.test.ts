@@ -23,12 +23,12 @@ function markerDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
   return (response.diagnostics ?? []).filter((d) => d.family === Family.Marker);
 }
 
-describe('ts-runtypes-devtools / marker diagnostics', () => {
+describe('@ts-runtypes/devtools / marker diagnostics', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('warns when reflect-form arg is a function call (createValidate)', async () => {
     const sources = {
-      'fn-call.ts': `import {createValidate} from 'ts-runtypes';
+      'fn-call.ts': `import {createValidate} from '@ts-runtypes/core';
 function makeUser(): {id: number; name: string} {
   return {id: 1, name: 'john'};
 }
@@ -51,7 +51,7 @@ export const _ = createValidate(makeUser());
 
   register('warns for getRunTypeId with a function-call arg too', async () => {
     const sources = {
-      'reflect-fn.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'reflect-fn.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 function getValue(): string { return 'hello'; }
 export const _ = getRunTypeId(getValue());
 `,
@@ -66,7 +66,7 @@ export const _ = getRunTypeId(getValue());
 
   register('warns for method-call arg (PropertyAccess → CallExpression)', async () => {
     const sources = {
-      'method-call.ts': `import {createValidate} from 'ts-runtypes';
+      'method-call.ts': `import {createValidate} from '@ts-runtypes/core';
 const state = {
   makeUser(): {id: number} { return {id: 1}; },
 };
@@ -84,7 +84,7 @@ export const _ = createValidate(state.makeUser());
 
   register('no warning for identifier arg', async () => {
     const sources = {
-      'identifier.ts': `import {createValidate} from 'ts-runtypes';
+      'identifier.ts': `import {createValidate} from '@ts-runtypes/core';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
 export const _ = createValidate(user);
 `,
@@ -97,7 +97,7 @@ export const _ = createValidate(user);
 
   register('no warning for property-access arg', async () => {
     const sources = {
-      'property.ts': `import {createValidate} from 'ts-runtypes';
+      'property.ts': `import {createValidate} from '@ts-runtypes/core';
 const outer: {user: {id: number}} = {user: {id: 1}};
 export const _ = createValidate(outer.user);
 `,
@@ -110,7 +110,7 @@ export const _ = createValidate(outer.user);
 
   register('no warning for static form even when paired with a call', async () => {
     const sources = {
-      'static-return.ts': `import {createValidate} from 'ts-runtypes';
+      'static-return.ts': `import {createValidate} from '@ts-runtypes/core';
 function makeUser(): {id: number} { return {id: 1}; }
 export const _ = createValidate<ReturnType<typeof makeUser>>();
 `,
@@ -123,7 +123,7 @@ export const _ = createValidate<ReturnType<typeof makeUser>>();
 
   register('errors with MKR003 when marker call is inside a generic wrapper', async () => {
     const sources = {
-      'free-tparam.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'free-tparam.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 export function makeId<T>() {
   return getRunTypeId<T>();
 }
@@ -151,7 +151,7 @@ export function makeId<T>() {
 
   register('formatTscDiagnostic renders marker warnings in tsc line format', async () => {
     const sources = {
-      'fmt.ts': `import {createValidate} from 'ts-runtypes';
+      'fmt.ts': `import {createValidate} from '@ts-runtypes/core';
 function makeUser(): {id: number} { return {id: 1}; }
 export const _ = createValidate(makeUser());
 `,

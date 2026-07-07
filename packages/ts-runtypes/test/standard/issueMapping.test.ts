@@ -10,8 +10,8 @@
 // So a change to the error format must update BOTH this file and those pins.
 
 import {describe, test, expect} from 'vitest';
-import {runTypeErrorsToIssues} from 'ts-runtypes';
-import type {RTValidationError} from 'ts-runtypes';
+import {runTypeErrorsToIssues} from '@ts-runtypes/core';
+import type {RTValidationError} from '@ts-runtypes/core';
 
 describe('runTypeErrorsToIssues', () => {
   test('string / number path segments pass through as PropertyKeys', () => {

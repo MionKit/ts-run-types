@@ -3,8 +3,8 @@
 // (external-module.test.ts) imports them and drives every marker across the
 // module boundary. The live plugin scans this file too, so the schema's
 // value-first builders are reflected the same as if written inline.
-import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 export interface User {
   id: number;

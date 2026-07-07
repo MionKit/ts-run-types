@@ -11,7 +11,7 @@ import {
   overrideBinaryEncoder,
   createBinaryDecoder,
   overrideBinaryDecoder,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
 
 // Tuple whose first slot is a unique literal — gives the tuple a unique id.

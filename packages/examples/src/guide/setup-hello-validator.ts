@@ -1,4 +1,4 @@
-import {createValidate} from 'ts-runtypes';
+import {createValidate} from '@ts-runtypes/core';
 
 // A plain type — the only thing you write.
 type User = {

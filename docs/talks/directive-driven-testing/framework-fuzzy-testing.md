@@ -352,7 +352,7 @@ In plain terms:
 
 ```ts
 // The schema IS the generator. One reflected type → infinite valid values.
-import {createMockType} from 'ts-runtypes';
+import {createMockType} from '@ts-runtypes/core';
 const mockUser = createMockType<User>(); // () => User, valid by construction
 const u = mockUser(); // a fresh random User every call
 ```

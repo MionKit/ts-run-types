@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import {createValidate, registerFormatPattern} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createValidate, registerFormatPattern} from '@ts-runtypes/core';
 
 // Register a reusable string pattern once. `mockSamples` are required —
 // they double as canonical values the mock generator draws from, and each

@@ -14,10 +14,10 @@
 // its own encoder/decoder calls — a shared `RunType<unknown>` table would erase
 // the type and inject the wrong (unknown) entry.
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
-import * as RT from 'ts-runtypes/schema';
-import {createBinaryEncoder, createBinaryDecoder, type BinaryEncoderFn, type BinaryDecoderFn} from 'ts-runtypes';
+import * as RT from '@ts-runtypes/core/schema';
+import {createBinaryEncoder, createBinaryDecoder, type BinaryEncoderFn, type BinaryDecoderFn} from '@ts-runtypes/core';
 
 const PRINT = process.env.BINARY_BENCH === '1';
 const TIME_MS = Number(process.env.BINARY_BENCH_MS ?? 200);

@@ -11,7 +11,7 @@ import {
   overrideBinaryEncoder,
   createBinaryDecoder,
   overrideBinaryDecoder,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
 
 // Discriminated union with unique tags — the tags give it a unique id.

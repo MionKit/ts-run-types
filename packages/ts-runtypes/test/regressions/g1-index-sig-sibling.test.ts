@@ -5,7 +5,7 @@
 // transformed every own key). Binary was already correct (F1); the JSON mutate /
 // restore / direct walks now skip declared sibling keys too.
 import {describe, it, expect} from 'vitest';
-import {createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+import {createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
 
 describe('G1 — index signature does not corrupt a named sibling property', () => {
   it('{p0: number; [k: number]: bigint} keeps p0 a number across every wire', () => {

@@ -7,10 +7,10 @@
 // (`validateSchema: 'not-supported'`) or that render an alwaysThrow factory
 // (`factoryThrows`) opt out with NOT_SUPPORTED. TOTAL over every key.
 
-import * as TF from 'ts-runtypes/formats';
-import * as TFT from 'ts-runtypes/formats/temporal';
-import {createValidate} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
+import * as TF from '@ts-runtypes/core/formats';
+import * as TFT from '@ts-runtypes/core/formats/temporal';
+import {createValidate} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 
 export const schemaCases: CompetitorCases = {

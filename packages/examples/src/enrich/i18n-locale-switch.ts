@@ -1,4 +1,4 @@
-import {createFriendlyI18n} from 'ts-runtypes';
+import {createFriendlyI18n} from '@ts-runtypes/core';
 import type {User} from './user';
 import {friendlyUser} from './friendly-user';
 import {pl_friendlyUser} from './i18n-pl';

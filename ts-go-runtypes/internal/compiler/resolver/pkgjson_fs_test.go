@@ -21,17 +21,17 @@ func TestMarkerGate_ReadsOverlayPackageJson(t *testing.T) {
 export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
 export declare function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
 `
-	const callCode = `import {createValidate} from 'ts-runtypes';
+	const callCode = `import {createValidate} from '@ts-runtypes/core';
 createValidate<{a: string}>();
 `
 	// Everything (including package.json) lives ONLY in the in-memory overlay —
 	// nothing is written to the real disk.
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := map[string]string{
-		tspath.ResolvePath(cwd, "runtypes.d.ts"):                         ``, // suppress the fake ambient
-		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/package.json"): `{"name":"ts-runtypes","exports":{".":"./index.d.ts"}}`,
-		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/index.d.ts"):   idx,
-		tspath.ResolvePath(cwd, "call.ts"):                               callCode,
+		tspath.ResolvePath(cwd, "runtypes.d.ts"):                               ``, // suppress the fake ambient
+		tspath.ResolvePath(cwd, "node_modules/@ts-runtypes/core/package.json"): `{"name":"@ts-runtypes/core","exports":{".":"./index.d.ts"}}`,
+		tspath.ResolvePath(cwd, "node_modules/@ts-runtypes/core/index.d.ts"):   idx,
+		tspath.ResolvePath(cwd, "call.ts"):                                     callCode,
 	}
 	fileNames := make([]string, 0, len(overlay))
 	for path := range overlay {
@@ -85,16 +85,16 @@ export interface RunType<T = unknown> { id: string; kind: unknown; readonly __rt
 export function createValidate<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
 export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
 `
-	const callCode = `import {createValidate, type RunType} from 'ts-runtypes';
+	const callCode = `import {createValidate, type RunType} from '@ts-runtypes/core';
 const s: RunType<{a: string}> = null as unknown as RunType<{a: string}>;
 createValidate(s);
 `
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := map[string]string{
-		tspath.ResolvePath(cwd, "runtypes.d.ts"):                         ``,
-		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/package.json"): `{"name":"ts-runtypes","exports":{".":"./index.d.ts"}}`,
-		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/index.d.ts"):   idx,
-		tspath.ResolvePath(cwd, "call.ts"):                               callCode,
+		tspath.ResolvePath(cwd, "runtypes.d.ts"):                               ``,
+		tspath.ResolvePath(cwd, "node_modules/@ts-runtypes/core/package.json"): `{"name":"@ts-runtypes/core","exports":{".":"./index.d.ts"}}`,
+		tspath.ResolvePath(cwd, "node_modules/@ts-runtypes/core/index.d.ts"):   idx,
+		tspath.ResolvePath(cwd, "call.ts"):                                     callCode,
 	}
 	fileNames := make([]string, 0, len(overlay))
 	for path := range overlay {

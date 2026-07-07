@@ -3,9 +3,10 @@ packages:
 
 # ── Build-script allowlist ───────────────────────────────
 # pnpm 11 blocks every dependency install/postinstall script by default.
-# Only the packages listed here may run them.
-allowBuilds:
-  esbuild: true
+# Only the packages listed here may run them. Currently EMPTY: vite@8 dropped
+# esbuild to an optional peer (no longer installed), so nothing needs a build
+# script. Add an entry here if a future dependency legitimately requires one.
+allowBuilds: {}
 
 # ── Lockfile / install integrity ─────────────────────────
 # Strict mode: `pnpm install` never re-resolves or rewrites the lockfile.
@@ -56,7 +57,13 @@ minimumReleaseAge: 43200
 # buys nothing here. Excluded so the types can track the Node major (26) the repo
 # runs on without lagging a month. Its sole dep, undici-types, is also pure types
 # and ages in on its own.
+#
+# `unplugin` — bumped 3.0.0 → 3.3.0 for the Rolldown adapter (`unplugin.rolldown`),
+# which shipped recently (younger than the 30-day window). The `/rolldown` devtools
+# entry needs it; unplugin is a build dep we already accept, so excluding it is a
+# contained relaxation. Re-verify on future bumps.
 minimumReleaseAgeExclude:
+  - 'unplugin'
   - '@types/node'
   - '@rolldown/binding-darwin-x64'
   - '@rolldown/binding-darwin-arm64'

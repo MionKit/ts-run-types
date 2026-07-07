@@ -33,7 +33,7 @@ const enrichSource = `export interface User {
 `
 
 var enrichMirror = "import type { User } from './user';\n" +
-	"import type { FriendlyType, MockData } from 'ts-runtypes';\n" +
+	"import type { FriendlyType, MockData } from '@ts-runtypes/core';\n" +
 	"\n" +
 	"/** " + mirror.RtTypeTag + " User#u1 " + mirror.RtIdsTag + " {age: a1, name: n1} */\n" +
 	mirror.TodoLine + "\n" +
@@ -58,11 +58,11 @@ func setupEnrichFixture(t *testing.T, extra map[string]string) *resolver.Session
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := map[string]string{
-		tspath.ResolvePath(cwd, "runtypes.d.ts"):                         ``, // suppress the fake ambient
-		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/package.json"): `{"name":"ts-runtypes","exports":{".":"./index.d.ts"}}`,
-		tspath.ResolvePath(cwd, "node_modules/ts-runtypes/index.d.ts"):   enrichIdx,
-		tspath.ResolvePath(cwd, "user.ts"):                               enrichSource,
-		tspath.ResolvePath(cwd, "mirror.ts"):                             enrichMirror,
+		tspath.ResolvePath(cwd, "runtypes.d.ts"):                               ``, // suppress the fake ambient
+		tspath.ResolvePath(cwd, "node_modules/@ts-runtypes/core/package.json"): `{"name":"@ts-runtypes/core","exports":{".":"./index.d.ts"}}`,
+		tspath.ResolvePath(cwd, "node_modules/@ts-runtypes/core/index.d.ts"):   enrichIdx,
+		tspath.ResolvePath(cwd, "user.ts"):                                     enrichSource,
+		tspath.ResolvePath(cwd, "mirror.ts"):                                   enrichMirror,
 	}
 	for rel, content := range extra {
 		overlay[tspath.ResolvePath(cwd, rel)] = content
@@ -188,7 +188,7 @@ func TestCheckEnrich_OptInAndGuards(t *testing.T) {
 // whose breadcrumb source never existed reports the orphaned-mirror error.
 func TestCheckEnrich_BreadcrumbDrift(t *testing.T) {
 	deadMirror := "import type { Ghost } from './ghost';\n" +
-		"import type { FriendlyType } from 'ts-runtypes';\n" +
+		"import type { FriendlyType } from '@ts-runtypes/core';\n" +
 		"/** " + mirror.RtTypeTag + " Ghost#g1 */\n" +
 		"export const friendlyGhost: FriendlyType<{name: string}> = {};\n"
 	res := setupEnrichFixture(t, map[string]string{"dead-mirror.ts": deadMirror})

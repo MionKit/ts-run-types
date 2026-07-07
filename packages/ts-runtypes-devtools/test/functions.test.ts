@@ -12,13 +12,13 @@ import {describe, expect} from 'vitest';
 import {ReflectionKind, type RunType} from '../src/protocol.ts';
 import {evalCacheFor, getTypeFor, runTest} from './helpers/inline.ts';
 
-describe('ts-runtypes-devtools / function round-trip', () => {
+describe('@ts-runtypes/devtools / function round-trip', () => {
   // ---- rest-only function --------------------------------------------------
 
   runTest(
     'rest-only function static',
     {
-      'rest.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'rest.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type Fn = (...args: string[]) => void;
 getRunTypeId<Fn>();
 `,
@@ -32,7 +32,7 @@ getRunTypeId<Fn>();
   runTest(
     'rest-only function reflect',
     {
-      'rest.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'rest.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 function fn(...args: string[]): void {}
 getRunTypeId(fn);
 `,
@@ -63,7 +63,7 @@ getRunTypeId(fn);
   runTest(
     'mixed function static',
     {
-      'mixed.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'mixed.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type Fn = (a: number, b?: string, ...rest: boolean[]) => string;
 getRunTypeId<Fn>();
 `,
@@ -77,7 +77,7 @@ getRunTypeId<Fn>();
   runTest(
     'mixed function reflect',
     {
-      'mixed.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'mixed.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 function fn(a: number, b?: string, ...rest: boolean[]): string { return ""; }
 getRunTypeId(fn);
 `,
@@ -122,7 +122,7 @@ getRunTypeId(fn);
   runTest(
     'promise return static',
     {
-      'promise.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'promise.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type Fn = (x: number) => Promise<{ok: boolean}>;
 getRunTypeId<Fn>();
 `,
@@ -136,7 +136,7 @@ getRunTypeId<Fn>();
   runTest(
     'promise return reflect',
     {
-      'promise.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'promise.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 async function fn(x: number): Promise<{ok: boolean}> { return {ok: true}; }
 getRunTypeId(fn);
 `,
@@ -166,7 +166,7 @@ getRunTypeId(fn);
   runTest(
     'class method full shape static',
     {
-      'svc.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'svc.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
@@ -182,7 +182,7 @@ getRunTypeId<Service>();
   runTest(
     'class method full shape reflect',
     {
-      'svc.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'svc.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
@@ -224,7 +224,7 @@ getRunTypeId(value);
   runTest(
     'method signature full shape static',
     {
-      'i.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'i.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface I { greet(name: string): string; }
 getRunTypeId<I>();
 `,
@@ -238,7 +238,7 @@ getRunTypeId<I>();
   runTest(
     'method signature full shape reflect',
     {
-      'i.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'i.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface I { greet(name: string): string; }
 declare const value: I;
 getRunTypeId(value);
@@ -269,7 +269,7 @@ getRunTypeId(value);
   runTest(
     'callSignature in mixed object static',
     {
-      'tag.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'tag.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface Tagged { (x: number): string; tag: "tagged"; }
 getRunTypeId<Tagged>();
 `,
