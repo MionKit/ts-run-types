@@ -1,36 +1,23 @@
-# OXC migration follow-ups (deferred from the main migration)
+# OXC migration follow-ups (still deferred)
 
-**Status:** partially done — **points 1 & 2 shipped 2026-07-07**; point 3 (Next.js / Turbopack) still deferred.
+**Status:** todo — only the items below remain. **Points 1 (rolldown) & 2b (esbuild) shipped in [PR #191](https://github.com/MionKit/ts-run-types/pull/191)** (see [`docs/done/scope-rename-ts-runtypes-org.md`](../done/scope-rename-ts-runtypes-org.md)).
 **Parent:** [`docs/done/oxc-toolchain-migration.md`](../done/oxc-toolchain-migration.md)
 **Created:** 2026-07-04
 
-> **✅ Point 1 (rolldown):** `unplugin` bumped 3.0.0 → 3.3.0 (which ships `unplugin.rolldown`), added to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`; new `src/rolldown.ts` + `./rolldown` export on `@ts-runtypes/devtools`.
-> **✅ Point 2b:** dead `allowBuilds: esbuild` dropped (`allowBuilds: {}`). **Point 2a (`oxlint --type-aware`) deferred** — it's a separate hardening project (a `tsgolint` binary wired into oxlint + fixing whatever it flags), not a config tweak.
-> **Point 3 (Next.js/Turbopack)** untouched — remains as specced below.
+## Optional hardening — adopt `oxlint --type-aware` (NOT related to the RunTypes plugin)
 
-The oxc toolchain migration (oxlint + oxfmt + Vite 8/Vitest 4) shipped, but two
-pieces were deferred by design. This tracks them so they survive the session.
+**This is orthogonal to RunTypes' own lint plugin.** `oxlint --type-aware` turns on
+oxlint's *own* type-aware lint rules (no-floating-promises, no-misused-promises,
+await-thenable, …), powered by oxlint's bundled tsgolint. It is a dev-hardening knob for
+linting **this repo's own source**. It does NOT touch, use, or depend on the RunTypes
+lint plugin (`@ts-runtypes/devtools/eslint`) — that is a *separate* oxlint JS plugin
+which surfaces RunTypes compiler diagnostics through our own resolver binary. Toggling
+`--type-aware` changes only which generic TypeScript lint rules run in CI; our plugin is
+unaffected either way.
 
-## 1. `ts-runtypes-devtools/rolldown` subpath export
-
-The plugin ships `/vite`, `/rollup`, `/webpack`, `/rspack`, `/esbuild` unplugin
-entries but **no `/rolldown`** — `unplugin@3.0.0` exposes no `.rolldown`
-accessor, so the entry cannot be added yet.
-
-- **When:** bump `unplugin` once it ships a Rolldown adapter (`unplugin.rolldown`).
-- **Then:** add `src/rolldown.ts` (mirror `src/esbuild.ts`), the `./rolldown`
-  exports map entry in [`packages/ts-runtypes-devtools/package.json`](../../packages/ts-runtypes-devtools/package.json),
-  a build-time entry, README + the website configuration page.
-- Vite 8 already runs on Rolldown internally, so the existing `/vite` entry
-  covers Vite-8 users today; this is only for consumers using Rolldown directly.
-
-## 2. Optional hardening
-
-- Consider adopting `oxlint --type-aware` (runs on the vendored tsgolint) as a
-  later upside; nothing type-aware runs today, so it is pure gain when adopted.
-- `allowBuilds:{esbuild:true}` is now dead config (vite@8 dropped esbuild to an
-  optional peer, so it is no longer installed). Left intact as a harmless no-op;
-  drop it only if you are sure nothing will reintroduce esbuild.
+Nothing type-aware runs today, so it is pure lint-coverage gain when adopted — but
+adopting it means enabling the rules and fixing whatever they flag (scope unknown until
+it runs). Deferred as a deliberate, separate hardening task.
 
 ## 3. Next.js integration — webpack path + Turbopack loader-rules path
 
