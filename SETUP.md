@@ -60,8 +60,8 @@ The Vite plugin spawns this binary at JS test time and at build time — **build
 
 ```bash
 pnpm run build                                       # all packages, topo-ordered via `pnpm -r`
-pnpm --filter ts-runtypes run build      # single package
-pnpm --filter ts-runtypes-devtools run build         # the other
+pnpm --filter @ts-runtypes/core run build      # single package
+pnpm --filter @ts-runtypes/devtools run build         # the other
 ```
 
 Outputs land in `packages/*/dist/`. The plugin's dist must be present for marker-package typecheck (no `source` condition in its exports map) — rebuild after every plugin src edit.
@@ -73,8 +73,8 @@ Outputs land in `packages/*/dist/`. The plugin's dist must be present for marker
 ```bash
 go -C ts-go-runtypes test ./internal/...        # Go suite
 pnpm test                                       # all JS packages (Vitest projects)
-pnpm --filter ts-runtypes-devtools test         # single package
-pnpm --filter ts-runtypes test      # the other
+pnpm --filter @ts-runtypes/devtools test         # single package
+pnpm --filter @ts-runtypes/core test      # the other
 ```
 
 JS plugin tests in [packages/ts-runtypes-devtools/test/](packages/ts-runtypes-devtools/test/) spawn the Go binary — `pretest` rebuilds it. For the edit/see-tests loop use `pnpm rtx dev` (builds if stale, then vitest watch); `pnpm rtx dev --run` is the one-shot pass.
@@ -262,7 +262,7 @@ All settings live in [pnpm-workspace.yaml](pnpm-workspace.yaml); `.npmrc` is aut
 - `savePrefix: ''` — `pnpm add` writes exact versions, never `^` or `~`.
 - `strictPeerDependencies: true` — peer-dep mismatches fail the install.
 - `nodeLinker: hoisted` — flat hoisting (npm-like); security is the lockfile + age policy + ignoreScripts, NOT the linker layout.
-- All `dependencies` and `devDependencies` are exact-pinned. Only `ts-runtypes-devtools` peerDependencies stay as ranges so consumers can dedupe Vite.
+- All `dependencies` and `devDependencies` are exact-pinned. Only `@ts-runtypes/devtools` peerDependencies stay as ranges so consumers can dedupe Vite.
 
 Updating deps:
 
@@ -296,9 +296,9 @@ Commit the new `.patch` file under `ts-go-runtypes/third_party/tsgolint/patches/
 
 ## Publishing
 
-All three published packages (`ts-runtypes`, `ts-runtypes-devtools`, `ts-runtypes-bin`) move in lockstep off the single version in [version.json](version.json) (bumped by [scripts/release/bump-version.mjs](scripts/release/bump-version.mjs)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `ts-runtypes-bin` ships hand-written JS + types (no build step).
+All three published packages (`ts-runtypes`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`) move in lockstep off the single version in [version.json](version.json) (bumped by [scripts/release/bump-version.mjs](scripts/release/bump-version.mjs)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `@ts-runtypes/bin` ships hand-written JS + types (no build step).
 
-The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `ts-runtypes-bin`. A consumer installs only the one matching their machine, and `ts-runtypes-devtools` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
+The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `@ts-runtypes/bin`. A consumer installs only the one matching their machine, and `@ts-runtypes/devtools` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
 
 > **Versioning:** standard semver on our own release cadence. The pinned tsgo / tsgolint revision is metadata only (the binary's `--version` output + the launcher's `package.json` `tsgo` field), never encoded into the package version.
 
@@ -313,7 +313,7 @@ pnpm rtx release npm         # interactive: version -> build binaries -> publish
 2. Working-tree clean check.
 3. `node scripts/release/bump-version.mjs <patch|minor|major|X.Y.Z>` (lockstep bump: writes `version.json` + every `package.json`, then commits + tags).
 4. [`scripts/release/build-binaries.mjs`](scripts/release/build-binaries.mjs) — cross-compiles the 7-platform matrix and stages `ts-runtypes-binary-*` + the launcher (its `optionalDependencies` filled, pinned exact-equal) under `dist-binaries/`.
-5. Prompts for npm OTP, then publishes the platform packages **first** and the launcher **last** (so the launcher never references a not-yet-published optional dep), then `pnpm publish` for the two FE packages (`ts-runtypes-bin` is already live by then). `pnpm publish` rewrites their `workspace:*` deps to concrete versions, exactly like the CI pack path.
+5. Prompts for npm OTP, then publishes the platform packages **first** and the launcher **last** (so the launcher never references a not-yet-published optional dep), then `pnpm publish` for the two FE packages (`@ts-runtypes/bin` is already live by then). `pnpm publish` rewrites their `workspace:*` deps to concrete versions, exactly like the CI pack path.
 
 **Changelog & GitHub Release.** Refresh [CHANGELOG.md](CHANGELOG.md) with `pnpm run changelog` when preparing a release and commit it in the release PR. When the release lands on a `release/**` branch, [`.github/workflows/publish.yml`](.github/workflows/publish.yml) publishes to npm, pushes the `v<version>` tag, then generates that tag's notes with [`orhun/git-cliff-action`](https://github.com/orhun/git-cliff-action) and creates the matching **GitHub Release**. The committed file and the Release notes are produced from the same [`cliff.toml`](cliff.toml).
 
@@ -334,12 +334,12 @@ pnpm rtx release unpublish <version>
 | `pnpm install` fails on a peer dep                             | `strictPeerDependencies: true`                                              | Add the peer to the package's `peerDependencies` or `devDependencies`.                                                         |
 | JS plugin tests error spawning the resolver                    | `bin/ts-runtypes` not built                                             | `pnpm run check:builds` or `go -C ts-go-runtypes build -o ../bin/ts-runtypes ./cmd/ts-runtypes`.                       |
 | `pnpm run typecheck` errors "cannot find project" / missing reference | New package missing from root `tsconfig.json` `references`            | Add the package path to the root `tsconfig.json`.                                                                              |
-| oxlint fails to load with `Plugin 'runtypes' not found`        | Stale/missing `ts-runtypes-devtools` dist (the `jsPlugins` entry)              | Rebuild it: `pnpm --filter ts-runtypes-devtools run build` (or `pnpm run check:builds`).                                          |
+| oxlint fails to load with `Plugin 'runtypes' not found`        | Stale/missing `@ts-runtypes/devtools` dist (the `jsPlugins` entry)              | Rebuild it: `pnpm --filter @ts-runtypes/devtools run build` (or `pnpm run check:builds`).                                          |
 | Husky hook not firing                                          | `prepare` script did not run                                                | `pnpm install` again, or `pnpm exec husky` to force activation.                                                                |
 | `pnpm run changelog` fails: `git-cliff: command not found`     | git-cliff binary not installed (deliberately not an npm dep)                | `cargo install git-cliff` (or `brew install git-cliff` / a prebuilt release). Not needed to cut a release — CI uses `orhun/git-cliff-action`. |
 | Commit rejected by `commit-msg` hook                           | Message is not a valid Conventional Commit                                  | Re-commit with `type(scope): summary`, or run `pnpm run commit` for an interactive prompt.                                     |
 | `podman machine start` fails with `vfkit exited unexpectedly`  | Rosetta 2 missing on Apple Silicon                                          | `softwareupdate --install-rosetta --agree-to-license`, then re-run `podman machine start`.                                     |
-| `ts-runtypes-devtools` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm rtx bench prep`.           |
+| `@ts-runtypes/devtools` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm rtx bench prep`.           |
 | Marker package `tsc --build` fails with `Cannot find namespace 'Temporal'` | Missing `esnext.temporal` in the marker `tsconfig.json` `lib`           | Restore the `esnext.temporal` entry — its absence makes tsc skip declaration emit on the offending file, leaving `markers.d.ts` / `createRTFunctions.d.ts` missing and breaking call-site resolution. |
 | Bench errors `createValidate(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
 
@@ -372,7 +372,7 @@ pnpm rtx publish [--dry-run]     # preflight -> npm -> website (interactive)
 
 ```bash
 pnpm ls -r --depth -1                        # list workspace packages
-pnpm --filter ts-runtypes run <script>       # run a script in one package
-pnpm --filter ts-runtypes <cmd>              # equivalent
+pnpm --filter @ts-runtypes/core run <script>       # run a script in one package
+pnpm --filter @ts-runtypes/core <cmd>              # equivalent
 pnpm -r run <script>                         # run in every workspace package (topo order)
 ```

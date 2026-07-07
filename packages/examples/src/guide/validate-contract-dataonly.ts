@@ -1,4 +1,4 @@
-import {createJsonDecoder, type DataOnly} from 'ts-runtypes';
+import {createJsonDecoder, type DataOnly} from '@ts-runtypes/core';
 
 // Decoders return the data-only projection of T — the non-serializable
 // members are gone from the return type too, so it can't lie to you.

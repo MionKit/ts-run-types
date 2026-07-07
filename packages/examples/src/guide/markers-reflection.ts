@@ -1,4 +1,4 @@
-import {getRunTypeId} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
 
 // Static form — you bring the type, you get its id. No value needed.
 const stringId = getRunTypeId<string>(); // e.g. "Sq3kZ1"

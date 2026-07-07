@@ -1,4 +1,4 @@
-import {createValidate, createGetValidationErrors} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';
 
 type User = {
   id: number;

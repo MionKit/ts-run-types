@@ -9,10 +9,10 @@
 // injects the resolved id there), so each thunk spells out its own factory and
 // the reflect thunks annotate a runtime value with the concrete type.
 
-import * as TF from 'ts-runtypes/formats';
-import * as TFT from 'ts-runtypes/formats/temporal';
+import * as TF from '@ts-runtypes/core/formats';
+import * as TFT from '@ts-runtypes/core/formats/temporal';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;

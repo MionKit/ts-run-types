@@ -15,13 +15,13 @@ import {describe, expect} from 'vitest';
 import {ReflectionKind, type RunType} from '../src/protocol.ts';
 import {evalCacheFor, getTypeFor, runTest} from './helpers/inline.ts';
 
-describe('ts-runtypes-devtools / extends round-trip', () => {
+describe('@ts-runtypes/devtools / extends round-trip', () => {
   // ---- class extends — populates extendsArguments + flattens members ------
 
   runTest(
     'class extends populates extendsArguments static',
     {
-      'cext.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'cext.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 class A { a = ''; }
 class B extends A { b = 0; }
 getRunTypeId<B>();
@@ -36,7 +36,7 @@ getRunTypeId<B>();
   runTest(
     'class extends populates extendsArguments reflect',
     {
-      'cext.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'cext.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 class A { a = ''; }
 class B extends A { b = 0; }
 declare const value: B;
@@ -65,7 +65,7 @@ getRunTypeId(value);
   runTest(
     'class chained inheritance static',
     {
-      'chain.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'chain.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 class A { a: string = ''; }
 class B extends A { b: number = 0; }
 class C extends B { c: boolean = false; }
@@ -91,7 +91,7 @@ getRunTypeId<C>();
   runTest(
     'interface extends populates extends static',
     {
-      'iext.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'iext.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface A { a: string; }
 interface B extends A { b: number; }
 getRunTypeId<B>();
@@ -106,7 +106,7 @@ getRunTypeId<B>();
   runTest(
     'interface extends populates extends reflect',
     {
-      'iext.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'iext.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface A { a: string; }
 interface B extends A { b: number; }
 declare const value: B;
@@ -136,7 +136,7 @@ getRunTypeId(value);
   runTest(
     'interface multiple parents static',
     {
-      'imulti.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'imulti.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface A { a: string; }
 interface B { b: number; }
 interface C extends A, B { c: boolean; }
@@ -159,7 +159,7 @@ getRunTypeId<C>();
   runTest(
     'interface diamond inheritance static',
     {
-      'diamond.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'diamond.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface A { a: string; }
 interface B extends A { b: number; }
 interface C extends A { c: boolean; }
@@ -185,7 +185,7 @@ getRunTypeId<D>();
   runTest(
     'interface override narrows parent prop static',
     {
-      'override.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'override.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 interface A { x: string; }
 interface B extends A { x: 'a' | 'b'; }
 getRunTypeId<B>();
@@ -205,7 +205,7 @@ getRunTypeId<B>();
   runTest(
     'type alias has no extends static',
     {
-      'alias.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'alias.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type T = {a: string};
 getRunTypeId<T>();
 `,
@@ -220,7 +220,7 @@ getRunTypeId<T>();
   runTest(
     'anonymous object literal has no extends static',
     {
-      'anon.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'anon.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{a: string}>();
 `,
     },

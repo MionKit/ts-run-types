@@ -16,7 +16,7 @@
 // resolver client (openClient) and the low-level eval helpers.
 
 import path from 'node:path';
-import {createValidate, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+import {createValidate, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
 import {ResolverClient} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {RUNTYPES_DTS, evalEntryModules, instantiateRunTypes} from '../../../../ts-runtypes-devtools/test/helpers/inline.ts';
 import {Severity, type Diagnostic, type Site} from '../../../../ts-runtypes-devtools/src/protocol.ts';
@@ -79,7 +79,7 @@ export function renderFixture(gen: GeneratedType): string {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 ${decls}
 type T = ${rootExpr};
 createValidate<T>();

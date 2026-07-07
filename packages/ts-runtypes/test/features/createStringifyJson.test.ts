@@ -17,7 +17,7 @@
 //      byte-level checks.
 
 import {describe, test, expect} from 'vitest';
-import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
 
 describe('createStringifyJson — atomic raw output', () => {
   test('string', () => {

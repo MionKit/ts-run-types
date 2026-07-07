@@ -1,4 +1,4 @@
-import {getRunTypeId} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
 
 type User = {id: number; name: string};
 const user: User = {id: 1, name: 'Ada'};

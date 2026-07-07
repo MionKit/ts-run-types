@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import {createValidate} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createValidate} from '@ts-runtypes/core';
 
 // A bound can be RELATIVE: `now`, or `now` ± an ISO-8601 duration. The build
 // resolves it against the current time each time it validates a value.

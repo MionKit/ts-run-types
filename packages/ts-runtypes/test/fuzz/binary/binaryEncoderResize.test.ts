@@ -7,10 +7,10 @@
 // the written prefix into a larger buffer), so an above-average payload settles
 // in a single copy with no throw and no re-encode-from-scratch.
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
-import * as RT from 'ts-runtypes/schema';
-import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+import * as RT from '@ts-runtypes/core/schema';
+import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
 
 describe('fuzz / regression — binary encoder grows its buffer on overflow', () => {
   it('encodes an above-average string after the size history converged down', () => {

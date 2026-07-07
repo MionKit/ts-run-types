@@ -52,9 +52,9 @@ export interface FixtureProject {
 // installed and the given files written.
 export function makeFixtureProject(files: Record<string, string> = {}): FixtureProject {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-lint-'));
-  const pkgDir = path.join(dir, 'node_modules', 'ts-runtypes');
+  const pkgDir = path.join(dir, 'node_modules', '@ts-runtypes', 'core');
   fs.mkdirSync(pkgDir, {recursive: true});
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"name":"ts-runtypes","exports":{".":"./index.d.ts"}}');
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"name":"@ts-runtypes/core","exports":{".":"./index.d.ts"}}');
   fs.writeFileSync(path.join(pkgDir, 'index.d.ts'), FIXTURE_PACKAGE_DTS);
   const project: FixtureProject = {
     dir,

@@ -23,7 +23,7 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   registerClassSerializer,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import {clearClassSerializers} from '../../src/runtypes/classSerializerRegistry.ts';
 
 afterEach(() => {

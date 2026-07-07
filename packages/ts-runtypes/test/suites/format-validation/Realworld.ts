@@ -9,12 +9,12 @@
 // probe (see FORMATS_MODULE in scripts/export-*-suite.mjs), so the generated-code hover
 // shows the actual format handling (uuid / email checks here), matching the runtime
 // validator. `pureType` shows the real branded interface and `schema` the RT builder.
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
-import 'ts-runtypes/formats';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from 'ts-runtypes';
+import '@ts-runtypes/core/formats';
+import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
-import * as RT from 'ts-runtypes/schema';
+import * as RT from '@ts-runtypes/core/schema';
 
 export const REALWORLD = {
   user: {

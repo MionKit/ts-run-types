@@ -41,7 +41,7 @@ const QUICK = process.env.RT_BENCH_QUICK === '1';
 // ts-runtypes-devtools ships per-file dist modules; import the transport + applier
 // by ABSOLUTE path (Node's package `exports` gate never applies to file URLs),
 // so the bench uses the exact code the plugin ships without widening its API.
-const PKG_ROOT = argOf('--pkg') ?? path.join(COMPETITOR_DIR, 'node_modules', 'ts-runtypes-devtools');
+const PKG_ROOT = argOf('--pkg') ?? path.join(COMPETITOR_DIR, 'node_modules', '@ts-runtypes/devtools');
 const distImport = (file) => import(pathToFileURL(path.join(PKG_ROOT, 'dist', file)).href);
 const {ResolverClient} = await distImport('resolver-client.js');
 const {applyEdits, sourceHash} = await distImport('apply-edits.js');
@@ -50,7 +50,7 @@ const RT_BINARY = process.env.RT_BINARY ?? argOf('--binary') ?? path.join(COMPET
 
 // Ambient marker declaration so the corpus resolves 'ts-runtypes' without any
 // node_modules — keeps the harness self-contained on host and in-container.
-const RUNTYPES_DTS = `declare module 'ts-runtypes' {
+const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
@@ -65,7 +65,7 @@ const RUNTYPES_DTS = `declare module 'ts-runtypes' {
 // count) + `sites` distinct interfaces, each with a createValidate<T>() call.
 // Distinct types per site so every site interns a real cache entry.
 function genFile(fileIndex, sites, filler) {
-  const lines = [`import {createValidate} from 'ts-runtypes';`];
+  const lines = [`import {createValidate} from '@ts-runtypes/core';`];
   for (let i = 0; i < filler; i++) {
     lines.push(`// filler ${fileIndex}-${i}: lorem ipsum dolor sit amet consectetur adipiscing elit sed do`);
   }

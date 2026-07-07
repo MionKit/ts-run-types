@@ -120,9 +120,9 @@ const OPTIONS = {
   // too — these just make it bulletproof regardless of probe location).
   paths: {
     'ts-runtypes': [path.join(MARKER, 'index.d.ts')],
-    'ts-runtypes/schema': [path.join(MARKER, 'schema', 'index.d.ts')],
-    'ts-runtypes/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
-    'ts-runtypes/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
+    '@ts-runtypes/core/schema': [path.join(MARKER, 'schema', 'index.d.ts')],
+    '@ts-runtypes/core/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
+    '@ts-runtypes/core/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
   },
   // esnext.full + esnext.temporal: the shared DateTime suites reference
   // `typeof Temporal`, and the marker's own build pins TypeScript 6.0.3 with
@@ -139,7 +139,7 @@ const {extractTsGo, extractSchemaCompetitor, extractTypeForm} = makeExtractors(t
 
 // ── probe assembly ──────────────────────────────────────────────────────────
 
-const STATIC_IMPORT = `import {type Static} from 'ts-runtypes';`;
+const STATIC_IMPORT = `import {type Static} from '@ts-runtypes/core';`;
 const TB_STATIC_IMPORT = `import {type Static as __TBStatic} from '@sinclair/typebox';`;
 
 // Force TypeScript to fully RESOLVE + structurally check the recovered type by

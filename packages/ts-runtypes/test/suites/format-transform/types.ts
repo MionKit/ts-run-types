@@ -1,4 +1,4 @@
-import type {FormatTransformFn} from 'ts-runtypes';
+import type {FormatTransformFn} from '@ts-runtypes/core';
 
 /** One format-transform case: a thunk wrapping `createFormatTransform<T>()`
  *  (plugin-rewritten at the call site) plus input → expected-output

@@ -13,7 +13,7 @@ import (
 // ValidateOptions variant) DOES fork the hash; rejectCircularRefs rides alongside it
 // without changing it.
 func TestRejectCircularRefsExcludedFromFnHash(t *testing.T) {
-	const src = `import {createValidate} from 'ts-runtypes';
+	const src = `import {createValidate} from '@ts-runtypes/core';
 interface Node {name: string; next?: Node}
 createValidate<Node>();
 createValidate<Node>(undefined, {rejectCircularRefs: true});

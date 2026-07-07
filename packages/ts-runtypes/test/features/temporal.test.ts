@@ -17,7 +17,7 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   type BinaryDecoderFn,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 
 // Temporal is the polyfill global in tests (see test/support/setup.ts).
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;

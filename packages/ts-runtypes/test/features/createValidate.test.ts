@@ -21,7 +21,7 @@
 //   validate(undefined)  === false
 
 import {describe, test, expect} from 'vitest';
-import {createValidate} from 'ts-runtypes';
+import {createValidate} from '@ts-runtypes/core';
 
 describe('createValidate<T> — string', () => {
   test('validator returns true for strings, false for non-strings', () => {

@@ -1,5 +1,5 @@
 {
-  "name": "ts-runtypes",
+  "name": "@ts-runtypes/core",
   "version": "0.1.0",
   "description": "Sentinel marker + canonical reflection helper for ts-runtypes. The vite plugin rewrites every call of a function whose trailing parameter type is InjectRunTypeId<T> exported from this package.",
   "type": "module",
@@ -66,18 +66,18 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mionkit/ts-runtypes.git",
-    "directory": "packages/runtypes"
+    "directory": "packages/ts-runtypes"
   },
   "scripts": {
     "build": "tsc --build tsconfig.json",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "pretest": "pnpm --filter ts-runtypes-devtools run build",
+    "pretest": "pnpm --filter @ts-runtypes/devtools run build",
     "test": "vitest run",
     "dev:test": "vitest watch",
     "clean": "node ../../scripts/lib/rmrf.mjs dist .coverage tsconfig.tsbuildinfo",
     "fresh-start": "pnpm run clean && node ../../scripts/lib/rmrf.mjs node_modules"
   },
   "devDependencies": {
-    "ts-runtypes-devtools": "workspace:*"
+    "@ts-runtypes/devtools": "workspace:*"
   }
 }

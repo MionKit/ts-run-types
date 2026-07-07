@@ -19,8 +19,8 @@ import {fileURLToPath} from 'node:url';
 // Nuxt site config does (pointing at the in-container repo-context mount). An
 // exact-match regex leaves every other specifier untouched.
 const rtAlias = [
-  {find: /^ts-runtypes\/formats$/, replacement: fileURLToPath(new URL('../../src/formats/index.ts', import.meta.url))},
-  {find: /^ts-runtypes$/, replacement: fileURLToPath(new URL('../../src/index.ts', import.meta.url))},
+  {find: /^@ts-runtypes\/core\/formats$/, replacement: fileURLToPath(new URL('../../src/formats/index.ts', import.meta.url))},
+  {find: /^@ts-runtypes\/core$/, replacement: fileURLToPath(new URL('../../src/index.ts', import.meta.url))},
 ];
 
 export default defineConfig({

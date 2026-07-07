@@ -85,7 +85,7 @@ const COMPILE_CYCLES = QUICK ? 1 : 3;
 // packages/ts-runtypes-devtools/test/helpers/inline.ts — createX signatures
 // MUST carry the InjectTypeFnArgs marker or the scanner records no demand and
 // the compile probes render zero fn entries.
-const RUNTYPES_DTS = `declare module 'ts-runtypes' {
+const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
@@ -441,7 +441,7 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
 // their real constraints. The subpath resolves off the on-disk VFS (the ambient
 // overlay only shadows the bare marker specifier, not its subpaths).
 function buildSynthetic(body) {
-  const imports = [`import {createValidate} from 'ts-runtypes';`];
+  const imports = [`import {createValidate} from '@ts-runtypes/core';`];
   if (/\bTF\./.test(body)) imports.push(`import type * as TF from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   if (/\bTFT\./.test(body)) imports.push(`import type * as TFT from '../${TEMPORAL_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   return `${imports.join('\n')}\nconst _probe = () => {\n${body}\n};\n`;

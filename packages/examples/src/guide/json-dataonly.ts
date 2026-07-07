@@ -1,4 +1,4 @@
-import {createJsonDecoder} from 'ts-runtypes';
+import {createJsonDecoder} from '@ts-runtypes/core';
 
 // A type with a method — methods don't survive a JSON round-trip.
 type Cart = {

@@ -394,8 +394,8 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
 // count per case (lower is better). Source for the hover comes from each form's
 // authoring file. No ajv — JSON Schema has no static type inference.
 const TYPECOST_FORMS = [
-  {id: 'ts-runtypes-type', label: 'ts-runtypes (type)', srcFile: 'ts-runtypes/cases.ts', srcVar: 'cases'},
-  {id: 'ts-runtypes-schema', label: 'ts-runtypes (schema)', srcFile: 'ts-runtypes/schemaCases.ts', srcVar: 'schemaCases'},
+  {id: 'ts-runtypes-type', label: 'ts-runtypes (type)', srcFile: '@ts-runtypes/core/cases.ts', srcVar: 'cases'},
+  {id: 'ts-runtypes-schema', label: 'ts-runtypes (schema)', srcFile: '@ts-runtypes/core/schemaCases.ts', srcVar: 'schemaCases'},
   {id: 'typia', label: 'typia', srcFile: 'typia/cases.ts', srcVar: 'cases'},
   {id: 'typebox', label: 'typebox', srcFile: 'typebox/cases.ts', srcVar: 'cases'},
   {id: 'zod', label: 'zod', srcFile: 'zod/cases.ts', srcVar: 'cases'},

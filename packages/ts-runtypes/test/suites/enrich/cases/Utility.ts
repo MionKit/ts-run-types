@@ -1,4 +1,4 @@
-import type {FriendlyText, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from '@ts-runtypes/core';
 import type {EnrichCase} from './types.ts';
 
 // Utility-type kinds — the mapped / lookup utilities resolve to a concrete

@@ -11,14 +11,14 @@
 // static `getRunTypeId<T>()` and the reflection `getRunTypeId(value)` — and
 // both must resolve to the same node the builder returns.
 //
-// `import 'ts-runtypes/formats'` is the load-bearing side-effect
+// `import '@ts-runtypes/core/formats'` is the load-bearing side-effect
 // import (registers the format pure-fns the cache module reaches).
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {getRunTypeId, getRTUtils, type Static} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
-import 'ts-runtypes/formats';
+import {getRunTypeId, getRTUtils, type Static} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
+import '@ts-runtypes/core/formats';
 
 describe('value-first / builders return the live RunType (Tier 2)', () => {
   it('string builder returns the RunType for TF.String<P> — static', () => {

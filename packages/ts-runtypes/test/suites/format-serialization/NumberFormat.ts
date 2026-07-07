@@ -1,7 +1,7 @@
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import type {SerializationCase} from './types.ts';
-import 'ts-runtypes/formats';
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
+import '@ts-runtypes/core/formats';
+import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
 
 export const NUMBER_FORMAT = {
   number_int8: {

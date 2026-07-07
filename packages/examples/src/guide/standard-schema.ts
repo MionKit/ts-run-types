@@ -1,4 +1,4 @@
-import {createStandardSchema} from 'ts-runtypes';
+import {createStandardSchema} from '@ts-runtypes/core';
 
 type User = {
   id: number;

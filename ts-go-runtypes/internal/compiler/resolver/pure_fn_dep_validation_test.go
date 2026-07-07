@@ -16,7 +16,7 @@ import (
 // real program gets the `rt::` registrations from the ts-runtypes package's own
 // source (its index side-effect-imports them), never from an ambient .d.ts, so
 // a bare test program has no registration and PFE9012 correctly fires.
-const runtypesDTSWithPureFn = `declare module 'ts-runtypes' {
+const runtypesDTSWithPureFn = `declare module '@ts-runtypes/core' {
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
@@ -54,12 +54,12 @@ func pureFnDepDiags(diags []diagnostics.Diagnostic) []diagnostics.Diagnostic {
 func TestPureFnDepValidation_MissingRegistration_PFE9012(t *testing.T) {
 	sources := map[string]string{
 		"runtypes.d.ts": runtypesDTSWithPureFn,
-		"a.ts": `import {createGetValidationErrors} from 'ts-runtypes';
+		"a.ts": `import {createGetValidationErrors} from '@ts-runtypes/core';
 export const errorsOf = createGetValidationErrors<{a: string; b: number}>();
 `,
 		// An unrelated registration wires the mechanism into the program, but
 		// NOT the rt::newRunTypeErr key the verr body reaches.
-		"reg.ts": `import {registerPureFnFactory} from 'ts-runtypes';
+		"reg.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const _reg = registerPureFnFactory('rt::asJSONString', function () { return function () { return ''; }; });
 `,
 	}
@@ -138,12 +138,12 @@ export const _reg = registerPureFnFactory('rt::asJSONString', function () { retu
 func TestPureFnDepValidation_RegistrationPresent_NoDiagnostic(t *testing.T) {
 	sources := map[string]string{
 		"runtypes.d.ts": runtypesDTSWithPureFn,
-		"a.ts": `import {createGetValidationErrors} from 'ts-runtypes';
+		"a.ts": `import {createGetValidationErrors} from '@ts-runtypes/core';
 export const errorsOf = createGetValidationErrors<{a: string; b: number}>();
 `,
 		// Registration in a non-scanned file — the whole-program index must
 		// still find it by key.
-		"reg.ts": `import {registerPureFnFactory} from 'ts-runtypes';
+		"reg.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const _reg = registerPureFnFactory('rt::newRunTypeErr', function () { return function () { return []; }; });
 `,
 	}
@@ -190,7 +190,7 @@ func TestPureFnDepValidation_StubProgramSuppressed(t *testing.T) {
 	// The default runtypesDTS (via setupInline) declares no registerPureFnFactory
 	// and the fixture registers nothing, so the program has zero registrations.
 	r := setupInline(t, map[string]string{
-		"a.ts": `import {createGetValidationErrors} from 'ts-runtypes';
+		"a.ts": `import {createGetValidationErrors} from '@ts-runtypes/core';
 export const errorsOf = createGetValidationErrors<{a: string; b: number}>();
 `,
 	})

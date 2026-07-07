@@ -14,7 +14,7 @@ import {decodeMappings} from './helpers/sourcemap.ts';
 
 const register = hasBinary() ? it : it.skip;
 
-const RUNTYPES_DTS = `declare module 'ts-runtypes' {
+const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
@@ -33,7 +33,7 @@ const TSCONFIG = `{
 `;
 
 // The createValidate call sits on original line 5 (0-based).
-const USER_TS = `import {createValidate} from 'ts-runtypes';
+const USER_TS = `import {createValidate} from '@ts-runtypes/core';
 interface User {
   id: number;
   name: string;

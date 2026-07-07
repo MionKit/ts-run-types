@@ -1,4 +1,4 @@
-import type {GetValidationErrorsFn, RTValidationError, MockTypeFn, StandardSchemaV1, RTValidationIssue} from 'ts-runtypes';
+import type {GetValidationErrorsFn, RTValidationError, MockTypeFn, StandardSchemaV1, RTValidationIssue} from '@ts-runtypes/core';
 
 /** Thunk that returns the variant's function, OR the `'not-supported'`
  *  sentinel marking the variant as deliberately unsupported on this case

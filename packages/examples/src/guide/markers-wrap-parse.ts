@@ -1,4 +1,4 @@
-import {createValidate, type InjectRunTypeId} from 'ts-runtypes';
+import {createValidate, type InjectRunTypeId} from '@ts-runtypes/core';
 
 // A realistic wrapper: parse JSON and validate it against T in one call.
 // The trailing `id?: InjectRunTypeId<T>` opts the helper into the toolchain.

@@ -1,4 +1,4 @@
-import type {FriendlyText, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from '@ts-runtypes/core';
 import type {EnrichCase} from './types.ts';
 
 // Template-literal kinds. The emitter treats a template-literal type as a

@@ -12,11 +12,11 @@
 // util/equalsHelpers.ts. The `/formats` side-effect import registers the
 // native-date format runtime.
 
-import * as TF from 'ts-runtypes/formats';
-import * as TFT from 'ts-runtypes/formats/temporal';
+import * as TF from '@ts-runtypes/core/formats';
+import * as TFT from '@ts-runtypes/core/formats/temporal';
 import type {SerializationCase} from './types.ts';
-import 'ts-runtypes/formats';
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
+import '@ts-runtypes/core/formats';
+import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 

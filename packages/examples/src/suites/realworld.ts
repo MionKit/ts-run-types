@@ -1,4 +1,4 @@
-import type * as TF from 'ts-runtypes/formats';
+import type * as TF from '@ts-runtypes/core/formats';
 import {
   createValidate,
   createGetValidationErrors,
@@ -7,7 +7,7 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   createMockType,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 
 // One real-world type — the single source of truth every suite + benchmark
 // below is generated from. A handful of formats (uuid, email), a Date, a

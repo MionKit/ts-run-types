@@ -11,7 +11,7 @@ import {
   overrideBinaryEncoder,
   createBinaryDecoder,
   overrideBinaryDecoder,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
 
 // Branded interface — the `__brand` literal gives it a unique structural id.

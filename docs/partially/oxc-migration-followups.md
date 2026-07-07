@@ -1,8 +1,12 @@
 # OXC migration follow-ups (deferred from the main migration)
 
-**Status:** todo (deliberately deferred, not blockers)
+**Status:** partially done — **points 1 & 2 shipped 2026-07-07**; point 3 (Next.js / Turbopack) still deferred.
 **Parent:** [`docs/done/oxc-toolchain-migration.md`](../done/oxc-toolchain-migration.md)
 **Created:** 2026-07-04
+
+> **✅ Point 1 (rolldown):** `unplugin` bumped 3.0.0 → 3.3.0 (which ships `unplugin.rolldown`), added to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`; new `src/rolldown.ts` + `./rolldown` export on `@ts-runtypes/devtools`.
+> **✅ Point 2b:** dead `allowBuilds: esbuild` dropped (`allowBuilds: {}`). **Point 2a (`oxlint --type-aware`) deferred** — it's a separate hardening project (a `tsgolint` binary wired into oxlint + fixing whatever it flags), not a config tweak.
+> **Point 3 (Next.js/Turbopack)** untouched — remains as specced below.
 
 The oxc toolchain migration (oxlint + oxfmt + Vite 8/Vitest 4) shipped, but two
 pieces were deferred by design. This tracks them so they survive the session.

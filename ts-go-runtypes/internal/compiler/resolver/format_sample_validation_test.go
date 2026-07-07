@@ -26,7 +26,7 @@ const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> 
 // build time (the sample would otherwise feed createMockType an
 // invalid value).
 func TestFormatSamples_MismatchEmitsFMT001(t *testing.T) {
-	code := `import {createValidate} from 'ts-runtypes';
+	code := `import {createValidate} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
@@ -64,7 +64,7 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 // TestFormatSamples_AllValidNoDiagnostic — when every sample matches
 // the pattern, no FMT001 fires.
 func TestFormatSamples_AllValidNoDiagnostic(t *testing.T) {
-	code := `import {createValidate} from 'ts-runtypes';
+	code := `import {createValidate} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};

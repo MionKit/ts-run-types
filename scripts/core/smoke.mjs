@@ -41,7 +41,7 @@ if (!fs.existsSync(path.join(PLUGIN_DIST, 'resolver-client.js'))) {
 // Minimal ambient declaration so the resolver's marker scanner recognises
 // `ts-runtypes` without us shipping the real marker package
 // (the smoke runs against repo-root, not against packages/ts-runtypes).
-const RUNTYPES_DTS = `declare module 'ts-runtypes' {
+const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
@@ -54,9 +54,9 @@ const RUNTYPES_DTS = `declare module 'ts-runtypes' {
 
 const SOURCES = {
   'runtypes.d.ts': RUNTYPES_DTS,
-  'static.ts': `import {getRunTypeId} from 'ts-runtypes';\ngetRunTypeId<string>();\n`,
-  'reflect.ts': `import {getRunTypeId} from 'ts-runtypes';\nconst v: string = 'hi';\ngetRunTypeId(v);\n`,
-  'validate.ts': `import {createValidate} from 'ts-runtypes';\nconst isUser = createValidate<{name: string}>();\nisUser({name: 'x'});\n`,
+  'static.ts': `import {getRunTypeId} from '@ts-runtypes/core';\ngetRunTypeId<string>();\n`,
+  'reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';\nconst v: string = 'hi';\ngetRunTypeId(v);\n`,
+  'validate.ts': `import {createValidate} from '@ts-runtypes/core';\nconst isUser = createValidate<{name: string}>();\nisUser({name: 'x'});\n`,
 };
 const FILES = Object.keys(SOURCES).filter((file) => file !== 'runtypes.d.ts');
 

@@ -5,7 +5,7 @@
 // disk — see packageSources.ts, which is faithful by construction and
 // can't drift). What remains here is used only by the in-editor Monaco language
 // service, which needs loose module stubs so a user's `import * as RT from
-// 'ts-runtypes/schema'` / `import type { Email } from 'ts-runtypes/formats'`
+// '@ts-runtypes/core/schema'` / `import type { Email } from '@ts-runtypes/core/formats'`
 // resolves in the editor without red squiggles. The precise types that drive
 // codegen come from the real sources fed to the resolver, not from these stubs.
 
@@ -53,12 +53,12 @@ const FORMATS: FormatEntry[] = [
 // each format alias is just its base type and each builder returns `any`. The
 // RESOLVER type-checks against the REAL ts-runtypes sources (packageSources.ts),
 // which carry the precise format brands; the editor only needs the names to
-// resolve so a user's `import { Email } from 'ts-runtypes/formats'` doesn't error.
+// resolve so a user's `import { Email } from '@ts-runtypes/core/formats'` doesn't error.
 export function formatsEditorModule(): string {
   const aliases = FORMATS.map((f) => `  export type ${f.alias} = ${f.base};`).join('\n');
   const builders = FORMATS.map((f) => `  export function ${f.builder}(): any;`).join('\n');
   return [
-    `declare module 'ts-runtypes/formats' {`,
+    `declare module '@ts-runtypes/core/formats' {`,
     aliases,
     `  export function string(): any;`,
     `  export function number(): any;`,
@@ -69,12 +69,12 @@ export function formatsEditorModule(): string {
 }
 
 // A loose `ts-runtypes/schema` module for the in-editor type checker, so a user's
-// `import * as RT from 'ts-runtypes/schema'` resolves in Monaco. The resolver
+// `import * as RT from '@ts-runtypes/core/schema'` resolves in Monaco. The resolver
 // (MARKER_DTS) carries the precise builders that drive resolution; the editor only
 // needs the names.
 export function schemaEditorModule(): string {
   return [
-    `declare module 'ts-runtypes/schema' {`,
+    `declare module '@ts-runtypes/core/schema' {`,
     `  export function string(): any;`,
     `  export function number(): any;`,
     `  export function boolean(): any;`,

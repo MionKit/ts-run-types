@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import type {FriendlyText, MockData} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import type {FriendlyText, MockData} from '@ts-runtypes/core';
 import type {EnrichCase} from './types.ts';
 
 // Format-branded leaves — the `TF.*` catalog. A format annotation seeds

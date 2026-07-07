@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Cross-compiles the ts-runtypes resolver binary for every supported platform
 // and assembles the npm packages that distribute them:
-//   - ts-runtypes-binary-<os>-<arch>  one per platform (os/cpu-gated payload)
-//   - ts-runtypes-bin                 the launcher, with optionalDependencies filled
+//   - @ts-runtypes/binary-<os>-<arch>  one per platform (os/cpu-gated payload)
+//   - @ts-runtypes/bin                 the launcher, with optionalDependencies filled
 //
 // Output is staged under dist-binaries/ (gitignored). This script does NOT
 // publish — scripts/release/publish.mjs runs it, then publishes the platform packages
@@ -56,7 +56,7 @@ function readTsgoRevision() {
 }
 
 function platformPackageName(platform) {
-  return `ts-runtypes-binary-${platform.os}-${platform.cpu}`;
+  return `@ts-runtypes/binary-${platform.os}-${platform.cpu}`;
 }
 
 function exeName(platform) {
@@ -104,7 +104,7 @@ function buildPlatform(platform, version, tsgo, launcherPkg) {
 }
 
 function stageLauncher(version, tsgo, platformNames) {
-  const destDir = path.join(STAGING_DIR, 'ts-runtypes-bin');
+  const destDir = path.join(STAGING_DIR, '@ts-runtypes/bin');
   // Copy only the publishable files (never node_modules or stray cruft).
   fs.cpSync(LAUNCHER_SRC, destDir, {
     recursive: true,
@@ -137,7 +137,7 @@ function main() {
   stageLauncher(version, tsgo, platformNames);
 
   // Platform packages first, launcher last.
-  const publishOrder = [...platformNames, 'ts-runtypes-bin'];
+  const publishOrder = [...platformNames, '@ts-runtypes/bin'];
   fs.writeFileSync(path.join(STAGING_DIR, 'publish-order.json'), JSON.stringify(publishOrder, null, 2) + '\n');
 
   console.log(`\nStaged ${platformNames.length} platform packages + launcher under ${path.relative(REPO_ROOT, STAGING_DIR)}/`);

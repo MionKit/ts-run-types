@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import {createValidate} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createValidate} from '@ts-runtypes/core';
 
 // A format brands a string or number — the validator checks its exact
 // shape, not just "is it a string".

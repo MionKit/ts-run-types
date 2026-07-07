@@ -1,8 +1,8 @@
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import type {SerializationCase} from './types.ts';
-import * as RT from 'ts-runtypes/schema';
-import 'ts-runtypes/formats';
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
+import * as RT from '@ts-runtypes/core/schema';
+import '@ts-runtypes/core/formats';
+import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
 
 const V4 = '9f1b8c2e-3d4a-4b5c-8d6e-1f2a3b4c5d6e';
 const V4_B = '00112233-4455-4677-8899-aabbccddeeff';

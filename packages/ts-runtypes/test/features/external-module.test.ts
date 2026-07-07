@@ -15,7 +15,7 @@ import {
   createBinaryDecoder,
   getRunTypeId,
   type Static,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import {UserSchema, mutatePreset, type User, type WithBigint} from '../support/external-module-library.ts';
 
 describe('external-module markers', () => {

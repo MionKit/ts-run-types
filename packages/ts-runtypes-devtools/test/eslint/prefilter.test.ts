@@ -54,8 +54,8 @@ describe('constant sync with internal/enrichment/mirror/tags.go', () => {
 
 describe('referencesMarkerModule', () => {
   it('matches quoted import specifiers only, not path mentions in comments', () => {
-    expect(referencesMarkerModule(`import {createValidate} from 'ts-runtypes';`)).toBe(true);
-    expect(referencesMarkerModule(`import {x} from "ts-runtypes/schema";`)).toBe(true);
+    expect(referencesMarkerModule(`import {createValidate} from '@ts-runtypes/core';`)).toBe(true);
+    expect(referencesMarkerModule(`import {x} from "@ts-runtypes/core/schema";`)).toBe(true);
     expect(referencesMarkerModule('// see packages/ts-runtypes/src for details')).toBe(false);
   });
 });
@@ -79,7 +79,7 @@ describe('looksLikeEnrichmentFile', () => {
 
 describe('needsResolverPass', () => {
   it('is the union of both gates', () => {
-    expect(needsResolverPass(`import {getRunTypeId} from 'ts-runtypes';`)).toBe(true);
+    expect(needsResolverPass(`import {getRunTypeId} from '@ts-runtypes/core';`)).toBe(true);
     expect(needsResolverPass(`export const f: ${FRIENDLY_TYPE_NAME}<User> = {};`)).toBe(true);
     expect(needsResolverPass('export const a = 1;')).toBe(false);
   });

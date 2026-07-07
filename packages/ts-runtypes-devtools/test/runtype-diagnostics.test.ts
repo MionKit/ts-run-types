@@ -27,13 +27,13 @@ function runtypeDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
   return (response.diagnostics ?? []).filter((d) => d.family === Family.RunType);
 }
 
-describe('ts-runtypes-devtools / runtype diagnostics', () => {
+describe('@ts-runtypes/devtools / runtype diagnostics', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('emits PJ001 for Never at root under prepareForJson', async () => {
     // pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
     const sources = {
-      'never.ts': `import {createJsonEncoder} from 'ts-runtypes';
+      'never.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
 export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `,
     };
@@ -56,7 +56,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     // All three families are demand-driven: seed pj via createJsonEncoder(mutate),
     // sj via createJsonEncoder(direct), and tb via createBinaryEncoder.
     const sources = {
-      'never-multi.ts': `import {createJsonEncoder, createBinaryEncoder} from 'ts-runtypes';
+      'never-multi.ts': `import {createJsonEncoder, createBinaryEncoder} from '@ts-runtypes/core';
 export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 export const _s = createJsonEncoder<never>(undefined, {strategy: 'direct'});
 export const _b = createBinaryEncoder<never>();
@@ -77,7 +77,7 @@ export const _b = createBinaryEncoder<never>();
     // pj is demand-driven; three createJsonEncoder(mutate) sites share one `never`
     // id, so the single rendered pj entry fans the PJ001 diag out to all three.
     const sources = {
-      'fan-out.ts': `import {createJsonEncoder} from 'ts-runtypes';
+      'fan-out.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
 export const a = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 export const b = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
@@ -98,7 +98,7 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     // `it` is demand-driven, so seed it via createValidate (a reflection-only
     // getRunTypeId would emit no val_ entry and thus no validate diagnostic).
     const sources = {
-      'fn-prop.ts': `import {createValidate} from 'ts-runtypes';
+      'fn-prop.ts': `import {createValidate} from '@ts-runtypes/core';
 interface User { name: string; onClick: () => void; }
 export const _ = createValidate<User>();
 `,
@@ -119,7 +119,7 @@ export const _ = createValidate<User>();
     // drop is silent at runtime, so the build surfaces a VL014 Warning naming
     // the dropped member — mirroring the function-prop drop (VL010) above.
     const sources = {
-      'union-drop.ts': `import {createValidate} from 'ts-runtypes';
+      'union-drop.ts': `import {createValidate} from '@ts-runtypes/core';
 export const _ = createValidate<Date | symbol>();
 `,
     };
@@ -143,7 +143,7 @@ export const _ = createValidate<Date | symbol>();
     // codes. Seed pjs via the default clone encode, sj via the direct strategy,
     // and rj via the decoder.
     const sources = {
-      'union-drop-json.ts': `import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+      'union-drop-json.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
 export const _e = createJsonEncoder<Date | symbol>();
 export const _s = createJsonEncoder<Date | symbol>(undefined, {strategy: 'direct'});
 export const _d = createJsonDecoder<Date | symbol>();
@@ -168,7 +168,7 @@ export const _d = createJsonDecoder<Date | symbol>();
     // factory alwaysThrows and there is no surviving union to drop INTO. A
     // …014 drop warning would be wrong here.
     const sources = {
-      'union-allstripped.ts': `import {createValidate} from 'ts-runtypes';
+      'union-allstripped.ts': `import {createValidate} from '@ts-runtypes/core';
 export const _ = createValidate<symbol | (() => void)>();
 `,
     };
@@ -184,7 +184,7 @@ export const _ = createValidate<symbol | (() => void)>();
   register('formatTscDiagnostic renders runtype warnings in tsc line format', async () => {
     // pj is demand-driven, so seed it via createJsonEncoder(mutate) → [pj].
     const sources = {
-      'fmt-rt.ts': `import {createJsonEncoder} from 'ts-runtypes';
+      'fmt-rt.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
 export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `,
     };
@@ -201,7 +201,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 
   register('emits VE020 warning diagnostic for validationErrors on root any/unknown', async () => {
     const sources = {
-      'any.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'any.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 export const _ = getRunTypeId<any>();
 `,
     };
@@ -224,7 +224,7 @@ export const _ = getRunTypeId<any>();
     // `it` is demand-driven, so seed it via createValidate<unknown>() (a
     // reflection-only getRunTypeId would emit no val_ entry, no VL021).
     const sources = {
-      'any-istype.ts': `import {createValidate} from 'ts-runtypes';
+      'any-istype.ts': `import {createValidate} from '@ts-runtypes/core';
 export const _ = createValidate<unknown>();
 `,
     };
@@ -254,7 +254,7 @@ export const _ = createValidate<unknown>();
     // pj/pjs/rj/sj are demand-driven: seed pj via createJsonEncoder(mutate), pjs
     // via the default clone (shape-derived strip), sj via direct, and rj via createJsonDecoder.
     const sources = {
-      'fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from 'ts-runtypes';
+      'fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
 export const _ = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'mutate'});
 export const _s = createJsonEncoder<[number, () => void]>();
 export const _d = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'direct'});
@@ -284,7 +284,7 @@ export const _r = createJsonDecoder<[number, () => void]>();
   register('propagates function-typed tuple slot as alwaysThrow under toBinary / fromBinary', async () => {
     // tb/fb are demand-driven, so seed each via the matching binary createX.
     const sources = {
-      'fn-tuple-bin.ts': `import {createBinaryEncoder, createBinaryDecoder} from 'ts-runtypes';
+      'fn-tuple-bin.ts': `import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
 export const _e = createBinaryEncoder<[string, () => number]>();
 export const _d = createBinaryDecoder<[string, () => number]>();
 `,
@@ -308,7 +308,7 @@ export const _d = createBinaryDecoder<[string, () => number]>();
     // path even before the fix. This test pins that behavior so a future
     // optimisation can't silently regress it.
     const sources = {
-      'sym-tuple.ts': `import {createJsonEncoder, createBinaryEncoder} from 'ts-runtypes';
+      'sym-tuple.ts': `import {createJsonEncoder, createBinaryEncoder} from '@ts-runtypes/core';
 export const _ = createJsonEncoder<[number, symbol]>(undefined, {strategy: 'mutate'});
 export const _b = createBinaryEncoder<[number, symbol]>();
 `,
@@ -331,7 +331,7 @@ export const _b = createBinaryEncoder<[number, symbol]>();
     // Before the fix the default clone encoder (prepareForJsonSafe) FAILED these
     // outright, and the other families emitted an Error — F3.
     const sources = {
-      'stripped-prop.ts': `import {createValidate, createJsonEncoder} from 'ts-runtypes';
+      'stripped-prop.ts': `import {createValidate, createJsonEncoder} from '@ts-runtypes/core';
 interface S { a: symbol; b: number; }
 interface P { a: Promise<number>; b: number; }
 export const _v = createValidate<S>();
@@ -369,7 +369,7 @@ export const _p = createValidate<P>();
     // it cannot be safely dropped: the family throws at build time with a root
     // error, and the …015 drop Warning must NOT fire.
     const sources = {
-      'structural-prop.ts': `import {createJsonEncoder} from 'ts-runtypes';
+      'structural-prop.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
 interface S { a: symbol[]; b: number; }
 export const _e = createJsonEncoder<S>(undefined, {strategy: 'mutate'});
 `,
@@ -402,7 +402,7 @@ export const _e = createJsonEncoder<S>(undefined, {strategy: 'mutate'});
     // `it` is demand-driven, so seed it via createValidate<User>() — a
     // reflection-only getRunTypeId would emit no val_ entries to inspect.
     const sources = {
-      'mini.ts': `import {createValidate} from 'ts-runtypes';
+      'mini.ts': `import {createValidate} from '@ts-runtypes/core';
 interface User { name: string; age: number; tags: string[]; }
 export const _ = createValidate<User>();
 `,

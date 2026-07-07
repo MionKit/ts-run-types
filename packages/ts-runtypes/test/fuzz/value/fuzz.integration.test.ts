@@ -8,9 +8,9 @@
 // `const schema` — never a generic `RunType` parameter (that would inject the
 // `unknown` runtype). Hence the per-target inlining instead of a shared helper.
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
-import * as RT from 'ts-runtypes/schema';
+import * as RT from '@ts-runtypes/core/schema';
 import {
   createMockType,
   createValidate,
@@ -19,7 +19,7 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import {runFuzz, runFuzzForDuration} from './fuzzRunner.ts';
 import type {FuzzTarget} from './fuzzOracle.ts';
 

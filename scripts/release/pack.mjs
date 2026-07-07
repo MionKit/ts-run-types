@@ -16,7 +16,7 @@ import {fileURLToPath} from 'node:url';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TARBALLS = path.join(REPO_ROOT, 'tarballs');
 const DIST_BINARIES = path.join(REPO_ROOT, 'dist-binaries');
-const FE_PACKAGES = ['ts-runtypes', 'ts-runtypes-devtools'];
+const FE_PACKAGES = ['@ts-runtypes/core', '@ts-runtypes/devtools'];
 
 function pack(cmd, dir) {
   // pnpm/npm pack both accept --pack-destination and emit <name>-<version>.tgz.

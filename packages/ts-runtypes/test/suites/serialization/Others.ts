@@ -1,4 +1,4 @@
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from 'ts-runtypes';
+import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
 import type {SerializationCase} from './types.ts';
 
 export const OTHERS = {

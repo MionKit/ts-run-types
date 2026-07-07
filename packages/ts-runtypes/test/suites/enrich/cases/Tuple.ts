@@ -1,4 +1,4 @@
-import type {FriendlyText, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from '@ts-runtypes/core';
 import type {EnrichCase} from './types.ts';
 
 // Tuple kinds. The emitter reflects tuple STRUCTURE (solution A): a fixed-length

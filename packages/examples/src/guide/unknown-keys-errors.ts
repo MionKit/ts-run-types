@@ -1,4 +1,4 @@
-import {createUnknownKeyErrors} from 'ts-runtypes';
+import {createUnknownKeyErrors} from '@ts-runtypes/core';
 
 type User = {id: number; name: string};
 

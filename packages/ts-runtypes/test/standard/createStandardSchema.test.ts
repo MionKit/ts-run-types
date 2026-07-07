@@ -10,10 +10,10 @@
 // two forms resolve to behaviourally identical validators.
 
 import {describe, test, expect} from 'vitest';
-import {createStandardSchema} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
-import type {StandardSchemaResult} from 'ts-runtypes';
+import {createStandardSchema} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
+import type {StandardSchemaResult} from '@ts-runtypes/core';
 
 // Our validate is always synchronous; this asserts that and narrows the
 // `Result | Promise<Result>` return type to the plain Result the spec lets a

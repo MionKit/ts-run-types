@@ -22,10 +22,10 @@
 // doesn't flag them. The real check is tsc:
 //   pnpm exec tsc --noEmit -p packages/ts-runtypes/tsconfig.test.json
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {expect, test} from 'vitest';
-import * as RT from 'ts-runtypes/schema';
-import type {Static} from 'ts-runtypes';
+import * as RT from '@ts-runtypes/core/schema';
+import type {Static} from '@ts-runtypes/core';
 
 /** Asserts `S` and `T` are mutually assignable (the helper form of cross-assigning
  *  a value of each type to the other). No-arg call compiles iff equivalent. */

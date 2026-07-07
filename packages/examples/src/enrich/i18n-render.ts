@@ -1,4 +1,4 @@
-import {createFriendlyI18n, createGetValidationErrors} from 'ts-runtypes';
+import {createFriendlyI18n, createGetValidationErrors} from '@ts-runtypes/core';
 import type {User} from './user';
 import {friendlyUser} from './friendly-user';
 import {es_friendlyUser} from './i18n-es';

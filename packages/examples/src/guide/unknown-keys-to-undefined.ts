@@ -1,4 +1,4 @@
-import {createUnknownKeysToUndefined} from 'ts-runtypes';
+import {createUnknownKeysToUndefined} from '@ts-runtypes/core';
 
 type User = {id: number; name: string};
 

@@ -13,7 +13,7 @@
 // including adversarial small-stringBytes configs that stress the string / key
 // reserve floors.
 
-import {createMockType} from 'ts-runtypes';
+import {createMockType} from '@ts-runtypes/core';
 import type {BinarySizingOptions} from '../../../src/mocking/mockTypes.ts';
 import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
 import {genType, isRecursive, DATA_GEN_OPTIONS, type GeneratedType} from '../core/typeGen.ts';

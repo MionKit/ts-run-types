@@ -1,4 +1,4 @@
-import {createValidate, createJsonEncoder} from 'ts-runtypes';
+import {createValidate, createJsonEncoder} from '@ts-runtypes/core';
 
 type Flag = {kind: 'on' | 'off'};
 

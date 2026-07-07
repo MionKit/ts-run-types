@@ -16,7 +16,7 @@
 
 import path from 'node:path';
 import {describe, it, expect} from 'vitest';
-import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, createMockType} from 'ts-runtypes';
+import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, createMockType} from '@ts-runtypes/core';
 import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {
   RUNTYPES_DTS,
@@ -43,7 +43,7 @@ interface Compiled {
 /** Compile `decls` + `type T = rootExpr`, returning the binary + reflection tuples
  *  and the baked cold-start seed. Asserts the type produced no Error diagnostics. **/
 async function compile(client: ResolverClient, title: string, decls: string, rootExpr: string): Promise<Compiled> {
-  const source = `import {createBinaryEncoder, createBinaryDecoder, getRunTypeId} from 'ts-runtypes';
+  const source = `import {createBinaryEncoder, createBinaryDecoder, getRunTypeId} from '@ts-runtypes/core';
 ${BRAND}
 ${decls}
 type T = ${rootExpr};

@@ -105,7 +105,7 @@ A function opts into compile-time id injection by declaring `id?: InjectRunTypeI
 Detection requires both:
 
 1. The trailing parameter type alias must be named `InjectRunTypeId`.
-2. The alias must be declared in `ts-runtypes`. Either inside `declare module "ts-runtypes" { ... }` or in a file whose enclosing on-disk `package.json` has `"name": "ts-runtypes"`. This rules out accidental collisions with same-named user types declared elsewhere. The marker set is fixed at the binary's defaults — there is no CLI override for either knob.
+2. The alias must be declared in `ts-runtypes`. Either inside `declare module "@ts-runtypes/core" { ... }` or in a file whose enclosing on-disk `package.json` has `"name": "ts-runtypes"`. This rules out accidental collisions with same-named user types declared elsewhere. The marker set is fixed at the binary's defaults — there is no CLI override for either knob.
 
 A call inside a generic body where the marker's `T` is the wrapper's own free type parameter is **skipped** — there's no concrete `T` to assign an id to yet. The wrapper must propagate the marker via its own signature, and the injection happens at the wrapper's call sites instead.
 
@@ -214,7 +214,7 @@ The public runtime package, three entry points:
 
 - `.` — the markers (`InjectRunTypeId<T>`, `InjectTypeFnArgs<T, Fn>`, `CompTimeArgs<T>` / `CompTimeFnArgs<T>`, `PureFunction`), the reflection helpers `getRunTypeId<T>()` (static — explicit type argument, no value; throws if the plugin didn't inject an id) and `getRunTypeId(value)` (`T` inferred from the value), and the full `createX` factory surface: `createValidate` / `createGetValidationErrors`, the unknown-keys group (`createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined`), `createFormatTransform`, `createJsonEncoder` / `createJsonDecoder`, `createBinaryEncoder` / `createBinaryDecoder` / `createBinarySizer`, `createMockType`, the committed-enrichment surface (the `FriendlyText<T>` / `MockData<T>` DSL types and the `createFriendly` / `createFriendlyI18n` renderers — committed mirror artifacts consumed via ordinary imports, not cache modules; see [docs/AI_ENRICHMENT.md](./AI_ENRICHMENT.md)), plus the runtime registries (`registerPureFnFactory`, `registerClassSerializer`, `registerMockingFunction`, `registerFormatPattern`) and the DataView serializer helpers.
 - `./schema` — the value-first NON-format builders (`boolean()`, `literal()`, `object({...})`, `array()`, `union()`, the utility builders, …) returning live `RunType<T>` nodes; `Static<T>` recovers the TS type. Each builder converges on the same structural id as its type-first equivalent. (The format builders — `string()` / `number()` / `email()` / … — and the `temporal.*` family moved to `./formats` + `./formats/temporal`.)
-- `./formats` — the type-format aliases (`TF.String`, `TF.Email`, `TF.UUIDv4/v7`, `TF.Number`, `TF.Currency`, `TF.BigInt`, `TF.StringDate/Time/DateTime`, `TF.Date`, fixed-width int presets, …) AND their value-first builders (`TF.email()`, `TF.int32()`, …), namespaced as `import * as TF from 'ts-runtypes/formats'`; plus their mock / pure-fn / pattern registrations. The Temporal family (`TFT.Instant` / `TFT.PlainDate` / …) is on the `./formats/temporal` subpath (`TFT`). Format **validation** happens at build time on the Go side; the runtime only carries mocking + transform helpers.
+- `./formats` — the type-format aliases (`TF.String`, `TF.Email`, `TF.UUIDv4/v7`, `TF.Number`, `TF.Currency`, `TF.BigInt`, `TF.StringDate/Time/DateTime`, `TF.Date`, fixed-width int presets, …) AND their value-first builders (`TF.email()`, `TF.int32()`, …), namespaced as `import * as TF from '@ts-runtypes/core/formats'`; plus their mock / pure-fn / pattern registrations. The Temporal family (`TFT.Instant` / `TFT.PlainDate` / …) is on the `./formats/temporal` subpath (`TFT`). Format **validation** happens at build time on the Go side; the runtime only carries mocking + transform helpers.
 
 Cache access goes through the runtime registry (`getRTUtils()` in `src/runtypes/rtUtils.ts`): each marker call site receives its entry-module tuple, `initFromTuple` (in `src/runtypes/entryTuple.ts`) registers the tuple's dependency closure (reflection nodes by typeId from the data bundle's rows, function factories by the `<fnHash>_<typeId>` key, pure fns by `<ns>::<fn>`), and the factories resolve via `resolveEntryTupleFn` / `getRunType(id)` with a noop fallback when a type has no supported entry (the Go side emits a resolvable `KindMissing` stub module for dropped entries).
 
@@ -425,10 +425,10 @@ pnpm -C packages/ts-runtypes-devtools test
 
 ## Workspace self-imports in tests
 
-Two independent resolvers see `import { … } from 'ts-runtypes'` inside the marker package's own tests, and both must land on the same target:
+Two independent resolvers see `import { … } from '@ts-runtypes/core'` inside the marker package's own tests, and both must land on the same target:
 
 1. **Vitest / Vite** — runtime resolution. Driven by `resolve.conditions: ['source']` in [`vitest.config.ts`](../packages/ts-runtypes/vitest.config.ts).
-2. **tsgo** — the Go-side TypeScript checker invoked by [`ts-runtypes-devtools`](../packages/ts-runtypes-devtools/) to compute runtype ids. Driven by `customConditions: ["source"]` in [`tsconfig.test.json`](../packages/ts-runtypes/tsconfig.test.json).
+2. **tsgo** — the Go-side TypeScript checker invoked by [`@ts-runtypes/devtools`](../packages/ts-runtypes-devtools/) to compute runtype ids. Driven by `customConditions: ["source"]` in [`tsconfig.test.json`](../packages/ts-runtypes/tsconfig.test.json).
 
 Both conditions select the `"source": "./src/index.ts"` entry on the marker package's `package.json` `exports` map. External consumers (without `source` in their conditions) fall through to the normal `"types"` / `"import"` / `"require"` entries, getting the built `dist/`. The `"source"` lane is opt-in and workspace-internal.
 

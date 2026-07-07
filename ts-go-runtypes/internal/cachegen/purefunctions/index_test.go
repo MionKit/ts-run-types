@@ -107,7 +107,7 @@ func TestNewIndex_GetAndScanned(t *testing.T) {
 
 func TestValidatePureFnDependencies_AllSatisfied(t *testing.T) {
 	prog, files := programForSources(t, map[string]string{
-		"pure.ts": `import {registerPureFnFactory} from 'ts-runtypes';
+		"pure.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const a = registerPureFnFactory('rt::asJSONString', function () { return function () { return 1; }; });
 `,
 	})
@@ -152,7 +152,7 @@ func TestValidatePureFnDependencies_LazyExpansion_FindsRegistration(t *testing.T
 	// a key that's registered in a.ts. Validation lazily parses a.ts,
 	// finds the registration, and emits NO diagnostic.
 	prog, _ := programForSources(t, map[string]string{
-		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
+		"a.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const r = registerPureFnFactory('rt::asJSONString', function () { return function () { return 1; }; });
 `,
 		"b.ts": `export const x = 1;`,
@@ -202,7 +202,7 @@ func TestValidatePureFnDependencies_LazyExpansion_StillMissing(t *testing.T) {
 	// registration. Lazy expansion parses it, finds nothing matching
 	// the key, and emits PFE9012.
 	prog, files := programForSources(t, map[string]string{
-		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
+		"a.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const x = registerPureFnFactory('rt::somethingElse', function () { return function () {}; });
 `,
 	})
@@ -249,7 +249,7 @@ func TestValidatePureFnDependencies_FileNeverReparsed(t *testing.T) {
 	// dep. The lookup should be invoked exactly ONCE for the dep's
 	// filePath — once expanded, the scanned flag prevents re-parse.
 	prog, files := programForSources(t, map[string]string{
-		"a.ts": `import {registerPureFnFactory} from 'ts-runtypes';
+		"a.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const r = registerPureFnFactory('rt::asJSONString', function () { return function () {}; });
 `,
 	})

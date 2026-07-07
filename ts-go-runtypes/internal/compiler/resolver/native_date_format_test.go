@@ -20,7 +20,7 @@ import (
 // and any FMT002 diagnostics.
 func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diagnostics.Diagnostic) {
 	t.Helper()
-	code := `import {createValidate} from 'ts-runtypes';
+	code := `import {createValidate} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>();
 `
@@ -101,7 +101,7 @@ func TestNativeDate_ValidateEmitsExclusiveBoundCheck(t *testing.T) {
 // brand lift in collapseIntersection. A regression here would silently
 // strip format metadata from native-Date runtypes.
 func TestNativeDate_RunTypeCacheCarriesFormatAnnotation(t *testing.T) {
-	code := `import {getRunTypeId} from 'ts-runtypes';
+	code := `import {getRunTypeId} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = getRunTypeId<TypeFormat<Date, 'nativeDate', {min: 'now'}>>();
 `

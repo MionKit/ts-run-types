@@ -14,11 +14,11 @@ import (
 // child slots stay as refs so payloads stay bounded — and that NodeByID
 // returns nil for unknown ids.
 
-const resolveIDArrayCodeStatic = `import {getRunTypeId} from 'ts-runtypes';
+const resolveIDArrayCodeStatic = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string[]>();
 `
 
-const resolveIDArrayCodeReflect = `import {getRunTypeId} from 'ts-runtypes';
+const resolveIDArrayCodeReflect = `import {getRunTypeId} from '@ts-runtypes/core';
 const xs: string[] = ['a', 'b'];
 getRunTypeId(xs);
 `

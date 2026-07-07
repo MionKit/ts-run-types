@@ -24,7 +24,7 @@ const ENTRY = path.join(FIXTURE_DIR, 'entry.ts');
 // shared dir would race-delete this fixture's modules. Cleaned with FIXTURE_DIR.
 const OUT_DIR = path.join(FIXTURE_DIR, '__runtypes');
 
-const FIXTURE = `import {createValidate} from 'ts-runtypes';
+const FIXTURE = `import {createValidate} from '@ts-runtypes/core';
 interface RollupThing {
   rollupProp: string;
 }
@@ -50,7 +50,7 @@ describe('rollup build / ts-runtypes-devtools/rollup entry', () => {
         tsconfig: 'tsconfig.test.json',
         outDir: OUT_DIR,
       }) as any;
-      expect(plugin.name).toBe('ts-runtypes-devtools');
+      expect(plugin.name).toBe('@ts-runtypes/devtools');
 
       fs.rmSync(FIXTURE_DIR, {recursive: true, force: true});
       fs.mkdirSync(FIXTURE_DIR, {recursive: true});

@@ -25,7 +25,7 @@ const register = runIfBinary(it);
 // Both getRunTypeId call shapes in one file (marker coverage rule): the static
 // form supplies T, the reflection form infers it from a value. Equivalent T, so
 // both sites must resolve to the SAME typeId.
-const ENTRY = `import {getRunTypeId} from 'ts-runtypes';
+const ENTRY = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 export const staticId = getRunTypeId<User>();
 const u = {id: 1, name: 'm'} as User;
@@ -72,7 +72,7 @@ async function scanSites(dir: string, opts: {moduleMode?: string} = {}) {
   }
 }
 
-describe('ts-runtypes-devtools / tsconfig plugin config (build path)', () => {
+describe('@ts-runtypes/devtools / tsconfig plugin config (build path)', () => {
   register(
     'tsconfig moduleMode:allSingle is honored; both getRunTypeId shapes share one typeId',
     async () => {

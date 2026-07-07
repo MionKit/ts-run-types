@@ -5,7 +5,7 @@
 // cases (CircularGuard.ts) all arm per-call; these pin the global flag and the
 // override precedence. afterEach disarms so the global flag never leaks.
 import {afterEach, describe, expect, it} from 'vitest';
-import {createValidate, setRejectCircularRefs} from 'ts-runtypes';
+import {createValidate, setRejectCircularRefs} from '@ts-runtypes/core';
 
 interface Node {
   name: string;

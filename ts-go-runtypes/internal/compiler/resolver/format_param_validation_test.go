@@ -32,7 +32,7 @@ func scanForFormatParamDiagnostics(t *testing.T, code string) []diagnostics.Diag
 }
 
 func TestFormatParams_StringLengthMutualExclusion(t *testing.T) {
-	code := `import {createValidate} from 'ts-runtypes';
+	code := `import {createValidate} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'stringFormat', {length: 4; maxLength: 8}>>();
 `
@@ -49,7 +49,7 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {length: 4; m
 }
 
 func TestFormatParams_StringSingleComplexParam(t *testing.T) {
-	code := `import {createValidate} from 'ts-runtypes';
+	code := `import {createValidate} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
@@ -62,7 +62,7 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 }
 
 func TestFormatParams_UUIDBadVersion(t *testing.T) {
-	code := `import {createValidate} from 'ts-runtypes';
+	code := `import {createValidate} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'uuid', {version: '5'}>>();
 `
@@ -72,7 +72,7 @@ export const _ = createValidate<TypeFormat<string, 'uuid', {version: '5'}>>();
 }
 
 func TestFormatParams_ValidNoDiagnostic(t *testing.T) {
-	code := `import {createValidate} from 'ts-runtypes';
+	code := `import {createValidate} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
 export const _ = createValidate<TypeFormat<string, 'stringFormat', {maxLength: 8; minLength: 2}>>();
 `

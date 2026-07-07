@@ -10,7 +10,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-const runtypesDTS = `declare module 'ts-runtypes' {
+const runtypesDTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 }
@@ -69,10 +69,10 @@ func rootFor(t *testing.T, code string) (*resolver.Session, *protocol.RunType) {
 // must produce different cache entries (different SubKind, different
 // structural id, different hash).
 func TestStructural_DateAndMapShareNothing(t *testing.T) {
-	_, dateNode := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, dateNode := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<Date>();
 `)
-	_, mapNode := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, mapNode := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<Map<string, number>>();
 `)
 	if dateNode.ID == mapNode.ID {
@@ -92,10 +92,10 @@ getRunTypeId<Map<string, number>>();
 // MUST NOT collapse to the same cache id. Regression test for the
 // `subKind || kind` prefix rule.
 func TestStructural_NonSerializableNotDeduplicatedWithObjectLiteral(t *testing.T) {
-	_, errorNode := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, errorNode := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<Error>();
 `)
-	_, plainNode := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, plainNode := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 type ErrorShape = {message: string; name: string};
 getRunTypeId<ErrorShape>();
 `)
@@ -111,10 +111,10 @@ getRunTypeId<ErrorShape>();
 // different value types must NOT collapse, because the SubKindMapValue
 // child's structural id differs.
 func TestStructural_MapDistinctElementTypes(t *testing.T) {
-	_, mapStringNumber := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, mapStringNumber := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<Map<string, number>>();
 `)
-	_, mapStringString := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, mapStringString := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<Map<string, string>>();
 `)
 	if mapStringNumber.ID == mapStringString.ID {
@@ -131,10 +131,10 @@ getRunTypeId<Map<string, string>>();
 // the element flags into the id they collapse to one entry and the
 // nondeterministically-chosen winner gives one of them the wrong validator.
 func TestStructural_TupleRestNotDeduplicatedWithFixed(t *testing.T) {
-	_, restNode := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, restNode := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<[number, ...string[]]>();
 `)
-	_, fixedNode := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, fixedNode := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<[number, string]>();
 `)
 	if restNode.ID == fixedNode.ID {
@@ -150,11 +150,11 @@ getRunTypeId<[number, string]>();
 // equality is not vacuous — a different property SET must still produce a
 // different id.
 func TestStructural_ObjectPropertyOrderIndependent(t *testing.T) {
-	_, ordered := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, ordered := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 type T = {alpha: string; beta: number; nested: {x: string; y: number}};
 getRunTypeId<T>();
 `)
-	_, reordered := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, reordered := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 type T = {nested: {y: number; x: string}; beta: number; alpha: string};
 getRunTypeId<T>();
 `)
@@ -164,7 +164,7 @@ getRunTypeId<T>();
 
 	// Negative control: a genuinely different property set (nested `z` instead of
 	// `y`) must NOT share the id — proves the equality above isn't vacuous.
-	_, different := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, different := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 type T = {alpha: string; beta: number; nested: {x: string; z: number}};
 getRunTypeId<T>();
 `)
@@ -177,7 +177,7 @@ getRunTypeId<T>();
 // subKind-tagged nodes still get short, identifier-safe hash ids the
 // emitter can use verbatim as JS const names.
 func TestStructural_HashIdLooksLikeIdentifier(t *testing.T) {
-	_, mapNode := rootFor(t, `import {getRunTypeId} from 'ts-runtypes';
+	_, mapNode := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<Map<string, number>>();
 `)
 	if mapNode.ID == "" || strings.ContainsAny(mapNode.ID, "{}[]:") {

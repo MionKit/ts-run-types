@@ -17,8 +17,8 @@ const TYPE_FORM = `type MyType = {
   active?: boolean;
 };`;
 
-const SCHEMA_FORM = `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+const SCHEMA_FORM = `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
   id: TF.number(),

@@ -44,12 +44,12 @@ async function assertModeParity(client: ResolverClient, file: string, source: st
   return {sites: ed.sites, applied};
 }
 
-describe('ts-runtypes-devtools / transform modes / parity', () => {
+describe('@ts-runtypes/devtools / transform modes / parity', () => {
   // Marker rule: BOTH call shapes.
   runTest(
     'static getRunTypeId<T>(): edits mode reproduces go mode byte-for-byte',
     {
-      'user.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `,
@@ -65,7 +65,7 @@ getRunTypeId<User>();
   runTest(
     'reflect getRunTypeId(value): edits mode reproduces go mode byte-for-byte',
     {
-      'user-reflect.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'user-reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);
@@ -83,7 +83,7 @@ getRunTypeId(u);
   runTest(
     'multi-fn createStandardSchema: edits mode reproduces go mode byte-for-byte',
     {
-      'std.ts': `import {createStandardSchema} from 'ts-runtypes';
+      'std.ts': `import {createStandardSchema} from '@ts-runtypes/core';
 createStandardSchema<string>();
 `,
     },
@@ -100,7 +100,7 @@ createStandardSchema<string>();
   runTest(
     'trailing comma: edits mode reproduces go mode byte-for-byte',
     {
-      'trailing.ts': `import {createValidate} from 'ts-runtypes';
+      'trailing.ts': `import {createValidate} from '@ts-runtypes/core';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
 export const isUser = createValidate(
   user,
@@ -119,7 +119,7 @@ export const isUser = createValidate(
   runTest(
     'pure-fn replacement: edits mode reproduces go mode byte-for-byte',
     {
-      'pure.ts': `import {registerPureFnFactory} from 'ts-runtypes';
+      'pure.ts': `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const _ = registerPureFnFactory('rt::foo', function () {
   return function _f(x: number) { return x + 1; };
 });
@@ -140,7 +140,7 @@ export const _ = registerPureFnFactory('rt::foo', function () {
   runTest(
     'multibyte source: edits offsets are UTF-16 code units, parity holds',
     {
-      'mb.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'mb.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 // preamble with multibyte chars — em-dash and 🦄 emoji — before the site
 type User = {id: number; name: string};
 getRunTypeId<User>();
@@ -158,7 +158,7 @@ getRunTypeId<User>();
   // moduleMode: allSingle — the binding imports from the bundle (Site.Module).
   // Both modes read the same buildImportBlock, so parity must hold there too.
   register('allSingle bundle targeting: edits mode reproduces go mode byte-for-byte', async () => {
-    const source = `import {getRunTypeId} from 'ts-runtypes';
+    const source = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 export const staticId = getRunTypeId<User>();
 `;
@@ -175,11 +175,11 @@ export const staticId = getRunTypeId<User>();
   });
 });
 
-describe('ts-runtypes-devtools / transform modes / source-consistency guard', () => {
+describe('@ts-runtypes/devtools / transform modes / source-consistency guard', () => {
   runTest(
     'source drift is detectable, and a re-sync applies edits to the drifted source correctly',
     {
-      'guard.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'guard.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type Guard = {id: number};
 getRunTypeId<Guard>();
 `,
@@ -226,7 +226,7 @@ getRunTypeId<Guard>();
   runTest(
     "'go' mode returns a sourceHash so drift is detectable",
     {
-      'go-drift.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'go-drift.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type GoDrift = {id: number};
 getRunTypeId<GoDrift>();
 `,
@@ -241,11 +241,11 @@ getRunTypeId<GoDrift>();
   );
 });
 
-describe('ts-runtypes-devtools / transform modes / go-mode sourcesContent trim', () => {
+describe('@ts-runtypes/devtools / transform modes / go-mode sourcesContent trim', () => {
   runTest(
     'omitSourcesContent drops the embedded source but keeps identical mappings',
     {
-      'sc.ts': `import {getRunTypeId} from 'ts-runtypes';
+      'sc.ts': `import {getRunTypeId} from '@ts-runtypes/core';
 type SC = {id: number};
 getRunTypeId<SC>();
 `,

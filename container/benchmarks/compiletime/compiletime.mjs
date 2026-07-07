@@ -125,7 +125,7 @@ async function setupFull() {
   }
   const viteMod = await importFrom('vite');
   const viteBuild = viteMod.build ?? viteMod.default?.build;
-  const rtPlugin = (await importExport(path.join(COMPETITOR_DIR, 'node_modules', 'ts-runtypes-devtools'), './vite')).default;
+  const rtPlugin = (await importExport(path.join(COMPETITOR_DIR, 'node_modules', '@ts-runtypes/devtools'), './vite')).default;
   fullMs = async () => {
     wipe(RT_CACHE);
     wipe(VITE_CACHE);

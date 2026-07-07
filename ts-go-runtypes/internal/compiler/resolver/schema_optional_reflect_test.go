@@ -18,7 +18,7 @@ import (
 // The overlay mirrors the REAL schema types (packages/ts-runtypes/src/schema/
 // static.ts + compose.ts): PropModCarrier / FieldOf / ObjectType / ObjectOptionalOnly,
 // plus `object` / `optional` / `string` builders and the two `getRunType` overloads.
-const schemaOptionalDTS = `declare module 'ts-runtypes' {
+const schemaOptionalDTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T;
   export interface RunType<T = unknown> { readonly id: string; }
@@ -80,7 +80,7 @@ var leakedSchemaTypeNames = map[string]bool{
 // leak the schema's internal `ObjectOptionalOnly<C>` / `PropModCarrier` / `RunType`
 // wrapper types into the cache or the emitted bundle.
 func TestSchemaOptionalReflect_ColdModeledType(t *testing.T) {
-	const code = `import {getRunType, object, optional, string} from 'ts-runtypes';
+	const code = `import {getRunType, object, optional, string} from '@ts-runtypes/core';
 getRunType(object({ note: optional(string()) }));
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": schemaOptionalDTS, "test.ts": code})

@@ -98,7 +98,7 @@ func resolveFile(t *testing.T, r *resolver.Session, file string) *protocol.RunTy
 // ---- F1 — annotation primitive -----------------------------------------------
 
 func TestF1_AnnotationPrimitive_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string>();
 `
 	_, tn := resolveInline(t, code)
@@ -108,7 +108,7 @@ getRunTypeId<string>();
 }
 
 func TestF1_AnnotationPrimitive_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 const userName: string = 'mario';
 getRunTypeId(userName);
 `
@@ -121,7 +121,7 @@ getRunTypeId(userName);
 // ---- F2 — annotation object alias `User` -------------------------------------
 
 func TestF2_AnnotationObject_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 getRunTypeId<User>();
 `
@@ -130,7 +130,7 @@ getRunTypeId<User>();
 }
 
 func TestF2_AnnotationObject_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
 const u = {id: 1, name: 'm'} as User;
 getRunTypeId(u);
@@ -169,7 +169,7 @@ func assertF2User(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 // ---- F3 — discriminated union ------------------------------------------------
 
 func TestF3_Union_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type Result = {ok: true; value: number} | {ok: false; error: string};
 getRunTypeId<Result>();
 `
@@ -178,7 +178,7 @@ getRunTypeId<Result>();
 }
 
 func TestF3_Union_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type Result = {ok: true; value: number} | {ok: false; error: string};
 declare const x: Result;
 getRunTypeId(x);
@@ -206,7 +206,7 @@ func assertF3Union(t *testing.T, root *protocol.RunType) {
 // type directly and gets `KindLiteral`.
 
 func TestF4_InferredLiteral_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 const x = 42;
 getRunTypeId(x);
 `
@@ -217,7 +217,7 @@ getRunTypeId(x);
 }
 
 func TestF4_InferredLiteral_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<42>();
 `
 	_, tn := resolveInline(t, code)
@@ -229,7 +229,7 @@ getRunTypeId<42>();
 // ---- F5 — inferred function with inferred return -----------------------------
 
 func TestF5_InferredFunction_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<(a: number, b: number) => number>();
 `
 	r, root := resolveInline(t, code)
@@ -237,7 +237,7 @@ getRunTypeId<(a: number, b: number) => number>();
 }
 
 func TestF5_InferredFunction_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 const add = (a: number, b: number) => a + b;
 getRunTypeId(add);
 `
@@ -271,7 +271,7 @@ func assertF5Function(t *testing.T, r *resolver.Session, root *protocol.RunType)
 // ---- F6 — router shape inferred from generic R -----------------------
 
 func TestF6_RouterInference_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{sayHello: (name: string) => string}>();
 `
 	r, root := resolveInline(t, code)
@@ -279,7 +279,7 @@ getRunTypeId<{sayHello: (name: string) => string}>();
 }
 
 func TestF6_RouterInference_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 getRunTypeId(routes);
@@ -334,7 +334,7 @@ func assertF6Router(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 // counterpart spells the resulting shape directly.
 
 func TestF7_InferredGeneric_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{a: number; b: string}>();
 `
 	r, root := resolveInline(t, code)
@@ -342,7 +342,7 @@ getRunTypeId<{a: number; b: string}>();
 }
 
 func TestF7_InferredGeneric_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 function wrap<T>(x: T): T {
   return x;
 }
@@ -374,7 +374,7 @@ func assertF7Object(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 // ---- F8 — factory inference --------------------------------------------------
 
 func TestF8_FactoryInference_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{id: number; name: string}>();
 `
 	r, root := resolveInline(t, code)
@@ -382,7 +382,7 @@ getRunTypeId<{id: number; name: string}>();
 }
 
 func TestF8_FactoryInference_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 const makeUser = (id: number, name: string) => ({id, name});
 const u = makeUser(1, 'm');
 getRunTypeId(u);
@@ -410,11 +410,11 @@ func assertF8IdName(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 // ---- Dedup -------------------------------------------------------------------
 
 func TestDedupAcrossQueries(t *testing.T) {
-	const primitive = `import {getRunTypeId} from 'ts-runtypes';
+	const primitive = `import {getRunTypeId} from '@ts-runtypes/core';
 const userName: string = 'mario';
 getRunTypeId(userName);
 `
-	const inferred = `import {getRunTypeId} from 'ts-runtypes';
+	const inferred = `import {getRunTypeId} from '@ts-runtypes/core';
 const x = 42;
 getRunTypeId(x);
 `
@@ -433,7 +433,7 @@ getRunTypeId(x);
 // ---- F12 — array (`string[]`) ------------------------------------------------
 
 func TestF12_Array_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string[]>();
 `
 	r, root := resolveInline(t, code)
@@ -441,7 +441,7 @@ getRunTypeId<string[]>();
 }
 
 func TestF12_Array_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 const xs: string[] = ['a', 'b'];
 getRunTypeId(xs);
 `
@@ -464,7 +464,7 @@ func assertF12Array(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 // ---- F13 — tuple (`[number, string?]`) ---------------------------------------
 
 func TestF13_Tuple_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<[number, string?]>();
 `
 	r, root := resolveInline(t, code)
@@ -472,7 +472,7 @@ getRunTypeId<[number, string?]>();
 }
 
 func TestF13_Tuple_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 const tup: [number, string?] = [1];
 getRunTypeId(tup);
 `
@@ -508,7 +508,7 @@ func assertF13Tuple(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 // ---- F14 — promise (`Promise<number>`) ---------------------------------------
 
 func TestF14_Promise_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<Promise<number>>();
 `
 	r, root := resolveInline(t, code)
@@ -516,7 +516,7 @@ getRunTypeId<Promise<number>>();
 }
 
 func TestF14_Promise_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 declare const p: Promise<number>;
 getRunTypeId(p);
 `
@@ -539,7 +539,7 @@ func assertF14Promise(t *testing.T, r *resolver.Session, root *protocol.RunType)
 // ---- F15 — class -------------------------------------------------------------
 
 func TestF15_Class_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 class User {
   id: number = 0;
   greet(): void {}
@@ -551,7 +551,7 @@ getRunTypeId<User>();
 }
 
 func TestF15_Class_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 class User {
   id: number = 0;
   greet(): void {}
@@ -585,7 +585,7 @@ func assertF15Class(t *testing.T, r *resolver.Session, root *protocol.RunType) {
 // ---- F16 — index signature ---------------------------------------------------
 
 func TestF16_IndexSignature_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface M {
   [k: string]: number;
 }
@@ -596,7 +596,7 @@ getRunTypeId<M>();
 }
 
 func TestF16_IndexSignature_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface M {
   [k: string]: number;
 }

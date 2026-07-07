@@ -1,4 +1,4 @@
-import {registerClassSerializer, createJsonEncoder, createJsonDecoder, type DataOnly} from 'ts-runtypes';
+import {registerClassSerializer, createJsonEncoder, createJsonDecoder, type DataOnly} from '@ts-runtypes/core';
 
 // A class with a non-empty constructor. The data goes on the wire structurally
 // (just its declared properties), so you only have to teach ts-runtypes how to

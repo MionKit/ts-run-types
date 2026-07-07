@@ -7,11 +7,11 @@
 // input. This is the same pipeline the Vite plugin + runtime use at build/run
 // time, here driven live from a single resolver dispatch.
 
-import * as RT from 'ts-runtypes';
+import * as RT from '@ts-runtypes/core';
 // Side effect: register the format pure fns (rtFormats::isUUID, …), regex
 // patterns and format mock fns the generated validators / mock walker call at
 // runtime. Without it a format like UUID / IP throws `pf_isUUID is not a function`.
-import 'ts-runtypes/formats';
+import '@ts-runtypes/core/formats';
 import {loadResolver, type Resolver, type ResolverOptions, type ResolverVersions} from './wasmLoader.ts';
 import {ROOT_TYPE} from './markerDts.ts';
 import {runtypesPackageSources} from './packageSources.ts';
@@ -100,11 +100,11 @@ function linkRootTuple(entryModules: Record<string, string>, binding: string): u
 export type Mode = 'type' | 'schema';
 
 // factoryImport renders the import line the playground shows around a snippet —
-// the same `import { <factory> } from 'ts-runtypes'` the engine prepends before
+// the same `import { <factory> } from '@ts-runtypes/core'` the engine prepends before
 // resolving (see `scan` below), surfaced verbatim so the type column can display
 // the real surrounding code the user would write.
 export function factoryImport(factory: string): string {
-  return `import { ${factory} } from 'ts-runtypes';`;
+  return `import { ${factory} } from '@ts-runtypes/core';`;
 }
 
 // factoryCall renders the call line: `const <varName> = <factory><MyType>()` in
@@ -154,14 +154,14 @@ function scan(
   options?: string
 ): ScanResult {
   // Only the factory import is injected; the user snippet writes its own
-  // `import * as RT from 'ts-runtypes/schema'` / `import type { … } from
-  // 'ts-runtypes/formats'`, so the imports read like real code (and aren't
+  // `import * as RT from '@ts-runtypes/core/schema'` / `import type { … } from
+  // '@ts-runtypes/core/formats'`, so the imports read like real code (and aren't
   // duplicated). `options` (a JSON strategy literal) rides the options slot so
   // its comptime value is folded into the injected fn hash — see factoryCall.
   const args = mode === 'schema' ? [ROOT_TYPE] : [];
   if (options) args.push(mode === 'schema' ? options : `undefined, ${options}`);
   const call = mode === 'schema' ? `${factory}(${args.join(', ')});` : `${factory}<${ROOT_TYPE}>(${args.join(', ')});`;
-  const source = [`import { ${factory} } from 'ts-runtypes';`, userCode, call, ''].join('\n');
+  const source = [`import { ${factory} } from '@ts-runtypes/core';`, userCode, call, ''].join('\n');
   dispatch({op: 'setSources', sources: {...runtypesPackageSources(), [FILE]: source}});
   const result = dispatch({op: 'scanFiles', files: [FILE], includeRunTypes: true, includeEntryModules: true});
   const sites = (result.sites as ScanResult['site'][]) ?? [];

@@ -19,7 +19,7 @@
 // stops loading — the exact ambiguity that masked this contract before.
 
 import {describe, expect, it} from 'vitest';
-import {createJsonDecoder, createJsonEncoder, getRTFnCaches, getRunTypeId} from 'ts-runtypes';
+import {createJsonDecoder, createJsonEncoder, getRTFnCaches, getRunTypeId} from '@ts-runtypes/core';
 
 interface NoJsonENCDECRequired {
   a: number;

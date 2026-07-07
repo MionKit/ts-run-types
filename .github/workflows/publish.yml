@@ -51,8 +51,8 @@ jobs:
         run: |
           # A missed bump would otherwise 409 mid-sequence after some platform
           # packages already published. Fail early and cleanly instead.
-          if npm view "ts-runtypes@${VERSION}" version >/dev/null 2>&1; then
-            echo "ts-runtypes@${VERSION} is already on npm. Bump version.json on the release PR." >&2
+          if npm view "@ts-runtypes/core@${VERSION}" version >/dev/null 2>&1; then
+            echo "@ts-runtypes/core@${VERSION} is already on npm. Bump version.json on the release PR." >&2
             exit 1
           fi
       - name: Publish to npm (platform packages first, launcher, then FE)

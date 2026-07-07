@@ -27,8 +27,8 @@ export const PRESETS: readonly Preset[] = [
   tags: string[];
   active?: boolean;
 };`,
-    schema: `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    schema: `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
   id: TF.number(),
@@ -45,7 +45,7 @@ const MyType = RT.object({
   },
   {
     name: 'User',
-    ts: `import * as TF from 'ts-runtypes/formats';
+    ts: `import * as TF from '@ts-runtypes/core/formats';
 
 type MyType = {
   id: TF.UUIDv4;
@@ -56,8 +56,8 @@ type MyType = {
   active: boolean;
   createdAt: string;
 };`,
-    schema: `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    schema: `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
   id: TF.uuidv4(),
@@ -80,7 +80,7 @@ const MyType = RT.object({
   },
   {
     name: 'Order',
-    ts: `import * as TF from 'ts-runtypes/formats';
+    ts: `import * as TF from '@ts-runtypes/core/formats';
 
 type MyType = {
   id: string;
@@ -90,8 +90,8 @@ type MyType = {
   total: TF.Positive;
   note?: string;
 };`,
-    schema: `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    schema: `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
   id: TF.string(),
@@ -119,7 +119,7 @@ const MyType = RT.object({
   },
   {
     name: 'BlogPost',
-    ts: `import * as TF from 'ts-runtypes/formats';
+    ts: `import * as TF from '@ts-runtypes/core/formats';
 
 type MyType = {
   id: number;
@@ -130,8 +130,8 @@ type MyType = {
   published: boolean;
   meta: { views: TF.Integer; likes: TF.Integer };
 };`,
-    schema: `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    schema: `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
   id: TF.number(),
@@ -154,7 +154,7 @@ const MyType = RT.object({
   },
   {
     name: 'Product',
-    ts: `import * as TF from 'ts-runtypes/formats';
+    ts: `import * as TF from '@ts-runtypes/core/formats';
 
 type MyType = {
   id: string;
@@ -165,8 +165,8 @@ type MyType = {
   inStock: boolean;
   categories: string[];
 };`,
-    schema: `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    schema: `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
   id: TF.string(),
@@ -196,8 +196,8 @@ const MyType = RT.object({
 };`,
     // Value-first recursion: \`circular(…)\` with the \`self()\` marker marking the
     // back-edge (a const can't reference itself in its own initializer).
-    schema: `import * as RT from 'ts-runtypes/schema';
-import * as TF from 'ts-runtypes/formats';
+    schema: `import * as RT from '@ts-runtypes/core/schema';
+import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.circular(
   RT.object({

@@ -11,7 +11,7 @@ import {
   overrideBinaryEncoder,
   createBinaryDecoder,
   overrideBinaryDecoder,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
 
 // Branded number — unique id, so the global override never reaches plain `number`.

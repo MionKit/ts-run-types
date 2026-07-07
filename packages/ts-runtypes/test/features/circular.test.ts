@@ -4,11 +4,11 @@
 // the anonymous `Recursive<Body>` and a named interface hash the same). The
 // `interface`s below are only the type-first half of the convergence checks.
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors, type Static} from 'ts-runtypes';
-import {circular, self, object, optional, array, union, record, literal} from 'ts-runtypes/schema';
-import 'ts-runtypes/formats';
+import {createValidate, createGetValidationErrors, type Static} from '@ts-runtypes/core';
+import {circular, self, object, optional, array, union, record, literal} from '@ts-runtypes/core/schema';
+import '@ts-runtypes/core/formats';
 
 describe('circular() — recursive schemas without types', () => {
   it('object self-ref validates + converges (static & reflect)', () => {

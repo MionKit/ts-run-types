@@ -10,7 +10,7 @@
 // TYPE INFERENCE only; the cyclic value under test comes from `getValue()`.
 
 import {expect} from 'vitest';
-import {CircularReferenceError, type GetValidationErrorsFn} from 'ts-runtypes';
+import {CircularReferenceError, type GetValidationErrorsFn} from '@ts-runtypes/core';
 
 type AnyValidateFn = (value: unknown) => boolean;
 type AnyJsonEncoderFn = (value: unknown) => string | undefined;

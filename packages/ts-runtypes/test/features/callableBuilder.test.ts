@@ -10,10 +10,10 @@
 // `createValidate` returns the cached factory for a structural id, so `toBe`
 // (reference identity) is a same-id (convergence) assertion.
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, type Static} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
+import {createValidate, type Static} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
 
 type CallableIface = {(a: number, b: boolean): string; extra: string};
 

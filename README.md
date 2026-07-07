@@ -76,7 +76,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 ## Use
 
 ```ts
-import {getRunTypeId, type InjectRunTypeId} from 'ts-runtypes';
+import {getRunTypeId, type InjectRunTypeId} from '@ts-runtypes/core';
 
 // 1. Static form — explicit type argument, no value.
 const stringId = getRunTypeId<string>();
@@ -110,7 +110,7 @@ A free type parameter (a call inside a generic body where the marker's `T` is th
 Escape hatch for a hand-tuned hot path, a wire format the structural emitter can't produce, or a one-off compiler bug. Register a custom **pure function** for one `T`; every `createX<T>()` then returns it instead of the generated body — and because the override folds into `T`'s type id, it propagates to every type that contains `T`:
 
 ```ts
-import {overrideJsonEncoder, createJsonEncoder} from 'ts-runtypes';
+import {overrideJsonEncoder, createJsonEncoder} from '@ts-runtypes/core';
 
 // Declared once, near the type. The fn MUST be pure (same rules as PureFunction).
 overrideJsonEncoder<User>((u) => `{"id":${(u as User).id}}`);
@@ -143,7 +143,7 @@ There is deliberately no `cacheDir` knob: the on-disk artifact cache (under `nod
 
 How the per-file rewrite crosses the resolver↔plugin wire. Both produce identical output; the choice is purely wire cost.
 
-- **`'edits'` (default)** — the resolver returns the raw edit list (import block + call-site splices + a source-content hash) and the plugin applies it, generating the source map itself. The wire is O(sites) instead of the whole rewritten file plus its map, so it wins the dev loop on large / many-marker files (measured 6-55× less inbound wire, growing with file size). It requires this plugin to see **pristine source**, so order `ts-runtypes-devtools` first among any `enforce: 'pre'` plugins; if another plugin edits a file before it, the source hash catches the drift, the plugin re-syncs and warns, and it falls back to `'go'` if it still can't reconcile.
+- **`'edits'` (default)** — the resolver returns the raw edit list (import block + call-site splices + a source-content hash) and the plugin applies it, generating the source map itself. The wire is O(sites) instead of the whole rewritten file plus its map, so it wins the dev loop on large / many-marker files (measured 6-55× less inbound wire, growing with file size). It requires this plugin to see **pristine source**, so order `@ts-runtypes/devtools` first among any `enforce: 'pre'` plugins; if another plugin edits a file before it, the source hash catches the drift, the plugin re-syncs and warns, and it falls back to `'go'` if it still can't reconcile.
 - **`'go'`** — the resolver applies the rewrite and returns the whole rewritten file plus its source map. Heavier wire, but the only path for a non-JS / plugin-free host, and the safe fallback. Pair it with `sourcesContent: false` to drop the embedded original source from the map (the bundler fills it when composing the chained map) — the heaviest single wire item, gone at no debuggability cost in a normal build.
 
 ## Linting (OXlint / ESLint)

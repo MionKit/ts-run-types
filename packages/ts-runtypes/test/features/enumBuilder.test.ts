@@ -11,8 +11,8 @@
 // assertion.
 
 import {describe, expect, it} from 'vitest';
-import {createValidate, type Static} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
+import {createValidate, type Static} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
 
 enum Mixed {
   Red,

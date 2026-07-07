@@ -14,10 +14,10 @@ import (
 // scanned file (dump exposes the whole thing), but the request's
 // runTypes/runTypeCacheSource projection only sees the listed files.
 func TestPerRequestScope_FilesOnly(t *testing.T) {
-	const aSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const aSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string>();
 `
-	const bSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const bSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
@@ -95,7 +95,7 @@ getRunTypeId<{a: number}>();
 // referencing the same shape produce a single wire id and the union slice
 // contains it exactly once.
 func TestPerRequestScope_DedupAcrossRequestedFiles(t *testing.T) {
-	const src = `import {getRunTypeId} from 'ts-runtypes';
+	const src = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string>();
 `
 	r := setupInline(t, map[string]string{"a.ts": src, "b.ts": src})
@@ -129,10 +129,10 @@ getRunTypeId<string>();
 // scanFiles([a]) projection contains only a's ids — no leak from the
 // pre-reset session.
 func TestPerRequestScope_ResetWipesFileRecords(t *testing.T) {
-	const aSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const aSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string>();
 `
-	const bSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const bSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
@@ -175,10 +175,10 @@ getRunTypeId<{a: number}>();
 // setSources rather than reset. setSources rebuilds the Program and so
 // must drop the per-file record map.
 func TestPerRequestScope_SetSourcesWipesFileRecords(t *testing.T) {
-	const aSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const aSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string>();
 `
-	const bSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const bSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
@@ -217,10 +217,10 @@ getRunTypeId<{a: number}>();
 // that's been recorded), regardless of which subset of files the latest
 // scanFiles call asked about.
 func TestDump_FullCacheRegardlessOfPriorScans(t *testing.T) {
-	const aSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const aSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<string>();
 `
-	const bSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const bSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
@@ -280,7 +280,7 @@ func containsID(runTypes []*protocol.RunType, id string) bool {
 // accidentally extended the scan to "every type the file declares"
 // breaks loudly.
 func TestScope_UnreferencedTypesAreNotProjected(t *testing.T) {
-	const src = `import {getRunTypeId} from 'ts-runtypes';
+	const src = `import {getRunTypeId} from '@ts-runtypes/core';
 
 // Referenced — has a marker call; should be projected.
 type Referenced = {a: string; b: number};
@@ -337,11 +337,11 @@ getRunTypeId<Referenced>();
 // file before the dump — this test confirms the eager scan finds no
 // markers in unrelated files and therefore projects nothing from them.
 func TestDump_OnlyMarkerReachableTypes(t *testing.T) {
-	const aSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const aSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 type Junk = {trash: bigint};
 getRunTypeId<{a: string}>();
 `
-	const bSrc = `import {getRunTypeId} from 'ts-runtypes';
+	const bSrc = `import {getRunTypeId} from '@ts-runtypes/core';
 interface Garbage { rubbish: Date }
 getRunTypeId<{b: number}>();
 `

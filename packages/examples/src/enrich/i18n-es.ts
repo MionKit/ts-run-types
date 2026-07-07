@@ -1,4 +1,4 @@
-import type {FriendlyText} from 'ts-runtypes';
+import type {FriendlyText} from '@ts-runtypes/core';
 import type {User} from './user';
 
 // runtypes/generated/i18n/es/models/user.ts — partially filled; blanks fall

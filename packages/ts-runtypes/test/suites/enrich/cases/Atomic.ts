@@ -1,4 +1,4 @@
-import type {FriendlyText, MockData} from 'ts-runtypes';
+import type {FriendlyText, MockData} from '@ts-runtypes/core';
 import type {EnrichCase} from './types.ts';
 
 // Atomic kinds — every primitive / literal / native-leaf produces a leaf

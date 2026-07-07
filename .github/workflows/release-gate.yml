@@ -134,8 +134,8 @@ jobs:
           # fixture's own devDeps (vite/vitest are pinned in pre-publish-e2e/package.json, not
           # here, so a workspace bump can't silently diverge the install test).
           npm install \
-            "ts-runtypes@$VERSION" \
-            "ts-runtypes-devtools@$VERSION" \
+            "@ts-runtypes/core@$VERSION" \
+            "@ts-runtypes/devtools@$VERSION" \
             --registry http://127.0.0.1:4873
           npm test
 

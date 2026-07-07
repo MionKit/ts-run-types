@@ -1,4 +1,4 @@
-import {createJsonEncoder, createBinaryEncoder, CircularReferenceError, setRejectCircularRefs} from 'ts-runtypes';
+import {createJsonEncoder, createBinaryEncoder, CircularReferenceError, setRejectCircularRefs} from '@ts-runtypes/core';
 
 // A self-referential shape: a node that can point at another Node.
 interface Node {

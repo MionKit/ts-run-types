@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import {createValidate} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createValidate} from '@ts-runtypes/core';
 // The Format* aliases are types, so `import type` reads naturally — and it's
 // fine here, because the alias is used purely at the type level.
 

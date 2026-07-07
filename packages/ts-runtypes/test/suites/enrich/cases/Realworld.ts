@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import type {FriendlyText, MockData} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import type {FriendlyText, MockData} from '@ts-runtypes/core';
 import type {EnrichCase} from './types.ts';
 
 // Real-world composite shapes — nested objects, arrays, and format-branded

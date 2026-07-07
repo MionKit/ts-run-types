@@ -1,6 +1,6 @@
-import * as TF from 'ts-runtypes/formats';
-import {type Static} from 'ts-runtypes';
-import * as RT from 'ts-runtypes/schema';
+import * as TF from '@ts-runtypes/core/formats';
+import {type Static} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/schema';
 
 // Build a schema as a value you can pass around, store, or compose.
 const address = RT.object({

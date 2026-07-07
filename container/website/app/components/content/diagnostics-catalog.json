@@ -161,7 +161,7 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "summary": "Same case as `VL001`, from `createGetValidationErrors`. The type is a built-in that carries runtime state and cannot survive a JSON round trip. Report errors against a plain shape, or convert the value first.",
       "fix": null,
-      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nexport const errorsOf = createGetValidationErrors<Uint8Array>();"
+      "example": "import {createGetValidationErrors} from '@ts-runtypes/core';\nexport const errorsOf = createGetValidationErrors<Uint8Array>();"
     },
     {
       "code": "VE002",
@@ -171,7 +171,7 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "summary": "Same case as `VL002`, from `createGetValidationErrors`. The type is a bare `symbol`, which cannot round trip. Use a string union instead.",
       "fix": null,
-      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nexport const errorsOf = createGetValidationErrors<symbol>();"
+      "example": "import {createGetValidationErrors} from '@ts-runtypes/core';\nexport const errorsOf = createGetValidationErrors<symbol>();"
     },
     {
       "code": "VE010",
@@ -191,7 +191,7 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`validationErrors` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "summary": "Same case as `VL011`, from `createGetValidationErrors`. A method or function-typed property is behavior, not data, so it is left out of the report.",
       "fix": null,
-      "example": "import {createGetValidationErrors} from 'ts-runtypes';\ninterface User { name: string; greet(): string; }\nexport const errorsOf = createGetValidationErrors<User>();"
+      "example": "import {createGetValidationErrors} from '@ts-runtypes/core';\ninterface User { name: string; greet(): string; }\nexport const errorsOf = createGetValidationErrors<User>();"
     },
     {
       "code": "VE012",
@@ -201,7 +201,7 @@
       "detail": "Class static members live on the class, not on individual instances.\n`validationErrors` operates on instance shape, so statics are excluded.",
       "summary": "Same case as `VL012`, from `createGetValidationErrors`. Static members are not part of instance data, so they are left out.",
       "fix": null,
-      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nclass Config { static version = 1; name = ''; }\nexport const errorsOf = createGetValidationErrors<Config>();"
+      "example": "import {createGetValidationErrors} from '@ts-runtypes/core';\nclass Config { static version = 1; name = ''; }\nexport const errorsOf = createGetValidationErrors<Config>();"
     },
     {
       "code": "VE013",
@@ -221,7 +221,7 @@
       "detail": "`validationErrors` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `validationErrors` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "summary": "Same case as `VL015`, from `createGetValidationErrors`. A property whose value has no data form is left out of the report.",
       "fix": null,
-      "example": "import {createGetValidationErrors} from 'ts-runtypes';\ninterface Box { id: symbol; name: string; }\nexport const errorsOf = createGetValidationErrors<Box>();"
+      "example": "import {createGetValidationErrors} from '@ts-runtypes/core';\ninterface Box { id: symbol; name: string; }\nexport const errorsOf = createGetValidationErrors<Box>();"
     },
     {
       "code": "VE020",
@@ -231,7 +231,7 @@
       "detail": "Same reason as VL021: `any` and `unknown` describe \"anything\", so the\nchecker has no structure to compare against. The returned error array\nwill always be empty.\n\nFix — narrow the type to the actual shape you expect:\n  -  const errors = createGetValidationErrors<unknown>()(value);\n+  const errors = createGetValidationErrors<User>()(value);",
       "summary": "Same idea as `VL021`, from `createGetValidationErrors`. On `any` or `unknown` there is nothing to compare against, so the report is always empty. Narrow the type to the shape you expect.",
       "fix": null,
-      "example": "import {createGetValidationErrors} from 'ts-runtypes';\nexport const errorsOf = createGetValidationErrors<unknown>();"
+      "example": "import {createGetValidationErrors} from '@ts-runtypes/core';\nexport const errorsOf = createGetValidationErrors<unknown>();"
     },
     {
       "code": "VL001",
@@ -241,7 +241,7 @@
       "detail": "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
       "summary": "The type you validate is a built-in that carries runtime state, like a `WeakMap`, a `WeakSet`, or a typed array such as `Uint8Array`. None of these survive a JSON round trip, so a guard that passed for one would claim a safety it cannot deliver. Validate a plain shape, or convert the value before you validate it.",
       "fix": "const bytes = Array.from(myUint8Array);\nconst isData = createValidate<number[]>();",
-      "example": "import {createValidate} from 'ts-runtypes';\nexport const isData = createValidate<Uint8Array>();"
+      "example": "import {createValidate} from '@ts-runtypes/core';\nexport const isData = createValidate<Uint8Array>();"
     },
     {
       "code": "VL002",
@@ -251,7 +251,7 @@
       "detail": "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
       "summary": "The type is a bare `symbol`. Every symbol has its own runtime identity, so it cannot round trip across a network or a process boundary. Use a stable string union instead.",
       "fix": "type Status = 'pending' | 'active' | 'done';",
-      "example": "import {createValidate} from 'ts-runtypes';\nexport const isData = createValidate<symbol>();"
+      "example": "import {createValidate} from '@ts-runtypes/core';\nexport const isData = createValidate<symbol>();"
     },
     {
       "code": "VL010",
@@ -271,7 +271,7 @@
       "detail": "Class and object methods aren't part of the serialisable shape, so\n`validate` excludes them. The rest of the type still works.\n\nIf you wanted the method's return value validated/serialised, expose it\nas a data property instead.",
       "summary": "A function-valued member, written as a method like `greet(): string` or as a function-typed property like `onClick: () => void`, is behavior, not data, so it is left out of the validated shape. Expose the data you need as a plain property instead.",
       "fix": null,
-      "example": "import {createValidate} from 'ts-runtypes';\ninterface User { name: string; greet(): string; }\nexport const isUser = createValidate<User>();"
+      "example": "import {createValidate} from '@ts-runtypes/core';\ninterface User { name: string; greet(): string; }\nexport const isUser = createValidate<User>();"
     },
     {
       "code": "VL012",
@@ -281,7 +281,7 @@
       "detail": "Class static members live on the class, not on individual instances.\n`validate` operates on instance shape, so statics are excluded.",
       "summary": "Static members live on the class, not on an instance. Validation works on instance shape, so statics are left out.",
       "fix": null,
-      "example": "import {createValidate} from 'ts-runtypes';\nclass Config { static version = 1; name = ''; }\nexport const isConfig = createValidate<Config>();"
+      "example": "import {createValidate} from '@ts-runtypes/core';\nclass Config { static version = 1; name = ''; }\nexport const isConfig = createValidate<Config>();"
     },
     {
       "code": "VL013",
@@ -301,7 +301,7 @@
       "detail": "A union projects to its serialisable members only: `DataOnly<Date | symbol>`\nis `Date`. The dropped member(s) ({0}) carry no JSON-shaped value (symbol,\nfunction, Promise, or a non-serialisable built-in like `Map` / `Set` /\ntyped arrays), so `validate` validated only the members that remain.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If EVERY member of the union is non-serialisable the\nprojection is `never`, and `validate` throws at build time instead.",
       "summary": "A union is validated as the members that have a data form. `Date | symbol` validates as `Date`. If every member has no data form the projection is `never`, and validation throws at build time instead.",
       "fix": null,
-      "example": "import {createValidate} from 'ts-runtypes';\nexport const isData = createValidate<Date | symbol>();"
+      "example": "import {createValidate} from '@ts-runtypes/core';\nexport const isData = createValidate<Date | symbol>();"
     },
     {
       "code": "VL015",
@@ -311,7 +311,7 @@
       "detail": "`validate` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object's behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `validate` throws at build\ntime instead.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
       "summary": "A property whose value is a symbol, a Promise, or a non-serializable built-in has no data form, so `{ id: symbol }` validates as `{}`. A value that is only structurally unserializable, like `symbol[]` or `Map<string, symbol>`, cannot be dropped without changing the shape, so that case throws at build time instead.",
       "fix": null,
-      "example": "import {createValidate} from 'ts-runtypes';\ninterface Box { id: symbol; name: string; }\nexport const isBox = createValidate<Box>();"
+      "example": "import {createValidate} from '@ts-runtypes/core';\ninterface Box { id: symbol; name: string; }\nexport const isBox = createValidate<Box>();"
     },
     {
       "code": "VL021",
@@ -321,14 +321,14 @@
       "detail": "`any` and `unknown` describe \"anything\", so a structural validator has\nnothing to check. The resulting function passes for every input —\nincluding the ones you probably wanted to reject.\n\nFix — narrow the type to the actual shape you expect:\n  -  const isUser = createValidate<unknown>();\n+  const isUser = createValidate<User>();",
       "summary": "`any` and `unknown` describe anything, so a structural check has nothing to compare against. The guard is always true. Narrow the type to the shape you expect.",
       "fix": "const isUser = createValidate<User>(); // instead of <unknown>",
-      "example": "import {createValidate} from 'ts-runtypes';\nexport const isAnything = createValidate<unknown>();"
+      "example": "import {createValidate} from '@ts-runtypes/core';\nexport const isAnything = createValidate<unknown>();"
     },
     {
       "code": "CLS001",
       "subsystem": "serialization",
       "severity": "warning",
       "headline": "class `{0}` is serialized structurally; register it via `registerClassSerializer({0}, { deserialize })` to round-trip a real instance.",
-      "detail": "By default a user class is serialized by its declared properties and\ndecoded back to a prototype-less plain object — `instanceof {0}` is\nfalse on the decoded value, and any class methods / getters are gone.\nThis is fine when you only care about the data.\n\nTo round-trip a real `{0}` instance, register it once, passing the class\nitself (not a name string):\n  import {registerClassSerializer} from 'ts-runtypes';\n\n  // zero-arg constructor: nothing else needed\n  registerClassSerializer({0});\n\n  // non-empty constructor: only `deserialize` is required\n  registerClassSerializer({0}, {\n    deserialize: (data) => new {0}(/* rebuild from data */),\n  });\n\n`serialize` is optional (default: structural, same as any interface);\n`deserialize` is optional for a zero-arg class (default:\n`Object.assign(new {0}(), data)`). The same registration is used by the\nJSON and binary families. `validate` / `getValidationErrors` are\nunaffected — they always validate structurally.",
+      "detail": "By default a user class is serialized by its declared properties and\ndecoded back to a prototype-less plain object — `instanceof {0}` is\nfalse on the decoded value, and any class methods / getters are gone.\nThis is fine when you only care about the data.\n\nTo round-trip a real `{0}` instance, register it once, passing the class\nitself (not a name string):\n  import {registerClassSerializer} from '@ts-runtypes/core';\n\n  // zero-arg constructor: nothing else needed\n  registerClassSerializer({0});\n\n  // non-empty constructor: only `deserialize` is required\n  registerClassSerializer({0}, {\n    deserialize: (data) => new {0}(/* rebuild from data */),\n  });\n\n`serialize` is optional (default: structural, same as any interface);\n`deserialize` is optional for a zero-arg class (default:\n`Object.assign(new {0}(), data)`). The same registration is used by the\nJSON and binary families. `validate` / `getValidationErrors` are\nunaffected — they always validate structurally.",
       "summary": null,
       "fix": null,
       "example": null
@@ -1180,7 +1180,7 @@
       "headline": "Pure-fn `{0}` is referenced by a RT function but never registered — call `registerPureFnFactory('{1}::{2}', …)` first.",
       "detail": "A RT validator/encoder calls `utl.usePureFn('{0}')` (or similar) but\nno `registerPureFnFactory` call with that namespace+function pair was\nfound in any scanned source file.\n\nFix — register the function in the expected location ({3}, if known).\nMake sure the file is included in the scan set.",
       "summary": "A generated validator or encoder calls a helper (a pure function) that was never registered, so the built output would fail the moment it runs. This almost always means a source file that registers the helper with `registerPureFnFactory` is not part of the compile. Import the `ts-runtypes` entry that provides it, or include the file that registers it, so the build can see the definition.",
-      "fix": "import {registerPureFnFactory} from 'ts-runtypes';\nregisterPureFnFactory('rt::newRunTypeErr', (utl) => (message) => new Error(message));",
+      "fix": "import {registerPureFnFactory} from '@ts-runtypes/core';\nregisterPureFnFactory('rt::newRunTypeErr', (utl) => (message) => new Error(message));",
       "example": null
     },
     {

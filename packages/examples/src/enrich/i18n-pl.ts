@@ -1,4 +1,4 @@
-import type {FriendlyText} from 'ts-runtypes';
+import type {FriendlyText} from '@ts-runtypes/core';
 import type {User} from './user';
 
 // Fill what you can, leave the rest blank — a blank leaf keeps rendering in

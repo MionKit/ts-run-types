@@ -2,7 +2,7 @@ import {defineConfig} from 'vitest/config';
 
 export default defineConfig({
   test: {
-    name: 'ts-runtypes-devtools',
+    name: '@ts-runtypes/devtools',
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts'],

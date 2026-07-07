@@ -1,4 +1,4 @@
-import {createMockType, createValidate} from 'ts-runtypes';
+import {createMockType, createValidate} from '@ts-runtypes/core';
 
 type User = {
   id: number;

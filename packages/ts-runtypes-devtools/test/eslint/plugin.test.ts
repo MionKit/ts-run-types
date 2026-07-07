@@ -14,14 +14,14 @@ import {ResolverClient} from '../../src/resolver-client.ts';
 import {TODO_LINE, TODO_TAG} from '../../src/runtypes-constants.generated.ts';
 import {BIN, hasBinary, makeFixtureProject, runRule, type FixtureProject, type LintReportedProblem} from './fixture.ts';
 
-const FORMS_TS = `import {getRunTypeId} from 'ts-runtypes';
+const FORMS_TS = `import {getRunTypeId} from '@ts-runtypes/core';
 
 export const staticId = getRunTypeId<string>();
 const s: string = 'hello';
 export const reflectId = getRunTypeId(s);
 `;
 
-const BAD_FORM_TS = `import {getRunTypeId} from 'ts-runtypes';
+const BAD_FORM_TS = `import {getRunTypeId} from '@ts-runtypes/core';
 
 function load(): {name: string} {
   return {name: 'x'};
@@ -29,14 +29,14 @@ function load(): {name: string} {
 export const id = getRunTypeId(load());
 `;
 
-const GENERIC_MARKER_TS = `import {createValidate} from 'ts-runtypes';
+const GENERIC_MARKER_TS = `import {createValidate} from '@ts-runtypes/core';
 
 export function makeValidator<T>() {
   return createValidate<T>();
 }
 `;
 
-const WIDGET_TS = `import {createValidate} from 'ts-runtypes';
+const WIDGET_TS = `import {createValidate} from '@ts-runtypes/core';
 
 interface Widget {
   label: string;
@@ -53,7 +53,7 @@ const USER_TS = `export interface User {
 `;
 
 const MIRROR_DIRTY_TS = `import type { User } from './user';
-import type { FriendlyText, MockData } from 'ts-runtypes';
+import type { FriendlyText, MockData } from '@ts-runtypes/core';
 
 /** @rtType User#u1 @rtIds {age: a1, name: n1} */
 ${TODO_LINE}
@@ -73,7 +73,7 @@ export const keep = {/* @rtOrphanChild old: 1, */ fresh: 1};
 `;
 
 const MIRROR_CLEAN_TS = `import type { User } from './user';
-import type { FriendlyText } from 'ts-runtypes';
+import type { FriendlyText } from '@ts-runtypes/core';
 
 /** @rtType User#u1 @rtIds {age: a1, name: n1} */
 export const friendlyUser: FriendlyText<User> = {
@@ -83,7 +83,7 @@ export const friendlyUser: FriendlyText<User> = {
 `;
 
 const MIRROR_DRIFT_TS = `import type { Ghost } from './ghost';
-import type { FriendlyText } from 'ts-runtypes';
+import type { FriendlyText } from '@ts-runtypes/core';
 
 /** @rtType Ghost#g1 */
 export const friendlyGhost: FriendlyText<{name: string}> = {

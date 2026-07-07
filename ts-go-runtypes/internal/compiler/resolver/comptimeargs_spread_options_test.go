@@ -28,7 +28,7 @@ func scanFnIds(t *testing.T, code string) []string {
 // preset's options and collapse to the no-options variant (which would emit a
 // validator that ignores the requested options).
 func TestSpreadOptions_ValidateMergeEquivalent(t *testing.T) {
-	const code = `import {createValidate} from 'ts-runtypes';
+	const code = `import {createValidate} from '@ts-runtypes/core';
 const strict = {noLiterals: true, noIsArrayCheck: true} as const;
 export const spread = createValidate<string>(undefined, {...strict});
 export const inline = createValidate<string>(undefined, {noLiterals: true, noIsArrayCheck: true});
@@ -52,7 +52,7 @@ export const none = createValidate<string>();
 // option, so the variant matches the inlined `{noIsArrayCheck: true}` — NOT
 // the both-options variant.
 func TestSpreadOptions_ValidateOverrideOrder(t *testing.T) {
-	const code = `import {createValidate} from 'ts-runtypes';
+	const code = `import {createValidate} from '@ts-runtypes/core';
 const strict = {noLiterals: true, noIsArrayCheck: true} as const;
 export const overridden = createValidate<string>(undefined, {...strict, noLiterals: false});
 export const onlyArray = createValidate<string>(undefined, {noIsArrayCheck: true});
@@ -75,7 +75,7 @@ export const both = createValidate<string>(undefined, {noLiterals: true, noIsArr
 // spread preset selects its strategy, and an inline strategy after the spread
 // overrides it (last-write-wins) — both matching the inlined equivalents.
 func TestSpreadOptions_StrategyMergeAndOverride(t *testing.T) {
-	const code = `import {createJsonEncoder} from 'ts-runtypes';
+	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
 const preset = {strategy: 'mutate'} as const;
 export const spread = createJsonEncoder<{x: number}>(undefined, {...preset});
 export const inlineMutate = createJsonEncoder<{x: number}>(undefined, {strategy: 'mutate'});
@@ -103,7 +103,7 @@ export const inlineDirect = createJsonEncoder<{x: number}>(undefined, {strategy:
 // same-module one (the trace follows import aliases).
 func TestSpreadOptions_CrossModuleFragment(t *testing.T) {
 	const optsModule = `export const strict = {noLiterals: true, noIsArrayCheck: true} as const;`
-	const code = `import {createValidate} from 'ts-runtypes';
+	const code = `import {createValidate} from '@ts-runtypes/core';
 import {strict} from './opts';
 export const spread = createValidate<string>(undefined, {...strict});
 export const inline = createValidate<string>(undefined, {noLiterals: true, noIsArrayCheck: true});

@@ -5,8 +5,8 @@
 // `RunType<T>` (the runtime run-type node, typed with the source type `T`);
 // `Static<typeof X>` recovers `T`:
 //
-//   import {boolean, literal, enumType} from 'ts-runtypes/schema';
-//   import {createValidate, type Static} from 'ts-runtypes';
+//   import {boolean, literal, enumType} from '@ts-runtypes/core/schema';
+//   import {createValidate, type Static} from '@ts-runtypes/core';
 //
 //   const Flag = boolean();              // RunType<boolean>
 //   const isFlag = createValidate(Flag); // validator from the schema

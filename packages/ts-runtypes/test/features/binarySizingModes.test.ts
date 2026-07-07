@@ -8,9 +8,9 @@
 //   - 'initialSize'            (val, size) => Uint8Array caller size; throws on overflow
 //   - 'intoBuffer'                   (val, into) => Uint8Array caller buffer; throws on overflow (zero-copy)
 
-import * as TF from 'ts-runtypes/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
-import * as RT from 'ts-runtypes/schema';
+import * as RT from '@ts-runtypes/core/schema';
 import {
   createBinaryEncoder,
   createBinaryDecoder,
@@ -21,7 +21,7 @@ import {
   type BinaryEncoderIntoFn,
   type BinarySizerFn,
   type BinaryDecoderFn,
-} from 'ts-runtypes';
+} from '@ts-runtypes/core';
 import {createSizingSerializer, createDataViewSerializer} from '../../src/runtypes/dataView.ts';
 
 // Compile-time guard: the createBinaryEncoder overload must SPECIALISE the

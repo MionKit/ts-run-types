@@ -26,7 +26,7 @@ import (
 // path; F35 is the most direct exercise of it.
 
 func TestF35_RestOnlyFunction_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type Fn = (...args: string[]) => void;
 getRunTypeId<Fn>();
 `
@@ -35,7 +35,7 @@ getRunTypeId<Fn>();
 }
 
 func TestF35_RestOnlyFunction_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 function fn(...args: string[]): void {}
 getRunTypeId(fn);
 `
@@ -85,7 +85,7 @@ func assertF35RestOnlyFunction(t *testing.T, r *resolver.Session, root *protocol
 //	(a: number, b?: string, ...rest: boolean[]) => string
 
 func TestF36_MixedFunction_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type Fn = (a: number, b?: string, ...rest: boolean[]) => string;
 getRunTypeId<Fn>();
 `
@@ -94,7 +94,7 @@ getRunTypeId<Fn>();
 }
 
 func TestF36_MixedFunction_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 function fn(a: number, b?: string, ...rest: boolean[]): string { return ""; }
 getRunTypeId(fn);
 `
@@ -163,7 +163,7 @@ func assertF36MixedFunction(t *testing.T, r *resolver.Session, root *protocol.Ru
 //	(x: number) => Promise<{ok: boolean}>
 
 func TestF37_PromiseReturn_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 type Fn = (x: number) => Promise<{ok: boolean}>;
 getRunTypeId<Fn>();
 `
@@ -172,7 +172,7 @@ getRunTypeId<Fn>();
 }
 
 func TestF37_PromiseReturn_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 async function fn(x: number): Promise<{ok: boolean}> { return {ok: true}; }
 getRunTypeId(fn);
 `
@@ -214,7 +214,7 @@ func assertF37PromiseReturn(t *testing.T, r *resolver.Session, root *protocol.Ru
 //	class Service { greet(name: string, opts?: {tag: string}): string { … } }
 
 func TestF38_ClassMethodFullShape_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
@@ -225,7 +225,7 @@ getRunTypeId<Service>();
 }
 
 func TestF38_ClassMethodFullShape_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
@@ -285,7 +285,7 @@ func assertF38ClassMethodFullShape(t *testing.T, r *resolver.Session, root *prot
 //	interface I { greet(name: string): string; }
 
 func TestF39_MethodSignatureFullShape_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface I { greet(name: string): string; }
 getRunTypeId<I>();
 `
@@ -294,7 +294,7 @@ getRunTypeId<I>();
 }
 
 func TestF39_MethodSignatureFullShape_Reflect(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface I { greet(name: string): string; }
 declare const value: I;
 getRunTypeId(value);
@@ -342,7 +342,7 @@ func assertF39MethodSignatureFullShape(t *testing.T, r *resolver.Session, root *
 // sig + no properties → KindFunction" path that F35/F36/F37 exercise.
 
 func TestF40_CallSignatureInMixedObject_Static(t *testing.T) {
-	const code = `import {getRunTypeId} from 'ts-runtypes';
+	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 interface Tagged { (x: number): string; tag: "tagged"; }
 getRunTypeId<Tagged>();
 `

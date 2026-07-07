@@ -1,4 +1,4 @@
-import {getRunTypeId} from 'ts-runtypes';
+import {getRunTypeId} from '@ts-runtypes/core';
 
 // Two interfaces, different names — but the exact same shape.
 interface User {

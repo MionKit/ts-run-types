@@ -70,7 +70,7 @@ export async function main() {
   // FE packages via `pnpm publish` (rewrites workspace:* → concrete versions).
   // ts-runtypes-bin was already published in the loop above; only ts-runtypes +
   // ts-runtypes-devtools publish here.
-  runOrThrow('pnpm', ['--filter', 'ts-runtypes', '--filter', 'ts-runtypes-devtools', 'publish', '--no-git-checks', '--ignore-scripts', '--access', 'public', ...otpFlag]);
+  runOrThrow('pnpm', ['--filter', 'ts-runtypes', '--filter', '@ts-runtypes/devtools', 'publish', '--no-git-checks', '--ignore-scripts', '--access', 'public', ...otpFlag]);
 
   console.log('');
   console.log(green('══════════════════════════════════════════'));

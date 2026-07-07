@@ -1,5 +1,5 @@
-import type * as TF from 'ts-runtypes/formats';
-import {createMockType} from 'ts-runtypes';
+import type * as TF from '@ts-runtypes/core/formats';
+import {createMockType} from '@ts-runtypes/core';
 
 // Type formats don't just validate — mocks respect them too.
 type Contact = {

@@ -26,7 +26,7 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 // Mirror of internal/testfixtures/runtypes.d.ts. Always overlaid by
 // `withInlineSources` so per-test fixtures don't have to redeclare the
 // fake `ts-runtypes` module.
-export const RUNTYPES_DTS = `declare module 'ts-runtypes' {
+export const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
