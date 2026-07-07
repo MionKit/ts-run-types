@@ -74,9 +74,9 @@ export const OPERATIONS: readonly Operation[] = [
     group: 'JSON encode',
     menuLabel: 'clone (default)',
     label: 'createJsonEncoder',
-    blurb: 'Encode to JSON by cloning the declared shape.',
+    blurb: 'Encode to JSON and removes unknown keys by cloning objects.',
     detail:
-      'Builds a fresh value from the declared type, so undeclared keys are dropped for free, then hands it to JSON.stringify. Never touches your input. This is the default strategy.',
+      'Clones the declared type, so unknown keys are dropped for free, then hands it to JSON.stringify. Never touches your input. This is the default strategy.',
     needsInput: true,
     varName: 'toJson',
     options: "{strategy: 'clone'}",
