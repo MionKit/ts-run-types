@@ -98,7 +98,7 @@ const PROBE_TYPEBOX = path.join(TYPEBOX_DIR, '__typecost_probe.ts');
 const PROBE_TYPIA = path.join(TYPIA_DIR, '__typecost_probe.ts');
 const PROBE_PATHS = new Set([PROBE_TSGO, PROBE_ZOD, PROBE_TYPEBOX, PROBE_TYPIA]);
 
-const MARKER = path.join(TSGO_DIR, 'node_modules', '@mionjs', 'ts-runtypes', 'dist');
+const MARKER = path.join(TSGO_DIR, 'node_modules', '@ts-runtypes', 'core', 'dist');
 
 const OPTIONS = {
   strict: true,
@@ -119,7 +119,7 @@ const OPTIONS = {
   // also carries a valid `exports` map, so natural node_modules resolution works
   // too — these just make it bulletproof regardless of probe location).
   paths: {
-    'ts-runtypes': [path.join(MARKER, 'index.d.ts')],
+    '@ts-runtypes/core': [path.join(MARKER, 'index.d.ts')],
     '@ts-runtypes/core/schema': [path.join(MARKER, 'schema', 'index.d.ts')],
     '@ts-runtypes/core/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
     '@ts-runtypes/core/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
