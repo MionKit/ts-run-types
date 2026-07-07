@@ -52,8 +52,8 @@ export default defineNuxtConfig({
     plugins: isDev ? [exampleWatcherPlugin(usePolling)] : [],
     resolve: {
       alias: [
-        { find: /^ts-runtypes\/formats$/, replacement: `${rtDist}/formats/index.js` },
-        { find: /^ts-runtypes$/, replacement: `${rtDist}/index.js` }
+        { find: /^@ts-runtypes\/core\/formats$/, replacement: `${rtDist}/formats/index.js` },
+        { find: /^@ts-runtypes\/core$/, replacement: `${rtDist}/index.js` }
       ]
     },
     // Monaco is loaded lazily (client-only) with a no-op worker stub, so Vite must
