@@ -137,9 +137,9 @@ function mountArgs(cfg) {
   // TS-GO competitor: host Go binary + first-party packages.
   const tsgo = '/bench/competitors/ts-runtypes';
   args.push('-v', `${LINUX_BIN}:${tsgo}/bin/ts-runtypes:ro${mo}`);
-  args.push('-v', `${MARKER_PKG}:${tsgo}/node_modules/ts-runtypes:ro${mo}`);
-  args.push('-v', `${PLUGIN_PKG}:${tsgo}/node_modules/ts-runtypes-devtools:ro${mo}`);
-  if (existsSync(join(BIN_PKG, 'lib/index.js'))) args.push('-v', `${BIN_PKG}:${tsgo}/node_modules/ts-runtypes-bin:ro${mo}`);
+  args.push('-v', `${MARKER_PKG}:${tsgo}/node_modules/@ts-runtypes/core:ro${mo}`);
+  args.push('-v', `${PLUGIN_PKG}:${tsgo}/node_modules/@ts-runtypes/devtools:ro${mo}`);
+  if (existsSync(join(BIN_PKG, 'lib/index.js'))) args.push('-v', `${BIN_PKG}:${tsgo}/node_modules/@ts-runtypes/bin:ro${mo}`);
 
   // typia's native ttsc plugin is BAKED into the image; do NOT mount a volume (an
   // empty named volume would shadow it and force a ~90-200s recompile).
@@ -252,7 +252,7 @@ function cmdSerialization(cfg) {
   const tsgo = '/bench/competitors/ts-runtypes';
   const mo = cfg.mountOpts;
   const extraMounts = [];
-  if (existsSync(join(BIN_PKG, 'lib/index.js'))) extraMounts.push('-v', `${BIN_PKG}:${tsgo}/node_modules/ts-runtypes-bin:ro${mo}`);
+  if (existsSync(join(BIN_PKG, 'lib/index.js'))) extraMounts.push('-v', `${BIN_PKG}:${tsgo}/node_modules/@ts-runtypes/bin:ro${mo}`);
   note(`serialization bench (in-container, native Temporal) -> ${out}`);
   run(
     cfg.engine,
@@ -260,16 +260,16 @@ function cmdSerialization(cfg) {
       'run', '--rm', '--init', ...netArgs(cfg), ...extraMounts,
       '-v', `${LINUX_BIN}:${tsgo}/bin/ts-runtypes:ro${mo}`,
       '-v', `${LINUX_EXTRACT_BIN}:${tsgo}/bin/extract-fn-bodies:ro${mo}`,
-      '-v', `${MARKER_PKG}:${tsgo}/node_modules/ts-runtypes:ro${mo}`,
-      '-v', `${PLUGIN_PKG}:${tsgo}/node_modules/ts-runtypes-devtools:ro${mo}`,
+      '-v', `${MARKER_PKG}:${tsgo}/node_modules/@ts-runtypes/core:ro${mo}`,
+      '-v', `${PLUGIN_PKG}:${tsgo}/node_modules/@ts-runtypes/devtools:ro${mo}`,
       '-v', `${join(SCRIPT_DIR, 'gen-serialization.mjs')}:${tsgo}/gen-serialization.mjs:ro${mo}`,
       '-v', `${out}:/bench/bench-out${mo}`,
       '-e', `RT_BENCH_REPO_ROOT=${tsgo}`,
       '-e', `RT_BENCH_VITE_ROOT=${tsgo}`,
-      '-e', `RT_BENCH_PACKAGE_ROOT=${tsgo}/node_modules/ts-runtypes`,
+      '-e', `RT_BENCH_PACKAGE_ROOT=${tsgo}/node_modules/@ts-runtypes/core`,
       '-e', `RT_BENCH_RT_OUTDIR=${tsgo}/.rt-bench-runtypes`,
       '-e', `RT_BENCH_BIN=${tsgo}/bin/ts-runtypes`,
-      '-e', 'RT_BENCH_PLUGIN_ENTRY=ts-runtypes-devtools/vite',
+      '-e', 'RT_BENCH_PLUGIN_ENTRY=@ts-runtypes/devtools/vite',
       '-e', `RT_EXTRACT_BIN=${tsgo}/bin/extract-fn-bodies`,
       '-e', 'RT_BENCH_OUT_DIR=/bench/bench-out',
       '-e', 'RT_BENCH_SSR_NOEXTERNAL=ts-runtypes,ts-runtypes-devtools',
