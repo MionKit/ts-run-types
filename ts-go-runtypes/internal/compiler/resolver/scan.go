@@ -751,9 +751,18 @@ func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 		if lastParam == nil {
 			continue
 		}
-		paramType := checker.Checker_getTypeOfSymbol(state.scanChecker, lastParam)
-		kind, _, matched := state.detectMarker(paramType)
-		if matched && (kind == marker.KindInjectRunTypeId || kind == marker.KindInjectTypeFnArgs) {
+		// Gate on the WRITTEN annotation, not the resolved type. An enclosing
+		// marker is one of OUR functions — it DECLARES its trailing slot as
+		// `InjectRunTypeId<…>` / `InjectTypeFnArgs<…>`. Matching the resolved
+		// type instead (the old `detectMarker` path) also fired for an unrelated
+		// generic passer-through whose trailing parameter merely INFERRED the
+		// branded marker type from a marker-typed argument — e.g.
+		// `expect(getRunTypeId<T>()).toBe(x)`, where `Assertion<U>.toBe(expected: U)`
+		// instantiates `expected` to `InjectRunTypeId<T>`. That false positive made
+		// the scanner treat `.toBe` as an enclosing marker and drop the injection
+		// on BOTH inner `getRunTypeId` calls. See
+		// docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md.
+		if comptimeargs.IsInjectionMarkerParamNode(state.scanChecker, lastParam, state.sess.marker) {
 			return true
 		}
 	}

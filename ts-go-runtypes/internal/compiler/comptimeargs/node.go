@@ -53,3 +53,60 @@ func IsCompTimeArgsParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symb
 	}
 	return false
 }
+
+// IsInjectionMarkerParamNode reports whether paramSymbol's declared type
+// annotation SYNTACTICALLY references an injection-marker alias — a trailing
+// `id?: InjectRunTypeId<…>` or `ids?: InjectTypeFnArgs<…>` slot declared in the
+// marker package.
+//
+// Unlike marker.DetectAny, which matches the RESOLVED parameter type, this
+// reads the WRITTEN annotation. The two agree for a genuine marker function
+// (which declares the annotation), but they DIVERGE for an unrelated generic
+// function whose parameter merely INFERRED the branded marker type from a
+// marker-typed argument. The load-bearing example is vitest's
+// `expect(getRunTypeId<T>()).toBe(x)`: `expect` returns `Assertion<InjectRunTypeId<T>>`,
+// so `Assertion<U>.toBe(expected: U)` instantiates `expected` to
+// `InjectRunTypeId<T>`. DetectAny (correctly, at the type level) matches that
+// inferred type — but `toBe` is not one of our functions, and only the
+// syntactic annotation (`expected: U`, not `expected: InjectRunTypeId<…>`)
+// tells them apart. enclosedByInjectionMarker gates on this so it never
+// mistakes such a passer-through for an enclosing marker (which would wrongly
+// drop the argument's OWN injection). See
+// docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md.
+func IsInjectionMarkerParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symbol, opts marker.Options) bool {
+	if typeChecker == nil || paramSymbol == nil {
+		return false
+	}
+	opts = marker.WithDefaults(opts)
+	for _, declaration := range paramSymbol.Declarations {
+		if declaration == nil || !ast.IsParameterDeclaration(declaration) {
+			continue
+		}
+		typeNode := declaration.AsParameterDeclaration().Type
+		if typeNode == nil || !ast.IsTypeReferenceNode(typeNode) {
+			continue
+		}
+		typeName := typeNode.AsTypeReferenceNode().TypeName
+		if typeName == nil || typeName.Kind != ast.KindIdentifier {
+			continue
+		}
+		// Resolve through any `import {InjectRunTypeId}` alias, then require the
+		// marker package's symbol name + declaring module — the same rigor
+		// IsCompTimeArgsParamNode / DetectAny apply, so a user's own same-named
+		// local brand never triggers.
+		symbol := ResolveImportAlias(typeChecker, typeChecker.GetSymbolAtLocation(typeName))
+		if symbol == nil {
+			continue
+		}
+		for _, kind := range []marker.Kind{marker.KindInjectRunTypeId, marker.KindInjectTypeFnArgs} {
+			spec, ok := marker.SpecForKind(opts, kind)
+			if !ok || symbol.Name != spec.Name {
+				continue
+			}
+			if marker.DeclaredInModule(symbol, spec.Module, opts.FS) {
+				return true
+			}
+		}
+	}
+	return false
+}
