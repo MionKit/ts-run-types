@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Platform launcher for the ts-runtypes resolver binary. Resolves and execs the prebuilt native binary for the host platform; the binary itself rides as a per-platform optional dependency. Ships zero runtime dependencies.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "bin": {
     "ts-runtypes-bin": "./bin/cli.js"
   },
@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mionkit/ts-runtypes.git",
+    "url": "git+https://github.com/MionKit/ts-run-types.git",
     "directory": "packages/ts-runtypes-bin"
   },
   "comment:tsgo": "Pinned tsgolint / typescript-go revision the published binaries are built against. Pure metadata (not part of semver); refreshed at publish time by scripts/release/build-binaries.mjs.",

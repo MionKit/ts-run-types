@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "RunTypes devtools: cross-bundler plugin (Vite/Rollup/Rolldown/webpack/Rspack/esbuild) that rewrites RunTypes marker calls using the ts-runtypes resolver, plus an OXlint/ESLint lint plugin.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -53,7 +53,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mionkit/ts-runtypes.git",
+    "url": "git+https://github.com/MionKit/ts-run-types.git",
     "directory": "packages/ts-runtypes-devtools"
   },
   "scripts": {

@@ -16,7 +16,9 @@ import {fileURLToPath} from 'node:url';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TARBALLS = path.join(REPO_ROOT, 'tarballs');
 const DIST_BINARIES = path.join(REPO_ROOT, 'dist-binaries');
-const FE_PACKAGES = ['@ts-runtypes/core', '@ts-runtypes/devtools'];
+// Directory names under packages/ — unchanged by the @ts-runtypes/* scope rename
+// (only the package.json "name" fields moved onto the scope).
+const FE_PACKAGE_DIRS = ['ts-runtypes', 'ts-runtypes-devtools'];
 
 function pack(cmd, dir) {
   // pnpm/npm pack both accept --pack-destination and emit <name>-<version>.tgz.
@@ -31,12 +33,14 @@ function main() {
   fs.mkdirSync(TARBALLS, {recursive: true});
 
   // FE packages: pnpm pack rewrites the workspace:* protocol to the version.
-  for (const name of FE_PACKAGES) pack('pnpm', path.join(REPO_ROOT, 'packages', name));
+  for (const dir of FE_PACKAGE_DIRS) pack('pnpm', path.join(REPO_ROOT, 'packages', dir));
 
-  // Launcher + platform packages: plain assembled dirs, no workspace deps.
-  for (const entry of fs.readdirSync(DIST_BINARIES)) {
-    const dir = path.join(DIST_BINARIES, entry);
-    if (fs.statSync(dir).isDirectory()) execFileSync('npm', ['pack', dir, '--pack-destination', TARBALLS], {cwd: REPO_ROOT, stdio: 'inherit'});
+  // Launcher + platform packages: assembled under dist-binaries/<scoped-name>/
+  // (nested by npm scope, e.g. @ts-runtypes/binary-linux-x64) and enumerated in
+  // publish-order.json. No workspace deps, so plain `npm pack` of each staged dir.
+  const publishOrder = JSON.parse(fs.readFileSync(path.join(DIST_BINARIES, 'publish-order.json'), 'utf8'));
+  for (const name of publishOrder) {
+    execFileSync('npm', ['pack', path.join(DIST_BINARIES, name), '--pack-destination', TARBALLS], {cwd: REPO_ROOT, stdio: 'inherit'});
   }
 
   const tarballs = fs.readdirSync(TARBALLS).filter((file) => file.endsWith('.tgz')).sort();

@@ -1,19 +1,104 @@
-Copyright (c) 2026 ma-jerez
+RunTypes Small Organization License 1.0.0
 
-All rights reserved.
+Copyright (c) 2026 Ma Jerez. All rights reserved except as expressly granted below.
 
-This software and its source code are proprietary and confidential. No part of
-this software may be used, copied, reproduced, modified, merged, published,
-distributed, sublicensed, or sold, in whole or in part, by any means, without
-the prior written authorization of the copyright holder.
+## Purpose
 
-Unauthorized use, copying, or distribution of this software, via any medium, is
-strictly prohibited.
+This license lets individuals and smaller organizations use the software for
+free, subject to the rules below. Larger organizations must obtain a paid
+commercial license. This is a proprietary, source-available style license; it is
+NOT an open source license.
+
+## Acceptance
+
+To exercise any rights under this license you must agree to its rules. Those
+rules are both obligations under your agreement with the licensor and conditions
+of your license. Do not do anything with the software that this license does not
+expressly permit.
+
+## Free License
+
+The licensor grants you a non-exclusive, non-transferable, royalty-free,
+worldwide license to install, run, and use the software, and to include it as a
+dependency in your own applications and deploy those applications, provided that:
+
+- you qualify as a Small Organization (see below), and
+- you comply with the Limitations below.
+
+## Small Organization
+
+You qualify for the Free License only if you are:
+
+- an individual using the software; or
+- an organization whose total gross revenue, aggregated across the organization
+  and all of its affiliates, was less than 10,000,000 US dollars (USD) during its
+  most recently completed fiscal year.
+
+"Affiliates" means all entities that control, are controlled by, or are under
+common control with an organization.
+
+If you do not qualify, you must obtain a Commercial License before using the
+software.
+
+## Limitations
+
+The Free License does NOT permit you to:
+
+- copy or reproduce the software, except as strictly necessary to install and run
+  it for your permitted use;
+- modify the software or create derivative works from it;
+- distribute, publish, sublicense, sell, rent, lease, or otherwise make the
+  software available to any third party, except as embedded in your own
+  applications for their normal operation;
+- reverse engineer, decompile, or disassemble any part of the software provided
+  in compiled or binary form, except to the extent this restriction is prohibited
+  by applicable law;
+- remove or alter any copyright, license, or other proprietary notices.
+
+All rights not expressly granted here are reserved by the licensor.
+
+## Commercial License
+
+If you do not qualify as a Small Organization, or if you need rights beyond those
+granted by the Free License, you must obtain a separate commercial license from
+the licensor. To request one, contact: jerez.m82@gmail.com.
+
+## Notices
+
+You must keep this license file, and all copyright and other notices, with every
+copy of the software.
+
+## No Other Rights
+
+This license does not grant you any rights in the licensor's trademarks, patents,
+or other intellectual property, except the copyright rights expressly stated
+above.
+
+## Termination
+
+If you violate this license, it terminates automatically. On termination you must
+stop using the software and delete all copies in your possession or control. If
+your violation is capable of cure, your license is reinstated if you cure the
+violation within 30 days of first becoming aware of it, unless the licensor has
+already notified you that your license has terminated.
+
+## No Warranty
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. YOU BEAR THE ENTIRE RISK OF USING
+THE SOFTWARE.
+
+## Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL THE LICENSOR BE LIABLE
+FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Definitions
+
+- "Licensor" means Ma Jerez, the copyright holder.
+- "Software" means the RunTypes packages published under the @ts-runtypes npm
+  scope, together with any files distributed with them under this license.
+- "You" means the individual or entity exercising rights under this license.

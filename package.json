@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/mionkit/ts-runtypes/issues"
   },
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "ma-jerez",
   "engines": {
     "node": ">= 26.0.0",
