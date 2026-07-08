@@ -27,7 +27,7 @@ function pack(cmd, dir) {
 
 function main() {
   if (!fs.existsSync(DIST_BINARIES)) {
-    throw new Error('dist-binaries/ missing — run `node scripts/release/build-binaries.mjs` first.');
+    throw new Error('dist-binaries/ missing — run `pnpm rtx release binaries` first.');
   }
   fs.rmSync(TARBALLS, {recursive: true, force: true});
   fs.mkdirSync(TARBALLS, {recursive: true});
