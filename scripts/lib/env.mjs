@@ -130,6 +130,9 @@ export const REGISTRY = [
   // — resolver knobs (the ts-runtypes Go binary) —
   {name: 'RT_CACHE_DIR', scope: 'dev', task: '-', desc: 'Internal RT disk-cache override (tests/power users): path forces it on there, "" forces it off, unset follows the tsconfig incremental/composite setting'},
 
+  // — build/release knobs (garble obfuscation of the published binaries + wasm) —
+  {name: 'RT_GARBLE', scope: 'dev', task: '-', desc: 'Obfuscate the published Go binaries + playground wasm with garble (default on; set 0 to build plain go — faster, real panic traces)'},
+
   // — lint knobs (the ts-runtypes-devtools OXlint/ESLint plugin) —
   {name: 'RT_LINT_PRESPAWN', scope: 'dev', task: '-', desc: "Set 0 to skip the lint plugin's load-time resolver pre-spawn (small hosts)"},
 
