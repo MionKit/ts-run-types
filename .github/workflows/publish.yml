@@ -76,8 +76,12 @@ jobs:
       # every package to npm's stage queue (no 2FA); a maintainer then approves
       # each with a live 2FA challenge, leaves-first (`pnpm rtx release
       # stage-approve`). Provenance is attached automatically under OIDC.
+      #
+      # Routed through the rtx front door (== `pnpm rtx release tarballs`). rtx is
+      # zero-dep (node: built-ins only), so `node scripts/rt.mjs` runs in this
+      # deliberately pnpm-free publish job; `pnpm rtx` would need pnpm on PATH.
       - name: Stage-publish to npm (platform packages first, launcher, then FE)
-        run: node scripts/release/publish-tarballs.mjs --provenance
+        run: node scripts/rt.mjs release tarballs --provenance
       - name: Tag the release (idempotent)
         shell: bash
         run: |
