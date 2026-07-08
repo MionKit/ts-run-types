@@ -5,13 +5,13 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.8.0",
-  "homepage": "https://github.com/mionkit/ts-runtypes#readme",
+  "homepage": "https://runtypes.pages.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mionkit/ts-runtypes.git"
+    "url": "git+https://github.com/MionKit/ts-run-types.git"
   },
   "bugs": {
-    "url": "https://github.com/mionkit/ts-runtypes/issues"
+    "url": "https://github.com/MionKit/ts-run-types/issues"
   },
   "license": "SEE LICENSE IN LICENSE",
   "author": "ma-jerez",
