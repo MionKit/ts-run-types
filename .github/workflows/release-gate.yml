@@ -125,13 +125,13 @@ jobs:
           path: tarballs
       - uses: ./.github/actions/verdaccio-publish
       - name: e2e (install published packages + run the suite)
-        working-directory: pre-publish-e2e
+        working-directory: container/pre-publish-e2e
         shell: bash
         env:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           # Installs the two published packages at the release version plus the
-          # fixture's own devDeps (vite/vitest are pinned in pre-publish-e2e/package.json, not
+          # fixture's own devDeps (vite/vitest are pinned in container/pre-publish-e2e/package.json, not
           # here, so a workspace bump can't silently diverge the install test).
           npm install \
             "@ts-runtypes/core@$VERSION" \
