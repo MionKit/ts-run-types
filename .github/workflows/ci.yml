@@ -8,6 +8,12 @@ name: ci
 # ride the Go runner to even the two out:
 #   go-fuzz — Go suite (gofmt/vet/test) + the JS fuzz suite (test/fuzz/**)
 #   js-lint — check-format + lint/typecheck + the rest of the JS suite
+# Both are PATH-GATED via the `changes` job (dorny/paths-filter), same mechanism
+# as `smoke`: they run only when Go (ts-go-runtypes/**) or JS (packages/** + root
+# JS config + scripts) files change, so a docs-only PR skips both. Inside go-fuzz
+# the gofmt/vet/go-test steps are additionally gated on the Go filter, so a
+# packages-only change runs the fuzz half without re-running the Go suite. (A Go
+# change still runs js-lint too: typecheck compiles the ts-go-runtypes testfixtures.)
 # `vitest run test/fuzz` and `vitest run --exclude '**/test/fuzz/**'` are a
 # complete, DISJOINT partition of the suite (23 + 151 = 174 files), so no test is
 # dropped or double-run — a semantic split by directory instead of a hash shard.
@@ -54,6 +60,8 @@ jobs:
   # against js-lint.
   go-fuzz:
     name: go tests + fuzz
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.pkg == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -62,7 +70,10 @@ jobs:
       - uses: ./.github/actions/bootstrap
       # Fail-fast: cheap checks first. gofmt is instant; vet compiles (cache-warm)
       # and warms the compile cache the go-test + resolver-build steps reuse.
+      # Go-specific steps run only when the Go tree changed; a packages-only
+      # change still runs the fuzz half below (which spawns the binary).
       - name: Go formatting (our code only; never third_party)
+        if: needs.changes.outputs.go == 'true'
         working-directory: ts-go-runtypes
         run: |
           unformatted="$(gofmt -l cmd internal)"
@@ -72,9 +83,11 @@ jobs:
             exit 1
           fi
       - name: Go vet (our code only; never third_party)
+        if: needs.changes.outputs.go == 'true'
         working-directory: ts-go-runtypes
         run: go vet ./cmd/... ./internal/...
       - name: Go test suite
+        if: needs.changes.outputs.go == 'true'
         working-directory: ts-go-runtypes
         run: go test ./internal/...
       # The fuzz tests spawn the binary and read the dists — build first
@@ -94,6 +107,8 @@ jobs:
   # with go-fuzz this is a complete, disjoint partition of the JS suite.
   js-lint:
     name: js tests + lint
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.pkg == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -154,17 +169,20 @@ jobs:
           --from ${{ github.event.pull_request.base.sha }}
           --to ${{ github.event.pull_request.head.sha }}
 
-  # Decides WHETHER the container smoke runs (container inputs / driver scripts
-  # changed). Kept as its own tiny job so `smoke` can gate on it without a
-  # bootstrap, and so a non-container PR never spins up a smoke runner at all.
+  # Decides WHICH heavy jobs run, by path: `smoke` (container inputs / driver
+  # scripts), `go` (the Go tree), and `pkg` (JS packages + root JS config +
+  # scripts). Kept as its own tiny job so the gated jobs can `needs:` it without a
+  # bootstrap, and so a docs-only PR never spins up a heavy runner at all.
   changes:
-    name: detect container changes
+    name: detect changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
     outputs:
       smoke: ${{ steps.filter.outputs.smoke }}
+      go: ${{ steps.filter.outputs.go }}
+      pkg: ${{ steps.filter.outputs.pkg }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v4
@@ -177,6 +195,18 @@ jobs:
               - 'scripts/website/**'
               - 'scripts/container/**'
               - 'scripts/lib/**'
+            go:
+              - 'ts-go-runtypes/**'
+              - '.github/actions/bootstrap/**'
+            pkg:
+              - 'packages/**'
+              - 'scripts/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig.json'
+              - 'vitest.config.ts'
+              - '.github/actions/bootstrap/**'
 
   # Path-gated container smoke, parallel with the verify jobs. Self-contained: it
   # builds its own resolver + linux binaries for the container mounts, then pulls
