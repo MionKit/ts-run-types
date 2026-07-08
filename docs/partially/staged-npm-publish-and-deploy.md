@@ -16,12 +16,15 @@ and remain (see [What remains](#what-remains-external-one-time)).
 
 ## What remains (external, one-time)
 
-Cannot be done from the repo — a maintainer with npmjs.com admin must:
+Cannot be done from the repo — a maintainer with npmjs.com admin must, **in order** (OIDC can't create a package that doesn't exist yet, so the first version of each package must be token-published before its trusted publisher can be registered):
 
-- Register the **trusted publisher** (repo `MionKit/ts-run-types`, workflow `publish.yml`) with **stage-only** permissions for **every** published package (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and each `@ts-runtypes/binary-<os>-<arch>`), then confirm an OIDC run stages successfully.
-- Delete the `NPM_TOKEN` **repo secret** once OIDC is verified (CI no longer reads it; the local interactive publish still uses it from `.env`).
+1. **Bootstrap the first version with a token, locally** (`pnpm rtx release npm`) so all ten `@ts-runtypes/*` packages exist on npm. ⚠️ Fix [publish-local-core-filter-bug.md](../todos/publish-local-core-filter-bug.md) first — the local path's stale `--filter ts-runtypes` silently skips `@ts-runtypes/core`.
+2. Register the **trusted publisher** (repo `MionKit/ts-run-types`, workflow `publish.yml`) with **stage-only** permissions for **every** published package (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and each `@ts-runtypes/binary-<os>-<arch>`), then confirm an OIDC run stages successfully.
+3. Delete the `NPM_TOKEN` **repo secret** once OIDC is verified (CI no longer reads it; the local interactive publish still uses it from `.env`).
 
-> **Separate track** from the pre-publish e2e units (① [harness](./prepublish-e2e-1-harness.md), ② [feature matrix](./prepublish-e2e-2-feature-matrix.md)) — this touches the **publish pipeline**, not the e2e fixture, so it's **independent**. Ship as its own focused PR — earlier if publish-security is the more urgent need, otherwise after the e2e work. Highest real-world risk (a botched flow breaks an actual release) + external setup prerequisites, so keep it isolated.
+See [SETUP.md → Publishing](../../SETUP.md#publishing) for the full runbook.
+
+> **Separate track** from the pre-publish e2e units (① [harness](../done/prepublish-e2e-1-harness.md), ② [feature matrix](../done/prepublish-e2e-2-feature-matrix.md)) — this touches the **publish pipeline**, not the e2e fixture, so it's **independent**. Ship as its own focused PR — earlier if publish-security is the more urgent need, otherwise after the e2e work. Highest real-world risk (a botched flow breaks an actual release) + external setup prerequisites, so keep it isolated.
 
 ## Context / the problem
 
