@@ -169,8 +169,8 @@ jobs:
           --from ${{ github.event.pull_request.base.sha }}
           --to ${{ github.event.pull_request.head.sha }}
 
-  # Decides WHICH heavy jobs run, by path: `smoke` (container inputs / driver
-  # scripts), `go` (the Go tree), and `pkg` (JS packages + root JS config +
+  # Decides WHICH heavy jobs run, by path: `smoke` (the website/benchmarks apps +
+  # their drivers), `go` (the Go tree), and `pkg` (JS packages + root JS config +
   # scripts). Kept as its own tiny job so the gated jobs can `needs:` it without a
   # bootstrap, and so a docs-only PR never spins up a heavy runner at all.
   changes:
@@ -190,7 +190,10 @@ jobs:
         with:
           filters: |
             smoke:
-              - 'container/**'
+              # Only the two apps the smoke actually builds — NOT the pre-publish-e2e
+              # fixture (that is exercised by release-gate, not ci).
+              - 'container/website/**'
+              - 'container/benchmarks/**'
               - 'scripts/core/build.mjs'
               - 'scripts/website/**'
               - 'scripts/container/**'
