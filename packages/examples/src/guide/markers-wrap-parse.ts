@@ -1,18 +1,19 @@
-import {createValidate, type InjectRunTypeId} from '@ts-runtypes/core';
+import {createValidate, type ValidateFn} from '@ts-runtypes/core';
 
-// A realistic wrapper: parse JSON and validate it against T in one call.
-// The trailing `id?: InjectRunTypeId<T>` opts the helper into the toolchain.
-function parseChecked<T>(raw: string, id?: InjectRunTypeId<T>): T {
-  const data = JSON.parse(raw) as T;
-  // Build a validator for T (createValidate is itself marker-driven).
-  const isValid = createValidate<T>();
-  if (!isValid(data)) throw new Error(`bad payload for type #${id}`);
-  return data;
+// A realistic wrapper: parse JSON and validate it against your type in one call.
+// A createX<T>() factory needs a CONCRETE type at its OWN call site, so build
+// the validator where the type is known and pass it in. Calling
+// `createValidate<T>()` inside this generic body would use the wrapper's free
+// `T` (unknown at build time), which the build reports as MKR003.
+function parseChecked<T>(raw: string, isValid: ValidateFn<T>): T {
+  const data: unknown = JSON.parse(raw);
+  if (!isValid(data)) throw new Error('payload does not match the expected type');
+  return data as T;
 }
 
 type User = {id: number; name: string};
 
-// One call site, fully typed. The build injects User's id behind the scenes.
-const user = parseChecked<User>('{"id":1,"name":"Ada"}');
+// createValidate<User>() runs at a concrete call site — the build injects here.
+const user = parseChecked('{"id":1,"name":"Ada"}', createValidate<User>());
 
 export {parseChecked, user};

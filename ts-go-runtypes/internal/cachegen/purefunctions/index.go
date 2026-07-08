@@ -79,12 +79,49 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 	idx.scanned[filePath] = true
 }
 
+// builtinPureFnNamespaces are the pure-fn namespaces @ts-runtypes/core owns and
+// registers itself at runtime, guaranteed present whenever the package is
+// imported:
+//
+//   - "rt"        — the core built-ins (newRunTypeErr, asJSONString,
+//     getUnknownKeysFromArray, …), registered unconditionally by the package
+//     entry's side-effect import of runtypes/pure-fns-utils.ts.
+//   - "rtFormats" — every format validator (isUUID, isDateString_*, …),
+//     registered when that format's runtime module loads.
+//
+// A reference to a fn in one of these namespaces is ALWAYS satisfiable at
+// runtime, so it must never surface as a "missing registration" (PFE9012). The
+// resolver's own emitters (validationErrors, unknown-keys, formats) are the only
+// thing that reaches these fns, and they only ever reference fns the runtime
+// actually ships — so exempting the whole namespace is faithful to runtime AND
+// self-maintaining (a new built-in needs no list update here). Only user-owned
+// namespaces are cross-checked against the program's registrations. This is the
+// principled replacement for the old whole-program "any registration present?"
+// guard, which a consumer's own registerPureFnFactory defeated — false-flagging
+// every built-in. See docs/done/pfe9012-consumer-registerpurefn-false-positive.md.
+var builtinPureFnNamespaces = map[string]bool{
+	"rt":        true,
+	"rtFormats": true,
+}
+
+// IsBuiltinPureFnNamespace reports whether ns is a @ts-runtypes/core-owned
+// pure-fn namespace whose registrations are guaranteed at runtime (see
+// builtinPureFnNamespaces). PFE9012 never fires for these.
+func IsBuiltinPureFnNamespace(ns string) bool {
+	return builtinPureFnNamespaces[ns]
+}
+
 // ValidatePureFnDependencies cross-checks every dep recorded by RT
 // walkers against idx. For deps whose registration is already in the
 // index the check is an O(1) map lookup. For deps whose filePath was
 // NOT part of the original program-wide scan, the file is parsed once
 // (via lookup) and merged into idx — subsequent deps against the same
 // path are then O(1). Already-scanned files are never re-parsed.
+//
+// Deps in a built-in namespace (rt::, rtFormats::) are skipped: @ts-runtypes/core
+// registers them itself at runtime, but its source is a .d.ts in a published-
+// package consumer's program, so cross-checking them false-positives (the bug
+// this exemption fixes). Only user-owned namespaces are validated.
 //
 // Returns one PFE9012 diagnostic per unique missing key. Repeated
 // references to the same missing key collapse to a single diagnostic
@@ -102,6 +139,12 @@ func ValidatePureFnDependencies(typeChecker *checker.Checker, markerOpts marker.
 	var diags []diagnostics.Diagnostic
 	seenMisses := make(map[string]bool, len(deps))
 	for _, dep := range deps {
+		// Built-in namespaces are runtime-owned and always registered — never a
+		// genuine miss. Exempt before the lookup so a .d.ts-resolved core (whose
+		// registrations aren't in the program) can't false-positive.
+		if IsBuiltinPureFnNamespace(dep.Namespace) {
+			continue
+		}
 		key := dep.Namespace + "::" + dep.FunctionName
 		if _, found := idx.Get(key); found {
 			continue

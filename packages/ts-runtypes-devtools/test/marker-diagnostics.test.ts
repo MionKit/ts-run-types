@@ -149,6 +149,30 @@ export function makeId<T>() {
     });
   });
 
+  register('does NOT emit MKR003 when a wrapper forwards its handle (pass-through)', async () => {
+    // Regression: the documented wrapper pattern resolves its injected handle by
+    // FORWARDING it to a public resolver as the trailing arg. That inner call has
+    // its id slot filled, so it is a pass-through — the build must leave it
+    // untouched and must NOT flag the wrapper's free T as an unresolved injection
+    // (MKR003). Only the OUTER concrete-T call is an injection site.
+    // See docs/done/inject-runtypeid-helper-getruntype-undefined.md.
+    const sources = {
+      'forward.ts': `import {getRunTypeId, type InjectRunTypeId} from '@ts-runtypes/core';
+export function describeType<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
+  return getRunTypeId<T>(undefined, id);
+}
+export const d = describeType<{a: number}>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources));
+      const mkr003 = markerDiagsOf(response).filter((d) => d.code === 'MKR003');
+      expect(mkr003).toEqual([]);
+      // Only the outer describeType<{a: number}>() call is an injection site.
+      expect(response.sites.length).toBe(1);
+    });
+  });
+
   register('formatTscDiagnostic renders marker warnings in tsc line format', async () => {
     const sources = {
       'fmt.ts': `import {createValidate} from '@ts-runtypes/core';

@@ -166,25 +166,23 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmo
 // the response is deterministic regardless of family-collect order (serial vs
 // parallel).
 //
-// Guard: a program that compiles ZERO registerPureFnFactory calls has no pure-fn
-// registration mechanism in it at all — a stub / ambient-only setup (e.g.
-// `ts-runtypes` typed through a hand-written .d.ts with no runtime source, as
-// the test harnesses use). There a "missing" verdict is a false positive:
-// nothing is registered because the source that registers isn't part of the
-// program, not because a specific fn is genuinely absent. A real build importing
-// `ts-runtypes` always pulls its side-effect-registered rt:: built-ins into the
-// program, so the mechanism is present and a genuinely dangling key (e.g. an
-// unimported format's rtFormats:: fn while the rt:: built-ins ARE present) still
-// fires. This keeps the static check faithful to runtime: validate only when the
-// program demonstrably wires the registrations the runtime would load.
+// Built-in exemption (NOT a count guard): the deps reaching here are the ones
+// emitted RT bodies reach, which are ALWAYS in a @ts-runtypes/core-owned
+// namespace (rt::, rtFormats:: — see AddPureFnDependency call sites). Those are
+// registered by the package's own side-effect imports at runtime but their
+// source is a .d.ts in a published-package consumer's program, so cross-checking
+// them false-positives. purefunctions.ValidatePureFnDependencies skips built-in
+// namespaces and validates only user-owned ones, so the check is faithful to
+// runtime for every consumer shape. This replaced the old
+// `len(entries) == 0 → skip` guard, which a consumer's own registerPureFnFactory
+// defeated (entries became non-zero, so every built-in dep was then flagged
+// missing — the PFE9012 wall this fixes). See
+// docs/done/pfe9012-consumer-registerpurefn-false-positive.md.
 func (sess *Session) validateProgramPureFnDeps(uses []typefunctions.PureFnDepUse) []diagnostics.Diagnostic {
 	if len(uses) == 0 || sess.Program == nil {
 		return nil
 	}
 	entries, walkFiles, _ := sess.extractProgramPureFns(nil)
-	if len(entries) == 0 {
-		return nil
-	}
 	// Override cfn registrations count too — they only add keys, never remove.
 	entries = append(entries, sess.overrideEntries...)
 	index := purefunctions.NewIndex(entries, walkFiles)

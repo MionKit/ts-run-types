@@ -105,17 +105,21 @@ func TestNewIndex_GetAndScanned(t *testing.T) {
 	}
 }
 
+// NOTE: these mechanism tests (lazy expansion, dedup, miss detection) use a
+// USER namespace ("app") deliberately. Built-in namespaces (rt::, rtFormats::)
+// are exempt from validation — see TestValidatePureFnDependencies_BuiltinNamespacesExempt
+// — so only user-owned deps exercise the miss path the mechanism implements.
 func TestValidatePureFnDependencies_AllSatisfied(t *testing.T) {
 	prog, files := programForSources(t, map[string]string{
 		"pure.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
-export const a = registerPureFnFactory('rt::asJSONString', function () { return function () { return 1; }; });
+export const a = registerPureFnFactory('app::slugify', function () { return function () { return 1; }; });
 `,
 	})
 	entries, _ := ExtractFromProgramCached(programChecker(t, prog), marker.WithDefaults(marker.Options{}), prog, files, nil)
 	idx := NewIndex(entries, files)
 
 	deps := []protocol.PureFnDep{
-		{Namespace: "rt", FunctionName: "asJSONString", FilePath: files[0]},
+		{Namespace: "app", FunctionName: "slugify", FilePath: files[0]},
 	}
 	diags := ValidatePureFnDependencies(programChecker(t, prog), marker.WithDefaults(marker.Options{}), deps, idx, prog)
 	if len(diags) != 0 {
@@ -124,7 +128,7 @@ export const a = registerPureFnFactory('rt::asJSONString', function () { return 
 }
 
 func TestValidatePureFnDependencies_MissingKey_PFE9012(t *testing.T) {
-	// Empty index, dep references a key that doesn't exist anywhere.
+	// Empty index, dep references a user key that doesn't exist anywhere.
 	prog, files := programForSources(t, map[string]string{
 		"empty.ts": `export const x = 1;`,
 	})
@@ -132,7 +136,7 @@ func TestValidatePureFnDependencies_MissingKey_PFE9012(t *testing.T) {
 	idx := NewIndex(entries, files)
 
 	deps := []protocol.PureFnDep{
-		{Namespace: "rt", FunctionName: "doesNotExist", FilePath: ""},
+		{Namespace: "app", FunctionName: "doesNotExist", FilePath: ""},
 	}
 	diags := ValidatePureFnDependencies(programChecker(t, prog), marker.WithDefaults(marker.Options{}), deps, idx, prog)
 	if len(diags) != 1 {
@@ -141,8 +145,47 @@ func TestValidatePureFnDependencies_MissingKey_PFE9012(t *testing.T) {
 	if diags[0].Code != CodeMissingPureFnDep {
 		t.Fatalf("expected %s, got %s", CodeMissingPureFnDep, diags[0].Code)
 	}
-	if len(diags[0].Args) == 0 || diags[0].Args[0] != "rt::doesNotExist" {
-		t.Errorf("expected args[0]=rt::doesNotExist (the missing key), got %v", diags[0].Args)
+	if len(diags[0].Args) == 0 || diags[0].Args[0] != "app::doesNotExist" {
+		t.Errorf("expected args[0]=app::doesNotExist (the missing key), got %v", diags[0].Args)
+	}
+}
+
+// TestValidatePureFnDependencies_BuiltinNamespacesExempt pins the PFE9012
+// false-positive fix: a reference to a @ts-runtypes/core-owned built-in
+// (rt::, rtFormats::) must NEVER fire — even against an EMPTY index, which is
+// exactly the published-package consumer's shape (core resolved to its .d.ts,
+// so no registration source is in the program). A user-namespace miss in the
+// same batch still fires, so the check keeps its value for genuine user typos.
+// See docs/done/pfe9012-consumer-registerpurefn-false-positive.md.
+func TestValidatePureFnDependencies_BuiltinNamespacesExempt(t *testing.T) {
+	idx := NewIndex(nil, nil)
+	deps := []protocol.PureFnDep{
+		{Namespace: "rt", FunctionName: "newRunTypeErr"},
+		{Namespace: "rt", FunctionName: "asJSONString"},
+		{Namespace: "rtFormats", FunctionName: "isUUID"},
+		{Namespace: "app", FunctionName: "typoFn"}, // user typo — the only genuine miss
+	}
+	// nil checker/lookup is safe: built-ins short-circuit before any lookup, and
+	// the user miss carries no FilePath so it never triggers lazy expansion.
+	diags := ValidatePureFnDependencies(nil, marker.WithDefaults(marker.Options{}), deps, idx, nil)
+	if len(diags) != 1 {
+		t.Fatalf("expected exactly 1 diagnostic (the user typo only), got %d (%+v)", len(diags), diags)
+	}
+	if diags[0].Code != CodeMissingPureFnDep || diags[0].Args[0] != "app::typoFn" {
+		t.Fatalf("expected app::typoFn to be the sole miss, got %+v", diags[0].Args)
+	}
+}
+
+func TestIsBuiltinPureFnNamespace(t *testing.T) {
+	for _, ns := range []string{"rt", "rtFormats"} {
+		if !IsBuiltinPureFnNamespace(ns) {
+			t.Errorf("expected %q to be a built-in namespace", ns)
+		}
+	}
+	for _, ns := range []string{"app", "cfn", "", "RT", "rtformats"} {
+		if IsBuiltinPureFnNamespace(ns) {
+			t.Errorf("expected %q NOT to be a built-in namespace", ns)
+		}
 	}
 }
 
@@ -153,7 +196,7 @@ func TestValidatePureFnDependencies_LazyExpansion_FindsRegistration(t *testing.T
 	// finds the registration, and emits NO diagnostic.
 	prog, _ := programForSources(t, map[string]string{
 		"a.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
-export const r = registerPureFnFactory('rt::asJSONString', function () { return function () { return 1; }; });
+export const r = registerPureFnFactory('app::slugify', function () { return function () { return 1; }; });
 `,
 		"b.ts": `export const x = 1;`,
 	})
@@ -177,19 +220,19 @@ export const r = registerPureFnFactory('rt::asJSONString', function () { return 
 	// Initial scan covers ONLY b.ts.
 	entries, _ := ExtractFromProgramCached(programChecker(t, prog), marker.WithDefaults(marker.Options{}), prog, []string{bPath}, nil)
 	idx := NewIndex(entries, []string{bPath})
-	if _, ok := idx.Get("rt::asJSONString"); ok {
+	if _, ok := idx.Get("app::slugify"); ok {
 		t.Fatal("setup: key should NOT yet be in the index — it lives in unscanned a.ts")
 	}
 
 	// Dep points at the unscanned a.ts; lazy expansion should find it.
 	deps := []protocol.PureFnDep{
-		{Namespace: "rt", FunctionName: "asJSONString", FilePath: aPath},
+		{Namespace: "app", FunctionName: "slugify", FilePath: aPath},
 	}
 	diags := ValidatePureFnDependencies(programChecker(t, prog), marker.WithDefaults(marker.Options{}), deps, idx, prog)
 	if len(diags) != 0 {
 		t.Fatalf("lazy expansion should satisfy the dep, got %+v", diags)
 	}
-	if _, ok := idx.Get("rt::asJSONString"); !ok {
+	if _, ok := idx.Get("app::slugify"); !ok {
 		t.Fatal("after lazy expansion, the key must be in the index")
 	}
 	if !idx.Scanned(aPath) {
@@ -203,21 +246,21 @@ func TestValidatePureFnDependencies_LazyExpansion_StillMissing(t *testing.T) {
 	// the key, and emits PFE9012.
 	prog, files := programForSources(t, map[string]string{
 		"a.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
-export const x = registerPureFnFactory('rt::somethingElse', function () { return function () {}; });
+export const x = registerPureFnFactory('app::somethingElse', function () { return function () {}; });
 `,
 	})
 	// Initial scan covers no files so a.ts is unscanned from idx's perspective.
 	idx := NewIndex(nil, nil)
 
 	deps := []protocol.PureFnDep{
-		{Namespace: "rt", FunctionName: "asJSONString", FilePath: files[0]},
+		{Namespace: "app", FunctionName: "slugify", FilePath: files[0]},
 	}
 	diags := ValidatePureFnDependencies(programChecker(t, prog), marker.WithDefaults(marker.Options{}), deps, idx, prog)
 	if len(diags) != 1 || diags[0].Code != CodeMissingPureFnDep {
 		t.Fatalf("expected one PFE9012 diagnostic, got %+v", diags)
 	}
-	if len(diags[0].Args) == 0 || diags[0].Args[0] != "rt::asJSONString" {
-		t.Errorf("expected args[0]=rt::asJSONString (the missing key), got %v", diags[0].Args)
+	if len(diags[0].Args) == 0 || diags[0].Args[0] != "app::slugify" {
+		t.Errorf("expected args[0]=app::slugify (the missing key), got %v", diags[0].Args)
 	}
 	if !idx.Scanned(files[0]) {
 		t.Fatal("the file must still be marked scanned (so future passes don't re-parse)")
@@ -233,10 +276,10 @@ func TestValidatePureFnDependencies_DedupesRepeatedMisses(t *testing.T) {
 
 	// Same missing key referenced four times — should produce only one diagnostic.
 	deps := []protocol.PureFnDep{
-		{Namespace: "rt", FunctionName: "missing", FilePath: ""},
-		{Namespace: "rt", FunctionName: "missing", FilePath: ""},
-		{Namespace: "rt", FunctionName: "missing", FilePath: ""},
-		{Namespace: "rt", FunctionName: "missing", FilePath: ""},
+		{Namespace: "app", FunctionName: "missing", FilePath: ""},
+		{Namespace: "app", FunctionName: "missing", FilePath: ""},
+		{Namespace: "app", FunctionName: "missing", FilePath: ""},
+		{Namespace: "app", FunctionName: "missing", FilePath: ""},
 	}
 	diags := ValidatePureFnDependencies(programChecker(t, prog), marker.WithDefaults(marker.Options{}), deps, idx, prog)
 	if len(diags) != 1 {
@@ -250,14 +293,14 @@ func TestValidatePureFnDependencies_FileNeverReparsed(t *testing.T) {
 	// filePath — once expanded, the scanned flag prevents re-parse.
 	prog, files := programForSources(t, map[string]string{
 		"a.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
-export const r = registerPureFnFactory('rt::asJSONString', function () { return function () {}; });
+export const r = registerPureFnFactory('app::slugify', function () { return function () {}; });
 `,
 	})
 	idx := NewIndex(nil, nil) // start empty so a.ts is unscanned
 
 	counter := newCountingLookup(prog)
 	deps := []protocol.PureFnDep{
-		{Namespace: "rt", FunctionName: "asJSONString", FilePath: files[0]},
+		{Namespace: "app", FunctionName: "slugify", FilePath: files[0]},
 	}
 
 	// First pass — should trigger one lookup on files[0].

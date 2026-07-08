@@ -1,41 +1,40 @@
 // Family 9 — Markers. A user-defined helper carrying InjectRunTypeId<T> is
-// rewritten so the build injects T's id at every call site; the injected id
-// matches the canonical getRunTypeId<T>(). A local look-alike marker (not
-// @ts-runtypes/core's) stays inert. Mirrors guide/markers-wrap-helper.ts +
-// markers-not-triggered.ts.
+// rewritten so the build injects a reflection handle for T at every call site.
+// Inside the helper the handle is resolved by FORWARDING it to a public resolver
+// (getRunType / getRunTypeId) as the trailing argument — the documented wrapper
+// pattern. The wrapper's result matches the canonical direct getRunType<T>() /
+// getRunTypeId<T>(). A local look-alike marker (not @ts-runtypes/core's) stays
+// inert. Mirrors guide/markers-wrap-helper.ts + markers-not-triggered.ts.
 //
-// NOTE: guide/markers-wrap-parse.ts calls `createValidate<T>()` INSIDE a generic
-// body. That typechecks, but a nested factory marker whose T is the enclosing
-// generic parameter is not resolvable at build time (T is unknown at that call
-// site) and throws at runtime — so it is not exercised here.
-import {getRunType, RunTypeKind, type InjectRunTypeId} from '@ts-runtypes/core';
-import {type CheckResult, ok} from './check';
+// (Fixed: the injected handle is an opaque entry tuple, so the old
+// getRTUtils().getRunType(id) path returned undefined; forwarding to
+// getRunType / getRunTypeId resolves it. See
+// docs/done/inject-runtypeid-helper-getruntype-undefined.md.)
+import {getRunType, getRunTypeId, RunTypeKind, type InjectRunTypeId, type RunType} from '@ts-runtypes/core';
+import {type CheckResult, ok, eq} from './check';
 
 interface User {
   id: number;
   name: string;
 }
 
-// The reflected User node, obtained the direct (robust) way.
+// Canonical direct reflection — the robust baseline the wrappers must match.
 export const userReflected = getRunType<User>();
+export const userTypeId = getRunTypeId<User>();
 
 // A wrapper helper: declare a trailing `id?: InjectRunTypeId<T>` and the build
-// injects a reflection handle for T at every call site — the caller never passes
-// it. Returned raw so the check can prove injection happened.
-//
-// NOTE: guide/markers-wrap-helper.ts feeds this handle to
-// getRTUtils().getRunType(id), but in a built consumer that returns undefined
-// (the injected runtime value is the reflection entry tuple, which the registry
-// accessor does not resolve). Tracked in
-// docs/todos/inject-runtypeid-helper-getruntype-undefined.md — so the reliable
-// registry lookup here is the direct getRunType<User>() above.
-export function describeType<T>(id?: InjectRunTypeId<T>): unknown {
-  return id;
+// injects a reflection handle for T at every call site. Resolve the handle by
+// forwarding it to getRunTypeId (returns the id string) / getRunType (the node).
+export function describeType<T>(id?: InjectRunTypeId<T>): string {
+  return getRunTypeId<T>(undefined, id);
+}
+export function reflectType<T>(id?: InjectRunTypeId<T>): RunType<T> {
+  return getRunType<T>(undefined, id);
 }
 
-// A second call shape: the marker also fires on a value-carrying helper.
-export function typeIdOf<T>(_value: T, id?: InjectRunTypeId<T>): unknown {
-  return id;
+// A value-carrying helper: the marker also fires on the value-first shape.
+export function typeIdOfValue<T>(_value: T, id?: InjectRunTypeId<T>): string {
+  return getRunTypeId<T>(undefined, id);
 }
 
 // A local look-alike marker that is NOT ours — call sites using it stay inert.
@@ -45,13 +44,24 @@ export function homemade<T>(id?: LocalInject<T>): string {
 }
 
 export function checkMarkers(): CheckResult[] {
-  // describeType<User>() (static shape) and typeIdOf(value) (value-first shape)
-  // are the marker's two call shapes; both must be injected.
-  const injected = describeType<User>();
-  const injectedViaValue = typeIdOf({id: 1, name: 'Ada'});
+  // Each marker call on its OWN statement — two same-id marker calls in a single
+  // statement can drop an injection (tracked in
+  // docs/todos/same-typeid-two-marker-calls-one-statement-not-injected.md).
+  const wrappedId = describeType<User>();
+  const wrappedNode = reflectType<User>();
+  const valueId = typeIdOfValue({id: 1, name: 'Ada'});
   return [
-    ok('markers: static-shape helper receives an injected handle for T', injected !== undefined && injected !== null),
-    ok('markers: value-first-shape helper call is also injected', injectedViaValue !== undefined && injectedViaValue !== null),
+    // The wrapper forwards its injected handle and resolves to the SAME id as the
+    // direct getRunTypeId<User>() — the handle is usable, not an opaque dead end.
+    eq('markers: static-shape wrapper resolves the injected handle to the canonical id', wrappedId, userTypeId),
+    // The value-first wrapper shape resolves to the same id from an inferred T.
+    eq('markers: value-first wrapper resolves the injected handle to the canonical id', valueId, userTypeId),
+    // Forwarding to getRunType returns the real traversable node for T.
+    ok(
+      'markers: wrapper forwarded to getRunType returns the User object node',
+      wrappedNode.kind === RunTypeKind.objectLiteral && wrappedNode.id === userTypeId
+    ),
+    // Direct reflection still resolves the User node as an object shape.
     ok('markers: direct reflection resolves the User node as an object shape', userReflected.kind === RunTypeKind.objectLiteral),
     // The local look-alike is never injected: id stays undefined at runtime.
     ok('markers: local look-alike marker stays inert', homemade<number>() === 'nothing injected'),

@@ -1,13 +1,15 @@
-import {getRTUtils, type InjectRunTypeId} from '@ts-runtypes/core';
+import {getRunType, type InjectRunTypeId} from '@ts-runtypes/core';
 
 // Wrap ts-runtypes into your OWN helper. Declare a trailing
 // `id?: InjectRunTypeId<T>` parameter and the build fills it in at every
 // call site — you never pass the id yourself.
 function describe<T>(id?: InjectRunTypeId<T>): string {
-  // At runtime `id` is just the resolved hash string. Look the type up in
-  // the registry and do whatever your helper needs.
-  const runType = getRTUtils().getRunType(id!);
-  return runType ? `type #${id}` : 'unknown type';
+  // The injected `id` is an OPAQUE handle, not a plain string. Resolve it by
+  // forwarding it to a public resolver as the trailing argument: getRunType
+  // registers T's type graph and returns the node (getRunTypeId returns the id
+  // string). The build leaves this forwarded call untouched.
+  const runType = getRunType<T>(undefined, id);
+  return `type #${runType.id} (kind ${runType.kind})`;
 }
 
 // Call it like any generic function — no id argument in sight.
