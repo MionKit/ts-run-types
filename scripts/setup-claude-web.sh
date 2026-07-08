@@ -440,6 +440,16 @@ main() {
   ensure_garble
   provision_submodules_light
   apply_tsgolint_patches
+  bold "tsgolint pin"
+  if ! command -v node >/dev/null 2>&1; then
+    warn "node not found - skipping tsgolint pin check"
+  elif [ "$CHECK_ONLY" = 1 ]; then
+    node "$REPO_DIR/scripts/core/ensure-tsgolint.mjs" --check || warn "submodule not at the pinned tsgolint revision (re-run without --check to repair)"
+  elif node "$REPO_DIR/scripts/core/ensure-tsgolint.mjs"; then
+    ok "submodule matches the pinned tsgolint revision"
+  else
+    err "tsgolint pin enforcement failed"; FAILED=1
+  fi
   install_workspace_deps
   wire_husky
   build_go_binary
