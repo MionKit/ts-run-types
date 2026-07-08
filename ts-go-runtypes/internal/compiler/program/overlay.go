@@ -68,6 +68,10 @@ func (overlay *overlayFS) WriteFile(path string, data string) error {
 	return overlay.base.WriteFile(path, data)
 }
 
+func (overlay *overlayFS) AppendFile(path string, data string) error {
+	return overlay.base.AppendFile(path, data)
+}
+
 func (overlay *overlayFS) Remove(path string) error {
 	return overlay.base.Remove(path)
 }
