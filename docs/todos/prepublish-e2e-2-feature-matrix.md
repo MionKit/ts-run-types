@@ -104,7 +104,10 @@ logged gap — never a silent skip).
 
 Mirror the [`packages/examples/src/guide/`](../../packages/examples/src/guide/)
 taxonomy one file per family — those already compile (wired into `typecheck`), so
-the shared app is their runtime counterpart against installed packages.
+the shared app is their runtime counterpart against installed packages. Write
+**purpose-built** modules that parallel the guide filenames one-to-one; do **not**
+import the example files directly — they resolve via tsconfig `paths` to dist, not
+the installed package.
 
 **Marker rule (CLAUDE.md):** where a family has two call shapes, the shared app
 uses both — `getRunTypeId<T>()` **and** `getRunTypeId(value)`; `getRunType<T>()`
@@ -132,9 +135,10 @@ linter is wired):
    / `virtual:rt/*` wiring are present. Proves the plugin actually transformed —
    not silently no-op'd — inside that bundler.
 4. **Lint transport.** Run each app's configured linter
-   (`@ts-runtypes/devtools/{eslint,oxlint}`) over the shared source and assert a
-   known RT diagnostic fires (e.g. a `caveats-missing-annotation` case). Covers the
-   published lint surface, in both linters.
+   (`@ts-runtypes/devtools/{eslint,oxlint}`) over the shared source and assert
+   **one** known RT diagnostic fires (e.g. a `caveats-missing-annotation` case) —
+   the transport, not the diagnostic catalog, is what's under test. Covers the
+   published lint surface in both linters.
 
 ## Where it runs — two independent axes (composition with the sister spec)
 
@@ -172,21 +176,6 @@ reads (`enrichDir`, the i18n block; the `friendlyErrors` plugin option). Assert
 (post-build): `createFriendly` renders a message, `createFriendlyI18n` selects a
 second locale + a plural, `createMockType` draws from the pool. Most likely family
 to hide a packaging bug in the enrich subtree — worth the extra wiring.
-
-## Open decisions
-
-1. ~~Container-only matrix vs full matrix per-OS~~ **Resolved: the integration
-   matrix is Linux-only** (accepted) — darwin/windows get per-OS *binary* coverage
-   from the sister spec's lean host-native smoke, not the bundler matrix.
-2. ~~webpack/rspack heaviness~~ **Resolved: one HEAVY config = Vite-on-Rolldown +
-   oxlint (full matrix); every other adapter is a light smoke.**
-   `smoke-webpack`/`smoke-rspack` are droppable-with-a-log if wall-clock bites.
-3. ~~Reuse guide example files vs purpose-built shared modules~~ **Resolved:
-   purpose-built modules** that parallel the guide filenames one-to-one (the
-   examples resolve via tsconfig `paths` to dist, not the installed package, so
-   they can't be imported directly anyway).
-4. **Lint assertion depth** — one known diagnostic per linter vs a small set.
-   Recommend one per linter (the transport, not the catalog, is what's under test).
 
 ## Acceptance criteria
 

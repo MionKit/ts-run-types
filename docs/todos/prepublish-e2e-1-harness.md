@@ -146,17 +146,17 @@ mean it cannot collapse into the container.
   only leak path**, so the run command mounts tarballs read-only and nothing else
   (no repo mount, no home mount).
 
-## Open decisions / to verify
+## Implementation notes
 
-1. **`host-npx` fallback on GH macOS/Windows** — confirm those runner images
-   genuinely lack a usable Linux-container engine (assumed by L2). If a future
-   runner image ships one, the fallback simply stops being taken (guard is
-   CI-only anyway).
-2. Keep the `container/pre-publish-e2e` fixture covering **both** `getRunTypeId`
-   shapes per the marker-coverage rule — today it has the static
-   `getRunTypeId<User>()`; consider adding the value-first `getRunTypeId(value)`
-   form too. (Fully addressed when unit ② rebuilds the fixture; a one-liner here
-   in the interim.)
+No open design decisions — these are build-time checks/tasks:
+
+- **Verify the L2 assumption when wiring the CI lanes:** confirm the GH
+  macOS/Windows runner images lack a usable Linux-container engine. Robust either
+  way — the `host-npx` guard is CI-only, so a future runner that ships one simply
+  stops taking the fallback.
+- **Fixture marker coverage:** the current fixture has only the static
+  `getRunTypeId<User>()`; add the value-first `getRunTypeId(value)` form per the
+  marker rule (folded into unit ②'s fixture rebuild).
 
 ## Acceptance criteria
 

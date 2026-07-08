@@ -110,15 +110,15 @@ Cloudflare Worker → `repository_dispatch`** (ruled out — npm fires no usable
 publish hook here; it would also have needed per-package debounce + a stored
 GitHub token + a silent-failure fallback).
 
-## Open decisions / to verify
+## Implementation notes
 
-1. **Bundled npm ≥ 11.15.0 on Node 26 runners?** If not, add `npm i -g npm@latest`.
-2. ~~Stage-approval atomicity~~ **Resolved: per-package, non-atomic** — approve
-   leaves-first (above). Remaining: build the `rtx release stage-approve` helper.
-3. ~~Deploy trigger~~ **Resolved: manual `workflow_dispatch` on a new
-   `website-deploy.yml`** (env-gated `production`); `deploy-website` removed from
-   `publish.yml`. The webhook automation is **ruled out** — npm fires no usable
-   publish hook here.
+No open design decisions — these are external prerequisites to handle at build time:
+
+- **npm CLI ≥ 11.15.0 on the Node 26 runners** (staged publishing requires it);
+  add `npm i -g npm@latest` in the workflow if the bundled npm is older.
+- **Register the trusted publisher on npmjs.com** (stage-only) for every package
+  before the first stage-publish, and confirm OIDC works before deleting
+  `NPM_TOKEN`.
 
 ## Acceptance criteria
 
