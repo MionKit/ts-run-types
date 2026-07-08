@@ -46,12 +46,12 @@ export function loadEnv() {
 export const REGISTRY = [
   // — secrets (credentials: .env locally, GitHub secrets in CI) —
   {name: 'GHCR_PAT', scope: 'secret', task: 'push-image', desc: 'GitHub PAT (write:packages) to push the shared image; set in .env'},
-  {name: 'NPM_TOKEN', scope: 'secret', task: 'publish-npm', desc: 'npm token to publish from local (set in .env); the NPM_TOKEN secret in CI'},
+  {name: 'NPM_TOKEN', scope: 'secret', task: 'publish-npm', desc: 'npm token for the LOCAL interactive publish (scripts/release/publish.mjs); set in .env. CI stage-publishes via Trusted Publishing/OIDC — no token'},
   {name: 'CLOUDFLARE_API_TOKEN', scope: 'secret', task: 'deploy-website', desc: 'Cloudflare Pages: Edit token; .env for a local deploy, a GitHub secret in CI'},
   {name: 'CLOUDFLARE_ACCOUNT_ID', scope: 'secret', task: 'deploy-website', desc: 'Cloudflare account id; .env for a local deploy, a GitHub secret in CI'},
 
   // — deploy config (non-secret) —
-  {name: 'CLOUDFLARE_PAGES_PROJECT', scope: 'dev', task: 'deploy-website', desc: 'Cloudflare Pages project name (default runtypes); .env for a local deploy, set in publish.yml for CI'},
+  {name: 'CLOUDFLARE_PAGES_PROJECT', scope: 'dev', task: 'deploy-website', desc: 'Cloudflare Pages project name (default runtypes); .env for a local deploy, set in website-deploy.yml for CI'},
 
   // — GHCR coordinates (defaults already target this repo) —
   {name: 'GHCR_OWNER', scope: 'dev', task: '-', desc: 'GHCR namespace (default mionkit)'},

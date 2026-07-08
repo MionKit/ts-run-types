@@ -1,8 +1,25 @@
 # Staged npm publish + website-deploy split
 
-**Status:** todo (design agreed; not started)
+**Status:** partially done — all in-repo work shipped 2026-07-08; the one-time
+npmjs.com trusted-publisher registration + `NPM_TOKEN` secret deletion are external
+and remain (see [What remains](#what-remains-external-one-time)).
 **Created:** 2026-07-08
 **Scope:** `.github/workflows/publish.yml` + `website-deploy.yml` (new), `scripts/release/publish-tarballs.mjs` + a new `stage-approve` helper, `SETUP.md` (publishing runbook), and one-time npmjs.com trusted-publisher config (external). No package/runtime code.
+
+## What shipped (2026-07-08)
+
+- [`scripts/release/publish-tarballs.mjs`](../../scripts/release/publish-tarballs.mjs) — no-`--registry` (CI/OIDC) path now runs `npm stage publish` with automatic provenance and NO `NPM_TOKEN`; the `--registry` path stays a plain `npm publish` for the local verdaccio e2e. Same leaves-first order.
+- [`scripts/release/stage-approve.mjs`](../../scripts/release/stage-approve.mjs) (new) + `pnpm rtx release stage-approve [--dry-run]` — reads this version's pending stage-ids from `npm stage list --json`, sorts them leaves-first (same `rank()`), and drives `npm stage approve <id>` (2FA per id). Degrades to a printed by-hand runbook if the queue can't be read.
+- [`.github/workflows/publish.yml`](../../.github/workflows/publish.yml) — `publish-npm` drops `NPM_TOKEN`, keeps `id-token: write`, upgrades npm to ≥ 11.15.0, stage-publishes via the script, keeps the preflight + idempotent tag guard; `deploy-website` removed.
+- [`.github/workflows/website-deploy.yml`](../../.github/workflows/website-deploy.yml) (new) — `workflow_dispatch` (optional `version` input, log only), `environment: production`, the old `deploy-website` job lifted verbatim.
+- [`SETUP.md`](../../SETUP.md) → Publishing — staged-publish + OIDC model, the leaves-first 2FA approval runbook, the manual website-deploy step, and the external one-time setup. Env registry ([`scripts/lib/env.mjs`](../../scripts/lib/env.mjs)), `.env.sample`, and `rtx env publish-npm` messaging updated for the OIDC/manual-deploy model.
+
+## What remains (external, one-time)
+
+Cannot be done from the repo — a maintainer with npmjs.com admin must:
+
+- Register the **trusted publisher** (repo `MionKit/ts-run-types`, workflow `publish.yml`) with **stage-only** permissions for **every** published package (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and each `@ts-runtypes/binary-<os>-<arch>`), then confirm an OIDC run stages successfully.
+- Delete the `NPM_TOKEN` **repo secret** once OIDC is verified (CI no longer reads it; the local interactive publish still uses it from `.env`).
 
 > **Separate track** from the pre-publish e2e units (① [harness](./prepublish-e2e-1-harness.md), ② [feature matrix](./prepublish-e2e-2-feature-matrix.md)) — this touches the **publish pipeline**, not the e2e fixture, so it's **independent**. Ship as its own focused PR — earlier if publish-security is the more urgent need, otherwise after the e2e work. Highest real-world risk (a botched flow breaks an actual release) + external setup prerequisites, so keep it isolated.
 
@@ -122,16 +139,17 @@ No open design decisions — these are external prerequisites to handle at build
 
 ## Acceptance criteria
 
-- [ ] `publish.yml` publishes with **no `NPM_TOKEN`** (OIDC), stages via
+- [x] `publish.yml` publishes with **no `NPM_TOKEN`** (OIDC), stages via
       `npm stage publish`, and a documented manual 2FA approval promotes to live.
 - [ ] Trusted publisher registered on npmjs.com for every published package
-      (stage-only permissions).
-- [ ] `rtx release stage-approve` walks the pending stage-ids leaves-first.
-- [ ] Provenance still attached (automatic under OIDC).
-- [ ] `website-deploy.yml` exists (`workflow_dispatch`, `environment: production`);
+      (stage-only permissions). — **external, pending** (see What remains).
+- [x] `rtx release stage-approve` walks the pending stage-ids leaves-first.
+- [x] Provenance still attached (automatic under OIDC) — `--provenance` kept on the
+      OIDC path; live attestation verifiable only once the trusted publisher exists.
+- [x] `website-deploy.yml` exists (`workflow_dispatch`, `environment: production`);
       `deploy-website` removed from `publish.yml`.
-- [ ] Docs updated: `SETUP.md` → publishing + the approval runbook.
-- [ ] On completion, `git mv` this spec to `docs/done/` (or `docs/partially/`).
+- [x] Docs updated: `SETUP.md` → publishing + the approval runbook.
+- [x] On completion, `git mv` this spec to `docs/done/` (or `docs/partially/`).
 
 ## Sources
 
