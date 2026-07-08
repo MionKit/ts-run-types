@@ -296,7 +296,7 @@ Commit the new `.patch` file under `ts-go-runtypes/third_party/tsgolint/patches/
 
 ## Publishing
 
-All three published packages (`ts-runtypes`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`) move in lockstep off the single version in [version.json](version.json) (bumped by [scripts/release/bump-version.mjs](scripts/release/bump-version.mjs)). The two FE packages emit dual module output (CJS + ESM) via per-package `tsc -p tsconfig.json`; `@ts-runtypes/bin` ships hand-written JS + types (no build step).
+All three published packages (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`) move in lockstep off the single version in [version.json](version.json) (bumped by [scripts/release/bump-version.mjs](scripts/release/bump-version.mjs)). `@ts-runtypes/core` emits **dual** module output (ESM + CJS: a second `tsc` pass — [tsconfig.cjs.json](packages/ts-runtypes/tsconfig.cjs.json) — writes a CommonJS build into `dist/cjs/` with a `type:commonjs` marker, so `require('@ts-runtypes/core')` works under the `type:module` root); `@ts-runtypes/devtools` is ESM-only (build-time tooling); `@ts-runtypes/bin` ships hand-written JS + types (no build step).
 
 The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `@ts-runtypes/bin`. A consumer installs only the one matching their machine, and `@ts-runtypes/devtools` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
 
