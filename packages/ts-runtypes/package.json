@@ -4,7 +4,7 @@
   "description": "Sentinel marker + canonical reflection helper for ts-runtypes. The vite plugin rewrites every call of a function whose trailing parameter type is InjectRunTypeId<T> exported from this package.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
-  "main": "./dist/index.cjs",
+  "main": "./dist/cjs/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -12,43 +12,43 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/cjs/index.js"
     },
     "./caches/runTypesCache": {
       "source": "./src/caches/runTypesCache.ts",
       "types": "./dist/caches/runTypesCache.d.ts",
       "import": "./dist/caches/runTypesCache.js",
-      "require": "./dist/caches/runTypesCache.cjs"
+      "require": "./dist/cjs/caches/runTypesCache.js"
     },
     "./caches/isTypeCache": {
       "source": "./src/caches/isTypeCache.ts",
       "types": "./dist/caches/isTypeCache.d.ts",
       "import": "./dist/caches/isTypeCache.js",
-      "require": "./dist/caches/isTypeCache.cjs"
+      "require": "./dist/cjs/caches/isTypeCache.js"
     },
     "./caches/pureFnsCache": {
       "source": "./src/caches/pureFnsCache.ts",
       "types": "./dist/caches/pureFnsCache.d.ts",
       "import": "./dist/caches/pureFnsCache.js",
-      "require": "./dist/caches/pureFnsCache.cjs"
+      "require": "./dist/cjs/caches/pureFnsCache.js"
     },
     "./formats": {
       "source": "./src/formats/index.ts",
       "types": "./dist/formats/index.d.ts",
       "import": "./dist/formats/index.js",
-      "require": "./dist/formats/index.cjs"
+      "require": "./dist/cjs/formats/index.js"
     },
     "./formats/temporal": {
       "source": "./src/formats/datetime/temporalFormats.ts",
       "types": "./dist/formats/datetime/temporalFormats.d.ts",
       "import": "./dist/formats/datetime/temporalFormats.js",
-      "require": "./dist/formats/datetime/temporalFormats.cjs"
+      "require": "./dist/cjs/formats/datetime/temporalFormats.js"
     },
     "./schema": {
       "source": "./src/schema/index.ts",
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js",
-      "require": "./dist/schema/index.cjs"
+      "require": "./dist/cjs/schema/index.js"
     }
   },
   "bin": {
@@ -73,7 +73,7 @@
     "directory": "packages/ts-runtypes"
   },
   "scripts": {
-    "build": "tsc --build tsconfig.json",
+    "build": "tsc --build tsconfig.json && tsc -p tsconfig.cjs.json && node ../../scripts/lib/emit-cjs-pkg.mjs dist/cjs",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "pretest": "pnpm --filter @ts-runtypes/devtools run build",
     "test": "vitest run",
