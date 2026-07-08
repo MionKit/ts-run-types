@@ -79,6 +79,34 @@ getRunTypeId(u);
     }
   );
 
+  // Regression (docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md):
+  // a marker call passed as an argument to an unrelated GENERIC function whose
+  // parameter INFERS the branded marker type must still inject — in BOTH wire
+  // modes. Real-world trigger: vitest's
+  // `expect(getRunTypeId<T>()).toBe(getRunTypeId<T>())`, where
+  // `Assertion<U>.toBe(expected: U)` instantiates `expected` to `InjectRunTypeId<T>`;
+  // the scanner used to treat `.toBe` as an enclosing marker and drop BOTH inner
+  // injections. `wrap<U>` is the minimal stand-in for that generic-method chain.
+  runTest(
+    'generic passer-through keeps both marker injections (edits==go)',
+    {
+      'passthrough.ts': `import {getRunTypeId} from '@ts-runtypes/core';
+declare function wrap<U>(actual: U): {toBe(expected: U): void};
+type Q = {q: number};
+export const x = wrap(getRunTypeId<Q>()).toBe(getRunTypeId<Q>());
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {sites, applied} = await assertModeParity(client, 'passthrough.ts', sources['passthrough.ts']);
+        // BOTH calls inject (the bug dropped one or both).
+        expect(sites).toHaveLength(2);
+        const injected = applied.code.match(/getRunTypeId<Q>\(undefined, __rt_[A-Za-z0-9]+\)/g) ?? [];
+        expect(injected).toHaveLength(2);
+      });
+    }
+  );
+
   // Multi-function marker (fnIds): array of bindings at one slot.
   runTest(
     'multi-fn createStandardSchema: edits mode reproduces go mode byte-for-byte',

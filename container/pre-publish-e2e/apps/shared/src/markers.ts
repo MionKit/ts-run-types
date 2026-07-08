@@ -44,9 +44,6 @@ export function homemade<T>(id?: LocalInject<T>): string {
 }
 
 export function checkMarkers(): CheckResult[] {
-  // Each marker call on its OWN statement — two same-id marker calls in a single
-  // statement can drop an injection (tracked in
-  // docs/todos/same-typeid-two-marker-calls-one-statement-not-injected.md).
   const wrappedId = describeType<User>();
   const wrappedNode = reflectType<User>();
   const valueId = typeIdOfValue({id: 1, name: 'Ada'});
@@ -56,6 +53,13 @@ export function checkMarkers(): CheckResult[] {
     eq('markers: static-shape wrapper resolves the injected handle to the canonical id', wrappedId, userTypeId),
     // The value-first wrapper shape resolves to the same id from an inferred T.
     eq('markers: value-first wrapper resolves the injected handle to the canonical id', valueId, userTypeId),
+    // Regression guard: TWO getRunTypeId<User>() calls as arguments to the generic
+    // eq() in ONE statement. eq<T> infers T = InjectRunTypeId<User> from both
+    // branded args — the shape that used to make the scanner treat eq() itself as
+    // an enclosing marker and silently drop BOTH injections (getRunTypeId then
+    // threw "no id injected" at runtime). Both must inject and resolve equal.
+    // docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md
+    eq('markers: two getRunTypeId<User>() as generic-fn args in one statement both inject', getRunTypeId<User>(), getRunTypeId<User>()),
     // Forwarding to getRunType returns the real traversable node for T.
     ok(
       'markers: wrapper forwarded to getRunType returns the User object node',

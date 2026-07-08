@@ -48,11 +48,12 @@ Regression coverage:
   proves the wrapper resolves to the same node/id as direct reflection, and pins
   that the raw handle is a tuple the low-level accessor misses).
 
-Adjacent bug found while writing the runtime test (pre-existing, out of scope,
-filed separately):
-`docs/todos/same-typeid-two-marker-calls-one-statement-not-injected.md` — two
-marker calls resolving to the same type id in ONE statement inside a nested scope
-drop one injection.
+Adjacent bug found while writing the runtime test (pre-existing, filed separately
+and since fixed):
+`docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md` — a marker
+call passed as an argument to an unrelated generic function whose parameter
+INFERS the branded marker type (e.g. `expect(getRunTypeId<T>()).toBe(...)`) was
+wrongly treated as "enclosed" and had its injection dropped.
 
 ## Symptom
 

@@ -82,6 +82,80 @@ export const idLocal = useLocal();
 	}
 }
 
+// TestScan_GenericPassthroughDoesNotEncloseMarker pins the fix for
+// docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md: a
+// marker call passed as an argument to an unrelated GENERIC function is NOT
+// "enclosed" by it, even when that function's trailing parameter INFERS the
+// branded marker type.
+//
+// The real-world trigger is vitest's `expect(getRunTypeId<T>()).toBe(getRunTypeId<T>())`:
+// `getRunTypeId<T>()` returns `InjectRunTypeId<T>`, so `expect(...)` yields
+// `Assertion<InjectRunTypeId<T>>` and `Assertion<U>.toBe(expected: U)`
+// instantiates `expected` to `InjectRunTypeId<T>`. The scanner's
+// enclosedByInjectionMarker used to match `.toBe` off that RESOLVED parameter
+// type and wrongly treat it as an enclosing marker — dropping the injection on
+// BOTH inner `getRunTypeId` calls, which then threw "no id injected" at runtime.
+// The `wrap<U>(actual: U): {toBe(expected: U): …}` shape below is the minimal
+// stand-in for that generic-method chain. Both marker calls must emit a site.
+func TestScan_GenericPassthroughDoesNotEncloseMarker(t *testing.T) {
+	// Both getRunTypeId call shapes (marker coverage rule): static <T>() and
+	// reflection (T inferred from a value). Each resolves through the generic
+	// passer-through's inferred branded parameter.
+	cases := map[string]string{
+		"static": `import {getRunTypeId} from '@ts-runtypes/core';
+declare function wrap<U>(actual: U): {toBe(expected: U): void};
+export const x = wrap(getRunTypeId<{a: number}>()).toBe(getRunTypeId<{a: number}>());`,
+		"reflect": `import {getRunTypeId} from '@ts-runtypes/core';
+declare function wrap<U>(actual: U): {toBe(expected: U): void};
+const v: {a: number} = {a: 1};
+export const x = wrap(getRunTypeId(v)).toBe(getRunTypeId(v));`,
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := setupInline(t, map[string]string{"a.ts": src})
+			resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
+			if resp.Error != "" {
+				t.Fatalf("scan: %s", resp.Error)
+			}
+			if got := countMKR003(resp.Diagnostics); got != 0 {
+				t.Fatalf("a marker passed to a generic passer-through must NOT emit MKR003, got %d", got)
+			}
+			// Both marker calls (the wrap arg AND the toBe arg) must inject. The
+			// bug dropped one or both because .toBe looked like an enclosing marker.
+			if len(resp.Sites) != 2 {
+				t.Fatalf("expected 2 injection sites (both marker calls), got %d: %+v", len(resp.Sites), resp.Sites)
+			}
+			if resp.Sites[0].ID == "" || resp.Sites[0].ID != resp.Sites[1].ID {
+				t.Fatalf("both marker calls name the same type, so ids must match, got %q and %q", resp.Sites[0].ID, resp.Sites[1].ID)
+			}
+		})
+	}
+}
+
+// TestScan_GenuineNestedBuilderStillEnclosed pins the OTHER side of the fix:
+// switching enclosedByInjectionMarker to the written-annotation check must NOT
+// stop skipping a value-first builder nested inside a genuine enclosing marker.
+// `object({a: string()})` reflects the whole shape via the `object` call, whose
+// trailing slot is DECLARED `id?: InjectRunTypeId<…>`; the inner `string()` must
+// still be skipped (one site, for `object`, not two).
+func TestScan_GenuineNestedBuilderStillEnclosed(t *testing.T) {
+	r := setupInline(t, map[string]string{
+		"a.ts": `import {getRunTypeId, type InjectRunTypeId} from '@ts-runtypes/core';
+declare function objectBuilder<T>(config: T, id?: InjectRunTypeId<T>): {readonly __rt: T};
+declare function stringBuilder(id?: InjectRunTypeId<string>): {readonly __rt: string};
+export const schema = objectBuilder({a: stringBuilder()});`,
+	})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	// Only the enclosing objectBuilder call emits a site; the nested stringBuilder
+	// is reflected by it and skipped. (Two sites would mean the enclosing skip broke.)
+	if len(resp.Sites) != 1 {
+		t.Fatalf("expected exactly 1 site (nested builder skipped by the genuine enclosing marker), got %d: %+v", len(resp.Sites), resp.Sites)
+	}
+}
+
 // TestScan_MarkerInGenericBody_EmitsMKR003 pins that a marker call with an EMPTY
 // trailing slot inside a generic body (the genuinely-unsupported case — `T`
 // unresolved, no handle to forward) still emits the MKR003 build-time error for
