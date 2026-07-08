@@ -1,8 +1,10 @@
 # Local publish skips `@ts-runtypes/core` (stale `--filter` after the scope rename)
 
-**Status:** todo (bug; found 2026-07-08)
-**Severity:** high — the local publish path silently omits the main package.
+**Status:** done — fixed 2026-07-08 ([`publish.mjs`](../../scripts/release/publish.mjs) now filters `@ts-runtypes/core`).
+**Severity:** high — the local publish path silently omitted the main package.
 **Scope:** [`scripts/release/publish.mjs`](../../scripts/release/publish.mjs) (one line). No CI/runtime code.
+
+> **Fixed:** the FE publish selector is now `--filter @ts-runtypes/core --filter @ts-runtypes/devtools`; verified both projects resolve (`pnpm --filter … exec …` lists both). The optional selection-count guard below is left as a future hardening.
 
 ## The bug
 

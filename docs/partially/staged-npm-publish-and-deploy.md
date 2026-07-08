@@ -18,7 +18,7 @@ and remain (see [What remains](#what-remains-external-one-time)).
 
 Cannot be done from the repo — a maintainer with npmjs.com admin must, **in order** (OIDC can't create a package that doesn't exist yet, so the first version of each package must be token-published before its trusted publisher can be registered):
 
-1. **Bootstrap the first version with a token, locally** (`pnpm rtx release npm`) so all ten `@ts-runtypes/*` packages exist on npm. ⚠️ Fix [publish-local-core-filter-bug.md](../todos/publish-local-core-filter-bug.md) first — the local path's stale `--filter ts-runtypes` silently skips `@ts-runtypes/core`.
+1. **Bootstrap the first version with a token, locally** (`pnpm rtx release npm`) so all ten `@ts-runtypes/*` packages exist on npm.
 2. Register the **trusted publisher** (repo `MionKit/ts-run-types`, workflow `publish.yml`) with **stage-only** permissions for **every** published package (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and each `@ts-runtypes/binary-<os>-<arch>`), then confirm an OIDC run stages successfully.
 3. Delete the `NPM_TOKEN` **repo secret** once OIDC is verified (CI no longer reads it; the local interactive publish still uses it from `.env`).
 
