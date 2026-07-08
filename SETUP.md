@@ -381,11 +381,21 @@ If the queue can't be read automatically (not logged in, npm too old), the helpe
 
 **Deploy the docs site (manual).** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate, manually-triggered workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`). After the stage-ids are approved, run it from **Actions → prod · deploy website → Run workflow**. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only.
 
-**One-time external setup** (before the first staged release):
+**First-publish bootstrap (one-time, in order).** Trusted Publishing **cannot create a package that does not exist yet** — npm only lets you register a trusted publisher for a package that already has at least one published version. So the very first version of every `@ts-runtypes/*` package must be published with a token, and only then can CI take over:
 
-- On [npmjs.com](https://www.npmjs.com/), register the **trusted publisher** (repo `MionKit/ts-run-types`, workflow `publish.yml`) with **stage-only** permissions for **every** published package: `@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and each `@ts-runtypes/binary-<os>-<arch>`.
-- CI runs Node 26; staged publishing needs npm **≥ 11.15.0** (OIDC needs ≥ 11.5.1). The `publish-npm` job runs `npm install -g npm@latest` to guarantee it.
-- Once an OIDC run is confirmed working, the `NPM_TOKEN` **repo secret** can be deleted (CI no longer uses it; the local direct publish still reads `NPM_TOKEN` from `.env`).
+1. **Publish the initial version with a token, locally.** Run the [Local (manual) publish](#local-manual-publish) path (`pnpm rtx release npm`, `NPM_TOKEN` in `.env` + a 2FA OTP). It creates all ten packages on npm (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and the seven `@ts-runtypes/binary-<os>-<arch>`) with `--access public`. (Heads-up: fix the stale FE `--filter` in [`publish.mjs`](scripts/release/publish.mjs) first — see [docs/todos/publish-local-core-filter-bug.md](docs/todos/publish-local-core-filter-bug.md) — or `@ts-runtypes/core` is silently skipped.)
+2. **Register the trusted publisher (stage-only) for each now-existing package** on [npmjs.com](https://www.npmjs.com/): repo `MionKit/ts-run-types`, workflow `publish.yml`, **stage-only** permissions, for all ten package names above.
+3. **Verify one OIDC staged run** (merge a version-bump PR into `prod`; `publish-npm` should stage without a token), then delete the `NPM_TOKEN` **repo secret** — CI no longer uses it (the local direct publish still reads `NPM_TOKEN` from `.env`).
+
+CI runs Node 26; staged publishing needs npm **≥ 11.15.0** (OIDC needs ≥ 11.5.1). The `publish-npm` job runs `npm install -g npm@latest` to guarantee it.
+
+**Cutting a release (after the bootstrap).**
+
+1. Bump the lockstep version on a branch: `pnpm rtx release bump <patch|minor|major|X.Y.Z>` ([`bump-version.mjs`](scripts/release/bump-version.mjs) writes `version.json` + every `package.json`, commits `chore(release): v<version>`, and tags `v<version>` locally — don't push that tag; CI tags the `prod` commit itself, idempotently).
+2. Open a PR into `prod` ([`pre-publish.yml`](.github/workflows/pre-publish.yml) runs the full gate). The bumped `version.json` MUST be in this PR — [`publish.yml`](.github/workflows/publish.yml)'s preflight refuses to re-publish an existing version.
+3. Merge. `publish.yml` runs the gate again, then **stages** every package to npm (OIDC) and tags the release.
+4. Approve the staged packages with 2FA, leaves-first: `pnpm rtx release stage-approve`.
+5. Deploy the docs: **Actions → prod · deploy website → Run workflow**.
 
 ### Pre-publish e2e — `pnpm rtx release e2e`
 
