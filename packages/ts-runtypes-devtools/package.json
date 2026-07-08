@@ -51,6 +51,7 @@
   "publishConfig": {
     "access": "public"
   },
+  "homepage": "https://runtypes.pages.dev",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MionKit/ts-run-types.git",
