@@ -463,13 +463,13 @@ main "$@"
 # Claude Code on the web (the managed, ephemeral Linux container).
 #
 # +-------------------------------------------------------------------------+
-# | THIS FILE MUST STAY SELF-CONTAINED.                                      |
+# | THIS FILE MUST STAY SELF-CONTAINED.                                     |
 # |                                                                         |
 # | It is copy-pasted verbatim into the Claude Code web environment's       |
-# | "setup script" field, so at run time it is NOT `scripts/…` in a checkout|
+# | "setup script" field, so at runtime it's NOT `scripts/...` in a checkout|
 # | - it is a lone script in a temp path. It therefore MUST NOT source or   |
 # | call any other repo file (the ts-runtypes-setup skill's setup.sh,       |
-# | scripts/container/image.mjs, scripts/lib/*.mjs, pm/*.sh, …) and MUST NOT |
+# | scripts/container/image.mjs, scripts/lib/*.mjs, pm/*.sh) and MUST NOT   |
 # | derive the repo root from BASH_SOURCE. Every step is inlined on purpose.|
 # | If you factor something out into another file, this script breaks the   |
 # | moment it runs from the UI. Keep it standalone; DUPLICATE logic rather  |
@@ -477,7 +477,7 @@ main "$@"
 # |                                                                         |
 # | The interactive, cross-platform, user-assist setup lives separately in  |
 # | .claude/skills/ts-runtypes-setup/ - that one is for humans on their own |
-# | machines (macOS + Linux, brew/apt/dnf/…). THIS one is the autonomous    |
+# | machines (macOS + Linux, brew/apt/dnf/...). THIS one is the autonomous  |
 # | web installer. They are intentionally NOT shared and evolve separately. |
 # +-------------------------------------------------------------------------+
 #
