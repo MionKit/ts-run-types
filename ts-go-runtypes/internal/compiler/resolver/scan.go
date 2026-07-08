@@ -390,6 +390,22 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	if state.enclosedByInjectionMarker(call) {
 		return pendingCall{}, diags, false
 	}
+	// EXPLICIT PASS-THROUGH: the caller already placed an argument at (or past)
+	// the trailing id slot. Two shapes reach here — an explicit id string, or
+	// (the important one) a wrapper FORWARDING its own injected
+	// `InjectRunTypeId<T>` handle inward, e.g. `getRunType<T>(undefined, id)` in
+	// the body of a `describe<T>(id?: InjectRunTypeId<T>)` helper. Either way the
+	// slot is filled, so there is nothing to inject: leave the call completely
+	// untouched — no site, and NO injection diagnostic. This check MUST precede
+	// the free-type-parameter (MKR003) check below: inside a generic wrapper body
+	// `T` IS the wrapper's free type parameter, but a forwarded handle is a
+	// legitimate resolved value, not an injection request, so MKR003 would be a
+	// false positive that halts the build on the documented wrapper pattern.
+	// (CompTimeArgs / PureFunction validation on the other args, collected above,
+	// is still returned.)
+	if argsCount > lastIndex {
+		return pendingCall{}, diags, false
+	}
 	// Guard against a `Temporal.*` type that silently resolved to `any`
 	// because the consumer's tsconfig lib doesn't load the Temporal
 	// namespace — otherwise the emitted validator accepts anything. Emitted
@@ -398,12 +414,12 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	diags = append(diags, detectTemporalNotLoaded(state.scanChecker, file, call)...)
 	typeArgument := injectionTypeArgument
 	if marker.IsFreeTypeParameter(typeArgument) {
-		// Call inside a generic wrapper body — `T` is the wrapper's own
-		// free type parameter. Skip: no id to inject until the wrapper
-		// is itself instantiated at its own call sites. Emit MKR003 so
-		// the user knows why the rewrite was skipped — otherwise they
-		// hit the runtime "no id injected" throw with no build-time
-		// breadcrumb.
+		// Call inside a generic wrapper body with the id slot EMPTY — `T` is the
+		// wrapper's own free type parameter, so there is no concrete id to inject
+		// until the wrapper is itself instantiated. (A wrapper that forwards its
+		// handle returned above; this is the genuinely-unsupported case, e.g.
+		// `createValidate<T>()` in a generic body.) Emit MKR003 so the user gets a
+		// build-time breadcrumb instead of only the runtime "no id injected" throw.
 		sourceFile := ast.GetSourceFileOfNode(call)
 		if sourceFile == nil {
 			return pendingCall{}, diags, false
@@ -412,11 +428,6 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 			diagnostics.CodeMarkerFreeTypeParameter,
 			textpos.NodeSite(file, sourceFile, call),
 		))
-		return pendingCall{}, diags, false
-	}
-	// Caller has already placed an argument at (or past) the id slot.
-	// Never override an explicit pass-through — leave the call untouched.
-	if argsCount > lastIndex {
 		return pendingCall{}, diags, false
 	}
 	// REFLECT-FORM CHECKS: only fire when T was inferred from a value

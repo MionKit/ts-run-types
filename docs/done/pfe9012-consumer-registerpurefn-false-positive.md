@@ -1,10 +1,37 @@
 # PFE9012 false positive: a consumer `registerPureFnFactory` breaks built-in pure-fn discovery
 
-**Status:** todo (found 2026-07-08 while building the pre-publish e2e feature matrix)
+**Status:** DONE (2026-07-08)
 **Severity:** correctness — halts a consumer build with a false-positive error
 **Scope:** `ts-go-runtypes/internal/compiler/resolver/render.go`
 (`validateProgramPureFnDeps`) + `ts-go-runtypes/internal/cachegen/purefunctions/`.
 Go resolver only — no JS.
+
+## Resolution (what shipped)
+
+The runtime-owned pure-fn namespaces are now EXEMPT from the missing-dep check.
+`purefunctions.IsBuiltinPureFnNamespace` (`internal/cachegen/purefunctions/index.go`)
+declares `{rt, rtFormats}` — the namespaces `@ts-runtypes/core` registers itself
+via its side-effect imports (`runtypes/pure-fns-utils.ts` for `rt::`, the per-format
+modules for `rtFormats::`). `ValidatePureFnDependencies` skips any dep in those
+namespaces before the registration lookup, so a reference to a built-in never
+misses. Only user-owned namespaces are cross-checked. The RESOLVER's emitters are
+the only thing that reaches these built-ins (every `AddPureFnDependency` call uses
+`rt` or `rtFormats`), and they only reference fns the runtime ships — so the
+exemption is faithful to runtime and self-maintaining (a new built-in needs no
+list edit). The old `len(entries) == 0` whole-program guard in
+`validateProgramPureFnDeps` (the thing a consumer's own `registerPureFnFactory`
+defeated) is removed and replaced by this principled exemption.
+
+Regression coverage:
+- `internal/cachegen/purefunctions/index_test.go`:
+  `TestValidatePureFnDependencies_BuiltinNamespacesExempt` (built-ins never fire even
+  against an empty index; a user typo in the same batch still fires) +
+  `TestIsBuiltinPureFnNamespace`. The mechanism tests (lazy expansion, dedup, miss)
+  moved to a user namespace (`app::`) since built-ins are no longer validated.
+- `internal/compiler/resolver/pure_fn_dep_validation_test.go`:
+  `TestPureFnDepValidation_ConsumerOwnPureFnNoFalsePositive` (the exact bug: `.d.ts`
+  core + `createGetValidationErrors` + a consumer `registerPureFnFactory` → no
+  PFE9012 on scanFiles / lint / dump) + the registration-present + stub cases.
 
 ## Symptom
 
@@ -88,9 +115,9 @@ the diagnostic's value for user pure fns.
 
 ## Acceptance
 
-- [ ] A consumer program with its own `registerPureFnFactory` + `createGetValidationErrors`
+- [x] A consumer program with its own `registerPureFnFactory` + `createGetValidationErrors`
       (or any built-in-referencing feature) builds against the published package.
-- [ ] A genuine user typo (`ns::typoFn` referenced but never registered) still fires PFE9012.
-- [ ] Re-add the `custom-pure-fn` (`registerPureFnFactory`) coverage to
+- [x] A genuine user typo (`ns::typoFn` referenced but never registered) still fires PFE9012.
+- [x] Re-add the `custom-pure-fn` (`registerPureFnFactory`) coverage to
       `container/pre-publish-e2e/apps/shared/src/overrides.ts` and drop the note there.
-- [ ] `git mv` this spec to `docs/done/`.
+- [x] `git mv` this spec to `docs/done/`.

@@ -6,7 +6,7 @@
 // least one asserts the two forms converge on the same entry.)
 
 import {describe, it, expect} from 'vitest';
-import {getRunType, getRunTypeId, RunTypeKind} from '@ts-runtypes/core';
+import {getRunType, getRunTypeId, getRTUtils, RunTypeKind, type InjectRunTypeId, type RunType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
 
@@ -68,5 +68,61 @@ describe('getRunType — reflected RunType node accessor', () => {
   it('throws when the injected id has no registered entry', () => {
     const erased = getRunType as (...args: unknown[]) => unknown;
     expect(() => erased(undefined, 'getRunType-nonexistent-id')).toThrow(/no RunType entry/);
+  });
+});
+
+// Regression for docs/done/inject-runtypeid-helper-getruntype-undefined.md: the
+// documented wrapper pattern. A helper declares a trailing
+// `id?: InjectRunTypeId<T>`; the build injects an opaque handle at each concrete
+// call site; the body resolves it by FORWARDING it to a public resolver as the
+// trailing argument (`getRunType<T>(undefined, id)`). The forwarded call is a
+// pass-through the build leaves untouched (no MKR003), and it resolves to the
+// exact same registered node/id as direct reflection. The raw handle is NOT a
+// string, so the old `getRTUtils().getRunType(id)` path missed — that is why
+// forwarding is required.
+describe('getRunType — user wrapper forwarding an injected handle', () => {
+  function reflectType<T>(id?: InjectRunTypeId<T>): RunType<T> {
+    return getRunType<T>(undefined, id);
+  }
+  function idOfType<T>(id?: InjectRunTypeId<T>): string {
+    return getRunTypeId<T>(undefined, id);
+  }
+  function idOfValue<T>(_value: T, id?: InjectRunTypeId<T>): string {
+    return getRunTypeId<T>(undefined, id);
+  }
+
+  it('(static wrapper) resolves the handle to the SAME node as direct getRunType<T>()', () => {
+    const wrapped = reflectType<{id: number; name: string}>();
+    const direct = getRunType<{id: number; name: string}>();
+    expect(wrapped.kind).toBe(RunTypeKind.objectLiteral);
+    expect(wrapped).toBe(direct); // one shared registered singleton
+  });
+
+  it('(static wrapper) resolves the handle to the same id as direct getRunTypeId<T>()', () => {
+    const wrappedId = idOfType<{id: number; name: string}>();
+    const directId = getRunTypeId<{id: number; name: string}>();
+    expect(wrappedId).toBe(directId);
+  });
+
+  it('(value-first wrapper) resolves the handle from an inferred T', () => {
+    const value = {id: 1, name: 'Ada'};
+    const wrappedId = idOfValue(value);
+    const directId = getRunTypeId<{id: number; name: string}>();
+    expect(wrappedId).toBe(directId);
+  });
+
+  it('the raw injected handle is NOT a plain string, so getRTUtils().getRunType(handle) misses', () => {
+    // Capture the raw handle WITHOUT forwarding it — the mistake the old guide made.
+    let raw: unknown;
+    function capture<T>(id?: InjectRunTypeId<T>): void {
+      raw = id;
+    }
+    capture<{id: number; name: string}>();
+    // The injected value is the entry-module tuple (an array), not a hash string.
+    expect(typeof raw).not.toBe('string');
+    expect(Array.isArray(raw)).toBe(true);
+    // Indexing the string-keyed registry with it therefore returns undefined —
+    // the exact symptom the todo tracked. Forwarding (above) is the fix.
+    expect(getRTUtils().getRunType(raw as unknown as string)).toBeUndefined();
   });
 });

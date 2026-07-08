@@ -1,25 +1,35 @@
 // Marker primitives — the type-level brands the Go binary scanner recognizes
 // at call sites:
 //   • `InjectRunTypeId<T>` — the only *injectable* marker. The trailing
-//     `id?: InjectRunTypeId<T>` parameter is filled in at build time with the
-//     resolved hash id by `ts-runtypes-devtools`.
+//     `id?: InjectRunTypeId<T>` parameter is filled in at build time by
+//     `ts-runtypes-devtools` with an opaque reflection handle for `T`.
 //   • `CompTimeArgs<T>` — brands an argument as "must be a literal at the
 //     call site, or a module-scope `const` whose initializer is itself
 //     entirely literal". Static check only, no injection.
 //   • `PureFunction<F>` — brands a function-typed argument as "literal AND
 //     passes purity rules". Static check only.
 //
-// Wrappers around `getRunTypeId` are supported — declare the same trailing
-// parameter on the wrapper and the transformer treats it identically.
+// Wrappers around `getRunTypeId` / `getRunType` are supported — declare the same
+// trailing `id?: InjectRunTypeId<T>` parameter on the wrapper and the transformer
+// injects at its call sites identically. Inside the wrapper body resolve the
+// handle by FORWARDING it to a public resolver as the trailing argument
+// (`getRunType<T>(undefined, id)` / `getRunTypeId<T>(undefined, id)`); such a
+// forwarded call is a pass-through the build leaves untouched. Do NOT hand the
+// handle to the low-level `getRTUtils().getRunType()` — that takes a string id
+// and returns undefined for the injected handle.
 
 import {entryTupleKey, initFromTuple, isEntryTuple} from './runtypes/entryTuple.ts';
 import type {RunType} from './runtypes/types.ts';
 
 /**
  * Sentinel marker. `T` is a phantom type parameter used only by the checker /
- * transformer; at runtime an `InjectRunTypeId<T>` is just a short alphanumeric
- * hash string. The brand prevents stringly-typed APIs from accidentally
- * satisfying the marker.
+ * transformer. The declared type is a branded `string` so a wrapper's
+ * `id?: InjectRunTypeId<T>` parameter reads as a string and the brand keeps
+ * stringly-typed APIs from accidentally satisfying the marker. At RUNTIME the
+ * build injects an OPAQUE handle (an entry-module tuple that also carries `T`'s
+ * type graph for lazy registration), NOT a bare hash string — resolve it by
+ * forwarding it to `getRunType` / `getRunTypeId` (see the wrapper note above),
+ * never by indexing `getRTUtils().getRunType()` with it directly.
  */
 export type InjectRunTypeId<T> = string & {
   readonly __rtInjectRunTypeIdBrand?: T;
