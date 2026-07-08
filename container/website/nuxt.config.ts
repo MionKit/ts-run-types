@@ -29,7 +29,6 @@ export default defineNuxtConfig({
     '@shikijs/twoslash/style-rich.css',
   ],
   app: {
-    // baseURL: '/mion/', // working with github pages mionkit.github.io/mion/ - Remove when using mion.io
     buildAssetsDir: '_assets', // don't use "_" at the beginning of the folder name to avoid nojekyll conflict
   },
   colorMode: {

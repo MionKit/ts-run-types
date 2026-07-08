@@ -1,24 +1,35 @@
 export default defineAppConfig({
+  // Docus' AppHeader/AppFooterRight read this top-level `github` (not `docus.github`)
+  // to render the GitHub icon in the top nav and footer. Docus normally auto-derives
+  // it from the local `.git/config`, but the site runs inside a container that only
+  // bind-mounts container/website/, so the .git dir is invisible from Nuxt's rootDir
+  // and the auto-derivation returns undefined. Set it explicitly here.
+  github: {
+    owner: 'MionKit',
+    name: 'ts-run-types',
+    url: 'https://github.com/MionKit/ts-run-types',
+    branch: 'main',
+  },
   seo: {
     title: 'RunTypes — TypeScript types that show up at runtime',
     description:
       'Validation, JSON + binary serialization, mock data and reflection — generated straight from your TypeScript types. No schemas, no drift.',
-    image: '',
+    image: '/banners/runtypes-banner.png',
   },
   docus: {
     title: 'ts-runtypes',
     description:
       'TypeScript decided it is "just a linter". We respectfully bolted the runtime back on.',
-    image: '',
+    image: '/banners/runtypes-banner.png',
     socials: {
-      github: 'mionkit/ts-runtypes',
+      github: 'MionKit/ts-run-types',
       twitter: '@Ma_jrz',
     },
     github: {
       dir: 'container/website/content',
       branch: 'main',
-      repo: 'ts-runtypes',
-      owner: 'mionkit',
+      repo: 'ts-run-types',
+      owner: 'MionKit',
       edit: false
     },
     aside: {
@@ -47,8 +58,8 @@ export default defineAppConfig({
       ],
       credits: {
         icon: 'icon-park-outline:copyright',
-        text: `MIT license - Copyright ${new Date().getFullYear()} mion`,
-        href: 'https://github.com/mionkit/ts-runtypes/blob/main/LICENSE',
+        text: `MIT license - Copyright ${new Date().getFullYear()} RunTypes`,
+        href: 'https://github.com/MionKit/ts-run-types/blob/main/LICENSE',
       },
     }
   },

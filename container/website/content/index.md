@@ -35,7 +35,7 @@ TypeScript decided it is **"Just a Linter"** and erases your types.
 :::
 
 :::div{class="tsgo-kicker"}
-[Built on top of typescript-go · **100% compatible**](/introduction/built-on-typescript-go){.tsgo-badge}
+[Built on top of Typescript-go V7 · **100% compatible**](/introduction/built-on-typescript-go){.tsgo-badge}
 :::
 
 #links

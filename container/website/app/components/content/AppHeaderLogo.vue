@@ -16,4 +16,8 @@
 .rt-logo-trademark {
   color: var(--ui-text-highlighted);
 }
+
+.ts-color {
+  color: #3178C6;
+}
 </style>
