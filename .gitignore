@@ -38,7 +38,7 @@ packages/ts-runtypes/test/suites/enrich/.tmp/
 /.cache/rt-wasm/
 
 # Consumer e2e fixture install artifacts (the fixture source IS tracked).
-/pre-publish-e2e/package-lock.json
+/container/pre-publish-e2e/package-lock.json
 /logs/
 /gendocs/
 
