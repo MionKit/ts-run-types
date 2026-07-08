@@ -109,6 +109,8 @@ function buildPlatform(platform, version, tsgo, launcherPkg) {
     name,
     version,
     description: `Prebuilt ts-runtypes resolver binary for ${platform.os}-${platform.cpu}.`,
+    homepage: launcherPkg.homepage,
+    bugs: launcherPkg.bugs,
     license: launcherPkg.license,
     os: [platform.os],
     cpu: [platform.cpu],
