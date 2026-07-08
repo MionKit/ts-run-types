@@ -2,12 +2,10 @@
   "name": "ts-runtypes-pre-publish-e2e",
   "private": true,
   "type": "module",
-  "description": "Consumer end-to-end fixture. The release-gate.yml e2e job installs the PUBLISHED ts-runtypes + ts-runtypes-devtools at the release version from a local verdaccio registry, then this suite verifies the host-platform resolver binary resolves via the ts-runtypes-bin optional-dependency model, spawns, and rewrites both getRunTypeId call shapes. vite/vitest are pinned here as devDependencies so a workspace bump can't silently diverge the release-install test.",
+  "description": "Consumer end-to-end feature matrix. Drives the PUBLISHED @ts-runtypes/* packages (installed from a local verdaccio) through EVERY shipped bundler adapter: the shared feature library (apps/shared, all 13 families) is transformed as SOURCE by each bundler's RunTypes plugin — build-vite (Vite-on-Rolldown + oxlint) runs the full matrix, the smoke-* apps prove each other adapter loads + transforms + runs. Tests assert runtime behavior, rewrite evidence, and lint transport over the build output. Toolchains are baked into the shared image (_deps); each run installs only the changing @ts-runtypes/*. See docs/todos/prepublish-e2e-2-feature-matrix.md.",
   "scripts": {
-    "test": "vitest run"
-  },
-  "devDependencies": {
-    "vite": "5.4.10",
-    "vitest": "2.1.9"
+    "build:all": "node build-all.mjs",
+    "test": "node --test test/*.test.mjs",
+    "lint:all": "node lint-all.mjs"
   }
 }

@@ -160,13 +160,40 @@ No open design decisions — these are build-time checks/tasks:
 
 ## Acceptance criteria
 
-- [ ] `pnpm rtx release e2e` runs the flow locally on macOS against a
+- [x] `pnpm rtx release e2e` runs the flow locally on macOS against a
       **containerized** verdaccio and exercises the real darwin-arm64 binary;
-      fails cleanly (no host verdaccio install) if podman is down.
-- [ ] The same command drives the `ubuntu-latest` e2e lane (container); the
-      macOS/Windows lanes pass via the CI-guarded host-npx fallback.
-- [ ] The shared GHCR image carries the verdaccio layer and is republished; CI
-      `pull-shared-image` gets it.
-- [ ] `SETUP.md` documents `pnpm rtx release e2e` in the dev loop.
-- [ ] On completion, `git mv` this spec to `docs/done/` (or `docs/partially/`).
+      fails cleanly (no host verdaccio install) if podman is down. **Verified
+      green end-to-end on macOS/arm64** (containerized verdaccio → in-container
+      matrix on the published linux-x64 binary → host-native darwin smoke).
+- [x] The same command drives the `ubuntu-latest` e2e lane (container); the
+      macOS/Windows lanes pass via the CI-guarded host-npx fallback. (`release-gate.yml`
+      rewired; ubuntu=container, mac/win=host-npx.)
+- [~] The shared GHCR image carries the verdaccio + e2e-toolchain layers.
+      **Local image built + verified; the GHCR republish (`pnpm rtx container push`)
+      is the one remaining maintainer step so CI `pull-shared-image` gets it.**
+- [x] `SETUP.md` documents `pnpm rtx release e2e` under Publishing.
+- [x] On completion, `git mv` this spec to `docs/done/`.
+
+## Implementation outcome (shipped 2026-07-08)
+
+Shipped as designed. New `scripts/release/e2e.mjs` (container-default /
+host-npx-fallback-guarded-by-CI), `startRegistry`/`stopRegistry` +
+`prepareE2eDeps` in `image.mjs`, verdaccio + the e2e toolchains baked into
+`container/website/Containerfile` (config + `e2e-serve.sh` under
+`container/pre-publish-e2e/registry/`), `rtx release e2e` wired, `release-gate.yml`
+e2e job rewired, `verdaccio-publish` action retired (its logic moved into
+`e2e.mjs`; `.github/verdaccio.yaml` kept for the host-npx path), `RT_E2E_*` in the
+env registry + `.env.sample`.
+
+Deviations found + fixed while wiring the container run: verdaccio `max_body_size`
+(the ~8 MB binary tarballs 413'd), the runtime install uses **npm**
+(`--legacy-peer-deps` + an explicit `@ts-runtypes/bin`) rather than `pnpm add` (the
+build-time pnpm store lives in a cache mount absent from the image, so `pnpm add`
+would re-resolve + prune the baked toolchains), and the age gate is bypassed only
+for the packages-under-test install.
+
+**Remaining maintainer step:** `pnpm rtx container push` to republish the shared
+GHCR image with the new layers (needs `GHCR_PAT`), so CI's `pull-shared-image`
+serves it. Until then the prod release-gate e2e (ubuntu container backend) pulls
+an image without the e2e layers.
 </content>

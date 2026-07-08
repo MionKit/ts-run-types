@@ -31,6 +31,14 @@ const DEPS_DIR = join(WEBSITE_DIR, '_deps');
 // website build context (.bench-deps/, git-ignored) so the Containerfile can COPY them.
 const BENCH_DEPS_SRC = join(REPO_ROOT, 'container/benchmarks/_deps');
 const BENCH_DEPS_STAGE = join(WEBSITE_DIR, '.bench-deps');
+// The pre-publish e2e bakes its builder toolchains (_deps) + verdaccio registry
+// assets (registry/) into the same shared image. Both are staged into the website
+// build context (git-ignored .e2e-*) so the one Containerfile can COPY them.
+const E2E_DIR = join(REPO_ROOT, 'container/pre-publish-e2e');
+const E2E_DEPS_SRC = join(E2E_DIR, '_deps');
+const E2E_DEPS_STAGE = join(WEBSITE_DIR, '.e2e-deps');
+const E2E_REGISTRY_SRC = join(E2E_DIR, 'registry');
+const E2E_REGISTRY_STAGE = join(WEBSITE_DIR, '.e2e-registry');
 const MANIFEST_NAME = 'tsrt-website-manifest';
 
 // Resolve the env-dependent config fresh (so a caller that mutated the env — or
@@ -94,6 +102,20 @@ function prepareBenchDeps() {
   cpSync(BENCH_DEPS_SRC, BENCH_DEPS_STAGE, {recursive: true});
 }
 
+// Stage the pre-publish e2e's toolchain manifests (_deps) + verdaccio registry
+// assets (registry/) into the website build context so the merged Containerfile
+// can COPY them (baked under /e2e + /etc/verdaccio + /usr/local/bin).
+function prepareE2eDeps() {
+  if (!existsSync(E2E_DEPS_SRC)) die(`image: missing ${E2E_DEPS_SRC} (pre-publish e2e deps) - cannot build the shared image`);
+  if (!existsSync(E2E_REGISTRY_SRC)) die(`image: missing ${E2E_REGISTRY_SRC} (pre-publish e2e registry assets) - cannot build the shared image`);
+  rmSync(E2E_DEPS_STAGE, {recursive: true, force: true});
+  mkdirSync(E2E_DEPS_STAGE, {recursive: true});
+  cpSync(E2E_DEPS_SRC, E2E_DEPS_STAGE, {recursive: true});
+  rmSync(E2E_REGISTRY_STAGE, {recursive: true, force: true});
+  mkdirSync(E2E_REGISTRY_STAGE, {recursive: true});
+  cpSync(E2E_REGISTRY_SRC, E2E_REGISTRY_STAGE, {recursive: true});
+}
+
 // Optional build-arg overrides: RT_WEBSITE_BASE_IMAGE swaps the Node 26 base;
 // RT_WEBSITE_PNPM_VERSION overrides the pinned pnpm. Honored by build + push.
 function buildArgFlags(cfg) {
@@ -107,6 +129,7 @@ function buildImage(cfg) {
   requireEngine(cfg.engine);
   prepareCacerts(cfg);
   prepareBenchDeps();
+  prepareE2eDeps();
   const flags = buildArgFlags(cfg);
   note(`building ${cfg.image} from container/website/Containerfile (merged website + benchmark deps)`);
   const net = cfg.buildNetwork ? [`--network=${cfg.buildNetwork}`] : [];
@@ -184,6 +207,15 @@ function ensureImageLocal(cfg) {
       if (statSync(full).isFile()) srcEpoch = Math.max(srcEpoch, mtimeSec(full));
     }
   }
+  // The pre-publish e2e toolchains + registry assets are baked here too — a bump
+  // to either must rebuild the shared image.
+  for (const dir of [E2E_DEPS_SRC, E2E_REGISTRY_SRC]) {
+    if (!existsSync(dir)) continue;
+    for (const rel of globSync('**/*', {cwd: dir})) {
+      const full = join(dir, rel);
+      if (statSync(full).isFile()) srcEpoch = Math.max(srcEpoch, mtimeSec(full));
+    }
+  }
   if (srcEpoch > imgEpoch) {
     note('image is stale (Containerfile or a manifest newer than image) - rebuilding');
     buildImage(cfg);
@@ -201,6 +233,7 @@ export function cmdPush(opts = {}) {
   requireEngine(cfg.engine);
   prepareCacerts(cfg);
   prepareBenchDeps();
+  prepareE2eDeps();
   ghcrPushMultiarch(cfg.engine, MANIFEST_NAME, WEBSITE_DIR, cfg.remoteImage, cfg.buildNetwork, buildArgFlags(cfg));
 }
 
@@ -226,6 +259,48 @@ export function cmdClean(opts = {}) {
   note(`removing image ${cfg.image} and named volumes`);
   capture(cfg.engine, ['rmi', '-f', cfg.image]); // ignore "no such image"
   capture(cfg.engine, ['volume', 'rm', '-f', cfg.volNuxt, cfg.volData, cfg.volCache]);
+}
+
+// ── pre-publish e2e registry (verdaccio-in-container) ────────────────────────
+// Start the shared image running its baked verdaccio (e2e-serve.sh): the mounted
+// tarballs are published to its own :4873, exposed on 127.0.0.1:<port>, and the
+// e2e source is mounted read-only at /e2e-src for the in-container matrix run.
+// The healthcheck flips to `healthy` only after every tarball is published.
+// Returns the coordinates so the caller (scripts/release/e2e.mjs) can wait for
+// health, `podman exec` the matrix, drive the host-native smoke, then stopRegistry.
+export function startRegistry(opts = {}) {
+  const cfg = config(opts.env);
+  if (!opts.tarballsDir || !existsSync(opts.tarballsDir)) die(`image: registry: tarballs dir '${opts.tarballsDir ?? ''}' not found (run: rtx release binaries && rtx release pack)`);
+  if (!opts.e2eSrcDir || !existsSync(opts.e2eSrcDir)) die(`image: registry: e2e source dir '${opts.e2eSrcDir ?? ''}' not found`);
+  ensureImage(opts);
+  const container = `${cfg.containerBase}-e2e-registry`;
+  const port = String(opts.port || '4873');
+  const net = cfg.runNetwork ? [`--network=${cfg.runNetwork}`] : [];
+  capture(cfg.engine, ['rm', '-f', container]); // drop any stale container
+  note(`starting containerized verdaccio (${container}) on 127.0.0.1:${port}`);
+  runOrThrow(
+    cfg.engine,
+    [
+      'run', '-d', '--init', '--name', container,
+      '-v', `${opts.tarballsDir}:/tarballs:ro${cfg.mountOpts}`,
+      '-v', `${opts.e2eSrcDir}:/e2e-src:ro${cfg.mountOpts}`,
+      '-p', `127.0.0.1:${port}:4873`,
+      ...net,
+      '--health-cmd', 'test -f /tmp/registry-ready',
+      '--health-interval', '2s',
+      '--health-retries', '90',
+      '--health-start-period', '2s',
+      cfg.image,
+      '/usr/local/bin/e2e-serve.sh',
+    ],
+    {stdio: ['inherit', 'ignore', 'inherit']}
+  );
+  return {engine: cfg.engine, container, port, image: cfg.image};
+}
+
+// Remove the registry container (best-effort; ignores "no such container").
+export function stopRegistry(engine, container) {
+  capture(engine, ['rm', '-f', container]);
 }
 
 export function buildImageCmd(opts = {}) {
