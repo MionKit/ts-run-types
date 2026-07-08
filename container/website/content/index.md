@@ -71,6 +71,19 @@ variant: outline
 ---
 Benchmarks
 :::
+
+:::u-button
+---
+color: neutral
+icon: i-simple-icons-github
+size: xl
+to: https://github.com/MionKit/ts-run-types
+target: "_blank"
+rel: noopener noreferrer
+variant: outline
+---
+GitHub
+:::
 ::
 
 ::u-page-section
