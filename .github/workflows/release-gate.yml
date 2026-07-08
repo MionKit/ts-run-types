@@ -110,12 +110,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {runner: ubuntu-latest, pkg: linux-x64}
-          - {runner: macos-14, pkg: darwin-arm64}
-          - {runner: windows-latest, pkg: win32-x64}
+          # ubuntu runs the full multi-bundler feature matrix + the host-native
+          # smoke against a CONTAINERIZED verdaccio (the shared image's baked
+          # registry). mac/win can't run a Linux container (L2), so they take the
+          # CI-guarded host-npx fallback: on-runner verdaccio + the per-OS
+          # host-native binary smoke only (the bundler matrix is OS-agnostic and
+          # does not repeat per-OS).
+          - {runner: ubuntu-latest, pkg: linux-x64, backend: container}
+          - {runner: macos-14, pkg: darwin-arm64, backend: host-npx}
+          - {runner: windows-latest, pkg: win32-x64, backend: host-npx}
     runs-on: ${{ matrix.runner }}
+    # packages:read lets the container backend (ubuntu) pull the prebuilt shared image.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 26
@@ -123,21 +134,16 @@ jobs:
         with:
           name: tarballs
           path: tarballs
-      - uses: ./.github/actions/verdaccio-publish
-      - name: e2e (install published packages + run the suite)
-        working-directory: container/pre-publish-e2e
-        shell: bash
-        env:
-          VERSION: ${{ needs.build.outputs.version }}
-        run: |
-          # Installs the two published packages at the release version plus the
-          # fixture's own devDeps (vite/vitest are pinned in container/pre-publish-e2e/package.json, not
-          # here, so a workspace bump can't silently diverge the install test).
-          npm install \
-            "@ts-runtypes/core@$VERSION" \
-            "@ts-runtypes/devtools@$VERSION" \
-            --registry http://127.0.0.1:4873
-          npm test
+      # CI never builds the shared image; the container backend pulls the prebuilt
+      # one (which now carries the verdaccio + e2e-toolchain layers). e2e.mjs's own
+      # ensureImage then sees the digest already matches and skips a second pull.
+      - name: Pull the prebuilt shared image (container backend only)
+        if: matrix.backend == 'container'
+        uses: ./.github/actions/pull-shared-image
+      # The ONE front door — same script locally and on every lane, so they can't
+      # drift. tarballs/ is the downloaded artifact, so e2e.mjs skips the build.
+      - name: Pre-publish e2e (${{ matrix.backend }})
+        run: pnpm rtx release e2e --backend ${{ matrix.backend }}
 
   smoke:
     name: exec-smoke linux/${{ matrix.pkg }}

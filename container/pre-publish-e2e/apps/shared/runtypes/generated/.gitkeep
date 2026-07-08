@@ -1,0 +1,20 @@
+This directory is the enrichment mirror root (enrichDir), holding the
+FriendlyText<T> + MockData<T> maps that `ts-runtypes gen` scaffolds from the
+types in ../../src/models/, split per family:
+
+    friendly/…      FriendlyText mirrors (labels + error message templates)
+    mock/…          MockData mirrors (sample pools / ranges)
+    i18n/<locale>/… per-locale FriendlyText translation mirrors
+
+IMPORTANT: in a REAL project this directory is COMMITTED — enrichment is authored
+once (the compiler scaffolds `@todo` blanks, you fill them) and then validated
+against the type forever after. It is NOT normally git-ignored.
+
+Here it is git-ignored ON PURPOSE, for the pre-publish e2e ONLY: the e2e runs the
+published `ts-runtypes gen` CLI to REGENERATE these mirrors fresh on every run
+(then `ts-runtypes gen --check` to validate them), so committing them would defeat
+the point — the test is that the generator itself works against the published
+package. Only this .gitkeep is committed, to keep the directory present.
+
+See scripts/release/e2e.mjs (the matrix step) and
+apps/shared/src/enrichment.ts (the consumer of these generated mirrors).

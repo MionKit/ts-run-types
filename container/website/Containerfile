@@ -125,6 +125,33 @@ COPY .bench-deps/typecost/package.json /bench/typecost/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd /bench/typecost && pnpm install --no-frozen-lockfile
 
+# == Pre-publish e2e: verdaccio registry + builder toolchains (/e2e) ==========
+# The pre-publish e2e (docs/todos/prepublish-e2e-*.md) runs a containerized
+# verdaccio + a multi-bundler feature matrix in this SAME shared image, so a
+# maintainer can smoke a release locally and CI's Linux lane reuses the one
+# pulled image. verdaccio is a node app (fits the Node 26 base); running the
+# untrusted registry + its dependency tree INSIDE the rootless container (never
+# on a dev's host) is the supply-chain point of the design.
+RUN npm install -g verdaccio@6.7.2
+
+# The e2e builder toolchains (rolldown-vite, esbuild, rollup, rolldown, webpack,
+# rspack, oxlint, eslint + the TS parser/loaders), baked under /e2e exactly like
+# the benchmark competitors. Each e2e run installs ONLY the changing
+# @ts-runtypes/* from verdaccio on top of this node_modules; the e2e's own
+# apps/test are bind-mounted at run time. Manifests come from .e2e-deps/ (a
+# build-time copy of container/pre-publish-e2e/_deps/, staged by image.mjs).
+COPY .e2e-deps/package.json .e2e-deps/pnpm-workspace.yaml .e2e-deps/.npmrc /e2e/
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    cd /e2e && pnpm install --no-frozen-lockfile
+
+# The registry config + serve script (starts verdaccio, publishes the mounted
+# /tarballs in dependency order, signals readiness). Staged from
+# container/pre-publish-e2e/registry/ by scripts/container/image.mjs. Kept LAST so
+# a config tweak never invalidates the heavier toolchain-install layer above.
+COPY .e2e-registry/verdaccio.yaml /etc/verdaccio/config.yaml
+COPY .e2e-registry/e2e-serve.sh /usr/local/bin/e2e-serve.sh
+RUN chmod +x /usr/local/bin/e2e-serve.sh
+
 EXPOSE 3000
 
 # No CMD: scripts/website/site.sh (WORKDIR /app) and scripts/website/bench-data/bench.sh (WORKDIR

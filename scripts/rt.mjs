@@ -181,6 +181,7 @@ function runRelease(args) {
     binaries: ['node', ['scripts/release/build-binaries.mjs']],
     pack: ['node', ['scripts/release/pack.mjs']],
     tarballs: ['node', ['scripts/release/publish-tarballs.mjs']],
+    e2e: ['node', ['scripts/release/e2e.mjs']],
   };
   if (map[sub]) return proxy(map[sub][0], [...map[sub][1], ...rest]);
   // Umbrella (no sub): preflight -> npm publish -> website build. Deploy is CI-only.
@@ -236,6 +237,7 @@ bench
 release   npm publish + site build (deploy stays CI-only)
   rtx release [--preflight-only] [--no-website] [--dry-run]
   rtx release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
+  rtx release e2e [--backend container|host-npx] [--pack]   pre-publish e2e (containerized verdaccio + feature matrix + host smoke)
 
 container  rtx container <build-image|ensure|login|push|pull|lock|clean>
 env        rtx env [push-image|publish-npm|deploy-website|--create-env]

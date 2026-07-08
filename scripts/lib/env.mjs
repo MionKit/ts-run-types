@@ -136,11 +136,16 @@ export const REGISTRY = [
   // — lint knobs (the ts-runtypes-devtools OXlint/ESLint plugin) —
   {name: 'RT_LINT_PRESPAWN', scope: 'dev', task: '-', desc: "Set 0 to skip the lint plugin's load-time resolver pre-spawn (small hosts)"},
 
+  // — pre-publish e2e knobs (scripts/release/e2e.mjs + the fixture) —
+  {name: 'RT_E2E_BINARY', scope: 'dev', task: '-', desc: 'Override the RunTypes plugin binary for the e2e apps (host iteration; unset in-container / in CI to test the published @ts-runtypes/bin launcher)'},
+
   // — alignment-audit knobs (scripts/website/bench-data/bench.mjs audit + the harness) —
   {name: 'RT_AUDIT_OUT_DIR', scope: 'dev', task: '-', desc: 'Audit output dir (default the results dir)'},
   {name: 'RT_AUDIT_TSX', scope: 'dev', task: '-', desc: 'Path to the tsx runner for the host-side audit collector'},
 
   // — internal / protocol vars: set by the scripts (container paths, plumbing). DO NOT set in .env —
+  {name: 'RT_E2E_VERSION', scope: 'internal', task: '-', desc: '@ts-runtypes/* version the e2e matrix installs (passed into the registry container via -e by scripts/release/e2e.mjs)'},
+  {name: 'RT_E2E_VERDACCIO_CONFIG', scope: 'internal', task: '-', desc: 'verdaccio config path inside the e2e registry container (default /etc/verdaccio/config.yaml; read by e2e-serve.sh)'},
   {name: 'RT_AUDIT_ALIGNMENT', scope: 'internal', task: '-', desc: 'Bench mode flag: emit alignment records instead of timing (set by rt bench audit)'},
   {name: 'RT_REPO_ROOT', scope: 'internal', task: '-', desc: 'In-container repo-context mount point (passed via -e)'},
   {name: 'RT_DOCDATA', scope: 'internal', task: '-', desc: 'In-container docdata mount point (passed via -e)'},

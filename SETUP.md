@@ -325,6 +325,24 @@ Unpublish a bad release:
 pnpm rtx release unpublish <version>
 ```
 
+### Pre-publish e2e — `pnpm rtx release e2e`
+
+Smoke a release the way a consumer would install it — the **published** `@ts-runtypes/*` packages, resolved from a throwaway [verdaccio](https://verdaccio.org) registry, then built + tested through **every** shipped bundler adapter. One script drives it locally and on every CI lane, so they cannot drift:
+
+```bash
+pnpm rtx release e2e            # container backend (default; needs podman)
+pnpm rtx release e2e --pack     # rebuild tarballs/ first (else it reuses them)
+```
+
+It packs the tarballs (if `tarballs/` is missing), then runs two axes:
+
+- **Feature matrix, in the container (Linux).** The shared image starts **verdaccio inside a rootless container**, publishes the mounted tarballs to its own `:4873`, and a multi-bundler feature library (`container/pre-publish-e2e/apps/`) is built through each adapter's RunTypes plugin — the heavy `build-vite` (Vite-on-Rolldown + oxlint) runs all 13 feature families; `smoke-esbuild` (+ eslint), `smoke-rollup`, `smoke-rolldown`, `smoke-webpack`, `smoke-rspack` each prove their adapter loads, transforms, and its output runs. Tests assert runtime behavior, rewrite evidence, and lint transport over the build output.
+- **Per-OS binary smoke, host-native.** A lean vitest fixture (`host-smoke/`) installs the published packages from the port-published `:4873` and runs on **this** OS/arch, so the plugin resolves + spawns the real host-platform binary via `@ts-runtypes/bin`'s optional-dependency model (the one thing no container can substitute).
+
+**Supply-chain point (why the container):** verdaccio and its whole dependency tree run **inside** the rootless container (read-only tarballs mount + a loopback port, nothing else) — **never** installed into your host's node/npm environment. On a dev machine the flow is **container-or-error**: if podman is down it fails with a pointer to the [ts-runtypes-setup skill](.claude/skills/ts-runtypes-setup/) and never falls back to a host verdaccio. The `host-npx` fallback (on-runner `npx verdaccio`) exists **only** for CI's macOS/Windows runners (which can't run a Linux container) and is guarded by `CI` — it refuses to run locally.
+
+The e2e is gated in CI by [`release-gate.yml`](.github/workflows/release-gate.yml) (the ubuntu lane uses the container backend; the macOS/Windows lanes use host-npx). The builder toolchains are baked into the shared image (`container/pre-publish-e2e/_deps`), so each run installs only the changing `@ts-runtypes/*` — a **republish** of the shared image (`pnpm rtx container push`) is required after any change to `_deps/`, `registry/`, or the Containerfile.
+
 ---
 
 ## Troubleshooting
