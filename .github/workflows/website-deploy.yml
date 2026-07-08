@@ -1,0 +1,68 @@
+name: prod · deploy website
+
+# Manually-triggered docs-site deploy to Cloudflare Pages. Split out of publish.yml
+# because staged publishing means the publish run ends at "packages staged", not
+# "live" — so the deploy can no longer hang off `needs: publish-npm`, and npm fires
+# no usable publish webhook for this account to trigger it automatically.
+#
+# Run this from the Actions UI AFTER the staged packages are approved (2FA,
+# leaves-first via `pnpm rtx release stage-approve`). The docs site builds from the
+# repo, not from an installed npm version, so the optional `version` input is for
+# the run log only. See SETUP.md → Publishing.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Released version being deployed (log only; the site builds from the repo)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# One deploy at a time on the prod ref; a newer manual run supersedes an in-flight
+# one (never cancels one mid-deploy).
+concurrency:
+  group: website-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-website:
+    name: build + deploy docs to Cloudflare Pages
+    runs-on: ubuntu-latest
+    environment: production
+    # contents:read (checkout) + packages:read (pull the prebuilt shared image).
+    permissions:
+      contents: read
+      packages: read
+    env:
+      CLOUDFLARE_PAGES_PROJECT: runtypes
+    steps:
+      - name: Log the version being deployed (informational)
+        if: inputs.version != ''
+        run: echo "Deploying docs after v${{ inputs.version }} went live (site builds from the repo, not npm)."
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive # the Go resolver + playground WASM need the tsgolint submodule
+      - uses: ./.github/actions/bootstrap
+      - name: podman version
+        run: podman --version
+      # CI never builds the shared image; pull the prebuilt one (republish from
+      # local if it's stale). the site build then binds our binary + builds the
+      # benchmarks + static site against it.
+      - name: Pull the prebuilt shared image (CI never builds it)
+        uses: ./.github/actions/pull-shared-image
+      - name: Build binary + benchmarks + static site
+        run: pnpm rtx website build
+      - name: Upload static artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-output-deploy
+          path: container/website/.output/public
+          if-no-files-found: error
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy container/website/.output/public --project-name=${{ env.CLOUDFLARE_PAGES_PROJECT }}

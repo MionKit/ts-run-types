@@ -304,6 +304,12 @@ The published binaries **and** the playground wasm are **obfuscated with [garble
 
 > **Versioning:** standard semver on our own release cadence. The pinned tsgo / tsgolint revision is metadata only (the binary's `--version` output + the launcher's `package.json` `tsgo` field), never encoded into the package version.
 
+There are two publish paths, both building the same artifacts in the same dependency-safe order: a **local, interactive** direct publish for a maintainer at a terminal, and the **CI staged** publish that runs on every merge to `prod` (the recommended path — [Releasing through CI](#releasing-through-ci--staged-publishing--trusted-publishing-oidc) below).
+
+### Local (manual) publish
+
+A direct publish from your machine, authenticated with `NPM_TOKEN` (in `.env`) + an interactive OTP:
+
 ```bash
 pnpm rtx release preflight   # green-light: fresh install, all tests, lint, build
 pnpm rtx release npm         # interactive: version -> build binaries -> publish
@@ -317,13 +323,39 @@ pnpm rtx release npm         # interactive: version -> build binaries -> publish
 4. [`scripts/release/build-binaries.mjs`](scripts/release/build-binaries.mjs) — cross-compiles the 7-platform matrix (obfuscated with garble unless `RT_GARBLE=0`) and stages `ts-runtypes-binary-*` + the launcher (its `optionalDependencies` filled, pinned exact-equal) under `dist-binaries/`.
 5. Prompts for npm OTP, then publishes the platform packages **first** and the launcher **last** (so the launcher never references a not-yet-published optional dep), then `pnpm publish` for the two FE packages (`@ts-runtypes/bin` is already live by then). `pnpm publish` rewrites their `workspace:*` deps to concrete versions, exactly like the CI pack path.
 
-**Changelog & GitHub Release.** Refresh [CHANGELOG.md](CHANGELOG.md) with `pnpm run changelog` when preparing a release and commit it in the release PR. When the release lands on a `release/**` branch, [`.github/workflows/publish.yml`](.github/workflows/publish.yml) publishes to npm, pushes the `v<version>` tag, then generates that tag's notes with [`orhun/git-cliff-action`](https://github.com/orhun/git-cliff-action) and creates the matching **GitHub Release**. The committed file and the Release notes are produced from the same [`cliff.toml`](cliff.toml).
+**Changelog & GitHub Release.** Refresh [CHANGELOG.md](CHANGELOG.md) with `pnpm run changelog` when preparing a release and commit it in the release PR. When the release PR lands on `prod`, [`.github/workflows/publish.yml`](.github/workflows/publish.yml) stages every package to npm (via OIDC — see below), pushes the `v<version>` tag, then generates that tag's notes with [`orhun/git-cliff-action`](https://github.com/orhun/git-cliff-action) and creates the matching **GitHub Release**. The committed file and the Release notes are produced from the same [`cliff.toml`](cliff.toml).
 
 Unpublish a bad release:
 
 ```bash
 pnpm rtx release unpublish <version>
 ```
+
+### Releasing through CI — staged publishing + trusted publishing (OIDC)
+
+Merging a release PR into `prod` runs [`publish.yml`](.github/workflows/publish.yml): the full release gate, then it **stages** every package to npm and tags the release. It never holds a 2FA-capable credential — CI stages, a human approves. Two GA npm features compose for this:
+
+- **Trusted Publishing (OIDC)** — npm ↔ GitHub trust over OIDC, so there is **no `NPM_TOKEN`** in CI. The `publish-npm` job grants `id-token: write`; provenance is attached automatically.
+- **Staged publishing** — `npm stage publish` uploads to a **stage queue** and needs **no 2FA**, so CI can stage unattended. A maintainer then **approves** each staged version with a **live 2FA challenge** — the one step that cannot be done by a token, OIDC, or any non-interactive path.
+
+The trusted publisher is configured **stage-only** (allow `npm stage publish`, disallow `npm publish`), so every CI publish is forced through the stage queue and nothing goes live without a human 2FA approval.
+
+**Approve the staged release (2FA, leaves-first).** `npm stage approve` takes a single `<stage-id>` — there is no atomic/group approval, and approving one publishes **that** package immediately. So order matters: approve **leaves-first** (every `@ts-runtypes/binary-<os>-<arch>` first, then `@ts-runtypes/bin`, then `@ts-runtypes/core` + `@ts-runtypes/devtools`), the same order [`publish-tarballs.mjs`](scripts/release/publish-tarballs.mjs) staged in, so a consumer install never resolves a launcher whose platform binary isn't live yet. The helper walks the queue for you (npm prompts for the OTP per id):
+
+```bash
+pnpm rtx release stage-approve            # approve this version's stage-ids, leaves-first
+pnpm rtx release stage-approve --dry-run  # print the approval order without approving
+```
+
+If the queue can't be read automatically (not logged in, npm too old), the helper prints the exact leaves-first commands to run by hand (`npm stage list`, then `npm stage approve <stage-id>` in order).
+
+**Deploy the docs site (manual).** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate, manually-triggered workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`). After the stage-ids are approved, run it from **Actions → prod · deploy website → Run workflow**. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only.
+
+**One-time external setup** (before the first staged release):
+
+- On [npmjs.com](https://www.npmjs.com/), register the **trusted publisher** (repo `MionKit/ts-run-types`, workflow `publish.yml`) with **stage-only** permissions for **every** published package: `@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and each `@ts-runtypes/binary-<os>-<arch>`.
+- CI runs Node 26; staged publishing needs npm **≥ 11.15.0** (OIDC needs ≥ 11.5.1). The `publish-npm` job runs `npm install -g npm@latest` to guarantee it.
+- Once an OIDC run is confirmed working, the `NPM_TOKEN` **repo secret** can be deleted (CI no longer uses it; the local direct publish still reads `NPM_TOKEN` from `.env`).
 
 ### Pre-publish e2e — `pnpm rtx release e2e`
 

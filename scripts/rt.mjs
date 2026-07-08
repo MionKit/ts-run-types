@@ -181,6 +181,7 @@ function runRelease(args) {
     binaries: ['node', ['scripts/release/build-binaries.mjs']],
     pack: ['node', ['scripts/release/pack.mjs']],
     tarballs: ['node', ['scripts/release/publish-tarballs.mjs']],
+    'stage-approve': ['node', ['scripts/release/stage-approve.mjs']],
     e2e: ['node', ['scripts/release/e2e.mjs']],
   };
   if (map[sub]) return proxy(map[sub][0], [...map[sub][1], ...rest]);
@@ -234,9 +235,10 @@ bench
   rtx bench [--one <name>|--full|--website|--build-only] [--quick]
   rtx bench <audit|typecost|compiletime|serialization|smoke>
 
-release   npm publish + site build (deploy stays CI-only)
+release   npm publish + site build (CI stages to npm; a maintainer approves with 2FA)
   rtx release [--preflight-only] [--no-website] [--dry-run]
   rtx release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
+  rtx release stage-approve [--dry-run]   approve this version's staged packages (2FA, leaves-first)
   rtx release e2e [--backend container|host-npx] [--pack]   pre-publish e2e (containerized verdaccio + feature matrix + host smoke)
 
 container  rtx container <build-image|ensure|login|push|pull|lock|clean>
