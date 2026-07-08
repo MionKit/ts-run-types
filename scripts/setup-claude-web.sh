@@ -225,6 +225,24 @@ ensure_go() {
 }
 
 # -----------------------------------------------------------------------------
+# 3b. garble: a Go tool that obfuscates the published binaries + wasm. Best-effort;
+#     the resolver/dev build never needs it, but the release build + the default
+#     garbled wasm do. Keep the pin in sync with scripts/lib/garble.mjs.
+# -----------------------------------------------------------------------------
+GARBLE_VERSION="v0.16.0"
+ensure_garble() {
+  bold "garble (obfuscates published binaries + wasm)"
+  command -v go >/dev/null 2>&1 || { warn "go missing - skipping garble"; return 0; }
+  local gobin; gobin="$(go env GOPATH 2>/dev/null)/bin"
+  case ":$PATH:" in *":$gobin:"*) ;; *) export PATH="$gobin:$PATH" ;; esac
+  if command -v garble >/dev/null 2>&1; then ok "garble present"; return 0; fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "garble missing - re-run without --check to install"; return 0; }
+  bold "Installing garble $GARBLE_VERSION (go install)"
+  go install "mvdan.cc/garble@$GARBLE_VERSION" && ok "garble installed" \
+    || warn "garble install failed (release builds need it; wasm falls back to plain)"
+}
+
+# -----------------------------------------------------------------------------
 # 4. Submodules (light): init tsgolint + typescript-go but SKIP the 620MB nested
 #    _submodules/TypeScript (microsoft/TypeScript). That corpus feeds only
 #    typescript-go's OWN conformance test runner (internal/testrunner), never our
@@ -419,6 +437,7 @@ main() {
   provision_node26
   ensure_podman
   ensure_go
+  ensure_garble
   provision_submodules_light
   apply_tsgolint_patches
   install_workspace_deps
