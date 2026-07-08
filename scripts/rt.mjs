@@ -88,6 +88,8 @@ function runCore(args) {
   const [sub, ...rest] = args;
   if (sub === 'build') return coreBuild(rest);
   if (sub === 'smoke') return (ensureBuilt(), proxy('node', ['scripts/core/smoke.mjs', ...rest]));
+  if (sub === 'bump-tsgolint') return proxy('node', ['scripts/core/bump-tsgolint.mjs', ...rest]);
+  if (sub === 'ensure-tsgolint') return proxy('node', ['scripts/core/ensure-tsgolint.mjs', ...rest]);
   if (sub === 'codegen') return runCodegen(rest);
   if (sub === 'fuzz') {
     const suite = FUZZ[rest[0]];
@@ -98,7 +100,7 @@ function runCore(args) {
     if (suite.config) return proxy('pnpm', ['exec', 'vitest', 'run', '--config', suite.config, ...extra], env);
     return proxy('pnpm', ['exec', 'vitest', 'run', ...suite.patterns, ...extra], env);
   }
-  die('usage: rtx core <build|smoke|fuzz <suite>|codegen [--check]>');
+  die('usage: rtx core <build|smoke|fuzz <suite>|codegen [--check]|bump-tsgolint [<rev>]|ensure-tsgolint [--check]>');
 }
 
 // ── website ────────────────────────────────────────────────────────────────
@@ -220,6 +222,8 @@ core     the engine (Go resolver + TS marker/plugin)
   rtx core smoke                   end-to-end smoke of the resolver + devtools
   rtx core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
   rtx core codegen [all|constants|kind|diag] [--check]   regenerate Go→TS mirrors
+  rtx core bump-tsgolint [<rev>] [--skip-tests]   move the tsgolint/typescript-go pin (default: latest release), re-patch, rebuild + test
+  rtx core ensure-tsgolint [--check]   check the submodule out to tsgolint.pin.json + re-apply patches (--check verifies only)
 
 website
   rtx website dev [--agent]        hot-reload docs server (:3000, or :3100 --agent)

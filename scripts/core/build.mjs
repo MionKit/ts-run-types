@@ -35,7 +35,8 @@
 import {cpSync, existsSync, globSync, mkdirSync, readFileSync, renameSync, rmSync, statSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {GO_ROOT, loadEnv, REPO_ROOT} from '../lib/env.mjs';
-import {capture, die, hostGoArch, info, red, reportCliError, run, success, which} from '../lib/proc.mjs';
+import {capture, die, hostGoArch, info, red, reportCliError, run, success, warn, which} from '../lib/proc.mjs';
+import {describe, headCommit, readPin, submoduleInitialised} from '../lib/tsgolint.mjs';
 
 const GO_MODULE = 'github.com/mionkit/ts-runtypes';
 const GO_BIN = join(REPO_ROOT, 'bin/ts-runtypes');
@@ -82,7 +83,22 @@ function tempBesideBin(target) {
   return join(dirname(target), `.rt-build-ref-${process.pid}`);
 }
 
+// Warn (non-fatal) when the tsgolint submodule has drifted from the declared pin —
+// bin/ts-runtypes would then be built against a NON-pinned typescript-go, which the
+// build-id freshness check below CANNOT catch (it compares the binary to whatever
+// source is checked out, not to the pin). `pnpm rtx core ensure-tsgolint` realigns it.
+// Non-fatal so it never blocks a legitimate in-progress bump or local experiment.
+function checkTsgolintPin() {
+  if (!submoduleInitialised()) return;
+  const pin = readPin();
+  if (!pin) return;
+  const head = headCommit();
+  if (head === pin.commit || (pin.commit.length < 40 && head.startsWith(pin.commit))) return;
+  warn(`tsgolint submodule is at ${describe()} (${head.slice(0, 7)}) but tsgolint.pin.json declares ${pin.ref} (${pin.commit.slice(0, 7)}). bin/ts-runtypes will build against a NON-pinned typescript-go — run \`pnpm rtx core ensure-tsgolint\` to realign.`);
+}
+
 function checkGo() {
+  checkTsgolintPin();
   if (!which('go')) fail(`Go toolchain not found on PATH (needed to build ${GO_BIN}).`);
   const ldflags = goVersionLdflags();
 

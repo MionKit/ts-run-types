@@ -271,6 +271,36 @@ Updating deps:
 
 ---
 
+## Bumping the `tsgolint` pin
+
+`tsgolint` (and the `typescript-go` it nests — our TypeScript 7 checker) is a git submodule under [ts-go-runtypes/third_party/tsgolint/](ts-go-runtypes/third_party/tsgolint/). Its revision is declared once in **[ts-go-runtypes/tsgolint.pin.json](ts-go-runtypes/tsgolint.pin.json)** (`{ commit, ref }`) — the single source of truth. The submodule gitlink always encodes the same commit; the two move together. The pin is **not** folded into the package version, so changing it is a normal chore commit, not a release.
+
+**Setup enforces it.** Bootstrap checks the submodule out to `tsgolint.pin.json`'s commit and re-applies the shim patches, so a fresh or drifted clone always lands on the declared revision. To run that on demand (or just verify it):
+
+```bash
+pnpm rtx core ensure-tsgolint            # check the submodule out to the pin + re-apply patches (idempotent)
+pnpm rtx core ensure-tsgolint --check    # verify only; non-zero exit on drift, no mutation
+```
+
+**The build warns on drift.** The `bin/ts-runtypes` freshness check ([scripts/core/build.mjs](scripts/core/build.mjs), run by `pnpm rtx core build`, `pretest`, and `rtx verify`) compares the binary to whatever source is checked out — it can't tell a drifted submodule from the pin. So it now also prints a non-fatal warning when the submodule doesn't match `tsgolint.pin.json`, pointing you at `ensure-tsgolint`.
+
+**Bumping moves it.** `bump-tsgolint` advances to a new revision and rewrites the pin + gitlink together:
+
+```bash
+pnpm rtx core bump-tsgolint               # -> latest tsgolint release tag (default)
+pnpm rtx core bump-tsgolint origin/main   # bleeding edge (unreleased main HEAD)
+pnpm rtx core bump-tsgolint v0.24.0       # a specific tag / branch / sha
+pnpm rtx core bump-tsgolint --skip-tests  # build only, skip the go + js suites
+```
+
+It fetches, checks out the target, advances the nested `typescript-go`, re-applies the shim patches that ship with that revision, rebuilds `bin/ts-runtypes`, writes [ts-go-runtypes/tsgolint.pin.json](ts-go-runtypes/tsgolint.pin.json) + the `tsgo` metadata field in [packages/ts-runtypes-bin/package.json](packages/ts-runtypes-bin/package.json), and runs the full `go test ./internal/...` + `pnpm test` gate. It **never commits, tags, or pushes** — it prints the `git add … && git commit` line to land it (plus a one-line bump-back to revert). Nothing is committed, so a failed bump is always safe to discard.
+
+The one step that can fail is patch re-application: the patches live inside the tsgolint repo and travel with the pinned rev, so they normally match the `typescript-go` they ship with, but if upstream drifted the command stops with the `git apply --3way --reject` recovery flow (see [Patching](#patching-tsgolints-typescript-go) below).
+
+Doing it by hand? A bump is `git -C …/tsgolint fetch && git checkout <rev>`, then `git -C …/tsgolint submodule update --init typescript-go`, then `git -C …/typescript-go apply --3way ../patches/*.patch`, then update `tsgolint.pin.json`, then `pnpm rtx core build`, then the two test suites, then commit the moved pointer + pin.
+
+---
+
 ## Patching `tsgolint`'s `typescript-go`
 
 The `microsoft/typescript-go` checker does not expose call-site type queries out of the box; our patches in [ts-go-runtypes/third_party/tsgolint/patches/](ts-go-runtypes/third_party/tsgolint/patches/) add the minimal exports we need. **Never edit files under `ts-go-runtypes/third_party/` directly** — only the patch flow is supported.
