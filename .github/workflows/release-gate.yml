@@ -92,9 +92,9 @@ jobs:
       - name: Build FE dists (canonical, for packing)
         run: pnpm run build
       - name: Cross-compile the 7-platform binary packages
-        run: node scripts/release/build-binaries.mjs
+        run: pnpm rtx release binaries
       - name: Pack every package into tarballs/
-        run: node scripts/release/pack.mjs
+        run: pnpm rtx release pack
       - uses: actions/upload-artifact@v7
         with:
           name: tarballs
