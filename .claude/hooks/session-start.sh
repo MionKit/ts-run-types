@@ -42,7 +42,22 @@ command -v podman >/dev/null 2>&1 && pass "podman $(podman --version 2>/dev/null
 
 if command -v go >/dev/null 2>&1; then
   gv="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
-  version_ge "${gv:-0}" "$GO_MIN" && pass "go $gv (>= $GO_MIN)" || miss "go $gv (need >= $GO_MIN)"
+  if version_ge "${gv:-0}" "$GO_MIN"; then
+    pass "go $gv (>= $GO_MIN)"
+  else
+    # The on-PATH Go is older than the resolver module (ts-go-runtypes/go.mod:
+    # `go $GO_MIN`) requires. That is not automatically a failure: unless
+    # GOTOOLCHAIN is pinned to `local`, Go transparently downloads and re-execs
+    # the go.mod-pinned toolchain (>= $GO_MIN) for any build inside that module,
+    # so the resolver still builds. Flag the auto-toolchain case as a note, and
+    # only a hard MISSING when auto-switching is disabled.
+    gotc="$(go env GOTOOLCHAIN 2>/dev/null)"
+    if [ -n "$gotc" ] && [ "$gotc" != "local" ]; then
+      note "go $gv on PATH (< $GO_MIN); GOTOOLCHAIN=$gotc auto-uses the go.mod toolchain (>= $GO_MIN) for the resolver build"
+    else
+      miss "go $gv (need >= $GO_MIN; GOTOOLCHAIN=local disables auto-toolchain)"
+    fi
+  fi
 else miss "go (not on PATH)"; fi
 
 # --- third-party required deps: submodules + patches -------------------------

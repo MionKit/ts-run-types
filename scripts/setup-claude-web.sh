@@ -203,13 +203,28 @@ ensure_podman() {
 # -----------------------------------------------------------------------------
 ensure_go() {
   bold "Go (compiles the resolver binary)"
+  # Install (or upgrade) only when needed: skip if a new-enough Go is already on
+  # PATH; otherwise reach the tarball install below, which handles BOTH the
+  # absent case and the too-old case (the image ships an older Go than the
+  # resolver module pins). GOTOOLCHAIN=auto would auto-fetch the pinned toolchain
+  # at build time anyway, but pinning the on-PATH Go >= $GO_MIN keeps `go
+  # version` accurate and drops the one-time per-build toolchain download.
+  local cur=""
   if command -v go >/dev/null 2>&1; then
-    local cur; cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
-    version_ge "${cur:-0}" "$GO_MIN" && ok "go ${cur:-?} (>= $GO_MIN)" || warn "go ${cur:-?} present (repo targets >= $GO_MIN)"
+    cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    if version_ge "${cur:-0}" "$GO_MIN"; then
+      ok "go ${cur:-?} (>= $GO_MIN)"
+      return 0
+    fi
+  fi
+  # Reached when Go is absent OR the on-PATH version is older than $GO_MIN.
+  if [ "$CHECK_ONLY" = 1 ]; then
+    if [ -n "$cur" ]; then warn "go ${cur} present but < $GO_MIN - re-run without --check to upgrade"
+    else warn "go missing - re-run without --check to install"; fi
     return 0
   fi
-  [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
-  bold "Installing Go $GO_INSTALL_VERSION (tarball -> /usr/local/go)"
+  if [ -n "$cur" ]; then bold "Upgrading Go ${cur} -> $GO_INSTALL_VERSION (tarball -> /usr/local/go)"
+  else bold "Installing Go $GO_INSTALL_VERSION (tarball -> /usr/local/go)"; fi
   local goarch; case "$(uname -m)" in
     x86_64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;;
     *) err "unsupported arch $(uname -m) for Go auto-install"; FAILED=1; return 1 ;;
