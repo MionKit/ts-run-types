@@ -23,15 +23,15 @@ leading: "We fixed TypeScript"
 strikeWord: "fixed"
 enhancedWord: "Enhanced"
 titles:
-  - 'And the reflection gap'
-  - 'And writing types twice'
-  - 'And your validation layer'
-  - 'And handwritten serialization'
+  - 'And added type reflection'
+  - 'And automatic validation'
+  - 'And automatic data mocking'
+  - 'And any type serialization'
   - 'Say hello to RunTypes®'
 ---
 #description
-TypeScript decided it is **"Just a Linter"** and erases your types.
-<br/>We respectfully **put them back in the runtime** in a way that's reliable and makes sense.
+TypeScript decided it is **(Just a Linter)** and to ditch your types at run-time.
+<br/>We respectfully **put them back in the run-time** in a way that's reliable and makes sense.
 :::
 
 :::div{class="tsgo-kicker"}
@@ -149,7 +149,7 @@ Full TC39 Temporal — `PlainDate`, `ZonedDateTime`, `Duration`… validated and
 
 ::u-page-section
 #title
-One object, Every function.
+One Type, Multiple functionality.
 
 #body
 :::card{class="rt-standard-card"}
@@ -158,7 +158,7 @@ One object, Every function.
 ### The whole toolbelt, in one box
 Stop gluing five libraries together. RunTypes shares a single type graph across everything it generates, so the validator and the serializer always agree on what your type means.
 
-[One type in, every function out →](/guide/serialization)
+[One type in, multiple compiled functions out →](/guide/serialization)
 :::::
 
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-type" commentEnd="// end-type" />
@@ -172,17 +172,17 @@ Stop gluing five libraries together. RunTypes shares a single type graph across 
 ::::
 
 ::::div{class="rt-object-fn"}
-### JSON
+### JSON roundtrip to the original type
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-json" commentEnd="// end-json" />
 ::::
 
 ::::div{class="rt-object-fn"}
-### Binary
+### Binary serialization
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-binary" commentEnd="// end-binary" />
 ::::
 
 ::::div{class="rt-object-fn"}
-### Mock
+### Mocking that conforms to your types
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-mock" commentEnd="// end-mock" />
 ::::
 :::

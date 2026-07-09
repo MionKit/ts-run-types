@@ -24,6 +24,11 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  // Shuffle the titles once per load (client-side). Off (default) → defined order.
+  randomize: {
+    type: Boolean,
+    default: false,
+  },
   level: {
     type: Number,
     default: 1,
@@ -31,10 +36,14 @@ const props = defineProps({
   },
 });
 
-// Pause timings (ms). Typing/erasing advance one character per animation frame;
-// only the full-sentence hold and the empty-line gap wait on the clock.
-const HOLD_DELAY = 4000; // hold a fully typed title before erasing it
-const GAP_DELAY = 550; // pause on the empty line before the next title
+// Pause + speed timings (ms). Typing/erasing are time-based (TYPE_SPEED /
+// ERASE_SPEED) so the pace is identical on 60 Hz and 120 Hz displays; the holds
+// and the empty-line gap wait on the clock too.
+const HOLD_DELAY = 3000; // hold a fully typed title before erasing it
+const GAP_DELAY = 350; // pause on the empty line before the next title
+const TYPE_SPEED = 55; // ms per character while typing
+const ERASE_SPEED = 28; // ms per character while erasing
+const REDUCED_HOLD_DELAY = 3500; // reduced motion: how long each instantly-swapped title shows
 
 // Split `leading` around `strikeWord` so the struck word + its handwritten
 // correction render as real elements (no v-html, no markup in the frontmatter).
@@ -51,57 +60,91 @@ const leadingParts = computed(() => {
 const initialText = computed(() => props.titles[0] ?? '');
 
 const rootEl = ref(null);
-const text = ref(initialText.value); // currently displayed substring
+const text = ref(''); // currently displayed substring — starts empty so the first title types in on load
 const isTyping = ref(false); // caret stays solid while actively typing/erasing
 const isPaused = ref(false); // off-screen → park the CSS gradient + caret blink
 
 // Animation state — plain locals so the loop mutates without reactivity cost.
+let sequence = props.titles; // play order — a shuffled copy replaces it on mount when `randomize` is set
 let titleIndex = 0;
 let charIndex = 0;
-let phase = 'holding'; // holding → erasing → waiting → typing → holding …
+let phase = 'typing'; // typing → holding → erasing → waiting → typing … (first load types title 0 from empty)
 let waitUntil = -1; // rAF-clock deadline for the holding / waiting pauses
+let lastCharAt = 0; // rAF-clock time of the last typed/erased char (paces TYPE_SPEED/ERASE_SPEED)
+let reduced = false; // reduced motion: swap whole titles on a timer, no per-character typing
 let rafId = 0;
 let running = false;
 let observer = null;
 let reduceMotion = null;
 
-// One character per animation frame: a sentence takes as long as it has
-// characters (longer lines reveal for longer, the natural typing feel we want)
-// and each step is a single frame, so resuming after a pause can never dump a
-// burst. Only the full-sentence hold and the empty-line gap wait on the clock.
+// Fisher-Yates shuffle over a copy — never mutate the prop array.
+function shuffled(items) {
+  const copy = items.slice();
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+// Typing/erasing advance one character once TYPE_SPEED / ERASE_SPEED ms have
+// elapsed (time-based, so 60 Hz and 120 Hz displays run at the same speed and a
+// resume after a pause advances a single char, never a burst). The holds and
+// the empty-line gap wait on the clock too.
 function frame(now) {
   if (!running) return;
-  const titles = props.titles;
+  const titles = sequence;
+
+  // Reduced motion: skip the typewriter, just swap whole titles on a timer so
+  // the messages still rotate without any character-by-character motion.
+  if (reduced) {
+    if (waitUntil < 0) waitUntil = now + REDUCED_HOLD_DELAY;
+    if (now >= waitUntil) {
+      titleIndex = (titleIndex + 1) % titles.length;
+      text.value = titles[titleIndex];
+      waitUntil = now + REDUCED_HOLD_DELAY;
+    }
+    rafId = requestAnimationFrame(frame);
+    return;
+  }
 
   if (phase === 'holding') {
-    if (waitUntil < 0) waitUntil = now + HOLD_DELAY; // first frame: hold title 0
+    if (waitUntil < 0) waitUntil = now + HOLD_DELAY;
     if (now >= waitUntil) {
       phase = 'erasing';
+      lastCharAt = now;
       isTyping.value = true;
     }
   } else if (phase === 'erasing') {
-    charIndex -= 1;
-    text.value = titles[titleIndex].slice(0, Math.max(charIndex, 0));
-    if (charIndex <= 0) {
-      charIndex = 0;
-      titleIndex = (titleIndex + 1) % titles.length;
-      phase = 'waiting';
-      waitUntil = now + GAP_DELAY;
-      isTyping.value = false;
+    if (now - lastCharAt >= ERASE_SPEED) {
+      lastCharAt = now;
+      charIndex -= 1;
+      text.value = titles[titleIndex].slice(0, Math.max(charIndex, 0));
+      if (charIndex <= 0) {
+        charIndex = 0;
+        titleIndex = (titleIndex + 1) % titles.length;
+        phase = 'waiting';
+        waitUntil = now + GAP_DELAY;
+        isTyping.value = false;
+      }
     }
   } else if (phase === 'waiting') {
     if (now >= waitUntil) {
       phase = 'typing';
+      lastCharAt = now;
       isTyping.value = true;
     }
   } else {
-    charIndex += 1;
-    const title = titles[titleIndex];
-    text.value = title.slice(0, charIndex);
-    if (charIndex >= title.length) {
-      phase = 'holding';
-      waitUntil = now + HOLD_DELAY;
-      isTyping.value = false;
+    if (now - lastCharAt >= TYPE_SPEED) {
+      lastCharAt = now;
+      charIndex += 1;
+      const title = titles[titleIndex];
+      text.value = title.slice(0, charIndex);
+      if (charIndex >= title.length) {
+        phase = 'holding';
+        waitUntil = now + HOLD_DELAY;
+        isTyping.value = false;
+      }
     }
   }
 
@@ -120,24 +163,34 @@ function stop() {
   rafId = 0;
 }
 
-// React if the user flips the reduced-motion preference mid-session.
+// React if the user flips the reduced-motion preference mid-session: re-seed to
+// the current title fully shown, then resume in the matching mode.
 function onReduceChange(event) {
-  if (event.matches) {
-    stop();
-    text.value = initialText.value;
-    isTyping.value = false;
-  } else {
-    start();
-  }
+  reduced = event.matches;
+  stop();
+  text.value = sequence[titleIndex] ?? initialText.value;
+  charIndex = text.value.length;
+  phase = 'holding';
+  waitUntil = -1;
+  isTyping.value = false;
+  start();
 }
 
 onMounted(() => {
   if (props.titles.length < 2) return; // nothing to cycle through
 
-  charIndex = text.value.length; // the first title starts fully typed
+  sequence = props.randomize ? shuffled(props.titles) : props.titles; // freeze the play order for this load
   reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  reduced = !!reduceMotion?.matches; // reduced motion → rotate titles without typing
   reduceMotion?.addEventListener?.('change', onReduceChange);
-  if (reduceMotion?.matches) return; // honour reduced motion: static first title
+
+  if (reduced) {
+    text.value = sequence[titleIndex]; // reduced motion: show the first title at once (no typing)
+  } else {
+    phase = 'typing'; // start from the empty line (text is '') and type the first title in
+    charIndex = 0;
+    isTyping.value = true; // solid caret while it types
+  }
 
   // Only run the loop while the hero is on screen; pausing also parks the CSS
   // gradient sweep + caret blink (see `.is-paused` below) so nothing repaints
