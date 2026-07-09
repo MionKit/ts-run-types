@@ -14,15 +14,15 @@ export {
 export {getRTUtils, getRTFnCaches, type RTUtils} from './runtypes/rtUtils.ts';
 
 // The generic runtime type node + the helper that recovers the source TS type
-// a `RunType<T>` carries (`Static<typeof schema>`). Both are part of the
-// value-first surface: builders return `RunType<T>`, `Static` maps back.
+// a `RunType<T>` carries (`InferType<typeof schema>`). Both are part of the
+// value-first surface: builders return `RunType<T>`, `InferType` maps back.
 export {type RunType} from './runtypes/types.ts';
 // `getRunType` is the value-bearing twin of `getRunTypeId` — same two call
 // shapes, but returns the traversable RunType<T> node instead of its id string.
 // Exported after getRTUtils so the registry is initialised first.
 export {getRunType} from './getRunType.ts';
 export {type DataOnly} from './runtypes/dataOnly.ts';
-export {type Static} from './schema/static.ts';
+export {type InferType} from './schema/static.ts';
 
 // AI enrichment — type-keyed, committed maps validated against `T` at scan time
 // (see docs/AI_ENRICHMENT.md). `FriendlyText<T>` combines labels + error

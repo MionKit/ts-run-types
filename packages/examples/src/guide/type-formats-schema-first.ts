@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type Static} from '@ts-runtypes/core';
+import {createValidate, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 // Schema-first formats: the same constraints as builders. TF.email(),
@@ -11,8 +11,8 @@ const account = RT.object({
   credits: TF.positive(),
 });
 
-// Static<typeof schema> hands the TypeScript type back.
-type Account = Static<typeof account>;
+// InferType<typeof schema> hands the TypeScript type back.
+type Account = InferType<typeof account>;
 
 const isAccount = createValidate(account);
 

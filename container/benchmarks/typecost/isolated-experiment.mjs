@@ -62,8 +62,8 @@ const MACHINERY = `
 type InjectRunTypeId<T> = string & { readonly __rtInjectRunTypeIdBrand?: T };
 type CompTimeArgs<T> = T & { readonly __rtCompTimeArgsBrand?: never };
 interface RunType<T = unknown> { id: string; readonly __rtType?: { t: T }; [x: string]: unknown; }
-type Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT;
-type FieldOf<V> = V extends { __propMod: any; __field: unknown } ? Static<V['__field']> : Static<V>;
+type InferType<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT;
+type FieldOf<V> = V extends { __propMod: any; __field: unknown } ? InferType<V['__field']> : InferType<V>;
 type IsOptional<V> = V extends { __propMod: { optional: true } } ? true : false;
 type IsReadonly<V> = V extends { __propMod: { readonly: true } } ? true : false;
 declare function string(id?: InjectRunTypeId<string>): RunType<string>;
@@ -94,7 +94,7 @@ const OBJECT_FORMS = {
 type ObjectType<C> = ${OBJ_4WAY};
 declare function object<const C extends Record<string, unknown>>(c: CompTimeArgs<C>, id?: InjectRunTypeId<ObjectType<C>>): RunType<ObjectType<C>>;
 declare function union<const T extends readonly RunType[]>(m: CompTimeArgs<T>, id?: InjectRunTypeId<UnionOf<T>>): RunType<UnionOf<T>>;
-type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? Static<H> | UnionOf<R> : never;`,
+type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? InferType<H> | UnionOf<R> : never;`,
 
   // PROPOSED: probe the modifier profile ONCE, pick the leanest faithful map.
   tiered: `
@@ -118,7 +118,7 @@ type ObjectType<C> =
     : (AnyReadonly<C> extends false ? ObjOptionalOnly<C> : ObjMixed<C>);
 declare function object<const C extends Record<string, unknown>>(c: CompTimeArgs<C>, id?: InjectRunTypeId<ObjectType<C>>): RunType<ObjectType<C>>;
 declare function union<const T extends readonly RunType[]>(m: CompTimeArgs<T>, id?: InjectRunTypeId<UnionOf<T>>): RunType<UnionOf<T>>;
-type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? Static<H> | UnionOf<R> : never;`,
+type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? InferType<H> | UnionOf<R> : never;`,
 };
 
 // Object workloads — one per modifier profile + a wide 8-arm union.
@@ -150,10 +150,10 @@ const WORKLOADS = {
 // directions — a one-way check would miss widening OR narrowing).
 function objProbe(form, w) {
   const force = `\nconst __x: __T = ${w.sample}; void __x;\ntype Exp = ${w.expected};\nconst __fwd: Exp = (null as any as __T);\nconst __bwd: __T = (null as any as Exp);\nvoid __fwd; void __bwd;`;
-  return `${MACHINERY}\n${OBJECT_FORMS[form]}\nconst __s = ${w.expr};\ntype __T = Static<typeof __s>;${force}`;
+  return `${MACHINERY}\n${OBJECT_FORMS[form]}\nconst __s = ${w.expr};\ntype __T = InferType<typeof __s>;${force}`;
 }
 function baselineProbe(form) {
-  return `${MACHINERY}\n${OBJECT_FORMS[form]}\nconst __s = string();\ntype __T = Static<typeof __s>;\nlet __x!: __T; void __x;`;
+  return `${MACHINERY}\n${OBJECT_FORMS[form]}\nconst __s = string();\ntype __T = InferType<typeof __s>;\nlet __x!: __T; void __x;`;
 }
 function measureObject(form, w) {
   const base = compile(baselineProbe(form)).count;
@@ -168,7 +168,7 @@ function measureObject(form, w) {
 // ── report ───────────────────────────────────────────────────────────────────
 const forms = Object.keys(OBJECT_FORMS);
 const keys = Object.keys(WORKLOADS);
-console.log('\nObjectType<C> — instantiations to resolve Static<>, by modifier profile');
+console.log('\nObjectType<C> — instantiations to resolve InferType<>, by modifier profile');
 console.log('(✗ = recovered type ≠ expected; ratios vs `current`)\n');
 console.log('workload'.padEnd(24) + forms.map((f) => f.padStart(16)).join(''));
 console.log('-'.repeat(24 + 16 * forms.length));
@@ -201,16 +201,16 @@ const OBJ_ONLY = `
 type ObjectType<C> = ${OBJ_4WAY};
 declare function object<const C extends Record<string, unknown>>(c: CompTimeArgs<C>, id?: InjectRunTypeId<ObjectType<C>>): RunType<ObjectType<C>>;`;
 const UNION_RECURSIVE = `
-type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? Static<H> | UnionOf<R> : never;
+type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? InferType<H> | UnionOf<R> : never;
 declare function union<const T extends readonly RunType[]>(m: CompTimeArgs<T>, id?: InjectRunTypeId<UnionOf<T>>): RunType<UnionOf<T>>;`;
 const UNION_FIXED8 = `
-type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? Static<H> | UnionOf<R> : never;
+type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? InferType<H> | UnionOf<R> : never;
 declare function union<A,B,C,D,E,F,G,H>(m: CompTimeArgs<readonly [RunType<A>,RunType<B>,RunType<C>,RunType<D>,RunType<E>,RunType<F>,RunType<G>,RunType<H>]>, id?: InjectRunTypeId<A|B|C|D|E|F|G|H>): RunType<A|B|C|D|E|F|G|H>;
 declare function union<const T extends readonly RunType[]>(m: CompTimeArgs<T>, id?: InjectRunTypeId<UnionOf<T>>): RunType<UnionOf<T>>;`;
 function measureUnion(unionDecls) {
   const decls = `${MACHINERY}\n${OBJ_ONLY}\n${unionDecls}`;
-  const base = compile(`${decls}\nconst __s = string();\ntype __T = Static<typeof __s>;\nlet __x!: __T; void __x;`).count;
-  const full = compile(`${decls}\nconst __s = ${UNION_EXPR};\ntype __T = Static<typeof __s>;\nconst __x: __T = ${UNION_SAMPLE}; void __x;\ntype Exp = ${UNION_EXP};\nconst __f: Exp = (null as any as __T); const __g: __T = (null as any as Exp); void __f; void __g;`);
+  const base = compile(`${decls}\nconst __s = string();\ntype __T = InferType<typeof __s>;\nlet __x!: __T; void __x;`).count;
+  const full = compile(`${decls}\nconst __s = ${UNION_EXPR};\ntype __T = InferType<typeof __s>;\nconst __x: __T = ${UNION_SAMPLE}; void __x;\ntype Exp = ${UNION_EXP};\nconst __f: Exp = (null as any as __T); const __g: __T = (null as any as Exp); void __f; void __g;`);
   return {n: Math.max(0, full.count - base), faithful: full.errors.length === 0};
 }
 console.log('\nUNION (8 arms) — recursive UnionOf<T> vs fixed-arity-8 overload\n');
@@ -225,12 +225,12 @@ console.log(`  fixed-arity-8        ${String(uf.n).padStart(5)}  ${uf.faithful ?
 // `CompTimeArgs<T>` intersected with a TUPLE type. `T & {brand}` is cheap for an
 // object (the `array` builder's `CompTimeArgs<RunType<T>>`) but expensive for a
 // tuple. Stripping CompTimeArgs from a single-overload tuple cuts it ~91%.
-const TUP_MACHINERY = `${MACHINERY}\ntype MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: Static<T[K]>};`;
+const TUP_MACHINERY = `${MACHINERY}\ntype MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: InferType<T[K]>};`;
 const TUP_FULL = `declare function tup<const T extends readonly RunType[]>(items: CompTimeArgs<T>, id?: InjectRunTypeId<MapTuple<T>>): RunType<MapTuple<T>>;`;
 const TUP_NOCTA = `declare function tup<const T extends readonly RunType[]>(items: T, id?: InjectRunTypeId<MapTuple<T>>): RunType<MapTuple<T>>;`;
 function measureTup(decl, expr, sample) {
-  const base = compile(`${TUP_MACHINERY}\n${decl}\nconst __s = string();\ntype __T = Static<typeof __s>;\nlet __x!: __T; void __x;`).count;
-  const full = compile(`${TUP_MACHINERY}\n${decl}\nconst __s = ${expr};\ntype __T = Static<typeof __s>;\nconst __x: __T = ${sample}; void __x;`);
+  const base = compile(`${TUP_MACHINERY}\n${decl}\nconst __s = string();\ntype __T = InferType<typeof __s>;\nlet __x!: __T; void __x;`).count;
+  const full = compile(`${TUP_MACHINERY}\n${decl}\nconst __s = ${expr};\ntype __T = InferType<typeof __s>;\nconst __x: __T = ${sample}; void __x;`);
   return Math.max(0, full.count - base);
 }
 console.log('\nTUPLE floor — root cause is CompTimeArgs<T> over a TUPLE type (next target)\n');

@@ -63,7 +63,7 @@ export interface CompiledPureFunction extends PureFunctionData {
  *  `T` is the source TS type this node represents. It is a PHANTOM type
  *  parameter (carried on the never-set `__rtType` property, erased at
  *  runtime) so a value-first builder can return `RunType<String<P>>`
- *  and `Static<…>` can recover the original type. Defaults to `unknown`
+ *  and `InferType<…>` can recover the original type. Defaults to `unknown`
  *  so every existing `RunType` reference (the cache, the mock walker, the
  *  self-referential ref slots) is unaffected — `RunType` ≡ `RunType<unknown>`. */
 export interface RunType<T = unknown> {
@@ -110,9 +110,9 @@ export interface RunType<T = unknown> {
   extends?: RunType;
   classType?: RunType;
   /** Phantom carrier of the source TS type `T` this node represents. Never set
-   *  at runtime; exists only so `Static<RunType<T>>` recovers `T` via indexed
+   *  at runtime; exists only so `InferType<RunType<T>>` recovers `T` via indexed
    *  access (no `infer`). `T` rides INSIDE a `{t: T}` wrapper so the optional `?`
-   *  adds `| undefined` to the WRAPPER, not to `T`: `Static` strips that outer
+   *  adds `| undefined` to the WRAPPER, not to `T`: `InferType` strips that outer
    *  `undefined` and reads `.t`, preserving an intentional `null`/`undefined` `T`
    *  (a bare-`T` carrier + `NonNullable` would collapse those to `never`, dropping
    *  e.g. a `literal(null)` arm from a composed union). The explicit member wins

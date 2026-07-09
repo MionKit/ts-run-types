@@ -1,7 +1,24 @@
 # Rename the `Static<T>` type extractor to `InferType<T>`
 
-Status: TODO (decided, not yet implemented). Filed alongside the playground
+Status: DONE (shipped 2026-07-09). Filed alongside the playground
 `Static<typeof MyType>` examples (PR #205 / the schema-example enhancement).
+
+## What shipped
+
+`Static<RT>` → `InferType<RT>` across the whole surface. Canonical definition in
+`runtypes/builderTypes.ts`, re-exported through `schema/static.ts` and
+`index.ts` (`export {type InferType}`). No `Static` or `Infer` alias — single
+name only. All internal src / test / example / doc / playground-preset / benchmark
+references updated; the two Go resolver test overlays (`schema_optional_reflect_test.go`,
+`comptimeargs_composer_test.go`) that mirror the public schema types were kept in
+sync. Dists rebuilt (`@ts-runtypes/core`, playground `.vendor` + WASM overlay).
+Verified: `pnpm run typecheck`, `pnpm test` (7774 pass), the playground harness,
+and all six schema presets resolving `InferType<typeof MyType>` with zero
+diagnostics.
+
+The only surviving `Static` tokens are intentional: prose ("static form" / "Static
+check only"), TypeBox's real `Static<T>` API where it is named as a comparison, and
+the historical `docs/done` / `docs/partially` notes.
 
 ## Decision
 

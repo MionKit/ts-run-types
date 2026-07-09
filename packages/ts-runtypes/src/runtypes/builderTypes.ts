@@ -5,11 +5,12 @@
 // opt-in, and `schema/` keeps its composer helpers. No `infer` anywhere (per
 // CLAUDE.md): every helper is an `extends`-guard + indexed-access read.
 //
-// The headline export is `Static<RT>` — the single "recover the source TS type a
-// `RunType<T>` represents" extractor (TypeBox's `Static<T>` by another lineage):
+// The headline export is `InferType<RT>` — the single "recover the source TS type
+// a `RunType<T>` represents" extractor (the role TypeBox's `Static<T>` plays, by
+// another lineage):
 //
 //   const Name = string({maxLength: 50});   // RunType<String<{maxLength: 50}>>
-//   type Name = Static<typeof Name>;         // String<{maxLength: 50}>
+//   type Name = InferType<typeof Name>;      // String<{maxLength: 50}>
 //
 // `TypeFormat` is imported as a VALUE (not `import type`): the value-level import
 // keeps the brand alias's reflection metadata reachable for tsgo, the same
@@ -29,14 +30,14 @@ import type {
   TemporalBaseByFormatName,
 } from '../formats/datetime/temporalFormats.ts';
 
-// ─────────────────────────────── Static ─────────────────────────────
+// ────────────────────────────── InferType ───────────────────────────
 
 /** The TS type a `RunType<T>` carries; identity for anything that isn't a
  *  `RunType`. The carrier is `{t: T}`, so `NonNullable` strips the `| undefined`
  *  the optional `?` adds to the WRAPPER and `['t']` reads `T` back — preserving an
  *  intentional `null`/`undefined` `T` (which a bare-`T` carrier + `NonNullable`
  *  would collapse to `never`). No `infer`. **/
-export type Static<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT;
+export type InferType<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT;
 
 // ─────────────────────────────── Leaves ─────────────────────────────
 //

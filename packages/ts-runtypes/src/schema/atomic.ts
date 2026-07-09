@@ -3,10 +3,10 @@
 // `symbol`, the top / bottom kinds (`any` / `unknown` / `never` / `void`), the
 // class-instance builder, and the enum builder. Each returns a generic
 // `RunType<T>` (the runtime run-type node, typed with the source type `T`);
-// `Static<typeof X>` recovers `T`:
+// `InferType<typeof X>` recovers `T`:
 //
 //   import {boolean, literal, enumType} from '@ts-runtypes/core/schema';
-//   import {createValidate, type Static} from '@ts-runtypes/core';
+//   import {createValidate, type InferType} from '@ts-runtypes/core';
 //
 //   const Flag = boolean();              // RunType<boolean>
 //   const isFlag = createValidate(Flag); // validator from the schema
@@ -113,7 +113,7 @@ export function classType<Instance>(
 
 /** An enum builder — accepts EITHER a TS `enum` (`enumType(Color)`) OR an
  *  enum-like record (`enumType({Red: 0, Green: 'green', Blue: 2})`), and carries
- *  the union of its VALUES (`E[keyof E]`). `Static<typeof enumType(Color)>` is then
+ *  the union of its VALUES (`E[keyof E]`). `InferType<typeof enumType(Color)>` is then
  *  assignment-equivalent to the enum — it accepts exactly the same values (proven:
  *  `Color.Red` is assignable to both, and they cross-assign). `const E` preserves a
  *  plain record's literal values (`{Red: 0}` → `0`, not `number`); a TS enum object

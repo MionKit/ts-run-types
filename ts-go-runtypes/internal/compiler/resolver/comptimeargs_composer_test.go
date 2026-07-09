@@ -25,8 +25,8 @@ const composerCTADTS = `declare module '@ts-runtypes/core' {
   export interface RunType<T = unknown> { readonly id: string; }
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T;
-  export type Static<R> = R extends RunType<infer T> ? T : never;
-  export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: Static<T[K]>};
+  export type InferType<R> = R extends RunType<infer T> ? T : never;
+  export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: InferType<T[K]>};
   export function string(id?: InjectRunTypeId<string>): RunType<string>;
   export function number(id?: InjectRunTypeId<number>): RunType<number>;
   export function boolean(id?: InjectRunTypeId<boolean>): RunType<boolean>;

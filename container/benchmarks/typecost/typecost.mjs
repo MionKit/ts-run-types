@@ -8,7 +8,7 @@
 // marginal cost of resolving THAT case's type, not the import scaffold):
 //
 //   ts-go (type)    type T = <the TS type>;             const x: T = <sample>;
-//   ts-go (schema)  const s = RT.…; type T = Static<typeof s>;  const x: T = …;
+//   ts-go (schema)  const s = RT.…; type T = InferType<typeof s>;  const x: T = …;
 //   zod             const s = z.…;  type T = z.infer<typeof s>;  const x: T = …;
 //   typebox         const s = Type.…; type T = Static<typeof s>; const x: T = …;
 //   typia           type T = <the TS type, incl. `& tags.*`>;  const x: T = <sample>;
@@ -139,7 +139,7 @@ const {extractTsGo, extractSchemaCompetitor, extractTypeForm} = makeExtractors(t
 
 // ── probe assembly ──────────────────────────────────────────────────────────
 
-const STATIC_IMPORT = `import {type Static} from '@ts-runtypes/core';`;
+const INFERTYPE_IMPORT = `import {type InferType} from '@ts-runtypes/core';`;
 const TB_STATIC_IMPORT = `import {type Static as __TBStatic} from '@sinclair/typebox';`;
 
 // Force TypeScript to fully RESOLVE + structurally check the recovered type by
@@ -159,8 +159,8 @@ function probeTsType(preamble, locals, typeText, value) {
   return `${preamble.join('\n')}\n{\n${decls(locals)}type __T = ${typeText};${force(value)}}\n`;
 }
 function probeTsSchema(preamble, locals, exprText, value) {
-  const imps = preamble.includes(STATIC_IMPORT) ? preamble : [...preamble, STATIC_IMPORT];
-  return `${imps.join('\n')}\n${decls(locals)}const __s = ${exprText};\ntype __T = Static<typeof __s>;${force(value)}`;
+  const imps = preamble.includes(INFERTYPE_IMPORT) ? preamble : [...preamble, INFERTYPE_IMPORT];
+  return `${imps.join('\n')}\n${decls(locals)}const __s = ${exprText};\ntype __T = InferType<typeof __s>;${force(value)}`;
 }
 function probeZod(preamble, locals, exprText, value) {
   return `${preamble.join('\n')}\n${decls(locals)}const __s = ${exprText};\ntype __T = z.infer<typeof __s>;${force(value)}`;
@@ -431,7 +431,7 @@ function report(rows) {
       'first valid sample, serialized), forcing TypeScript to fully resolve the\n' +
       'type AND structurally check the value against it — the cost users pay on\n' +
       'every `const x: T = {…}`. ts-go(type) and typia are pure-type forms (the cost\n' +
-      'of resolving the literal T); ts-go(schema) is the value-first builder + Static<>.\n' +
+      'of resolving the literal T); ts-go(schema) is the value-first builder + InferType<>.\n' +
       'ajv has no static type inference.'
   );
 }

@@ -28,7 +28,7 @@ schema language to learn or keep in sync.
   `getRunTypeId<T>()` form and a value-first `getRunTypeId(value)` form; every type
   collapses to one stable structural id, so identical shapes share a single cache entry.
 - **Schema builders.** `RT.*` builders are a second door into the same engine — a plain
-  type and an `RT.*` schema resolve to the identical representation — with `Static<>` to
+  type and an `RT.*` schema resolve to the identical representation — with `InferType<>` to
   extract the type back out.
 - **Mock data.** `createMockData<T>()` produces realistic sample values, drawing on the
   committed `MockData<T>` enrichment maps.

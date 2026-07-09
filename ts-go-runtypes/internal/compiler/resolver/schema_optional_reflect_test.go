@@ -22,10 +22,10 @@ const schemaOptionalDTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T;
   export interface RunType<T = unknown> { readonly id: string; }
-  export type Static<R> = R extends RunType<infer T> ? T : never;
+  export type InferType<R> = R extends RunType<infer T> ? T : never;
   export interface PropModifiers { optional?: true; readonly?: true; }
   export interface PropModCarrier<M extends PropModifiers, F> { readonly __propMod: M; readonly __field: F; }
-  export type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} ? Static<V['__field']> : Static<V>;
+  export type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} ? InferType<V['__field']> : InferType<V>;
   export type IsOptional<V> = V extends {__propMod: {optional: true}} ? true : false;
   export type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : false;
   export type AnyOptional<C> = true extends {[K in keyof C]: IsOptional<C[K]>}[keyof C] ? true : false;

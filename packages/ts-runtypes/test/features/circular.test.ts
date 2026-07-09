@@ -6,7 +6,7 @@
 
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors, type Static} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, type InferType} from '@ts-runtypes/core';
 import {circular, self, object, optional, array, union, record, literal} from '@ts-runtypes/core/schema';
 import '@ts-runtypes/core/formats';
 
@@ -28,7 +28,7 @@ describe('circular() — recursive schemas without types', () => {
     const sample: NodeT = {n: 1, s: 'a'};
     expect(isNode).toBe(createValidate(sample));
 
-    type Inferred = Static<typeof Node>;
+    type Inferred = InferType<typeof Node>;
     const v: Inferred = {n: 1, s: 'a', c: {n: 2, s: 'b'}};
     expect(v.c?.n).toBe(2);
   });

@@ -12,7 +12,7 @@
 
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, type Static} from '@ts-runtypes/core';
+import {createValidate, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 type CallableIface = {(a: number, b: boolean): string; extra: string};
@@ -35,8 +35,8 @@ describe('value-first callable builder', () => {
     expect(isCallable(fnNoExtra), 'function missing the required extra prop').toBe(false);
   });
 
-  it('Static recovers the callable interface (assignment-equivalent)', () => {
-    type Recovered = Static<typeof schema>;
+  it('InferType recovers the callable interface (assignment-equivalent)', () => {
+    type Recovered = InferType<typeof schema>;
     const value: CallableIface = Object.assign((_a: number, _b: boolean) => 'x', {extra: 'x'});
     const fromType: Recovered = value; // type-first value -> recovered type
     const toType: CallableIface = fromType; // recovered type -> type-first

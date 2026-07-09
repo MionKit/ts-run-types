@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type Static} from '@ts-runtypes/core';
+import {createValidate, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 // start-type
@@ -22,7 +22,7 @@ const userSchema = RT.object({
 });
 
 // Recover the type from the schema whenever you need it.
-type UserFromSchema = Static<typeof userSchema>;
+type UserFromSchema = InferType<typeof userSchema>;
 
 const isUserB = createValidate(userSchema);
 // end-schema

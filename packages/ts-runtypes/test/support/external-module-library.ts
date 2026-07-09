@@ -11,7 +11,7 @@ export interface User {
   name: string;
 }
 
-// A value-first schema whose Static type is structurally `User`.
+// A value-first schema whose InferType is structurally `User`.
 export const UserSchema = RT.object({id: TF.number(), name: TF.string()});
 
 // A WHOLE options preset — declared `as const` so its values stay literal
