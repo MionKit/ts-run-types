@@ -5,7 +5,9 @@
 //     autocompletes every format; it drives format-aware validate / mock / codegen.
 //   - `schema`: the value-first ts-runtypes/schema + ts-runtypes/formats builder
 //     form (resolved via `createX(MyType)`), with its RT / TF imports written out
-//     just like the type form, so both read like real code.
+//     just like the type form, so both read like real code. Each closes with
+//     `type <Name> = Static<typeof MyType>` to show recovering the plain TS type
+//     from the schema (the value-first counterpart to the `ts` form's `MyType`).
 // The TS/Schema switch toggles which form the editor shows. The shapes mirror the
 // real-world DTO scenarios in the validation suite
 // (packages/ts-runtypes/test/suites/validation/Realworld.ts).
@@ -29,13 +31,16 @@ export const PRESETS: readonly Preset[] = [
 };`,
     schema: `import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
+import { Static } from '@ts-runtypes/core';
 
 const MyType = RT.object({
   id: TF.number(),
   name: TF.string(),
   tags: RT.array(TF.string()),
   active: RT.optional(RT.boolean()),
-});`,
+});
+
+type Simple = Static<typeof MyType>;`,
     input: `{
   "id": 1,
   "name": "ada",
@@ -58,6 +63,7 @@ type MyType = {
 };`,
     schema: `import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
+import { Static } from '@ts-runtypes/core';
 
 const MyType = RT.object({
   id: TF.uuidv4(),
@@ -67,7 +73,9 @@ const MyType = RT.object({
   roles: RT.array(RT.union([RT.literal('admin'), RT.literal('editor'), RT.literal('user')])),
   active: RT.boolean(),
   createdAt: TF.string(),
-});`,
+});
+
+type User = Static<typeof MyType>;`,
     input: `{
   "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "email": "ann@example.com",
@@ -92,6 +100,7 @@ type MyType = {
 };`,
     schema: `import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
+import { Static } from '@ts-runtypes/core';
 
 const MyType = RT.object({
   id: TF.string(),
@@ -108,7 +117,9 @@ const MyType = RT.object({
   ]),
   total: TF.positive(),
   note: RT.optional(TF.string()),
-});`,
+});
+
+type Order = Static<typeof MyType>;`,
     input: `{
   "id": "ord_1001",
   "customer": { "id": 7, "email": "ann@example.com" },
@@ -132,6 +143,7 @@ type MyType = {
 };`,
     schema: `import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
+import { Static } from '@ts-runtypes/core';
 
 const MyType = RT.object({
   id: TF.number(),
@@ -141,7 +153,9 @@ const MyType = RT.object({
   author: RT.object({ name: TF.string(), email: TF.email() }),
   published: RT.boolean(),
   meta: RT.object({ views: TF.integer(), likes: TF.integer() }),
-});`,
+});
+
+type BlogPost = Static<typeof MyType>;`,
     input: `{
   "id": 42,
   "title": "Hello RunTypes",
@@ -167,6 +181,7 @@ type MyType = {
 };`,
     schema: `import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
+import { Static } from '@ts-runtypes/core';
 
 const MyType = RT.object({
   id: TF.string(),
@@ -176,7 +191,9 @@ const MyType = RT.object({
   currency: RT.union([RT.literal('USD'), RT.literal('EUR'), RT.literal('GBP')]),
   inStock: RT.boolean(),
   categories: RT.array(TF.string()),
-});`,
+});
+
+type Product = Static<typeof MyType>;`,
     input: `{
   "id": "prod_55",
   "name": "Mechanical Keyboard",
@@ -198,6 +215,7 @@ const MyType = RT.object({
     // back-edge (a const can't reference itself in its own initializer).
     schema: `import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
+import { Static } from '@ts-runtypes/core';
 
 const MyType = RT.circular(
   RT.object({
@@ -205,7 +223,9 @@ const MyType = RT.circular(
     name: TF.string(),
     children: RT.array(RT.self()),
   })
-);`,
+);
+
+type Tree = Static<typeof MyType>;`,
     input: `{
   id: 1,
   name: "root",
