@@ -54,6 +54,12 @@ jobs:
       # benchmarks + static site against it.
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
+      # Reuse the playground wasm across deploys when the Go inputs are unchanged.
+      # `garble` — this ships the real (obfuscated) artifact, so no RT_GARBLE=0.
+      - name: Cache the playground wasm
+        uses: ./.github/actions/cache-playground-wasm
+        with:
+          mode: garble
       - name: Build binary + benchmarks + static site
         run: pnpm rtx website build
       - name: Upload static artifact
