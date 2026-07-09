@@ -28,13 +28,13 @@ export interface RTValidationIssue extends StandardSchemaIssue {
 }
 
 /** Options for `runTypeErrorsToIssues`. The `message` hook replaces the default
- *  mechanical message derivation — the seam a future `createFriendly`-backed
+ *  mechanical message derivation — the seam a future `createFriendlyText`-backed
  *  renderer plugs into. **/
 export interface IssueMappingOptions {
   message?: (err: RTValidationError) => string;
 }
 
-// constraintName mirrors createFriendly's `constraintKey`: the failed-constraint
+// constraintName mirrors createFriendlyText's `constraintKey`: the failed-constraint
 // token is the formatPath tail (e.g. 'minLength'), else the format name, else
 // 'type' for a base type-shape failure.
 function constraintName(format: TypeFormatError | undefined): string {

@@ -12,7 +12,7 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
 import '@ts-runtypes/core/formats';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 import * as RT from '@ts-runtypes/core/schema';
 
@@ -168,7 +168,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createMockType<User>();
+      return createMockData<User>();
     },
     mockTypeReflect: () => {
       interface User {
@@ -181,7 +181,7 @@ export const REALWORLD = {
         name: 'Ada Lovelace',
         email: 'ada@example.com' as TF.Email,
       };
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -351,7 +351,7 @@ export const REALWORLD = {
         total: number;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createMockType<Order>();
+      return createMockData<Order>();
     },
     mockTypeReflect: () => {
       interface Order {
@@ -366,7 +366,7 @@ export const REALWORLD = {
         total: 78,
         status: 'paid',
       };
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [

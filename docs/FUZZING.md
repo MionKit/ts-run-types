@@ -42,7 +42,7 @@ All under [`packages/ts-runtypes/test/fuzz/`](../packages/ts-runtypes/test/fuzz/
 Everything draws from a seeded `Math.random`, so each iteration is reproducible
 from its `seed`.
 
-1. **Valid** — `createMockType<T>()`. Valid by construction; the strong oracles
+1. **Valid** — `createMockData<T>()`. Valid by construction; the strong oracles
    expect acceptance / round-trip equality.
 2. **Invalid** — `mutateToInvalid(schema, validMock)`. Takes a valid mock and
    corrupts exactly one position to a wrong type. Invalid by construction; the
@@ -191,7 +191,7 @@ validator get the full strong oracles (reusing the Phase-1 `fuzzOracle.ts` check
 verbatim); everything else gets the robustness probe. The value streams come
 straight from the abstract type (`validValue` / `corruptValue` in
 [`shapeValue.ts`](../packages/ts-runtypes/test/fuzz/value/shapeValue.ts)), so no
-dependency on `createMockType`.
+dependency on `createMockData`.
 
 The harness ([`typeFuzzHarness.ts`](../packages/ts-runtypes/test/fuzz/type/typeFuzzHarness.ts))
 reuses the vite-plugin test helpers

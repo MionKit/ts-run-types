@@ -8,7 +8,7 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
 import '@ts-runtypes/core/formats';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const BIGINT_FORMAT = {
@@ -56,14 +56,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigInt<{max: 100n}> = 100n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt<{max: 100n}>>>(),
     validateSchema: () => createValidate(TF.bigInt({max: 100n})),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt<{max: 100n}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt<{max: 100n}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt({max: 100n})),
-    mockType: () => createMockType<TF.BigInt<{max: 100n}>>(),
+    mockType: () => createMockData<TF.BigInt<{max: 100n}>>(),
     getSamples: () => ({valid: [100n, 0n, -50n], invalid: [101n, 5]}),
     expectedFormatErrors: () => [{name: 'bigintFormat', val: 100n, formatPathTail: 'max'}, null],
   },
@@ -93,14 +93,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigInt<{min: 0n}> = 0n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt<{min: 0n}>>>(),
     validateSchema: () => createValidate(TF.bigInt({min: 0n})),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt<{min: 0n}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt<{min: 0n}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt({min: 0n})),
-    mockType: () => createMockType<TF.BigInt<{min: 0n}>>(),
+    mockType: () => createMockData<TF.BigInt<{min: 0n}>>(),
     getSamples: () => ({valid: [0n, 1n, 9999n], invalid: [-1n]}),
     expectedFormatErrors: () => [{name: 'bigintFormat', val: 0n, formatPathTail: 'min'}],
   },
@@ -131,14 +131,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigInt<{lt: 10n}> = 9n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt<{lt: 10n}>>>(),
     validateSchema: () => createValidate(TF.bigInt({lt: 10n})),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt<{lt: 10n}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt<{lt: 10n}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt({lt: 10n})),
-    mockType: () => createMockType<TF.BigInt<{lt: 10n}>>(),
+    mockType: () => createMockData<TF.BigInt<{lt: 10n}>>(),
     getSamples: () => ({valid: [9n, -5n], invalid: [10n, 11n]}),
     expectedFormatErrors: () => [
       {name: 'bigintFormat', val: 10n, formatPathTail: 'lt'},
@@ -171,14 +171,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigInt<{gt: 0n}> = 1n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt<{gt: 0n}>>>(),
     validateSchema: () => createValidate(TF.bigInt({gt: 0n})),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt<{gt: 0n}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt<{gt: 0n}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt({gt: 0n})),
-    mockType: () => createMockType<TF.BigInt<{gt: 0n}>>(),
+    mockType: () => createMockData<TF.BigInt<{gt: 0n}>>(),
     getSamples: () => ({valid: [1n, 100n], invalid: [0n, -1n]}),
     expectedFormatErrors: () => [
       {name: 'bigintFormat', val: 0n, formatPathTail: 'gt'},
@@ -212,14 +212,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigInt<{multipleOf: 5n}> = 0n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt<{multipleOf: 5n}>>>(),
     validateSchema: () => createValidate(TF.bigInt({multipleOf: 5n})),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt<{multipleOf: 5n}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt<{multipleOf: 5n}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt({multipleOf: 5n})),
-    mockType: () => createMockType<TF.BigInt<{multipleOf: 5n}>>(),
+    mockType: () => createMockData<TF.BigInt<{multipleOf: 5n}>>(),
     getSamples: () => ({valid: [0n, 5n, -15n], invalid: [3n, 7n]}),
     expectedFormatErrors: () => [
       {name: 'bigintFormat', val: 5n, formatPathTail: 'multipleOf'},
@@ -253,14 +253,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}> = 0n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>>(),
     validateSchema: () => createValidate(TF.bigInt({min: 0n, max: 1000n, multipleOf: 10n})),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt({min: 0n, max: 1000n, multipleOf: 10n})),
-    mockType: () => createMockType<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+    mockType: () => createMockData<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     getSamples: () => ({valid: [0n, 10n, 1000n], invalid: [-10n, 1010n, 7n]}),
     expectedFormatErrors: () => [
       {name: 'bigintFormat', formatPathTail: 'min'},
@@ -295,14 +295,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigInt64 = -9223372036854775808n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigInt64>>(),
     validateSchema: () => createValidate(TF.bigInt64()),
     getValidationErrors: () => createGetValidationErrors<TF.BigInt64>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigInt64>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigInt64()),
-    mockType: () => createMockType<TF.BigInt64>(),
+    mockType: () => createMockData<TF.BigInt64>(),
     getSamples: () => ({
       valid: [-9223372036854775808n, 0n, 9223372036854775807n],
       invalid: [9223372036854775808n, -9223372036854775809n],
@@ -338,14 +338,14 @@ export const BIGINT_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.BigUInt64 = 0n;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.BigUInt64>>(),
     validateSchema: () => createValidate(TF.bigUInt64()),
     getValidationErrors: () => createGetValidationErrors<TF.BigUInt64>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.BigUInt64>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.bigUInt64()),
-    mockType: () => createMockType<TF.BigUInt64>(),
+    mockType: () => createMockData<TF.BigUInt64>(),
     getSamples: () => ({valid: [0n, 18446744073709551615n], invalid: [18446744073709551616n, -1n]}),
     expectedFormatErrors: () => [
       {name: 'bigintFormat', val: 18446744073709551615n, formatPathTail: 'max'},

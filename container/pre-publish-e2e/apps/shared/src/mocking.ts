@@ -1,7 +1,7 @@
 // Family 10 — Mocking. Mirrors guide/mocking-*.ts + custom-mocking-function.ts.
-// createMockType output passes createValidate for the same T; options + formats
+// createMockData output passes createValidate for the same T; options + formats
 // are honored; a custom per-kind mock generator is registered.
-import {createMockType, createValidate, registerMockingFunction, RunTypeKind, type FormatAnnotation} from '@ts-runtypes/core';
+import {createMockData, createValidate, registerMockingFunction, RunTypeKind, type FormatAnnotation} from '@ts-runtypes/core';
 import type * as TF from '@ts-runtypes/core/formats';
 import {type CheckResult, ok} from './check';
 
@@ -24,12 +24,12 @@ registerMockingFunction(RunTypeKind.string, (annotation: FormatAnnotation) => {
   return undefined; // defer to the built-in mock otherwise
 });
 
-export const mockUser = createMockType<User>();
+export const mockUser = createMockData<User>();
 export const isUser = createValidate<User>();
-export const mockContact = createMockType<Contact>();
+export const mockContact = createMockData<Contact>();
 
 // Factory-level options (bounded numbers, always include optionals).
-export const mockBounded = createMockType<User>(undefined, {mock: {minNumber: 0, maxNumber: 1000}});
+export const mockBounded = createMockData<User>(undefined, {mock: {minNumber: 0, maxNumber: 1000}});
 
 export function checkMocking(): CheckResult[] {
   const generated = mockUser();

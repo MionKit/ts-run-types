@@ -86,7 +86,7 @@ the other module. Cover, at minimum:
 
 - **`InjectRunTypeId<T>` reflection** — `getRunTypeId<ImportedType>()` and the
   reflection form `getRunTypeId(valueOfImportedType)`; `getRunType` likewise;
-  `createMockType<ImportedType>()`. (Marker-coverage rule: BOTH `getRunTypeId`
+  `createMockData<ImportedType>()`. (Marker-coverage rule: BOTH `getRunTypeId`
   call shapes, with a hash-equivalence assertion.)
 - **Value-first builders with imported children** — `createValidate(ImportedSchema)`
   where `ImportedSchema = object({...})` lives in the library module; nested

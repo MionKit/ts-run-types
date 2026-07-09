@@ -9,7 +9,7 @@ type Order = {
 
 // start-walk
 // Render any node back to a TypeScript-like string. Every kind is one switch
-// arm, the same way createMockType dispatches over the graph internally: leaves
+// arm, the same way createMockData dispatches over the graph internally: leaves
 // return on the spot, single-child kinds recurse through `child`, containers
 // through `children`, and callables through `parameters` and `return`.
 function describe(rt: RunType): string {

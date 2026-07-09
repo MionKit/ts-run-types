@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -164,10 +164,10 @@ export const REALWORLD = {
       const v: User = sampleUser();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<User>(),
+    mockType: () => createMockData<User>(),
     mockTypeReflect: () => {
       const v: User = sampleUser();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [sampleUser(), sampleUser({age: 30, roles: ['admin', 'editor']})],
@@ -289,10 +289,10 @@ export const REALWORLD = {
       const v: Order = makeOrder();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Order>(),
+    mockType: () => createMockData<Order>(),
     mockTypeReflect: () => {
       const v: Order = makeOrder();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const ok = makeOrder();
@@ -388,10 +388,10 @@ export const REALWORLD = {
       const v: BlogPost = makeBlogPost();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<BlogPost>(),
+    mockType: () => createMockData<BlogPost>(),
     mockTypeReflect: () => {
       const v: BlogPost = makeBlogPost();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const ok = makeBlogPost();
@@ -478,10 +478,10 @@ export const REALWORLD = {
       const v: Product = makeProduct();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Product>(),
+    mockType: () => createMockData<Product>(),
     mockTypeReflect: () => {
       const v: Product = makeProduct();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const ok = makeProduct();
@@ -594,10 +594,10 @@ export const REALWORLD = {
       const v: ProductPage = {data: [makeProduct()], page: 1, pageSize: 20, total: 1, hasMore: false};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<ProductPage>(),
+    mockType: () => createMockData<ProductPage>(),
     mockTypeReflect: () => {
       const v: ProductPage = {data: [makeProduct()], page: 1, pageSize: 20, total: 1, hasMore: false};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const p = makeProduct();
@@ -677,10 +677,10 @@ export const REALWORLD = {
       const v: RegistrationForm = makeRegistrationForm();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<RegistrationForm>(),
+    mockType: () => createMockData<RegistrationForm>(),
     mockTypeReflect: () => {
       const v: RegistrationForm = makeRegistrationForm();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const ok = makeRegistrationForm();

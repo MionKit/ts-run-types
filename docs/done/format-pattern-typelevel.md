@@ -143,7 +143,7 @@ mockSamples, message?}` shape, all string literals, still wrapped in
 
 2. **Make `registerFormatPattern` / `FormatPattern` generic over the WHOLE args
    object** — not just `source`/`flags`. Capturing only the regex would re-create
-   the bug for the other two fields: `mockSamples` (drives `createMockType`) and
+   the bug for the other two fields: `mockSamples` (drives `createMockData`) and
    `message` (drives diagnostics) would widen to `readonly string[]` / `string`
    and be lost for `.d.ts` consumers, exactly like the regex is today. Carry the
    full literal args so all four fields survive:
@@ -174,7 +174,7 @@ mockSamples, message?}` shape, all string literals, still wrapped in
    the full bundle — `pattern.source`, `pattern.flags`, `pattern.mockSamples`,
    `pattern.message` — from the resolved type the same way
    (`internal/cachegen/runtype/typeid/formats.go`). All four matter: source/flags
-   build the validator, mockSamples feed `createMockType`, message feeds
+   build the validator, mockSamples feed `createMockData`, message feeds
    diagnostics. The call-AST reader (`formatPatternFromSymbol`) can be kept as a
    fallback for the value-first builder path, or removed once the type path is
    authoritative.

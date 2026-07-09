@@ -12,7 +12,7 @@
 import * as TF from '@ts-runtypes/core/formats';
 import * as TFT from '@ts-runtypes/core/formats/temporal';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
@@ -63,10 +63,10 @@ export const DATETIME = {
       const v: Date = new Date();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Date>(),
+    mockType: () => createMockData<Date>(),
     mockTypeReflect: () => {
       const v: Date = new Date();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [new Date()],
@@ -107,10 +107,10 @@ export const DATETIME = {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.Instant>(),
+    mockType: () => createMockData<Temporal.Instant>(),
     mockTypeReflect: () => {
       const v: Temporal.Instant = T.Instant.from('2020-01-15T10:30:00Z');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.Instant.from('2020-01-15T10:30:00Z'), T.Instant.fromEpochMilliseconds(0)],
@@ -151,10 +151,10 @@ export const DATETIME = {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.ZonedDateTime>(),
+    mockType: () => createMockData<Temporal.ZonedDateTime>(),
     mockTypeReflect: () => {
       const v: Temporal.ZonedDateTime = T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]')],
@@ -195,10 +195,10 @@ export const DATETIME = {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.PlainDate>(),
+    mockType: () => createMockData<Temporal.PlainDate>(),
     mockTypeReflect: () => {
       const v: Temporal.PlainDate = T.PlainDate.from('2020-08-24');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-08-24'), T.PlainDate.from('1999-01-01')],
@@ -239,10 +239,10 @@ export const DATETIME = {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.PlainTime>(),
+    mockType: () => createMockData<Temporal.PlainTime>(),
     mockTypeReflect: () => {
       const v: Temporal.PlainTime = T.PlainTime.from('19:39:09');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.PlainTime.from('19:39:09'), T.PlainTime.from('00:00:00')],
@@ -283,10 +283,10 @@ export const DATETIME = {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.PlainDateTime>(),
+    mockType: () => createMockData<Temporal.PlainDateTime>(),
     mockTypeReflect: () => {
       const v: Temporal.PlainDateTime = T.PlainDateTime.from('1995-12-07T15:00:00');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.PlainDateTime.from('1995-12-07T15:00:00')],
@@ -327,10 +327,10 @@ export const DATETIME = {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.PlainYearMonth>(),
+    mockType: () => createMockData<Temporal.PlainYearMonth>(),
     mockTypeReflect: () => {
       const v: Temporal.PlainYearMonth = T.PlainYearMonth.from('2020-10');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-10')],
@@ -374,10 +374,10 @@ export const DATETIME = {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.PlainMonthDay>(),
+    mockType: () => createMockData<Temporal.PlainMonthDay>(),
     mockTypeReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.PlainMonthDay.from('07-14')],
@@ -418,10 +418,10 @@ export const DATETIME = {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Temporal.Duration>(),
+    mockType: () => createMockData<Temporal.Duration>(),
     mockTypeReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [T.Duration.from('P1Y2M10DT2H30M'), T.Duration.from('PT0S')],

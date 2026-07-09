@@ -1,9 +1,9 @@
-import {createFriendly, createGetValidationErrors} from '@ts-runtypes/core';
+import {createFriendlyText, createGetValidationErrors} from '@ts-runtypes/core';
 import type {User} from './user';
 import {friendlyUser} from './friendly-user';
 
 const getUserErrors = createGetValidationErrors<User>();
-const friendly = createFriendly<User>(friendlyUser);
+const friendly = createFriendlyText<User>(friendlyUser);
 
 // label(path): dotted string or a raw path-segment array
 friendly.label('profile.email');

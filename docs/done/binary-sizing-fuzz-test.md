@@ -42,7 +42,7 @@ estimate over-allocating.
 
 ### Part B — `respectBinarySize` mock option (product) + the fuzz suite
 
-**Value source — a real `createMockType` option** (`packages/ts-runtypes/src/mocking/`):
+**Value source — a real `createMockData` option** (`packages/ts-runtypes/src/mocking/`):
 
 - **`respectBinarySize: true | false | undefined`** + **`binarySizingOptions`**
   (`{sizeBias, sizeItems, sizeStringBytes, sizeMaxBytes}`) on `MockOptions`

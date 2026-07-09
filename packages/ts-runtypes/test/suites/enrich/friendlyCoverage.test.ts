@@ -1,12 +1,12 @@
-// Cross-suite createFriendly coverage: every validation + format-validation case
+// Cross-suite createFriendlyText coverage: every validation + format-validation case
 // run through the friendly renderer. For each invalid sample it takes the case's
 // REAL getValidationErrors output and asserts (1) every error path segment is a
-// shape createFriendly.descend() can route (the census — catches any future
+// shape createFriendlyText.descend() can route (the census — catches any future
 // validator change that emits a new segment shape without teaching the renderer
 // to route it, the bug class that silently broke Map/Set and tuples), and (2)
 // the renderer emits one non-empty message per error without throwing. Per-
 // category routing CORRECTNESS (object → field, array → rt$items, tuple → rt$slots,
-// Map/Set → rt$keys/rt$values) is pinned in createFriendly.test.ts.
+// Map/Set → rt$keys/rt$values) is pinned in createFriendlyText.test.ts.
 //
 // The two suites are iterated in SEPARATE describes (not merged): both define
 // `REALWORLD` and `DATETIME` group keys, so spreading them into one object would

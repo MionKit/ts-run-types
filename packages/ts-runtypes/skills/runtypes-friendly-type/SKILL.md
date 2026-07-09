@@ -1,6 +1,6 @@
 ---
 name: runtypes-friendly-type
-description: Author and use a `FriendlyText<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrors<T>()` output into readable messages via `createFriendly<T>(map).errors(...)`; or when an `rt$errors` / `rt$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ rt$label, rt$errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `rt$default` catch-all mode, and where the map lives.
+description: Author and use a `FriendlyText<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrors<T>()` output into readable messages via `createFriendlyText<T>(map).errors(...)`; or when an `rt$errors` / `rt$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ rt$label, rt$errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `rt$default` catch-all mode, and where the map lives.
 ---
 
 # Authoring & using `FriendlyText<T>`
@@ -17,7 +17,7 @@ A `FriendlyText<T>` is a combined, per-field map of:
 - **error-message templates** — `rt$errors`, one template per failed constraint.
 
 It is **pure data**. The shipped runtime renderer is
-[`createFriendly<T>(map)`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/createFriendly.ts);
+[`createFriendlyText<T>(map)`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/createFriendlyText.ts);
 it turns `createGetValidationErrors<T>()` output into readable messages. No type-id
 injection, no `rtUtils` — error rendering needs only `(map, errors)`.
 
@@ -28,7 +28,7 @@ injection, no `rtUtils` — error rendering needs only `(map, errors)`.
 - You need stable, human field **labels** (form building, error summaries).
 - You're scaffolding a type's committed friendly mirror file, or filling a
   locale's translation file (also typed `FriendlyText<T>`, rendered via
-  `createFriendlyI18n`).
+  `createFriendlyTextI18n`).
 
 If you only need a boolean pass/fail, use `createValidate<T>()` directly — no friendly
 map involved.
@@ -38,9 +38,9 @@ map involved.
 - **Shipped:** the `FriendlyText<T>` DSL type with the plural types
   (`PluralTemplate`, `TemplateLeaf`, `PluralCategory`)
   ([`friendlyType.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/friendlyType.ts)); the
-  plural-aware `createFriendly<T>(map)` renderer plus `createFriendlyI18n`,
+  plural-aware `createFriendlyText<T>(map)` renderer plus `createFriendlyTextI18n`,
   and `resolveLocale`
-  ([`createFriendly.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/createFriendly.ts)) —
+  ([`createFriendlyText.ts`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/createFriendlyText.ts)) —
   all exported from `ts-runtypes`. The `gen` / `check` CLI (including `--translate`)
   scaffolds and validates the committed maps — see the `rt-enrich-types` skill.
 - **Designed (not yet wired):** the `ShapeCheckedArgs<T>` compile-time axis and
@@ -153,7 +153,7 @@ name: {
 - **The plural count is the VIOLATED BOUND** (`$[val]` — a `minLength: 3` failure selects
   the arm for `3`), NOT the received value's length. The renderer picks the arm via
   `Intl.PluralRules(locale)`; `other` is the backstop, and a non-finite bound selects
-  `other` directly. Plain `createFriendly` uses `en` rules (deterministic, matching the
+  `other` directly. Plain `createFriendlyText` uses `en` rules (deterministic, matching the
   default `sourceLocale`).
 
 ## Per-constraint vs `rt$default` — the two (exclusive) modes
@@ -223,15 +223,15 @@ reports:
 
 These catch drift: rename a field and `FT002` flags the now-stale entry.
 
-## Rendering at runtime — `createFriendly<T>(map)`
+## Rendering at runtime — `createFriendlyText<T>(map)`
 
 ```ts
-import {createGetValidationErrors, createFriendly} from 'ts-runtypes';
+import {createGetValidationErrors, createFriendlyText} from 'ts-runtypes';
 import {friendlyUser} from 'runtypes/generated/friendly/models/user';
 import type {User} from '../models/user';
 
 const getUserErrors = createGetValidationErrors<User>();
-const friendly = createFriendly<User>(friendlyUser);
+const friendly = createFriendlyText<User>(friendlyUser);
 
 friendly.errors(getUserErrors(badInput));
 // → [{ path: 'profile.email', label: 'Email', message: 'Enter a valid email address' }, …]
@@ -239,7 +239,7 @@ friendly.errors(getUserErrors(badInput));
 friendly.label('profile.email'); // → 'Email'  (falls back to the raw field name)
 ```
 
-`createFriendly` returns `{ errors(errs), label(path) }`:
+`createFriendlyText` returns `{ errors(errs), label(path) }`:
 
 - `errors(errs)` — groups `RunTypeError[]` by path, looks up the node, and for each
   failed constraint interpolates the matching template (a `rt$default` node renders its
@@ -290,18 +290,18 @@ export const pl_friendlyUser: FriendlyText<User> = {
 };
 ```
 
-## Locale-aware rendering — `createFriendlyI18n`
+## Locale-aware rendering — `createFriendlyTextI18n`
 
-`createFriendlyI18n(source, options)` returns the same `FriendlyRenderer` interface as
-`createFriendly`:
+`createFriendlyTextI18n(source, options)` returns the same `FriendlyRenderer` interface as
+`createFriendlyText`:
 
 ```ts
-import {createFriendlyI18n} from 'ts-runtypes';
+import {createFriendlyTextI18n} from 'ts-runtypes';
 import {friendlyUser} from 'runtypes/generated/friendly/models/user';
 import {es_friendlyUser} from 'runtypes/generated/i18n/es/models/user';
 import {pl_friendlyUser} from 'runtypes/generated/i18n/pl/models/user';
 
-const friendly = createFriendlyI18n(friendlyUser, {
+const friendly = createFriendlyTextI18n(friendlyUser, {
   locale: currentLocale, // string | {value: string} — a {value} ref (e.g. a Vue Ref)
   translations: {es: es_friendlyUser, pl: pl_friendlyUser},
   currency: 'EUR', // optional ISO 4217 code (string or {value} ref) for TF.Currency bounds
@@ -333,7 +333,7 @@ true}>`; the pure-metadata param is echoed onto every error the field produces)
   unparseable relative bound like `now-P1D` stays verbatim); everything else stays
   `String(val)`. Unknown tokens stay verbatim. `Intl` instances are memoized
   (`PluralRules` per locale; bound formatters per locale + currency / style). Plain
-  `createFriendly` stays byte-stable (`String(val)` everywhere).
+  `createFriendlyText` stays byte-stable (`String(val)` everywhere).
 
 ## End-to-end example
 
@@ -398,12 +398,12 @@ export const friendlyUser: FriendlyText<User> = {
 
 ```ts
 // src/services/userForm.ts — the CONSUMER
-import {createGetValidationErrors, createFriendly} from 'ts-runtypes';
+import {createGetValidationErrors, createFriendlyText} from 'ts-runtypes';
 import {friendlyUser} from 'runtypes/generated/friendly/models/user';
 import type {User} from '../models/user';
 
 const getUserErrors = createGetValidationErrors<User>();
-const friendly = createFriendly<User>(friendlyUser);
+const friendly = createFriendlyText<User>(friendlyUser);
 
 const messages = friendly.errors(getUserErrors({name: 'A', age: 200, profile: {email: 'nope', score: 5}}));
 // name     → 'Full name needs at least 2 characters'

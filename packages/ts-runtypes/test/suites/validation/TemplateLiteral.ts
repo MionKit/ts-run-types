@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -56,10 +56,10 @@ export const TEMPLATE_LITERAL = {
       const v: `api/user/${number}` = 'api/user/42';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<`api/user/${number}`>(),
+    mockType: () => createMockData<`api/user/${number}`>(),
     mockTypeReflect: () => {
       const v: `api/user/${number}` = 'api/user/42';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['api/user/42', 'api/user/0', 'api/user/3.14', 'api/user/-7'],
@@ -122,10 +122,10 @@ export const TEMPLATE_LITERAL = {
       const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<`/api/v${number}/user/${string}/posts/${number}`>(),
+    mockType: () => createMockData<`/api/v${number}/user/${string}/posts/${number}`>(),
     mockTypeReflect: () => {
       const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['/api/v1/user/jane/posts/7', '/api/v2/user/joe/posts/0'],
@@ -173,10 +173,10 @@ export const TEMPLATE_LITERAL = {
       const v: `${string}/${number}` = '/42';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<`${string}/${number}`>(),
+    mockType: () => createMockData<`${string}/${number}`>(),
     mockTypeReflect: () => {
       const v: `${string}/${number}` = '/42';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['/42', 'users/42'],
@@ -224,10 +224,10 @@ export const TEMPLATE_LITERAL = {
       const v: `(${number})` = '(42)';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<`(${number})`>(),
+    mockType: () => createMockData<`(${number})`>(),
     mockTypeReflect: () => {
       const v: `(${number})` = '(42)';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['(42)', '(0)', '(-3.14)'],
@@ -278,10 +278,10 @@ export const TEMPLATE_LITERAL = {
       const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{url: `api/user/${number}`; method: string}>(),
+    mockType: () => createMockData<{url: `api/user/${number}`; method: string}>(),
     mockTypeReflect: () => {
       const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{url: 'api/user/42', method: 'GET'}],
@@ -337,10 +337,10 @@ export const TEMPLATE_LITERAL = {
       const v: {[key: `api/${string}`]: number} = {};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{[key: `api/${string}`]: number}>(),
+    mockType: () => createMockData<{[key: `api/${string}`]: number}>(),
     mockTypeReflect: () => {
       const v: {[key: `api/${string}`]: number} = {};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
@@ -396,10 +396,10 @@ export const TEMPLATE_LITERAL = {
       const v: `${'a' | 'b'}-${number}` = 'a-42';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<`${'a' | 'b'}-${number}`>(),
+    mockType: () => createMockData<`${'a' | 'b'}-${number}`>(),
     mockTypeReflect: () => {
       const v: `${'a' | 'b'}-${number}` = 'a-42';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['a-42', 'b-0', 'a--3.14'],

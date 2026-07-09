@@ -94,7 +94,7 @@
 - **A. TS type + runtime** — `friendlyType.ts`: `ConstraintTemplates<P>` /
   `DefaultOnlyTemplates` / `BareTemplates` / generic `ErrorTemplates<F>` +
   `FriendlyMeta<F>`; leaf arm threads `T`; delete `Translation`,
-  `FailedConstraint(s)`, the function arm. `createFriendly.ts`: drop the
+  `FailedConstraint(s)`, the function arm. `createFriendlyText.ts`: drop the
   function-form branch (the existing `key ?? $default` lookup already serves
   both modes); loose `ErrorTemplatesRuntime` view. `index.ts` exports updated.
 - **B. Go scaffold + checker** — `friendlyErrors` config threaded
@@ -115,7 +115,7 @@
   `Translation` wrapper in `friendlyWrapper`.
 - **E. Tests** — mirror/merge tests for the un-gated descent + mode skip +
   catalog orphans; translate tests rewritten src-driven (Go + the JS e2e);
-  createFriendly/I18n runtime tests re-typed with real format brands (precise
+  createFriendlyText/I18n runtime tests re-typed with real format brands (precise
   typing makes plain-`string` fixtures with `minLength` keys illegal — that's
   the feature); compile-budget re-baseline + new precise-typing cases
   (missing key / unknown key / plural-on-non-count-bearing / `$default` mix

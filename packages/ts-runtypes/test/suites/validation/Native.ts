@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -56,10 +56,10 @@ export const NATIVE = {
       const v: Map<string, number> = new Map();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Map<string, number>>(),
+    mockType: () => createMockData<Map<string, number>>(),
     mockTypeReflect: () => {
       const v: Map<string, number> = new Map();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const empty = new Map();
@@ -123,10 +123,10 @@ export const NATIVE = {
       const v: Set<string> = new Set();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Set<string>>(),
+    mockType: () => createMockData<Set<string>>(),
     mockTypeReflect: () => {
       const v: Set<string> = new Set();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const empty = new Set<string>();
@@ -196,10 +196,10 @@ export const NATIVE = {
       const v: Promise<string> = Promise.resolve('x');
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Promise<string>>(),
+    mockType: () => createMockData<Promise<string>>(),
     mockTypeReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const realPromise = Promise.resolve('x');
@@ -254,10 +254,10 @@ export const NATIVE = {
       const v: Awaited<Promise<string>> = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Awaited<Promise<string>>>(),
+    mockType: () => createMockData<Awaited<Promise<string>>>(),
     mockTypeReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['hello', ''],

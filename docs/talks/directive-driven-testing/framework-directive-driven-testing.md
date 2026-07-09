@@ -88,7 +88,7 @@ piece of tooling. Score each 0 (absent) / 1 (partial) / 2 (solid). A project is
   implies a value space; an API spec implies a request space.
 - **Tooling:** a **structure-aware generator**. Hand-written (`fc.Arbitrary`),
   schema-derived (`hypothesis-jsonschema`, `zod-fast-check`), or
-  reflection-derived (typia `random<T>()`, RunTypes `createMockType<T>()`).
+  reflection-derived (typia `random<T>()`, RunTypes `createMockData<T>()`).
 
 ### Q2. Reflection — *can we introspect the shape at runtime?*
 
@@ -302,7 +302,7 @@ you can generate it and derive at least one directive for it.
 
 ### 6.1 RunTypes (reflection-native — score 2/2/2/2)
 
-- **Q1 generator:** `createMockType<T>()` (values) + `test/fuzz/typeGen.ts`
+- **Q1 generator:** `createMockData<T>()` (values) + `test/fuzz/typeGen.ts`
   (random types — "the third giant switch").
 - **Q2 reflection:** `getRunType<T>()` walks any type at runtime; the marker
   system reifies `T` at call sites.

@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -127,7 +127,7 @@ export const TYPE_MAPPINGS = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      return createMockType<Prefixed<Source>>();
+      return createMockData<Prefixed<Source>>();
     },
     mockTypeReflect: () => {
       interface Source {
@@ -136,7 +136,7 @@ export const TYPE_MAPPINGS = {
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -282,7 +282,7 @@ export const TYPE_MAPPINGS = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      return createMockType<MongoForm<Source>>();
+      return createMockData<MongoForm<Source>>();
     },
     mockTypeReflect: () => {
       interface Source {
@@ -292,7 +292,7 @@ export const TYPE_MAPPINGS = {
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{_id: 1, name: 'x', createdAt: new Date()}],
@@ -434,7 +434,7 @@ export const TYPE_MAPPINGS = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      return createMockType<Public<Source>>();
+      return createMockData<Public<Source>>();
     },
     mockTypeReflect: () => {
       interface Source {
@@ -444,7 +444,7 @@ export const TYPE_MAPPINGS = {
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       const v: Public<Source> = {id: 1, name: 'x'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [

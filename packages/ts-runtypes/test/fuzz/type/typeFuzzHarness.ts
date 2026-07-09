@@ -27,7 +27,7 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   createBinarySizer,
-  createMockType,
+  createMockData,
 } from '@ts-runtypes/core';
 import {binarySizeEstimateFromTuple} from '../../../src/runtypes/entryTuple.ts';
 import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
@@ -87,7 +87,7 @@ export interface CompiledType {
   seed?: number;
   /** The exact-wire-size sizer (`createBinarySizer`), reusing the `tb` entry. **/
   binarySizer?: (value: unknown) => number;
-  /** The reflection entry tuple — the size lane drives its own `createMockType`
+  /** The reflection entry tuple — the size lane drives its own `createMockData`
    *  off it (e.g. with `respectBinarySize`). **/
   reflectionTuple?: readonly unknown[];
 }
@@ -219,9 +219,9 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
     () => createBinaryDecoder(undefined, undefined, byFamily.fb as never) as WiredFns['binaryDecode']
   );
 
-  // Mock value source — the REAL createMockType driven off the reflection ENTRY
+  // Mock value source — the REAL createMockData driven off the reflection ENTRY
   // TUPLE (the per-root facade, basename === the reflection site id). Passing
-  // the tuple mirrors what the plugin injects in production: createMockType runs
+  // the tuple mirrors what the plugin injects in production: createMockData runs
   // initFromTuple itself, linking the reflection runtype graph into the live
   // rtUtils, then resolves the root by id. (The six function factories register
   // their own demand-driven caches, not the reflection bundle, so the id alone
@@ -231,7 +231,7 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
   const reflectionTuple = reflectionId !== undefined ? tuples[reflectionId] : undefined;
   if (reflectionTuple !== undefined) {
     wire(wired, wireErrors, 'mock', () => {
-      const mockFn = createMockType(undefined, {mock: {nonDataTypes: true}}, reflectionTuple as never);
+      const mockFn = createMockData(undefined, {mock: {nonDataTypes: true}}, reflectionTuple as never);
       return (() => mockFn()) as WiredFns['mock'];
     });
   }

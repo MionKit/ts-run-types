@@ -10,7 +10,7 @@
 
 import type * as TF from '@ts-runtypes/core/formats';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {createValidate, createGetValidationErrors, createMockType} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData} from '@ts-runtypes/core';
 import '@ts-runtypes/core/formats';
 
 const NOW = Date.UTC(2026, 5, 15, 12, 0, 0);
@@ -74,7 +74,7 @@ describe('TF.Date — mock respects bounds (every generated value is valid)', ()
 
   it('absolute min/max — mock stays in range', () => {
     const validate = createValidate<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
-    const mock = createMockType<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    const mock = createMockData<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(value, `iteration ${i}`).toBeInstanceOf(Date);
@@ -84,7 +84,7 @@ describe('TF.Date — mock respects bounds (every generated value is valid)', ()
 
   it('relative max: now — mock never produces a future Date', () => {
     const validate = createValidate<TF.Date<{max: 'now'}>>();
-    const mock = createMockType<TF.Date<{max: 'now'}>>();
+    const mock = createMockData<TF.Date<{max: 'now'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);
@@ -93,7 +93,7 @@ describe('TF.Date — mock respects bounds (every generated value is valid)', ()
 
   it('relative window now-P1Y .. now — mock stays inside', () => {
     const validate = createValidate<TF.Date<{min: 'now-P1Y'; max: 'now'}>>();
-    const mock = createMockType<TF.Date<{min: 'now-P1Y'; max: 'now'}>>();
+    const mock = createMockData<TF.Date<{min: 'now-P1Y'; max: 'now'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);

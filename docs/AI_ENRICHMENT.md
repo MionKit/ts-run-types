@@ -2,8 +2,8 @@
 
 > **Status: implemented** (branch `feat/ai-enrichment`). **Shipped + tested:**
 > - the `FriendlyText<T>` / `MockData<T>` DSL types (type-checked against `T`, with
->   structural node shapes — solution A), the pure-data `createFriendly<T>(map)`
->   renderer, and the `createMockType<T>({ data })` integration — all exported from
+>   structural node shapes — solution A), the pure-data `createFriendlyText<T>(map)`
+>   renderer, and the `createMockData<T>({ data })` integration — all exported from
 >   `ts-runtypes`;
 > - the Go CLI trio `describe` / `check` / `gen` (`ts-go-runtypes/internal/enrichment`, a separate
 >   package), incl. **named-type-driven emission** (one `const` per named type) and
@@ -16,7 +16,7 @@
 > - the **per-family mirror split** (`<enrichDir>/friendly/` + `<enrichDir>/mock/`
 >   subtrees, with a one-shot auto-migration of pre-split combined mirrors) and the
 >   **FriendlyText i18n layer** — per-locale translation mirrors, generator-owned
->   plural templates (checked by **FT006 / FT007 / FT008**), `createFriendlyI18n`,
+>   plural templates (checked by **FT006 / FT007 / FT008**), `createFriendlyTextI18n`,
 >   `gen`/`check --translate` (see [Translations (i18n)](#translations-i18n) and
 >   [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md)).
 >
@@ -88,7 +88,7 @@ The two artifacts:
   type. Pure data. Used for validation-error rendering today; powers form-building
   UI later.
 - **`MockData<T>`** — realistic sample **value pools / ranges** per field. Feeds the
-  existing `createMockType<T>()` generator (which already accepts custom pools and
+  existing `createMockData<T>()` generator (which already accepts custom pools and
   per-property overrides), so the mechanical generator stays deterministic and the
   AI only supplies realistic values.
 
@@ -252,13 +252,13 @@ both legal in single-locale maps too:
   en/es/zh/hi/ar/pt/ru/ja/de/fr/pl, all six categories for any other locale). The
   renderer selects the arm via `Intl.PluralRules` on the **violated bound**
   (`$[val]` — `minLength: 3` pluralizes for 3, NOT the received value's length); a
-  non-finite bound selects `other` directly, and plain `createFriendly` uses `en`
+  non-finite bound selects `other` directly, and plain `createFriendlyText` uses `en`
   rules (deterministic, matching the default `sourceLocale`). A plain string stays
   legal on a count-bearing constraint; `rt$label` is always a plain string.
   Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory`),
   exported from `ts-runtypes`; the TS `CountBearingKeys` union in
   `friendlyType.ts` mirrors Go's `CountBearing` — the second TS↔Go sync point.
-- **Type-driven `$[val]` rendering.** On the `createFriendlyI18n` path the
+- **Type-driven `$[val]` rendering.** On the `createFriendlyTextI18n` path the
   error's format payload says what the bound IS. A number with the `isCurrency`
   param (`TF.Currency<P>` = `Number<P & {isCurrency: true}>` — pure
   presentation metadata, the only number param with no failable constraint;
@@ -346,12 +346,12 @@ the template by the `formatPath` tail, interpolate. No type id, no `rtUtils`
 lookup:
 
 ```ts
-const friendly = createFriendly<User>(friendlyUser);
+const friendly = createFriendlyText<User>(friendlyUser);
 friendly.errors(getUserErrors(badInput));   // → [{ path: 'profile.email', label: 'Email', message: 'Enter a valid email address' }]
 friendly.label('profile.email');             // → 'Email'
 ```
 
-Localized rendering wraps the same walk: `createFriendlyI18n<T>(source, { locale,
+Localized rendering wraps the same walk: `createFriendlyTextI18n<T>(source, { locale,
 translations, currency? })` returns the identical `FriendlyRenderer`, resolving the
 locale by naive BCP-47 truncation and falling back **per leaf** to the source map
 (the source `FriendlyText` IS the source language — a partial translation never
@@ -363,7 +363,7 @@ field of `User` (labelling the ones in the map, falling back to raw names for th
 rest, in declaration order) the runtime must read the type's field set — i.e. the
 reflection node, fetched by injecting the type id and looking it up in `rtUtils`,
 exactly as [`getRunTypeId<T>()`](../packages/ts-runtypes/src/markers.ts) does. We
-ship `createFriendly` **pure-data** first; the runtype pairing lands with the UI
+ship `createFriendlyText` **pure-data** first; the runtype pairing lands with the UI
 feature — joined at the call site (committed friendly import + `getRunTypeId<T>()`),
 no new registry needed (see [Consumption](#consumption--committed-imports)).
 
@@ -374,7 +374,7 @@ no new registry needed (see [Consumption](#consumption--committed-imports)).
 ### Node model
 
 Per-field pools, ranges, and per-format hints that feed the **existing**
-`createMockType<T>()` generator (`createMockType` already supports custom pools and
+`createMockData<T>()` generator (`createMockData` already supports custom pools and
 per-property overrides — `MockData<T>` is just the typed, validated form of those):
 
 ```ts
@@ -388,7 +388,7 @@ const mockUser: MockData<User> = {
   },
 };
 
-const newUser = createMockType<User>(undefined, { data: mockUser });   // existing factory + the `data` option
+const newUser = createMockData<User>(undefined, { data: mockUser });   // existing factory + the `data` option
 ```
 
 ### The pool-validation superpower (MD003)
@@ -569,8 +569,8 @@ tree entirely.
 
 ```
 <rootDir>/models/user.ts          interface User { … }          ← definition
-<rootDir>/services/userApi.ts     createMockType<User>()        ← consumer
-<rootDir>/test/fixtures.ts        createMockType<User>()        ← consumer
+<rootDir>/services/userApi.ts     createMockData<User>()        ← consumer
+<rootDir>/test/fixtures.ts        createMockData<User>()        ← consumer
                                   ──────────────────────────────────
 gen ⇒  <enrichDir>/friendly/models/user.ts   export const friendlyUser: FriendlyText<User> = { … }
        <enrichDir>/mock/models/user.ts       export const mockUser:     MockData<User>     = { … }
@@ -707,7 +707,7 @@ emitter and the DSL types now agree structurally for every kind.
 | Artifact         | Generated for…                                                              |
 | ---------------- | --------------------------------------------------------------------------- |
 | `FriendlyText<T>`| **any** type referenced by **any** RunTypes marker (broad — friendly also serves future UI, so we scaffold eagerly) |
-| `MockData<T>`    | only types consumed by a **`createMockType`** call (demand-driven by the mock consumer) |
+| `MockData<T>`    | only types consumed by a **`createMockData`** call (demand-driven by the mock consumer) |
 
 ### `gen` semantics
 
@@ -920,8 +920,8 @@ generation of another, so the generated dirs can be treated as write-only.
   }
   ```
 
-Runtime: `createFriendlyI18n<T>(source, { locale, translations, currency?,
-sourceLocale? })` returns the same `FriendlyRenderer` as `createFriendly`. The
+Runtime: `createFriendlyTextI18n<T>(source, { locale, translations, currency?,
+sourceLocale? })` returns the same `FriendlyRenderer` as `createFriendlyText`. The
 `locale` may be a `{value}` ref (re-read on EVERY render — the renderer itself is
 not reactivity-tracked, so call `errors()` per render); `resolveLocale` is naive
 BCP-47 truncation (exact tag, then subtags dropped right-to-left — `pt-BR` →
@@ -937,7 +937,7 @@ translates like any other leaf) — a partial translation never throws.
 | Named type in user `.ts`                      | per-family mirror files at its definition's mirror path — the rule      |
 | Several types in one file                     | one mirror file per family, one export per type                         |
 | Re-exported / `import type` aliased           | follow to the original declaration; the mirror tracks that file         |
-| Anonymous/inline `createMockType<{a:string}>()` | no named home → **skip** (no mirror file)                             |
+| Anonymous/inline `createMockData<{a:string}>()` | no named home → **skip** (no mirror file)                             |
 | Generic instantiations `Box<string>` vs `Box<number>` | separate entries in `Box`'s mirror file, one per structural id, name-disambiguated |
 | Type declared only in a `.d.ts`               | mirror is always a `.ts` (it holds runtime const values), at the `.d.ts`'s mirror path |
 | Existing hand-edited mirror file              | default: create-only — skip present entries, append missing ones, never clobber. `--update`: value-preserving reconcile (property merge + rename + orphan), never clobbers authored values |
@@ -953,11 +953,11 @@ match wins:**
 1. **`T` defined in your source** → its mirror file under `enrichDir`. *(generated by `gen`)*
 2. **`T` from a dependency that ships enrichment** → use the library's named enrichment exports. *(read-only — we consume, never generate)*
 3. **`T` from a dependency, user opted in** via a `@rtEnrich` JSDoc tag → user-authored override in a configured dir (`rt-overrides/`). *(opt-in only)*
-4. **No match** → emit nothing; factories fall back (mock = mechanical `createMockType`; friendly = raw field names).
+4. **No match** → emit nothing; factories fall back (mock = mechanical `createMockData`; friendly = raw field names).
 
 So **by default we emit nothing for external types** — they land at #4 unless the
 library provides (#2) or the user explicitly opts in (#3). Built-ins (`Date`,
-`Map`, …) are #4 by nature; `createMockType` already mocks them mechanically.
+`Map`, …) are #4 by nature; `createMockData` already mocks them mechanically.
 
 Two implications:
 
@@ -988,20 +988,20 @@ greppable, IDE-managed code — no injection, no id-routing, no registry:
 import { mockUser }     from 'runtypes/generated/mock/models/user';
 import { friendlyUser } from 'runtypes/generated/friendly/models/user';
 
-createMockType<User>({ data: mockUser });
-const friendly = createFriendly<User>(friendlyUser);
+createMockData<User>({ data: mockUser });
+const friendly = createFriendlyText<User>(friendlyUser);
 ```
 
-`createFriendly<T>(map)` and `createMockType<T>({ data })` are already **explicit**
+`createFriendlyText<T>(map)` and `createMockData<T>({ data })` are already **explicit**
 in their shipped signatures (the map/data are real arguments), so this model is the
 *smaller* change — the engine is untouched; the only new machinery is `gen`
-producing the committed mirror files. `createFriendly` stays a pure-data function
-(no marker, no type id); `createMockType<T>` keeps its runtype injection (that is the
+producing the committed mirror files. `createFriendlyText` stays a pure-data function
+(no marker, no type id); `createMockData<T>` keeps its runtype injection (that is the
 *ephemeral* cache, correctly invisible), with `data` as the *committed* import.
 
 ### Why not inject the link (rejected)
 
-A "magic" variant — `createFriendly<User>()` with the map plugin-injected from the
+A "magic" variant — `createFriendlyText<User>()` with the map plugin-injected from the
 resolved mirror file — was considered and rejected. It violates the
 [persistence invariant](#persistence-invariant--committed-artifacts-get-committed-links):
 it would hide a committed dependency behind the same invisible channel that carries
@@ -1023,7 +1023,7 @@ call site, not through a shared id table.
 
 Friendly labels/messages belong in the prod bundle (UI); 50+-item mock pools almost
 never do. Because consumption is an ordinary `import`, this is handled by **normal
-tree-shaking + import hygiene** — keep `createMockType({ data: … })` calls in
+tree-shaking + import hygiene** — keep `createMockData({ data: … })` calls in
 dev/test entry points (or behind a dev condition) so the mock pools never reach a
 production graph. No special registration-gating mechanism required.
 
@@ -1065,7 +1065,7 @@ overall architecture) and documented here:
   blank-leaf `FriendlyText<T>` consts straight from the source type (source
   text is never copied as if translated, and no generated file feeds another);
   plural error templates are generator-owned (CLDR arms per locale,
-  count-bearing constraints only); `createFriendlyI18n(source,
+  count-bearing constraints only); `createFriendlyTextI18n(source,
   { locale, translations })` renders with per-leaf fallback to the source map;
   `gen --translate` / `check --translate` drive scaffold, reconcile, and the CI
   completeness gate.

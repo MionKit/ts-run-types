@@ -46,7 +46,7 @@ if the examples actually compile in CI.
    formats), scaffold-state and filled friendly maps (scaffold state is
    type-legal — blanks are the opt-out), renderer usage, the `rt$default`
    mode, mock scaffold/filled/usage, the Polish translation
-   (scaffold + filled), `createFriendlyI18n` usage, live locale switching
+   (scaffold + filled), `createFriendlyTextI18n` usage, live locale switching
    (a plain `{value}` ref — no vue import), and the Currency renderer option.
 5. **Const naming in the examples follows the generator** (`friendlyUser`,
    `mockUser`, `pl_friendlyUser`) — fixing the long-standing

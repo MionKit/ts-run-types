@@ -87,7 +87,7 @@ export function number(
  *  `currency({min: 0})` merges `isCurrency: true` into the params. Unlike
  *  `number()`, the no-params call still carries the mark (that IS the point).
  *  The currency UNIT is never a param — pass it to the renderer
- *  (`createFriendlyI18n`'s `currency` option) instead. **/
+ *  (`createFriendlyTextI18n`'s `currency` option) instead. **/
 export function currency(id?: InjectRunTypeId<Currency>): RunType<Currency>;
 export function currency<const P extends NumberParams>(
   formatParams: CompTimeArgs<ExactParams<P, NumberParams>>,

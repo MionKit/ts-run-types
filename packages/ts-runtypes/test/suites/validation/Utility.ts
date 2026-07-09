@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -130,7 +130,7 @@ export const UTILITY = {
         age: number;
         createdAt: Date;
       }
-      return createMockType<Partial<Person>>();
+      return createMockData<Partial<Person>>();
     },
     mockTypeReflect: () => {
       interface Person {
@@ -139,7 +139,7 @@ export const UTILITY = {
         createdAt: Date;
       }
       const v: Partial<Person> = {};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{}, {name: 'John'}, {createdAt: new Date()}, {name: 'John', age: 30, createdAt: new Date()}],
@@ -286,7 +286,7 @@ export const UTILITY = {
         age?: number;
         createdAt?: Date;
       }
-      return createMockType<Required<MaybePerson>>();
+      return createMockData<Required<MaybePerson>>();
     },
     mockTypeReflect: () => {
       interface MaybePerson {
@@ -295,7 +295,7 @@ export const UTILITY = {
         createdAt?: Date;
       }
       const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{name: 'John', age: 30, createdAt: new Date()}],
@@ -439,7 +439,7 @@ export const UTILITY = {
         age: number;
         createdAt: Date;
       }
-      return createMockType<Pick<Person, 'name' | 'createdAt'>>();
+      return createMockData<Pick<Person, 'name' | 'createdAt'>>();
     },
     mockTypeReflect: () => {
       interface Person {
@@ -448,7 +448,7 @@ export const UTILITY = {
         createdAt: Date;
       }
       const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -582,7 +582,7 @@ export const UTILITY = {
         age: number;
         createdAt: Date;
       }
-      return createMockType<Omit<Person, 'age'>>();
+      return createMockData<Omit<Person, 'age'>>();
     },
     mockTypeReflect: () => {
       interface Person {
@@ -591,7 +591,7 @@ export const UTILITY = {
         createdAt: Date;
       }
       const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -643,10 +643,10 @@ export const UTILITY = {
       const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    mockType: () => createMockData<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
     mockTypeReflect: () => {
       const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['name', 'createdAt'],
@@ -708,10 +708,10 @@ export const UTILITY = {
       const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    mockType: () => createMockData<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     mockTypeReflect: () => {
       const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['name', 'createdAt'],
@@ -842,7 +842,7 @@ export const UTILITY = {
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return createMockType<Exclude<Shape, {kind: 'circle'}>>();
+      return createMockData<Exclude<Shape, {kind: 'circle'}>>();
     },
     mockTypeReflect: () => {
       type Shape =
@@ -850,7 +850,7 @@ export const UTILITY = {
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
       const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -910,10 +910,10 @@ export const UTILITY = {
       const v: NonNullable<string | number | null | undefined> = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<NonNullable<string | number | null | undefined>>(),
+    mockType: () => createMockData<NonNullable<string | number | null | undefined>>(),
     mockTypeReflect: () => {
       const v: NonNullable<string | number | null | undefined> = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['hello', 42, 0],
@@ -987,12 +987,12 @@ export const UTILITY = {
     },
     mockType: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return createMockType<ReturnType<Fn>>();
+      return createMockData<ReturnType<Fn>>();
     },
     mockTypeReflect: () => {
       type Fn = (a: number, b: boolean) => Date;
       const v: ReturnType<Fn> = new Date();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [new Date()],
@@ -1102,7 +1102,7 @@ export const UTILITY = {
         name: string;
         age: number;
       }
-      return createMockType<Readonly<Person>>();
+      return createMockData<Readonly<Person>>();
     },
     mockTypeReflect: () => {
       interface Person {
@@ -1110,7 +1110,7 @@ export const UTILITY = {
         age: number;
       }
       const v: Readonly<Person> = {name: 'John', age: 30};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -1258,7 +1258,7 @@ export const UTILITY = {
         age: number;
         createdAt: Date;
       }
-      return createMockType<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      return createMockData<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
     mockTypeReflect: () => {
       interface Person {
@@ -1267,7 +1267,7 @@ export const UTILITY = {
         createdAt: Date;
       }
       const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -1331,10 +1331,10 @@ export const UTILITY = {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    mockType: () => createMockData<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     mockTypeReflect: () => {
       const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{c: true}, {b: 1, c: false}, {c: true, b: undefined}],
@@ -1462,7 +1462,7 @@ export const UTILITY = {
         age: number;
         createdAt: Date;
       }
-      return createMockType<keyof Person>();
+      return createMockData<keyof Person>();
     },
     mockTypeReflect: () => {
       interface Person {
@@ -1471,7 +1471,7 @@ export const UTILITY = {
         createdAt: Date;
       }
       const v: keyof Person = 'name';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['name', 'age', 'createdAt'],
@@ -1542,11 +1542,11 @@ export const UTILITY = {
     },
     mockType: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createMockType<typeof config>();
+      return createMockData<typeof config>();
     },
     mockTypeReflect: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createMockType(config);
+      return createMockData(config);
     },
     getSamples: () => ({
       valid: [
@@ -1662,7 +1662,7 @@ export const UTILITY = {
         name: string;
         age: number;
       }
-      return createMockType<Person['name']>();
+      return createMockData<Person['name']>();
     },
     mockTypeReflect: () => {
       interface Person {
@@ -1670,7 +1670,7 @@ export const UTILITY = {
         age: number;
       }
       const v: Person['name'] = 'x';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['hello', ''],
@@ -1740,12 +1740,12 @@ export const UTILITY = {
     },
     mockType: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return createMockType<IsString<'hello'>>();
+      return createMockData<IsString<'hello'>>();
     },
     mockTypeReflect: () => {
       type IsString<T> = T extends string ? boolean : number;
       const v: IsString<'hello'> = true;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [true, false],
@@ -1871,7 +1871,7 @@ export const UTILITY = {
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return createMockType<Nullable<Source>>();
+      return createMockData<Nullable<Source>>();
     },
     mockTypeReflect: () => {
       interface Source {
@@ -1880,7 +1880,7 @@ export const UTILITY = {
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       const v: Nullable<Source> = {a: 'x', b: 1};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -2140,7 +2140,7 @@ export const UTILITY = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return createMockType<UserForm>();
+      return createMockData<UserForm>();
     },
     mockTypeReflect: () => {
       type FieldFor<T> = T extends string
@@ -2161,7 +2161,7 @@ export const UTILITY = {
         age: {kind: 'number', value: 1},
         admin: {kind: 'checkbox', value: true},
       };
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -2269,12 +2269,12 @@ export const UTILITY = {
     },
     mockType: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return createMockType<Wrap<string | number>>();
+      return createMockData<Wrap<string | number>>();
     },
     mockTypeReflect: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       const v: Wrap<string | number> = {w: 'x'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{w: 'hello'}, {w: 42}],
@@ -2418,7 +2418,7 @@ export const UTILITY = {
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return createMockType<DeepPartial<Settings>>();
+      return createMockData<DeepPartial<Settings>>();
     },
     mockTypeReflect: () => {
       interface Settings {
@@ -2427,7 +2427,7 @@ export const UTILITY = {
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       const v: DeepPartial<Settings> = {};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [

@@ -1,4 +1,4 @@
-import {createMockType, createValidate} from '@ts-runtypes/core';
+import {createMockData, createValidate} from '@ts-runtypes/core';
 
 type User = {
   id: number;
@@ -8,8 +8,8 @@ type User = {
 };
 
 // start-basics
-// createMockType -> a function that invents a fresh, valid User every call.
-const mockUser = createMockType<User>();
+// createMockData -> a function that invents a fresh, valid User every call.
+const mockUser = createMockData<User>();
 
 const a = mockUser(); // {id: 91, name: 'qZ...', roles: ['user'], active: true}
 const b = mockUser(); // a different one each time

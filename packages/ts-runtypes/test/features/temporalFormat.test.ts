@@ -12,7 +12,7 @@
 
 import type * as TFT from '@ts-runtypes/core/formats/temporal';
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors, createMockType} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData} from '@ts-runtypes/core';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
 
@@ -97,49 +97,49 @@ describe('TFT.X mock — every generated value satisfies its bounds', () => {
 
   it('PlainDate min/max — mock stays in range', () => {
     const validate = createValidate<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
-    const mock = createMockType<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+    const mock = createMockData<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainDate gt/lt — mock stays strictly inside', () => {
     const validate = createValidate<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
-    const mock = createMockType<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
+    const mock = createMockData<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('Instant min/max — mock stays in range', () => {
     const validate = createValidate<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
-    const mock = createMockType<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+    const mock = createMockData<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainTime gt/lt — mock stays strictly inside', () => {
     const validate = createValidate<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
-    const mock = createMockType<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
+    const mock = createMockData<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainDateTime min/max — mock stays in range', () => {
     const validate = createValidate<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
-    const mock = createMockType<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    const mock = createMockData<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainYearMonth min/max — mock stays in range', () => {
     const validate = createValidate<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
-    const mock = createMockType<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
+    const mock = createMockData<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('ZonedDateTime min/max — mock stays in range', () => {
     const validate = createValidate<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
-    const mock = createMockType<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
+    const mock = createMockData<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 
   it('PlainDate relative min:now-P1Y max:now+P1Y — mock stays in range', () => {
     const validate = createValidate<TFT.PlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
-    const mock = createMockType<TFT.PlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
+    const mock = createMockData<TFT.PlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
     for (let i = 0; i < ITERATIONS; i++) expect(validate(mock()), `iter ${i}`).toBe(true);
   });
 });

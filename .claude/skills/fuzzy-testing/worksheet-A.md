@@ -46,13 +46,13 @@ from the table and confirm with the user.
 
 | Valid inputs are described by…               | Input maker                                                                   |
 | -------------------------------------------- | ----------------------------------------------------------------------------- |
-| a schema / type the program reads at runtime | **DERIVE** inputs from it (reflection): `createMockType<T>()`, zod-fast-check |
+| a schema / type the program reads at runtime | **DERIVE** inputs from it (reflection): `createMockData<T>()`, zod-fast-check |
 | only a written-down TS type                  | reflect it, or hand-write a small maker (`fc.Arbitrary<T>` / typia)           |
 | raw text / bytes                             | **MUTATE** real samples, splice junk into known-good inputs                   |
 | a SEQUENCE of operations (code with memory)  | make a random LIST of actions + a small model of the state                    |
 | two coupled things that EVOLVE via edits     | make a random list of EDIT events + a small model (build it)                  |
 
-- Look first: does the input maker already exist? This repo has `createMockType<T>()` (a
+- Look first: does the input maker already exist? This repo has `createMockData<T>()` (a
   valid value), `mutateToInvalid(schema, valid)` (one spot that is provably wrong),
   `randomJunk(depth)` (type-blind junk). Report what's there before building anything.
 

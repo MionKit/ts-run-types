@@ -23,7 +23,7 @@ const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> 
 
 // TestFormatSamples_MismatchEmitsFMT001 — a mockSample that doesn't
 // match the format's own pattern must surface as an FMT001 error at
-// build time (the sample would otherwise feed createMockType an
+// build time (the sample would otherwise feed createMockData an
 // invalid value).
 func TestFormatSamples_MismatchEmitsFMT001(t *testing.T) {
 	code := `import {createValidate} from '@ts-runtypes/core';

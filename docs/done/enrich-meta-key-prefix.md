@@ -67,7 +67,7 @@ can never round-trip.
 
 - **A. Mechanical rename** across Go (emit, validate, mirror merge/reconcile,
   closure, config comments, all tests), TS (`friendlyType.ts`,
-  `createFriendly.ts`, `mockData.ts`, mock runtime, all tests + fuzz models),
+  `createFriendlyText.ts`, `mockData.ts`, mock runtime, all tests + fuzz models),
   and docs (website friendly/mock/i18n/configuration pages, AI_ENRICHMENT,
   skills ×3 both copies, todo specs). Ordered replacements per key: Go-regexp
   replacement literals (`$$X`), regex escapes (`\$X`), then plain (`$X`).

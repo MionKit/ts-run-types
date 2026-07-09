@@ -1,4 +1,4 @@
-// Temporary smoke check: the real createMockType (nonDataTypes:true) wires off
+// Temporary smoke check: the real createMockData (nonDataTypes:true) wires off
 // the reflection site, produces non-data values (a function for `f`), and the
 // serializers drop them so the round-trip is wire-stable.
 import {describe, expect} from 'vitest';

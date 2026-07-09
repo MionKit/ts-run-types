@@ -92,7 +92,7 @@ The two invariants the user asserted already hold:
 
 | function | family tag(s) |
 |---|---|
-| `getRunTypeId` / `reflectRunTypeId` / RT builders / `createMockType` | reflection (`t`) only — no function family |
+| `getRunTypeId` / `reflectRunTypeId` / RT builders / `createMockData` | reflection (`t`) only — no function family |
 | `createValidate` / `createGetValidationErrors` | `it` / `te` (+ `ValidateOptions` variant suffix) |
 | `createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined` / `createFormatTransform` | `huk` / `suk` / `uke` / `uku` / `fmt` |
 | `createJsonEncoder` | strategy: `direct`→`sj`, `stripClone`→`pjs`, `clone`→`pjsp`, `mutate`→`pj`, `stripMutate`→`pj`+`uku` |
@@ -116,7 +116,7 @@ today read only at runtime (`createRTFunctions.ts`).
     composite JSON functions it is the strategy token (`'stripMutate'`),
     expanded to its 1–2 cache families by a shared Go↔JS registry.
 - **`InjectRunTypeId<T>` stays** for reflection-only sites (`getRunTypeId`,
-  `reflectRunTypeId`, value-first builders, `createMockType`) → injects the
+  `reflectRunTypeId`, value-first builders, `createMockData`) → injects the
   bare `"<typeId>"` string → the `runTypes` reflection cache is unchanged
   (1:1 on shape, no options). **Scope of this work = function caches only.**
 - The injected tuple is the complete demand: it tells the backend exactly what
@@ -129,7 +129,7 @@ today read only at runtime (`createRTFunctions.ts`).
   `createUnknownKeysToUndefined`, `createFormatTransform`, `createJsonEncoder`,
   `createJsonDecoder`, `createBinaryEncoder`, `createBinaryDecoder`). The
   reflection entry points stay on `InjectRunTypeId<T>` (`getRunTypeId`,
-  `reflectRunTypeId`, value-first RT builders, `createMockType`).
+  `reflectRunTypeId`, value-first RT builders, `createMockData`).
 
 ## Prior art — the reusable template (`ValidateOptions` variants)
 

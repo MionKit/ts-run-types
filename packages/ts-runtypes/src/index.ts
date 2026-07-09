@@ -26,7 +26,7 @@ export {type Static} from './schema/static.ts';
 
 // AI enrichment — type-keyed, committed maps validated against `T` at scan time
 // (see docs/AI_ENRICHMENT.md). `FriendlyText<T>` combines labels + error
-// templates; `MockData<T>` carries sample pools/ranges feeding `createMockType`.
+// templates; `MockData<T>` carries sample pools/ranges feeding `createMockData`.
 export {
   type FriendlyText,
   type FriendlyNode,
@@ -42,19 +42,19 @@ import type {FriendlyText} from './enrich/friendlyText.ts';
 export type FriendlyType<T> = FriendlyText<T>;
 export {type MockData, type MockNode} from './enrich/mockData.ts';
 // Pure-data runtime: render `getValidationErrors` output into human messages.
-// `createFriendlyI18n` is the locale-selecting wrapper over the same walk: the
+// `createFriendlyTextI18n` is the locale-selecting wrapper over the same walk: the
 // source map is the source language + terminal fallback, translations are
 // same-tree per-locale consts, plurals select via Intl.PluralRules, and
 // `$[val]` renders type-driven (an isCurrency-marked bound via the app-supplied
 // `currency` option, date-family bounds via Intl.DateTimeFormat).
 export {
-  createFriendly,
-  createFriendlyI18n,
+  createFriendlyText,
+  createFriendlyTextI18n,
   resolveLocale,
   type FriendlyMessage,
   type FriendlyRenderer,
   type FriendlyI18nOptions,
-} from './enrich/createFriendly.ts';
+} from './enrich/createFriendlyText.ts';
 
 // Run-type registration is per-entry now: each marker call site imports its
 // type's virtual entry module and registers it (plus transitive children) on
@@ -166,8 +166,8 @@ export {
 } from './overrideRTFunctions.ts';
 
 // Mock-value generator re-exported from `./mocking/` so bundlers can drop the
-// whole mock subtree when consumers don't reference `createMockType`.
-export {createMockType} from './mocking/createMockType.ts';
+// whole mock subtree when consumers don't reference `createMockData`.
+export {createMockData} from './mocking/createMockData.ts';
 export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTypes.ts';
 
 // Standard Schema v1 adapter — re-exported from `./standard/` so bundlers can

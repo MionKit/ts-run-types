@@ -1,6 +1,6 @@
-// Runtime behaviour of `createFriendly<T>(map)` — pure-data rendering of
+// Runtime behaviour of `createFriendlyText<T>(map)` — pure-data rendering of
 // `getValidationErrors` output into human messages. Errors are hand-built
-// `RTValidationError[]` so the suite needs no Go pipeline (createFriendly does no
+// `RTValidationError[]` so the suite needs no Go pipeline (createFriendlyText does no
 // type-id injection). Covers: base type failure, format-constraint failure +
 // `$[val]`, nested paths, array `rt$items` + `$[index]`, Map/Set `rt$keys`/`rt$values`
 // routing (by the entry's `failed` role) + the entry index, label fallback,
@@ -11,7 +11,7 @@
 
 import {describe, it, expect} from 'vitest';
 import type * as TF from '@ts-runtypes/core/formats';
-import {createFriendly, type FriendlyText, type RTValidationError} from '@ts-runtypes/core';
+import {createFriendlyText, type FriendlyText, type RTValidationError} from '@ts-runtypes/core';
 
 interface User {
   name: TF.String<{minLength: 2}>;
@@ -50,9 +50,9 @@ const map: FriendlyText<User> = {
   },
 };
 
-const friendly = createFriendly<User>(map);
+const friendly = createFriendlyText<User>(map);
 
-describe('createFriendly — error rendering', () => {
+describe('createFriendlyText — error rendering', () => {
   it('base type failure → `type` template with $[label]', () => {
     const errs: RTValidationError[] = [{path: ['name'], expected: 'string'}];
     expect(friendly.errors(errs)).toEqual([{path: 'name', label: 'Full name', message: 'Full name must be text'}]);
@@ -84,7 +84,7 @@ describe('createFriendly — error rendering', () => {
     // must fall back to the raw field name. The `as` cast opts past the total `FriendlyText`
     // contract — real callers pass a filled map; this probes the missing-`rt$label` safety net.
     const m = {widget: {rt$errors: {type: 'bad'}}} as unknown as FriendlyText<{widget: string}>;
-    const out = createFriendly(m).errors([{path: ['widget'], expected: 'string'}]);
+    const out = createFriendlyText(m).errors([{path: ['widget'], expected: 'string'}]);
     expect(out[0].label).toBe('widget');
     expect(out[0].message).toBe('bad');
   });
@@ -113,7 +113,7 @@ describe('createFriendly — error rendering', () => {
       rt$errors: {type: 'Form is invalid'},
       name: {rt$label: 'Name', rt$errors: {rt$default: '$[label] is wrong ($[path])'}},
     };
-    const out = createFriendly(m).errors([
+    const out = createFriendlyText(m).errors([
       {path: ['name'], expected: 'string', format: {name: 'stringFormat', val: 5, formatPath: ['maxLength']}},
     ]);
     expect(out[0].message).toBe('Name is wrong (name)');
@@ -124,13 +124,13 @@ describe('createFriendly — error rendering', () => {
     // must fall back to the raw name + generic message for an unmapped field. The `as` cast
     // opts past the total `FriendlyText` contract — this probes the missing-entry safety net.
     const m = {a: {rt$label: 'A', rt$errors: {type: 'A is invalid'}}} as unknown as FriendlyText<{a: string; b: string}>;
-    const out = createFriendly(m).errors([{path: ['b'], expected: 'string'}]);
+    const out = createFriendlyText(m).errors([{path: ['b'], expected: 'string'}]);
     expect(out[0].label).toBe('b');
     expect(out[0].message).toBe('b is invalid');
   });
 });
 
-describe('createFriendly — Map / Set entries', () => {
+describe('createFriendlyText — Map / Set entries', () => {
   it('Map value failure resolves to rt$values + carries the entry index', () => {
     const m: FriendlyText<Map<string, number>> = {
       rt$label: 'Settings',
@@ -138,7 +138,7 @@ describe('createFriendly — Map / Set entries', () => {
       rt$keys: {rt$label: 'Setting key', rt$errors: {type: 'key must be text'}},
       rt$values: {rt$label: 'Setting value', rt$errors: {type: 'value must be a number'}},
     };
-    const out = createFriendly(m).errors([{path: [{key: 0, failed: 'mapValue'}], expected: 'number'}]);
+    const out = createFriendlyText(m).errors([{path: [{key: 0, failed: 'mapValue'}], expected: 'number'}]);
     expect(out).toEqual([{path: '0', label: 'Setting value', message: 'value must be a number'}]);
   });
 
@@ -149,7 +149,7 @@ describe('createFriendly — Map / Set entries', () => {
       rt$keys: {rt$label: 'Setting key', rt$errors: {type: 'key must be text'}},
       rt$values: {rt$label: 'Setting value', rt$errors: {type: 'value must be a number'}},
     };
-    const out = createFriendly(m).errors([{path: [{key: 0, failed: 'mapKey'}], expected: 'string'}]);
+    const out = createFriendlyText(m).errors([{path: [{key: 0, failed: 'mapKey'}], expected: 'string'}]);
     expect(out[0]).toEqual({path: '0', label: 'Setting key', message: 'key must be text'});
   });
 
@@ -160,7 +160,7 @@ describe('createFriendly — Map / Set entries', () => {
       rt$keys: {rt$label: 'K', rt$errors: {type: 'bad key'}},
       rt$values: {rt$label: 'V', rt$errors: {type: 'bad value'}},
     };
-    const out = createFriendly(m).errors([
+    const out = createFriendlyText(m).errors([
       {path: [{key: 0, failed: 'mapKey'}], expected: 'string'},
       {path: [{key: 0, failed: 'mapValue'}], expected: 'number'},
     ]);
@@ -180,13 +180,13 @@ describe('createFriendly — Map / Set entries', () => {
         rt$values: {rt$label: 'Tag', rt$errors: {type: 'tag #$[index] must be text'}},
       },
     };
-    const out = createFriendly(m).errors([{path: ['tags', {key: 2, failed: 'setKey'}], expected: 'string'}]);
+    const out = createFriendlyText(m).errors([{path: ['tags', {key: 2, failed: 'setKey'}], expected: 'string'}]);
     expect(out[0].path).toBe('tags.2');
     expect(out[0].message).toBe('tag #2 must be text');
   });
 });
 
-describe('createFriendly — tuples', () => {
+describe('createFriendlyText — tuples', () => {
   it('fixed-tuple slot failure resolves to rt$slots[i] (not rt$items)', () => {
     const m: FriendlyText<[string, number]> = {
       rt$label: 'Coordinate',
@@ -196,7 +196,7 @@ describe('createFriendly — tuples', () => {
         {rt$label: 'Y', rt$errors: {type: 'Y must be a number'}},
       ],
     };
-    const out = createFriendly(m).errors([{path: [1], expected: 'number'}]);
+    const out = createFriendlyText(m).errors([{path: [1], expected: 'number'}]);
     expect(out).toEqual([{path: '1', label: 'Y', message: 'Y must be a number'}]);
   });
 
@@ -206,7 +206,7 @@ describe('createFriendly — tuples', () => {
       rt$errors: {type: 'Args must be a list'},
       rt$items: {rt$label: 'Arg', rt$errors: {type: 'arg #$[index] must match'}},
     };
-    const out = createFriendly(m).errors([{path: [2], expected: 'number'}]);
+    const out = createFriendlyText(m).errors([{path: [2], expected: 'number'}]);
     expect(out[0].path).toBe('2');
     expect(out[0].message).toBe('arg #2 must match');
   });
@@ -224,7 +224,7 @@ describe('createFriendly — tuples', () => {
         ],
       },
     };
-    const out = createFriendly(m).errors([{path: [0, 1], expected: 'number'}]);
+    const out = createFriendlyText(m).errors([{path: [0, 1], expected: 'number'}]);
     expect(out[0].path).toBe('0.1');
     expect(out[0].message).toBe('count must be a number');
   });
@@ -245,13 +245,13 @@ describe('createFriendly — tuples', () => {
         ],
       },
     };
-    const out = createFriendly(m).errors([{path: ['coord', 0], expected: 'number'}]);
+    const out = createFriendlyText(m).errors([{path: ['coord', 0], expected: 'number'}]);
     expect(out[0].path).toBe('coord.0');
     expect(out[0].message).toBe('lat bad');
   });
 });
 
-describe('createFriendly — label()', () => {
+describe('createFriendlyText — label()', () => {
   it('resolves dotted + nested paths, root, and unknown', () => {
     expect(friendly.label('name')).toBe('Full name');
     expect(friendly.label('profile.email')).toBe('Email');
