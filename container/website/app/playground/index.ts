@@ -17,7 +17,6 @@ export {
   ROOT_TYPE,
 } from './engine.ts';
 export {loadResolver} from './wasmLoader.ts';
-export {formatsEditorModule, schemaEditorModule} from './markerDts.ts';
 export {setRuntypesPackageSources} from './packageSources.ts';
 export type {PackageSourcesOverlay} from './packageSources.ts';
 export type {

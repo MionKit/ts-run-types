@@ -27,8 +27,6 @@ import {
   setRuntypesPackageSources,
   OPERATIONS,
   ROOT_TYPE,
-  formatsEditorModule,
-  schemaEditorModule,
   type RunResult,
   type Diagnostic,
   type Mode,
@@ -49,6 +47,7 @@ import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 type Monaco = typeof import('monaco-editor');
 type Editor = import('monaco-editor').editor.IStandaloneCodeEditor;
 type EditorOptions = import('monaco-editor').editor.IStandaloneEditorConstructionOptions;
+type TextModel = import('monaco-editor').editor.ITextModel;
 type PrettierApi = {format: (src: string, opts: Record<string, unknown>) => Promise<string>; plugins: unknown[]};
 
 const props = withDefaults(
@@ -60,26 +59,6 @@ const props = withDefaults(
 // editor, short for a discrete change (function picker / preset / mode).
 const TYPE_DEBOUNCE_MS = 2000;
 const PICK_DEBOUNCE_MS = 150;
-
-// Ambient declarations so the editor type-checks the snippet: the createX factories
-// (the engine appends the call), plus `RunType<T>` / `Static<T>` — the shared type
-// channel the schema (RT) + formats (TF) stubs import so a value-first schema
-// resolves to a real modeled type (hover shows `RunType<{ … }>`, not `any`) instead
-// of collapsing to `any`. The schema / formats modules the user imports are
-// registered separately; the WASM resolver, not Monaco, is the source of truth.
-const EDITOR_DTS = `declare module '@ts-runtypes/core' {
-  export type RunType<T> = { readonly __rtType?: { t: T } };
-  export type Static<RT> = RT extends RunType<infer U> ? U : RT;
-  export function createValidate<T>(val?: T): (v: unknown) => v is T;
-  export function createGetValidationErrors<T>(val?: T): (v: unknown) => unknown[];
-  export function createJsonEncoder<T>(val?: T): (v: T) => unknown;
-  export function createJsonDecoder<T>(val?: T): (v: unknown) => T;
-  export function createBinaryEncoder<T>(val?: T): (v: T) => Uint8Array;
-  export function createBinaryDecoder<T>(val?: T): (v: Uint8Array) => T;
-  export function createMockData<T>(val?: T): () => T;
-  export function getRunTypeId<T>(value?: T): string;
-  export function getRunType<T>(value?: T): unknown;
-}`;
 
 // The per-title guidance shown in each numbered badge's tooltip.
 const STEP_TIPS = {
@@ -146,6 +125,14 @@ let inputEditor: Editor | null = null;
 // editors that sandwich the editable type body, so the snippet reads as a real file.
 let headerEditor: Editor | null = null;
 let footerEditor: Editor | null = null;
+// Explicit file:/// models for the three TypeScript editors. Monaco resolves the
+// real `@ts-runtypes/core` overlay (staged under a virtual node_modules) only for a
+// `file://` model — an auto `inmemory://` model can't walk up to node_modules — so
+// each editor gets a per-instance file URI. Disposed on unmount (editor.dispose()
+// leaves externally-created models alive).
+let headerModel: TextModel | null = null;
+let bodyModel: TextModel | null = null;
+let footerModel: TextModel | null = null;
 let codeTimer: ReturnType<typeof setTimeout> | null = null;
 let codeSeq = 0;
 
@@ -278,10 +265,11 @@ function ensureMonacoWorkers(): void {
   };
 }
 
-// loadRuntypesSources fetches the host-staged ts-runtypes source overlay and injects
-// it into the engine (the resolver type-checks user snippets against it). Must run
+// loadRuntypesSources fetches the host-staged ts-runtypes source overlay, injects it
+// into the engine (the resolver type-checks user snippets against it), and RETURNS it
+// so onMounted can feed the SAME real sources to Monaco's language service. Must run
 // before the first scan.
-async function loadRuntypesSources(): Promise<void> {
+async function loadRuntypesSources(): Promise<Record<string, string>> {
   const response = await fetch(`${playgroundBase()}playground-app/runtypes-sources.json`, {cache: 'no-cache'});
   if (!response.ok) {
     throw new Error(
@@ -289,7 +277,23 @@ async function loadRuntypesSources(): Promise<void> {
         `container/website/scripts/build-playground.sh (needs the Go toolchain + bootstrapped submodule).`,
     );
   }
-  setRuntypesPackageSources((await response.json()) as Record<string, string>);
+  const overlay = (await response.json()) as Record<string, string>;
+  setRuntypesPackageSources(overlay);
+  return overlay;
+}
+
+// registerRuntypesLibs feeds the real overlay to Monaco's TS language service ONCE
+// (global state, shared by every editor + playground instance): each virtual file is
+// added at its file:/// path so a snippet's `@ts-runtypes/core[/…]` import resolves
+// against the ACTUAL published types — the same sources the resolver uses — rather
+// than a hand-maintained stub. Idempotent across instances via a global flag.
+function registerRuntypesLibs(mon: Monaco, overlay: Record<string, string>): void {
+  const flag = globalThis as unknown as {__rtCoreLibsRegistered?: boolean};
+  if (flag.__rtCoreLibsRegistered) return;
+  for (const [path, content] of Object.entries(overlay)) {
+    mon.languages.typescript.typescriptDefaults.addExtraLib(content, `file:///${path}`);
+  }
+  flag.__rtCoreLibsRegistered = true;
 }
 
 // ---- Monaco helpers ---------------------------------------------------------
@@ -329,11 +333,10 @@ async function beautifyModule(code: string): Promise<string> {
 // makeStripEditor creates a read-only one-liner editor (the import header / the call
 // footer). It shares the body editor's gutter config so the line numbers align,
 // sizes itself to its content, and is overlaid with a hatch + click-swallowing layer.
-function makeStripEditor(el: HTMLElement, value: string, base: EditorOptions): Editor {
+function makeStripEditor(el: HTMLElement, model: TextModel, base: EditorOptions): Editor {
   const editor = monaco!.editor.create(el, {
     ...base,
-    value,
-    language: 'typescript',
+    model,
     readOnly: true,
     domReadOnly: true,
     renderLineHighlight: 'none',
@@ -550,25 +553,24 @@ async function updateSelectedCode(): Promise<void> {
 onMounted(async () => {
   ensureMonacoWorkers();
   try {
-    const [loadedMonaco] = await Promise.all([import('monaco-editor'), loadRuntypesSources()]);
+    const [loadedMonaco, overlay] = await Promise.all([import('monaco-editor'), loadRuntypesSources()]);
     monaco = loadedMonaco;
 
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       target: monaco.languages.typescript.ScriptTarget.ESNext,
-      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      module: monaco.languages.typescript.ModuleKind.ESNext,
+      // Bundler resolution (TS enum value 100; Monaco's enum stops at NodeJs) matches
+      // the overlay package.json exports that point straight at the `.ts` sources.
+      moduleResolution: 100 as unknown as import('monaco-editor').languages.typescript.ModuleResolutionKind,
+      allowImportingTsExtensions: true,
       allowNonTsExtensions: true,
       strict: true,
       noEmit: true,
+      skipLibCheck: true,
     });
-    monaco.languages.typescript.typescriptDefaults.addExtraLib(EDITOR_DTS, 'file:///node_modules/ts-runtypes/index.d.ts');
-    monaco.languages.typescript.typescriptDefaults.addExtraLib(
-      formatsEditorModule(),
-      'file:///node_modules/ts-runtypes/formats/index.d.ts',
-    );
-    monaco.languages.typescript.typescriptDefaults.addExtraLib(
-      schemaEditorModule(),
-      'file:///node_modules/ts-runtypes/schema/index.d.ts',
-    );
+    // Feed Monaco the SAME real @ts-runtypes/core sources the resolver uses, so any
+    // import types exactly as the published package (no hand-maintained stub drift).
+    registerRuntypesLibs(monaco, overlay);
     // The input pane is a JS value EXPRESSION, evaluated at Run, not type-checked -
     // turn off JS diagnostics so it never shows squiggles.
     monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
@@ -593,18 +595,22 @@ onMounted(async () => {
       tabSize: 2,
     } as const;
 
-    headerEditor = makeStripEditor(headerEditorEl.value!, factoryImport(OPERATIONS[0].factory), stackEditor);
+    // Per-instance file:/// models so imports resolve against the virtual node_modules
+    // overlay (an auto inmemory:// model can't reach it).
+    const uid = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    const tsModel = (name: string, value: string): TextModel =>
+      monaco!.editor.createModel(value, 'typescript', monaco!.Uri.parse(`file:///pg-${uid}/${name}`));
+    headerModel = tsModel('_header.ts', factoryImport(OPERATIONS[0].factory));
+    bodyModel = tsModel('MyType.ts', props.type ?? PRESETS[0].ts);
+    footerModel = tsModel('_footer.ts', factoryCall(OPERATIONS[0].factory, OPERATIONS[0].varName, 'type'));
+
+    headerEditor = makeStripEditor(headerEditorEl.value!, headerModel, stackEditor);
     typeEditor = monaco.editor.create(editorEl.value!, {
       ...stackEditor,
-      value: props.type ?? PRESETS[0].ts,
-      language: 'typescript',
+      model: bodyModel,
       lineNumbers: (n: number) => String(n + 1),
     });
-    footerEditor = makeStripEditor(
-      footerEditorEl.value!,
-      factoryCall(OPERATIONS[0].factory, OPERATIONS[0].varName, 'type'),
-      stackEditor,
-    );
+    footerEditor = makeStripEditor(footerEditorEl.value!, footerModel, stackEditor);
     inputEditor = monaco.editor.create(inputEditorEl.value!, {
       ...common,
       value: props.input ?? PRESETS[0].input,
@@ -622,6 +628,19 @@ onMounted(async () => {
     updateLineNumberOffsets();
     updateSurrounding();
 
+    // Pre-warm the TS language service against the real overlay so the first
+    // hover/completion isn't blocked on a cold program build — runs in the
+    // background, overlapping the WASM load below (best-effort).
+    void (async () => {
+      try {
+        const getWorker = await monaco!.languages.typescript.getTypeScriptWorker();
+        const client = await getWorker(bodyModel!.uri);
+        await client.getSemanticDiagnostics(bodyModel!.uri.toString());
+      } catch {
+        /* pre-warm is best-effort; the worker warms lazily on first use anyway */
+      }
+    })();
+
     // versions() resolves once Monaco + the resolver WASM are loaded.
     await versions(resolverOptions());
     ready.value = true;
@@ -638,6 +657,11 @@ onBeforeUnmount(() => {
   typeEditor?.dispose();
   inputEditor?.dispose();
   headerEditor = footerEditor = typeEditor = inputEditor = null;
+  // Editors don't own externally-created models — dispose the file:/// models here.
+  headerModel?.dispose();
+  bodyModel?.dispose();
+  footerModel?.dispose();
+  headerModel = bodyModel = footerModel = null;
 });
 </script>
 
