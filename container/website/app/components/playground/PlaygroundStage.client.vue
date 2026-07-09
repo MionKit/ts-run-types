@@ -62,9 +62,14 @@ const TYPE_DEBOUNCE_MS = 2000;
 const PICK_DEBOUNCE_MS = 150;
 
 // Ambient declarations so the editor type-checks the snippet: the createX factories
-// (the engine appends the call). The schema / formats modules the user imports are
+// (the engine appends the call), plus `RunType<T>` / `Static<T>` — the shared type
+// channel the schema (RT) + formats (TF) stubs import so a value-first schema
+// resolves to a real modeled type (hover shows `RunType<{ … }>`, not `any`) instead
+// of collapsing to `any`. The schema / formats modules the user imports are
 // registered separately; the WASM resolver, not Monaco, is the source of truth.
 const EDITOR_DTS = `declare module '@ts-runtypes/core' {
+  export type RunType<T> = { readonly __rtType?: { t: T } };
+  export type Static<RT> = RT extends RunType<infer U> ? U : RT;
   export function createValidate<T>(val?: T): (v: unknown) => v is T;
   export function createGetValidationErrors<T>(val?: T): (v: unknown) => unknown[];
   export function createJsonEncoder<T>(val?: T): (v: T) => unknown;
