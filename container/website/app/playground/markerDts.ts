@@ -50,51 +50,68 @@ const FORMATS: FormatEntry[] = [
 ];
 
 // A `ts-runtypes/formats` module for the in-editor type checker (Monaco): each
-// format alias is its base type; the fixed-preset builders (email / uuidv4 / … )
-// return `any`; and the PARAMETERISED scalar builders (string / number / bigInt /
-// date / currency) carry their param bag so typing `number({ ` autocompletes the
-// constraints (min / max / lt / …) — the strongly-typed-params feature, surfaced
-// in the playground. The param interfaces MIRROR the real ones
+// format alias is its base type; every builder returns the shared `RunType<Base>`
+// (imported from the `@ts-runtypes/core` stub) instead of `any`, so `TF.number()`
+// hovers as `RunType<number>` and composes into a real `RT.object({…})` shape; and
+// the PARAMETERISED scalar builders (string / number / bigInt / date / currency)
+// carry their param bag so typing `number({ ` autocompletes the constraints
+// (min / max / lt / …). The param interfaces MIRROR the real ones
 // (packages/ts-runtypes/src/formats/**); the RESOLVER still type-checks against the
-// real sources (packageSources.ts), so these only drive the completion popup.
+// real sources (packageSources.ts), so these only drive the editor experience.
 export function formatsEditorModule(): string {
   const aliases = FORMATS.map((f) => `  export type ${f.alias} = ${f.base};`).join('\n');
-  const builders = FORMATS.map((f) => `  export function ${f.builder}(): any;`).join('\n');
+  const builders = FORMATS.map((f) => `  export function ${f.builder}(): RunType<${f.base}>;`).join('\n');
   return [
     `declare module '@ts-runtypes/core/formats' {`,
+    `  import type { RunType } from '@ts-runtypes/core';`,
     `  interface NumberParams { integer?: boolean; float?: boolean; min?: number; max?: number; lt?: number; gt?: number; multipleOf?: number; isCurrency?: boolean; }`,
     `  interface StringParams { minLength?: number; maxLength?: number; length?: number; trim?: boolean; lowercase?: boolean; uppercase?: boolean; capitalize?: boolean; pattern?: { source: string; flags?: string; mockSamples: readonly string[] }; }`,
     `  interface BigIntParams { min?: bigint; max?: bigint; lt?: bigint; gt?: bigint; multipleOf?: bigint; }`,
     `  interface DateBoundParams { min?: string; max?: string; gt?: string; lt?: string; }`,
     aliases,
-    `  export function string(params?: StringParams): any;`,
-    `  export function number(params?: NumberParams): any;`,
-    `  export function currency(params?: NumberParams): any;`,
-    `  export function bigInt(params?: BigIntParams): any;`,
-    `  export function date(params?: DateBoundParams): any;`,
-    `  export function boolean(): any;`,
+    `  export function string(params?: StringParams): RunType<string>;`,
+    `  export function number(params?: NumberParams): RunType<number>;`,
+    `  export function currency(params?: NumberParams): RunType<number>;`,
+    `  export function bigInt(params?: BigIntParams): RunType<bigint>;`,
+    `  export function date(params?: DateBoundParams): RunType<Date>;`,
+    `  export function boolean(): RunType<boolean>;`,
     builders,
     `}`,
   ].join('\n');
 }
 
-// A loose `ts-runtypes/schema` module for the in-editor type checker, so a user's
-// `import * as RT from '@ts-runtypes/core/schema'` resolves in Monaco. The resolver
-// (MARKER_DTS) carries the precise builders that drive resolution; the editor only
-// needs the names.
+// A `ts-runtypes/schema` module for the in-editor type checker. The composer
+// builders are generically typed over the shared `RunType<T>` so a value-first
+// schema resolves to a REAL modeled type instead of `any`: `RT.object({…})` maps
+// each field's `Static<…>` back into an object shape (optional fields via the
+// `optional(…)` carrier), `RT.array` → `T[]`, `RT.union` → the member union, so
+// hovering `const MyType = RT.object({…})` shows `RunType<{ … }>`. The RESOLVER
+// (real sources) still drives codegen; these types only shape the editor.
 export function schemaEditorModule(): string {
   return [
     `declare module '@ts-runtypes/core/schema' {`,
-    `  export function string(): any;`,
-    `  export function number(): any;`,
-    `  export function boolean(): any;`,
-    `  export function literal(v: any): any;`,
-    `  export function array(element: any): any;`,
-    `  export function union(members: any[]): any;`,
-    `  export function optional(element: any): any;`,
-    `  export function object(shape: Record<string, any>): any;`,
-    `  export function self(): any;`,
-    `  export function circular(body: any): any;`,
+    `  import type { RunType, Static } from '@ts-runtypes/core';`,
+    // An `optional(…)` carrier — a RunType tagged so `object(…)` renders its key
+    // with a `?`. The tag is REQUIRED so a plain RunType never matches it.
+    `  interface OptionalRunType<T> extends RunType<T> { readonly __rtOptional: true; }`,
+    // `Simplify` flattens the required/optional intersection into one object and
+    // resolves each `Static<…>` so the hover reads `RunType<{ … }>`, not the raw
+    // `StaticShape<{ … }>` alias.
+    `  type Simplify<T> = { [K in keyof T]: T[K] } & {};`,
+    // Object model: required keys keep their type, optional-carrier keys get `?`.
+    `  type StaticShape<C> = Simplify<`,
+    `    { [K in keyof C as C[K] extends OptionalRunType<any> ? never : K]: Static<C[K]> } &`,
+    `    { [K in keyof C as C[K] extends OptionalRunType<any> ? K : never]?: Static<C[K]> }>;`,
+    `  export function boolean(): RunType<boolean>;`,
+    `  export function string(): RunType<string>;`,
+    `  export function number(): RunType<number>;`,
+    `  export function literal<const V extends string | number | bigint | boolean | null | undefined>(value: V): RunType<V>;`,
+    `  export function array<T>(element: RunType<T>): RunType<T[]>;`,
+    `  export function union<M extends readonly RunType<any>[]>(members: M): RunType<Static<M[number]>>;`,
+    `  export function optional<T>(element: RunType<T>): OptionalRunType<T>;`,
+    `  export function object<C extends Record<string, RunType<any>>>(shape: C): RunType<StaticShape<C>>;`,
+    `  export function self(): RunType<any>;`,
+    `  export function circular<T>(body: RunType<T>): RunType<T>;`,
     `}`,
   ].join('\n');
 }
