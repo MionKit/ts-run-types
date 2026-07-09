@@ -62,9 +62,6 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
-      vue-writer:
-        specifier: 2.0.2
-        version: 2.0.2(vue@3.5.34(typescript@5.9.3))
     devDependencies:
       '@playwright/test':
         specifier: 1.59.1
@@ -7664,12 +7661,6 @@ packages:
         optional: true
       pinia:
         optional: true
-
-  vue-writer@2.0.2:
-    resolution: {integrity: sha512-k3Zos5f86REHoY6XRGjEHArUsd7EjUAUu0ehpPWnkHzbc9nPmzboZfw3PmPe9thN8L/QAJve69rHcUU+llFM/g==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      vue: ^3.4.21
 
   vue@3.5.34:
     resolution: {integrity: sha512-WdLBG9gm02OgJIG9axd5Hpx0TFLdzVgfG2evFFu8Rur5O/IoGc5cMjnjh3tPL6GnRGsYvUhBSKVPYVcxRKpMCA==}
@@ -16745,10 +16736,6 @@ snapshots:
       yaml: 2.9.0
     optionalDependencies:
       '@vue/compiler-sfc': 3.5.34
-
-  vue-writer@2.0.2(vue@3.5.34(typescript@5.9.3)):
-    dependencies:
-      vue: 3.5.34(typescript@5.9.3)
 
   vue@3.5.34(typescript@5.9.3):
     dependencies:

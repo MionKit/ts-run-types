@@ -33,8 +33,7 @@
     "prettier": "3.8.2",
     "shiki": "3.23.0",
     "twoslash-vue": "0.3.7",
-    "typescript": "5.9.3",
-    "vue-writer": "2.0.2"
+    "typescript": "5.9.3"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1"
