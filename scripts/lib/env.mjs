@@ -132,6 +132,7 @@ export const REGISTRY = [
 
   // — build/release knobs (garble obfuscation of the published binaries + wasm) —
   {name: 'RT_GARBLE', scope: 'dev', task: '-', desc: 'Obfuscate the published Go binaries + playground wasm with garble (default on; set 0 to build plain go — faster, real panic traces)'},
+  {name: 'RT_NPM_PROVENANCE', scope: 'dev', task: 'publish-npm', desc: 'Attach npm provenance on the CI stage-publish (default off). Needs a PUBLIC repo — npm refuses provenance from a private source repo; set the CI repo variable to 1 once this repo is public'},
 
   // — lint knobs (the ts-runtypes-devtools OXlint/ESLint plugin) —
   {name: 'RT_LINT_PRESPAWN', scope: 'dev', task: '-', desc: "Set 0 to skip the lint plugin's load-time resolver pre-spawn (small hosts)"},

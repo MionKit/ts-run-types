@@ -36,7 +36,8 @@ jobs:
       contents: read
       packages: read
     env:
-      CLOUDFLARE_PAGES_PROJECT: runtypes
+      # Cloudflare Pages project name, from the repo secret (defaults to runtypes).
+      CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT || 'runtypes' }}
     steps:
       - name: Log the version being deployed (informational)
         if: inputs.version != ''

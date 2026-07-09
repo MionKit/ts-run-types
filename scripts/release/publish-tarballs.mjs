@@ -18,7 +18,9 @@
 //
 // Flags:
 //   --registry <url>  plain-publish to a specific registry (e.g. local verdaccio).
-//   --provenance      attach npm provenance (public/OIDC path only).
+//   --provenance      attach npm provenance. Also enabled by env RT_NPM_PROVENANCE=1.
+//                     Needs a PUBLIC repo — npm refuses provenance from a private
+//                     source repo, so it stays OFF unless explicitly turned on.
 
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -31,7 +33,7 @@ const TARBALLS = path.join(REPO_ROOT, 'tarballs');
 const args = process.argv.slice(2);
 const registryIdx = args.indexOf('--registry');
 const registry = registryIdx !== -1 ? args[registryIdx + 1] : undefined;
-const provenance = args.includes('--provenance');
+const provenance = args.includes('--provenance') || process.env.RT_NPM_PROVENANCE === '1';
 
 // Lower rank publishes earlier. Operates on the tarball filename: npm packs a
 // scoped package @ts-runtypes/<x> as ts-runtypes-<x>-<version>.tgz, so the
