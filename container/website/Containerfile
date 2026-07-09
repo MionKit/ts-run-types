@@ -5,6 +5,11 @@
 # whole site end-to-end (the site renders benchmark data produced by the same
 # image), with no second image to keep in sync.
 #
+# The pre-publish e2e's verdaccio + heavy builder toolchains live in a SEPARATE
+# image (container/pre-publish-e2e/Containerfile, tsrt-e2e) so the lightweight CI
+# smoke + benchmark + website-build lanes never pull them — only the release gate's
+# e2e lane does. Both images are owned by scripts/container/image.mjs.
+#
 # DEPS-ONLY IMAGE: only the package-manager manifests are baked. The website's
 # come from _deps/; the benchmarks' come from .bench-deps/ (a build-time copy of
 # container/benchmarks/_deps/ that scripts/website/site.sh stages into the build context). The
@@ -109,13 +114,22 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 # the real bench build reuses it. Needs network (downloads ttsc's embedded Go
 # toolchain) - available during build. Non-fatal: on failure typia just recompiles
 # the plugin at runtime, exactly as before.
+#
+# The final `rm -rf` drops the Go build + module caches ttsc created while compiling
+# the plugin (~3 GB in /root/.cache/go-build + /root/go) - runtime only needs the
+# compiled plugin under node_modules/.ttsc (~28 MB), so baking the caches was dead
+# weight (they were HALF the image). Runs unconditionally (`;` after the `|| echo`)
+# so the caches never survive, warm success or not, and in the SAME layer so the
+# image actually shrinks. If the warm ever fell back to a runtime recompile, ttsc
+# re-fetches its toolchain then, exactly as it did before any baking.
 RUN cd /bench/competitors/typia \
  && printf 'import typia from "typia";\nexport const _ttscWarm = typia.createIs<{ a: number; b: string }>();\n' > .ttsc-warm.ts \
  && printf '{"compilerOptions":{"strict":true,"plugins":[{"transform":"typia/lib/transform"}]},"include":[".ttsc-warm.ts"]}' > tsconfig.ttsc-warm.json \
  && node --input-type=module -e 'import {build} from "esbuild"; import ttsc from "@ttsc/unplugin/esbuild"; await build({entryPoints:[".ttsc-warm.ts"],bundle:true,write:false,format:"esm",platform:"node",target:"node22",logLevel:"info",tsconfig:"tsconfig.ttsc-warm.json",plugins:[ttsc({project:"tsconfig.ttsc-warm.json"})]});' \
  && rm -f .ttsc-warm.ts tsconfig.ttsc-warm.json \
  && test -d node_modules/.ttsc \
- || echo ">> ttsc warm skipped/failed; typia recompiles its plugin at the first runtime build"
+ || echo ">> ttsc warm skipped/failed; typia recompiles its plugin at the first runtime build"; \
+ rm -rf /root/.cache/go-build /root/go
 
 # typecost runner: its own TypeScript install (it drives the compiler API). The
 # marker package it type-resolves against is bind-mounted into the ts-runtypes
@@ -124,33 +138,6 @@ COPY .bench-deps/pnpm-workspace.yaml .bench-deps/.npmrc /bench/typecost/
 COPY .bench-deps/typecost/package.json /bench/typecost/package.json
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     cd /bench/typecost && pnpm install --no-frozen-lockfile
-
-# == Pre-publish e2e: verdaccio registry + builder toolchains (/e2e) ==========
-# The pre-publish e2e (docs/todos/prepublish-e2e-*.md) runs a containerized
-# verdaccio + a multi-bundler feature matrix in this SAME shared image, so a
-# maintainer can smoke a release locally and CI's Linux lane reuses the one
-# pulled image. verdaccio is a node app (fits the Node 26 base); running the
-# untrusted registry + its dependency tree INSIDE the rootless container (never
-# on a dev's host) is the supply-chain point of the design.
-RUN npm install -g verdaccio@6.7.2
-
-# The e2e builder toolchains (rolldown-vite, esbuild, rollup, rolldown, webpack,
-# rspack, oxlint, eslint + the TS parser/loaders), baked under /e2e exactly like
-# the benchmark competitors. Each e2e run installs ONLY the changing
-# @ts-runtypes/* from verdaccio on top of this node_modules; the e2e's own
-# apps/test are bind-mounted at run time. Manifests come from .e2e-deps/ (a
-# build-time copy of container/pre-publish-e2e/_deps/, staged by image.mjs).
-COPY .e2e-deps/package.json .e2e-deps/pnpm-workspace.yaml .e2e-deps/.npmrc /e2e/
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    cd /e2e && pnpm install --no-frozen-lockfile
-
-# The registry config + serve script (starts verdaccio, publishes the mounted
-# /tarballs in dependency order, signals readiness). Staged from
-# container/pre-publish-e2e/registry/ by scripts/container/image.mjs. Kept LAST so
-# a config tweak never invalidates the heavier toolchain-install layer above.
-COPY .e2e-registry/verdaccio.yaml /etc/verdaccio/config.yaml
-COPY .e2e-registry/e2e-serve.sh /usr/local/bin/e2e-serve.sh
-RUN chmod +x /usr/local/bin/e2e-serve.sh
 
 EXPOSE 3000
 

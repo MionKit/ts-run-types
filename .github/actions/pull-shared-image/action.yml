@@ -1,23 +1,36 @@
-name: Pull the shared website+benchmark image
+name: Pull a prebuilt ts-runtypes image
 description: >
-  Log in to GHCR and pull the prebuilt shared image, tagging it as the local
-  working image (tsrt-website:dev). CI NEVER builds this image - it is produced
-  and pushed from local (pnpm rtx container push). Fails the job if the
-  image can't be pulled, so a missing/stale image is a clear signal to republish
-  from local rather than a silent slow local rebuild.
-  The calling job must grant `permissions: packages: read`.
+  Log in to GHCR and pull one of the prebuilt images, tagging it as its local
+  working tag. CI NEVER builds these images - they are produced and pushed from
+  local (pnpm rtx container push). Fails the job if the image can't be pulled, so a
+  missing/stale image is a clear signal to republish from local rather than a silent
+  slow local rebuild. The calling job must grant `permissions: packages: read`.
+  Defaults pull the website+benchmark image; the release gate's e2e lane overrides
+  `remote`/`local-tag` to pull the separate tsrt-e2e image.
+
+inputs:
+  remote:
+    description: Full GHCR ref to pull
+    required: false
+    default: ghcr.io/mionkit/tsrt-website:latest
+  local-tag:
+    description: Local tag to apply to the pulled image
+    required: false
+    default: tsrt-website:dev
 
 runs:
   using: composite
   steps:
-    - name: Log in to GHCR + pull the prebuilt shared image
+    - name: Log in to GHCR + pull the prebuilt image
       shell: bash
+      env:
+        REMOTE: ${{ inputs.remote }}
+        LOCAL_TAG: ${{ inputs.local-tag }}
       run: |
         echo "${{ github.token }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
-        remote="ghcr.io/mionkit/tsrt-website:latest"
-        if ! podman pull "$remote"; then
-          echo "::error::Could not pull $remote. CI does not build the shared image - rebuild it and run 'pnpm rtx container push' from local, then retry." >&2
+        if ! podman pull "$REMOTE"; then
+          echo "::error::Could not pull $REMOTE. CI does not build the images - rebuild it and run 'pnpm rtx container push' from local, then retry." >&2
           exit 1
         fi
-        podman tag "$remote" tsrt-website:dev
-        echo "pulled $remote -> tsrt-website:dev"
+        podman tag "$REMOTE" "$LOCAL_TAG"
+        echo "pulled $REMOTE -> $LOCAL_TAG"

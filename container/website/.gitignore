@@ -41,16 +41,9 @@ logs
 !.cacerts/.gitkeep
 
 # Build-time copy of container/benchmarks/_deps/ staged into the build context by
-# scripts/website/site.sh so the merged image installs the benchmark deps under /bench.
+# scripts/website/site.sh so the image installs the benchmark deps under /bench.
 # Regenerated on every build; container/benchmarks/_deps/ stays the source of truth.
 .bench-deps/
-
-# Build-time copies of the pre-publish e2e's toolchain manifests + registry assets,
-# staged into the build context by scripts/container/image.mjs (prepareE2eDeps) so
-# the merged image bakes verdaccio + the e2e toolchains under /e2e. Regenerated on
-# every build; container/pre-publish-e2e/{_deps,registry}/ stay the source of truth.
-.e2e-deps/
-.e2e-registry/
 
 # Playground bundle (Monaco web component + resolver WASM) - built on the host by
 # scripts/build-playground.sh and served from public/. Large + reproducible;
