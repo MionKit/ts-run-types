@@ -39,6 +39,24 @@ function assertMutual<S, T>(
   void _proof;
 }
 
+/** A STRICTER equality than `assertMutual` — it catches the difference
+ *  `assertMutual` cannot: whether `S` is a single object literal or a group
+ *  INTERSECTION. `object({a, optional b})` must recover `{a: string; b?: number}`,
+ *  not `{a: string} & {b?: number}` (the two are mutually assignable, so
+ *  `assertMutual` passes for both — but the intersection is what used to leak into
+ *  `InferType<typeof schema>`). `Flat<T> = {[K in keyof T]: T[K]}` collapses one
+ *  level of a would-be intersection; the invariant `Eq` then diverges whenever a
+ *  nested member is still an intersection (single-level `Flat` can't reach it), so
+ *  a nested optional/readonly object that wasn't flattened fails here. It is also
+ *  readonly-sensitive (plain assignability treats readonly/mutable as equal). */
+type Flat<T> = {[K in keyof T]: T[K]};
+type Eq<A, B> = (<G>() => G extends Flat<A> ? 1 : 2) extends <G>() => G extends Flat<B> ? 1 : 2 ? true : false;
+function assertExact<S, T>(
+  ..._proof: Eq<S, T> extends true ? [] : [error: 'S is not the exact (un-intersected) shape of T', S, T]
+): void {
+  void _proof;
+}
+
 test('InferType ⇄ type-first equivalence assertions are referenced (compile-time check)', () => {
   expect(typeof atomicLeaves).toBe('function');
   expect(typeof brandedLeaves).toBe('function');
@@ -126,6 +144,26 @@ function objects(): void {
   assertMutual<InferType<typeof obj>, {a: string; b?: number}>();
   assertMutual<InferType<typeof nested>, {id: number; tags: string[]; meta: {ok: boolean}}>();
   assertMutual<InferType<typeof ro>, {readonly a: string}>();
+
+  // Stricter than the assignability checks above: `InferType` of a modified-field
+  // object must be a SINGLE object literal, not a `{required} & {optional}` group
+  // intersection. `assertExact` fails on the intersection (which `assertMutual`
+  // accepts), so these pin that `object({a, optional b})` recovers a plain
+  // `{a: string; b?: number}` — at every nesting level.
+  const nestedOpt = RT.object({
+    a: TF.string(),
+    b: RT.optional(TF.number()),
+    child: RT.object({x: TF.string(), y: RT.optional(RT.boolean())}),
+  });
+  const roMixed = RT.object({
+    a: TF.string(),
+    b: RT.propMod({readonly: true}, TF.number()),
+    c: RT.propMod({optional: true, readonly: true}, TF.string()),
+  });
+  assertExact<InferType<typeof obj>, {a: string; b?: number}>();
+  assertExact<InferType<typeof ro>, {readonly a: string}>();
+  assertExact<InferType<typeof nestedOpt>, {a: string; b?: number; child: {x: string; y?: boolean}}>();
+  assertExact<InferType<typeof roMixed>, {a: string; readonly b: number; readonly c?: string}>();
 }
 
 // ── Utility-type builders ────────────────────────────────────────────

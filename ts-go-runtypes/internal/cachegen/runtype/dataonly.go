@@ -15,13 +15,15 @@ import (
 const dataOnlyAliasName = "DataOnly"
 
 // schemaInternalAliasNames are the ts-runtypes/schema helper aliases that model
-// an object's shape from a value-first `object({...})` builder — `ObjectType<C>`
-// and its optional/readonly/mixed conditional branches. They are compiler-internal
-// and must never surface in reflection. On a COLD scan (before tsgo has
-// instantiated the schema builder types) the modeled type can be left as one of
-// these un-reduced aliases; serializing its name + type arguments (the raw builder
-// config `PropModCarrier<…, RunType<…>>`) then leaks the whole RunType wrapper into
-// the runtype bundle as dead, unreachable entries. Treating the alias as anonymous
+// an object's shape from a value-first `object({...})` builder — `ObjectType<C>`,
+// its optional/readonly/mixed conditional branches, and the `Flatten` those
+// branches wrap their group-intersection in (so `InferType` reads a single object
+// literal, not `{req} & {opt}`). They are compiler-internal and must never surface
+// in reflection. On a COLD scan (before tsgo has instantiated the schema builder
+// types) the modeled type can be left as one of these un-reduced aliases;
+// serializing its name + type arguments (the raw builder config
+// `PropModCarrier<…, RunType<…>>`) then leaks the whole RunType wrapper into the
+// runtype bundle as dead, unreachable entries. Treating the alias as anonymous
 // drops the name AND the type-argument reflection, while the structural walk still
 // projects the modeled object shape.
 var schemaInternalAliasNames = map[string]bool{
@@ -29,6 +31,7 @@ var schemaInternalAliasNames = map[string]bool{
 	"ObjectOptionalOnly": true,
 	"ObjectReadonlyOnly": true,
 	"ObjectMixed":        true,
+	"Flatten":            true,
 }
 
 // isSchemaInternalAlias reports whether aliasSymbol names one of the

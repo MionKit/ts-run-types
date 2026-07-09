@@ -54,47 +54,79 @@ export type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} 
 export type IsOptional<V> = V extends {__propMod: {optional: true}} ? true : false;
 export type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : false;
 
+/** Collapses a split-group object type back into a SINGLE object literal — the
+ *  homomorphic identity map `{[K in keyof T]: T[K]}`, which preserves each key's
+ *  `?` / `readonly` exactly (readonly copied through, so DON'T write `-readonly`)
+ *  while erasing the `&` boundary between the groups. TS can't apply `?` / `readonly`
+ *  per-key in one map, so the mixed-modifier tiers below MUST build their result as
+ *  a group intersection (`{required} & {optional}`); left as-is that intersection is
+ *  what `InferType<typeof schema>` surfaces — a `{a: string} & {b?: number}` that
+ *  reads as "weird" and, worse, RE-forms at every nesting level (each nested
+ *  `object` is its own intersection). Wrapping each tier in `Flatten` merges the
+ *  groups into the plain `{a: string; b?: number}` the type-first surface writes, at
+ *  EVERY level. It is not just cosmetic: the merged literal is also CHEAPER to
+ *  instantiate + consume than the raw intersection (measured ~4–9% fewer
+ *  instantiations across the optional/readonly/mixed profiles), so it strengthens —
+ *  not weakens — the type-cost guardrail. **/
+type Flatten<T> = {[K in keyof T]: T[K]};
+
 /** The object type `object(C)` produces. A bare field is required + mutable; a
  *  `propMod(...)` field places its key per its modifiers (`?` / `readonly`). TS
  *  can't apply `?` / `readonly` per-key in ONE homomorphic map, so the general
  *  case (`ObjectMixed`) splits the keys into the four (optional × readonly) groups
- *  and intersects them. But that pays all four mapped-type passes on EVERY object —
- *  even an all-required one, where three groups are empty — and the cost compounds
- *  at every nesting level (the dominant value-first type-check cost; see
+ *  and intersects them, then `Flatten`s the intersection back into a single object
+ *  literal (so `InferType` reads `{a: string; b?: number}`, never `{a} & {b?}`).
+ *  But that pays all four mapped-type passes on EVERY object — even an all-required
+ *  one, where three groups are empty — and the cost compounds at every nesting
+ *  level (the dominant value-first type-check cost; see
  *  docs/value-first-typecheck-cost.md). So dispatch on the modifier PROFILE first
  *  (two cheap key-probes) and emit the leanest map that's still exact: a single
- *  homomorphic map when no field is modified (the common case), a 2-group split
- *  when only one modifier kind is present, the full 4-way only when one field is
- *  optional AND another readonly. Every arm recovers the IDENTICAL type to the
- *  4-way for its profile (proven across modifier profiles in
+ *  homomorphic map when no field is modified (the common case — already one literal,
+ *  no `Flatten` needed), a `Flatten`ed 2-group split when only one modifier kind is
+ *  present, the `Flatten`ed 4-way only when one field is optional AND another
+ *  readonly. Every arm recovers the IDENTICAL type to the 4-way for its profile
+ *  (proven across modifier profiles in
  *  container/benchmarks/typecost/isolated-experiment.mjs), so the structural id still
  *  converges with the type-first object. `FieldOf` unwraps each field's `RunType<…>`
  *  to its format type. Shared by `object`'s return type and its `InjectRunTypeId<…>`
  *  marker param. **/
 type AnyOptional<C> = true extends {[K in keyof C]: IsOptional<C[K]>}[keyof C] ? true : false;
 type AnyReadonly<C> = true extends {[K in keyof C]: IsReadonly<C[K]>}[keyof C] ? true : false;
-/** Optional present, no readonly — a required group + an optional group, both mutable. **/
-type ObjectOptionalOnly<C> = {
-  -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : K]: FieldOf<C[K]>;
-} & {
-  -readonly [K in keyof C as IsOptional<C[K]> extends true ? K : never]?: FieldOf<C[K]>;
-};
-/** Readonly present, no optional — a mutable group + a readonly group, both required. **/
-type ObjectReadonlyOnly<C> = {
-  -readonly [K in keyof C as IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
-} & {
-  readonly [K in keyof C as IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
-};
-/** Both optional AND readonly present — the full 4-way (optional × readonly) split. **/
-type ObjectMixed<C> = {
-  -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
-} & {
-  readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
-} & {
-  -readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? never : K) : never]?: FieldOf<C[K]>;
-} & {
-  readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? K : never) : never]?: FieldOf<C[K]>;
-};
+/** Optional present, no readonly — a required group + an optional group, both
+ *  mutable, `Flatten`ed into one literal. **/
+type ObjectOptionalOnly<C> = Flatten<
+  {
+    -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : K]: FieldOf<C[K]>;
+  } & {
+    -readonly [K in keyof C as IsOptional<C[K]> extends true ? K : never]?: FieldOf<C[K]>;
+  }
+>;
+/** Readonly present, no optional — a mutable group + a readonly group, both
+ *  required, `Flatten`ed into one literal. **/
+type ObjectReadonlyOnly<C> = Flatten<
+  {
+    -readonly [K in keyof C as IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
+  } & {
+    readonly [K in keyof C as IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
+  }
+>;
+/** Both optional AND readonly present — the full 4-way (optional × readonly) split,
+ *  `Flatten`ed into one literal. **/
+type ObjectMixed<C> = Flatten<
+  {
+    -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
+  } & {
+    readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
+  } & {
+    -readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? never : K) : never]?: FieldOf<
+      C[K]
+    >;
+  } & {
+    readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? K : never) : never]?: FieldOf<
+      C[K]
+    >;
+  }
+>;
 export type ObjectType<C> =
   AnyOptional<C> extends false
     ? AnyReadonly<C> extends false
