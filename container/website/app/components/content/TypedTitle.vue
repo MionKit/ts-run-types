@@ -1,6 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import { VueWriter } from 'vue-writer';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
   leading: {
@@ -32,6 +31,11 @@ const props = defineProps({
   },
 });
 
+// Pause timings (ms). Typing/erasing advance one character per animation frame;
+// only the full-sentence hold and the empty-line gap wait on the clock.
+const HOLD_DELAY = 4000; // hold a fully typed title before erasing it
+const GAP_DELAY = 550; // pause on the empty line before the next title
+
 // Split `leading` around `strikeWord` so the struck word + its handwritten
 // correction render as real elements (no v-html, no markup in the frontmatter).
 const leadingParts = computed(() => {
@@ -42,33 +46,133 @@ const leadingParts = computed(() => {
   return { before: text.slice(0, index), after: text.slice(index + word.length) };
 });
 
-// Initial text shown during SSR (first item)
-const initialText = computed(() => props.titles[0] || '');
+// The first title is rendered on the server and during hydration; on the client
+// the requestAnimationFrame loop below takes over and cycles through the rest.
+const initialText = computed(() => props.titles[0] ?? '');
 
-// Reorder array for VueWriter: start from second item, put first item at the end
-const vueWriterTitles = computed(() => [...props.titles.slice(1), props.titles[0]]);
+const rootEl = ref(null);
+const text = ref(initialText.value); // currently displayed substring
+const isTyping = ref(false); // caret stays solid while actively typing/erasing
+const isPaused = ref(false); // off-screen → park the CSS gradient + caret blink
 
-// Track if we're mounted (client-side)
-const isMounted = ref(false);
+// Animation state — plain locals so the loop mutates without reactivity cost.
+let titleIndex = 0;
+let charIndex = 0;
+let phase = 'holding'; // holding → erasing → waiting → typing → holding …
+let waitUntil = -1; // rAF-clock deadline for the holding / waiting pauses
+let rafId = 0;
+let running = false;
+let observer = null;
+let reduceMotion = null;
+
+// One character per animation frame: a sentence takes as long as it has
+// characters (longer lines reveal for longer, the natural typing feel we want)
+// and each step is a single frame, so resuming after a pause can never dump a
+// burst. Only the full-sentence hold and the empty-line gap wait on the clock.
+function frame(now) {
+  if (!running) return;
+  const titles = props.titles;
+
+  if (phase === 'holding') {
+    if (waitUntil < 0) waitUntil = now + HOLD_DELAY; // first frame: hold title 0
+    if (now >= waitUntil) {
+      phase = 'erasing';
+      isTyping.value = true;
+    }
+  } else if (phase === 'erasing') {
+    charIndex -= 1;
+    text.value = titles[titleIndex].slice(0, Math.max(charIndex, 0));
+    if (charIndex <= 0) {
+      charIndex = 0;
+      titleIndex = (titleIndex + 1) % titles.length;
+      phase = 'waiting';
+      waitUntil = now + GAP_DELAY;
+      isTyping.value = false;
+    }
+  } else if (phase === 'waiting') {
+    if (now >= waitUntil) {
+      phase = 'typing';
+      isTyping.value = true;
+    }
+  } else {
+    charIndex += 1;
+    const title = titles[titleIndex];
+    text.value = title.slice(0, charIndex);
+    if (charIndex >= title.length) {
+      phase = 'holding';
+      waitUntil = now + HOLD_DELAY;
+      isTyping.value = false;
+    }
+  }
+
+  rafId = requestAnimationFrame(frame);
+}
+
+function start() {
+  if (running) return;
+  running = true;
+  rafId = requestAnimationFrame(frame);
+}
+
+function stop() {
+  running = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = 0;
+}
+
+// React if the user flips the reduced-motion preference mid-session.
+function onReduceChange(event) {
+  if (event.matches) {
+    stop();
+    text.value = initialText.value;
+    isTyping.value = false;
+  } else {
+    start();
+  }
+}
 
 onMounted(() => {
-  isMounted.value = true;
+  if (props.titles.length < 2) return; // nothing to cycle through
+
+  charIndex = text.value.length; // the first title starts fully typed
+  reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  reduceMotion?.addEventListener?.('change', onReduceChange);
+  if (reduceMotion?.matches) return; // honour reduced motion: static first title
+
+  // Only run the loop while the hero is on screen; pausing also parks the CSS
+  // gradient sweep + caret blink (see `.is-paused` below) so nothing repaints
+  // once the hero is scrolled away.
+  if (typeof IntersectionObserver !== 'undefined' && rootEl.value) {
+    observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries[0]?.isIntersecting ?? true;
+        isPaused.value = !visible;
+        if (visible) start();
+        else stop();
+      },
+      { threshold: 0 },
+    );
+    observer.observe(rootEl.value);
+  } else {
+    start();
+  }
+});
+
+onBeforeUnmount(() => {
+  stop();
+  observer?.disconnect();
+  reduceMotion?.removeEventListener?.('change', onReduceChange);
 });
 </script>
 
 <template>
-  <div class="typed-title-container">
+  <div ref="rootEl" class="typed-title-container" :class="{ 'is-paused': isPaused }">
     <component :is="`h${level}`" class="typed-title-heading">
       <span v-if="leading" class="typed-title-leading">{{ leadingParts.before }}<span v-if="strikeWord" class="title-strike"><span class="title-strike-word">{{ strikeWord }}</span><span class="title-strike-line" aria-hidden="true" /><span v-if="enhancedWord" class="title-enhanced">{{ enhancedWord }}</span></span>{{ leadingParts.after }}</span>
       <span class="typed-title">
-        <!-- Show VueWriter only after mounting (client-side) -->
-        <template v-if="isMounted">
-          <VueWriter :array="vueWriterTitles" :delay="4000" :erase-speed="20" :type-speed="50" caret="underscore" />
-        </template>
-        <!-- Show static text during SSR -->
-        <span v-else class="is-typed">
-          <span class="typed">{{ initialText }}</span>
-          <span class="underscore" />
+        <span class="is-typed">
+          <span class="typed">{{ text }}</span>
+          <span class="underscore" :class="{ typing: isTyping }" aria-hidden="true" />
         </span>
       </span>
       <span v-if="suffix" class="typed-title-suffix">{{ suffix }}</span>
@@ -205,7 +309,7 @@ onMounted(() => {
   display: inline;
 }
 
-/* Style for both SSR fallback and VueWriter caret — a vertical typing bar.
+/* Style for both SSR fallback and the caret — a vertical typing bar.
    (Swapped the underscore's width/height so it stands upright, rather than a
    rotate() which would leave a wide, mis-aligned layout box.) */
 :deep(.is-typed span.underscore),
@@ -220,6 +324,8 @@ onMounted(() => {
   vertical-align: text-bottom;
 }
 
+/* Hold the caret solid while characters are being typed or erased. */
+:deep(.is-typed span.underscore.typing),
 :deep(.is-typed span.cursor.typing) {
   animation: none;
 }
@@ -233,6 +339,25 @@ onMounted(() => {
   }
 }
 
+/* While the hero is scrolled off screen the IntersectionObserver adds
+   `is-paused`; freeze the gradient sweep + caret blink so they stop repainting
+   when nobody can see them. */
+.typed-title-container.is-paused .typed-title-leading,
+.typed-title-container.is-paused :deep(.is-typed span.underscore) {
+  animation-play-state: paused;
+}
+
+/* Honour reduced motion: freeze the gradient sweep and the caret blink (the
+   typewriter itself is skipped in script). */
+@media (prefers-reduced-motion: reduce) {
+  .typed-title-leading {
+    animation: none;
+  }
+  :deep(.is-typed span.underscore) {
+    animation: none;
+  }
+}
+
 @media screen and (max-width: 600px) {
   .typed-title-heading {
     font-size: 2.5rem;
@@ -242,7 +367,7 @@ onMounted(() => {
   }
   .typed-title {
     font-size: 1.5rem;
-    
+
   }
   .is-typed span.underscore {
     display: none;
