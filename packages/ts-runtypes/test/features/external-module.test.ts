@@ -14,7 +14,7 @@ import {
   createBinaryEncoder,
   createBinaryDecoder,
   getRunTypeId,
-  type Static,
+  type InferType,
 } from '@ts-runtypes/core';
 import {UserSchema, mutatePreset, type User, type WithBigint} from '../support/external-module-library.ts';
 
@@ -38,7 +38,7 @@ describe('external-module markers', () => {
 
   test('value-first createValidate over an imported schema converges with the static form', () => {
     const fromSchema = createValidate(UserSchema); // value-first, imported schema
-    const fromType = createValidate<Static<typeof UserSchema>>(); // static, same type
+    const fromType = createValidate<InferType<typeof UserSchema>>(); // static, same type
 
     expect(fromSchema).toBe(fromType); // same structural id ⇒ same cached factory
     expect(fromSchema({id: 1, name: 'a'})).toBe(true);

@@ -11,7 +11,7 @@
 // assertion.
 
 import {describe, expect, it} from 'vitest';
-import {createValidate, type Static} from '@ts-runtypes/core';
+import {createValidate, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 enum Mixed {
@@ -49,9 +49,9 @@ describe('value-first enum builder', () => {
     expect(createValidate(RT.enum(Mixed))).not.toBe(createValidate<Mixed>());
   });
 
-  it('Static recovers a type assignment-equivalent to the enum', () => {
+  it('InferType recovers a type assignment-equivalent to the enum', () => {
     const rtMixed = RT.enum(Mixed);
-    type Recovered = Static<typeof rtMixed>;
+    type Recovered = InferType<typeof rtMixed>;
     const fromEnum: Recovered = Mixed.Red; // enum value -> recovered type
     const toEnum: Mixed = fromEnum; // recovered type -> enum
     expect([fromEnum, toEnum]).toBeDefined();

@@ -5,16 +5,16 @@
 //
 // Each model is authored with `RT.object({...})`. Every builder returns the
 // generic `RunType<…>` node, so `typeof Model` is that node and
-// `Static<typeof Model>` recovers the model type — which is fed to
+// `InferType<typeof Model>` recovers the model type — which is fed to
 // `createValidate` / `createGetValidationErrors`, the SAME path as the type-first
 // surface, proving the value-first front-end lowers to the identical RunType
 // graph (same-hash convergence is asserted across all suites in
 // test/suites/id-integrity/).
 //
 // Per the CLAUDE.md marker-coverage rule every case carries BOTH forms:
-//   - static  `createValidate<Static<typeof Model>>()`
+//   - static  `createValidate<InferType<typeof Model>>()`
 //   - reflect `createValidate(value)` where `value` is a runtime object whose
-//     declared type is `Static<typeof Model>` (the format brand can't be
+//     declared type is `InferType<typeof Model>` (the format brand can't be
 //     constructed from a plain literal, so the value is cast — discarded at
 //     runtime, only its static type drives `T` inference).
 //
@@ -28,7 +28,7 @@ import {
   createValidate,
   createGetValidationErrors,
   registerFormatPattern,
-  type Static,
+  type InferType,
   type GetValidationErrorsFn,
 } from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
@@ -140,7 +140,7 @@ const NOW = Date.now();
 export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
   flat_mixed: {
     title: 'flat model — string/number/date constraints across many fields',
-    validate: () => createValidate<Static<typeof UserModel>>(),
+    validate: () => createValidate<InferType<typeof UserModel>>(),
     validateReflect: () => {
       const v = {
         username: 'alice',
@@ -152,10 +152,10 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         ratio: 1.5,
         level: 10,
         bornBefore: new Date(NOW - 1000),
-      } as unknown as Static<typeof UserModel>;
+      } as unknown as InferType<typeof UserModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof UserModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof UserModel>>(),
     deserializeValidateReflect: () => {
       const v = {
         username: 'alice',
@@ -167,10 +167,10 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         ratio: 1.5,
         level: 10,
         bornBefore: new Date(NOW - 1000),
-      } as unknown as Static<typeof UserModel>;
+      } as unknown as InferType<typeof UserModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof UserModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof UserModel>>(),
     getSamples: () => ({
       valid: [
         {
@@ -275,17 +275,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   string_features: {
     title: 'string fields — length / minLength / maxLength / allowedValues',
-    validate: () => createValidate<Static<typeof StringModel>>(),
+    validate: () => createValidate<InferType<typeof StringModel>>(),
     validateReflect: () => {
-      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as Static<typeof StringModel>;
+      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as InferType<typeof StringModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof StringModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof StringModel>>(),
     deserializeValidateReflect: () => {
-      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as Static<typeof StringModel>;
+      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as InferType<typeof StringModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof StringModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof StringModel>>(),
     getSamples: () => ({
       valid: [
         {short: '', long: 'abc', exact: 'ABCD', pick: 'red'},
@@ -302,17 +302,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   number_features: {
     title: 'number fields — bounds / exclusive / integer / float / multipleOf',
-    validate: () => createValidate<Static<typeof NumberModel>>(),
+    validate: () => createValidate<InferType<typeof NumberModel>>(),
     validateReflect: () => {
-      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as Static<typeof NumberModel>;
+      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as InferType<typeof NumberModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof NumberModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof NumberModel>>(),
     deserializeValidateReflect: () => {
-      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as Static<typeof NumberModel>;
+      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as InferType<typeof NumberModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof NumberModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof NumberModel>>(),
     getSamples: () => ({
       valid: [
         {bounded: 0, exclusive: 1, whole: 3, fractional: 1.5, divisible: 0},
@@ -330,17 +330,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   date_bounds: {
     title: 'date fields — relative now bound + absolute window',
-    validate: () => createValidate<Static<typeof DateModel>>(),
+    validate: () => createValidate<InferType<typeof DateModel>>(),
     validateReflect: () => {
-      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as Static<typeof DateModel>;
+      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as InferType<typeof DateModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof DateModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof DateModel>>(),
     deserializeValidateReflect: () => {
-      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as Static<typeof DateModel>;
+      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as InferType<typeof DateModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof DateModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof DateModel>>(),
     getSamples: () => ({
       valid: [
         {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')},
@@ -356,17 +356,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   regex_patterns: {
     title: 'regex — inline {source, flags, mockSamples} and registerFormatPattern, via the value channel',
-    validate: () => createValidate<Static<typeof RegexModel>>(),
+    validate: () => createValidate<InferType<typeof RegexModel>>(),
     validateReflect: () => {
-      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as Static<typeof RegexModel>;
+      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as InferType<typeof RegexModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof RegexModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof RegexModel>>(),
     deserializeValidateReflect: () => {
-      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as Static<typeof RegexModel>;
+      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as InferType<typeof RegexModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof RegexModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof RegexModel>>(),
     getSamples: () => ({
       valid: [
         {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'},
@@ -382,17 +382,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   optional_fields: {
     title: 'optional — `RT.optional(...)` fields may be absent; present ones validate',
-    validate: () => createValidate<Static<typeof OptionalModel>>(),
+    validate: () => createValidate<InferType<typeof OptionalModel>>(),
     validateReflect: () => {
-      const v = {id: 'AB12'} as unknown as Static<typeof OptionalModel>;
+      const v = {id: 'AB12'} as unknown as InferType<typeof OptionalModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof OptionalModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof OptionalModel>>(),
     deserializeValidateReflect: () => {
-      const v = {id: 'AB12'} as unknown as Static<typeof OptionalModel>;
+      const v = {id: 'AB12'} as unknown as InferType<typeof OptionalModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof OptionalModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof OptionalModel>>(),
     getSamples: () => ({
       valid: [
         {id: 'AB12'}, // both optionals absent
@@ -409,17 +409,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   scalars: {
     title: 'scalars — boolean (no params) + bigint (bigint-valued bounds)',
-    validate: () => createValidate<Static<typeof ScalarModel>>(),
+    validate: () => createValidate<InferType<typeof ScalarModel>>(),
     validateReflect: () => {
-      const v = {active: true, count: 5n, even: 4n} as unknown as Static<typeof ScalarModel>;
+      const v = {active: true, count: 5n, even: 4n} as unknown as InferType<typeof ScalarModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof ScalarModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof ScalarModel>>(),
     deserializeValidateReflect: () => {
-      const v = {active: true, count: 5n, even: 4n} as unknown as Static<typeof ScalarModel>;
+      const v = {active: true, count: 5n, even: 4n} as unknown as InferType<typeof ScalarModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof ScalarModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof ScalarModel>>(),
     getSamples: () => ({
       valid: [
         {active: true, count: 0n, even: 0n},
@@ -436,17 +436,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   temporal: {
     title: 'temporal — Instant (min bound) + optional PlainDate (max bound)',
-    validate: () => createValidate<Static<typeof TemporalModel>>(),
+    validate: () => createValidate<InferType<typeof TemporalModel>>(),
     validateReflect: () => {
-      const v = {at: Temporal.Now.instant()} as unknown as Static<typeof TemporalModel>;
+      const v = {at: Temporal.Now.instant()} as unknown as InferType<typeof TemporalModel>;
       return createValidate(v);
     },
-    deserializeValidate: () => deserializeValidate<Static<typeof TemporalModel>>(),
+    deserializeValidate: () => deserializeValidate<InferType<typeof TemporalModel>>(),
     deserializeValidateReflect: () => {
-      const v = {at: Temporal.Now.instant()} as unknown as Static<typeof TemporalModel>;
+      const v = {at: Temporal.Now.instant()} as unknown as InferType<typeof TemporalModel>;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Static<typeof TemporalModel>>(),
+    getValidationErrors: () => createGetValidationErrors<InferType<typeof TemporalModel>>(),
     getSamples: () => ({
       valid: [
         {at: Temporal.Instant.from('2021-06-15T00:00:00Z')}, // after min, day absent
@@ -463,25 +463,25 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   nested: {
     title: 'nested — value-first models composed inside a parent object',
-    validate: () => createValidate<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+    validate: () => createValidate<{profile: InferType<typeof ProfileModel>; settings: InferType<typeof SettingsModel>}>(),
     validateReflect: () => {
       const v = {profile: {name: 'abc'}, settings: {theme: 'dark'}} as unknown as {
-        profile: Static<typeof ProfileModel>;
-        settings: Static<typeof SettingsModel>;
+        profile: InferType<typeof ProfileModel>;
+        settings: InferType<typeof SettingsModel>;
       };
       return createValidate(v);
     },
     deserializeValidate: () =>
-      deserializeValidate<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+      deserializeValidate<{profile: InferType<typeof ProfileModel>; settings: InferType<typeof SettingsModel>}>(),
     deserializeValidateReflect: () => {
       const v = {profile: {name: 'abc'}, settings: {theme: 'dark'}} as unknown as {
-        profile: Static<typeof ProfileModel>;
-        settings: Static<typeof SettingsModel>;
+        profile: InferType<typeof ProfileModel>;
+        settings: InferType<typeof SettingsModel>;
       };
       return deserializeValidate(v);
     },
     getValidationErrors: () =>
-      createGetValidationErrors<{profile: Static<typeof ProfileModel>; settings: Static<typeof SettingsModel>}>(),
+      createGetValidationErrors<{profile: InferType<typeof ProfileModel>; settings: InferType<typeof SettingsModel>}>(),
     getSamples: () => ({
       valid: [
         {profile: {name: 'abc'}, settings: {theme: 'dark'}},

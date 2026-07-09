@@ -3,7 +3,7 @@
 // `symbol` / `any` / `unknown` / `never` / `void` / `enum` / `class`), the
 // composers (`object` / `array` / `tuple` / `union` / …) and the standard-library
 // utility builders. Each builder returns the generic `RunType<…>` node, so
-// `typeof object({...})` IS the run-type and `Static<typeof …>` recovers its type.
+// `typeof object({...})` IS the run-type and `InferType<typeof …>` recovers its type.
 // Opt-in lane: consumers who want pure type-first reflection never import this.
 //
 // The FORMAT builders (`string` / `number` / `bigInt` / `date` / `email` / … plus
@@ -75,8 +75,8 @@ export {
 } from './utility.ts';
 
 // Type-level composer helpers (in static.ts). The format-builder helpers
-// (`Static` / `BrandArg` / `LeafType` / …) live in runtypes/builderTypes.ts;
-// `Static` is re-exported from the package root.
+// (`InferType` / `BrandArg` / `LeafType` / …) live in runtypes/builderTypes.ts;
+// `InferType` is re-exported from the package root.
 export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate} from './static.ts';
 
 // Run-type registration is per-entry now: the value-first builders' marker

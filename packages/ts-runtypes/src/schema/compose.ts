@@ -38,7 +38,7 @@ import type {RunType} from '../runtypes/types.ts';
 import type {ExactParams} from '../runtypes/builderTypes.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {
-  Static,
+  InferType,
   MapTuple,
   UnionOf,
   IntersectionOf,
@@ -276,7 +276,7 @@ export function self(id?: InjectRunTypeId<Self>): RunType<Self> {
  *  closure to capture the self-reference the way runtime schema libraries do:
  *
  *    const Node = circular(object({value: number(), next: optional(self())}));
- *    type Node = Static<typeof Node>;   // {value: number; next?: Node}
+ *    type Node = InferType<typeof Node>;   // {value: number; next?: Node}
  *
  *  Brands the resolved `Recursive<Body>`, so the scanner reflects an ordinary
  *  recursive type and converges with the type-first form (structural cycle token).
@@ -310,24 +310,24 @@ export function promise<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRun
  *  must be `undefined`, and a top-level function passes a `typeof === 'function'`
  *  gate. The builder exists so those shapes can be authored value-first. **/
 // No-PARAMS form (overloads resolve top-to-bottom, so this is tried FIRST): an
-// empty / omitted param list brands a bare `() => Static<R>`. NOT `(...args: []) => …`
+// empty / omitted param list brands a bare `() => InferType<R>`. NOT `(...args: []) => …`
 // — the empty-tuple rest-spread is reflected by tsgo as a spurious rest parameter,
 // diverging from the written `() => R` and method shorthand. `ret` defaults to `void`.
 export function func<R extends RunType = RunType<void>>(
   params?: CompTimeArgs<readonly []>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<() => Static<R>>
-): RunType<() => Static<R>>;
+  id?: InjectRunTypeId<() => InferType<R>>
+): RunType<() => InferType<R>>;
 export function func<const P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
   params?: CompTimeArgs<P>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<(...args: MapTuple<P>) => Static<R>>
-): RunType<(...args: MapTuple<P>) => Static<R>>;
+  id?: InjectRunTypeId<(...args: MapTuple<P>) => InferType<R>>
+): RunType<(...args: MapTuple<P>) => InferType<R>>;
 export function func<T extends readonly unknown[], R extends RunType = RunType<void>>(
   paramsTuple: CompTimeArgs<RunType<T>>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<(...args: T) => Static<R>>
-): RunType<(...args: T) => Static<R>>;
+  id?: InjectRunTypeId<(...args: T) => InferType<R>>
+): RunType<(...args: T) => InferType<R>>;
 export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType, id?: InjectRunTypeId<unknown>): RunType {
   // An ARRAY first arg is the array form (a list of positional param RunTypes); a
   // RunType OBJECT first arg is the tuple form (a single params-tuple RunType whose
@@ -342,7 +342,7 @@ export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType
  *  call-signature schema (`func(...)`) with an interface's data properties
  *  (`object({...})`): `callable(func([number(), boolean()], string()), object({extra: string()}))`.
  *
- *  The result's Static is `Fn & Props` — TS can't express a single object literal
+ *  The result's InferType is `Fn & Props` — TS can't express a single object literal
  *  carrying a call signature AND mapped props in one type, so the mix is an
  *  intersection; but the Go scanner projects it as an object literal carrying the
  *  call signature + members, and the structural id embeds the call signature, so it
@@ -406,12 +406,12 @@ export function optional<const F>(field: CompTimeArgs<F>): PropModCarrier<{optio
  *  type via `ObjectType<C>`: a bare field is a required + mutable property; a
  *  `propMod({optional?, readonly?}, field)` wrapper places the key (`key?:` /
  *  `readonly key:`). Strips the `const`-capture `readonly` from un-modified keys
- *  and unwraps each field's `RunType<…>` to its type via `FieldOf`/`Static`, so
+ *  and unwraps each field's `RunType<…>` to its type via `FieldOf`/`InferType`, so
  *  leaf builders AND composers (`array`/`tuple`/`union`/`record`/nested `object`)
  *  nest freely.
  *
  *  Like every builder, `object` returns the generic `RunType<ObjectType<C>>`:
- *  `typeof object({...})` is the run-type node, `Static<typeof …>` recovers the
+ *  `typeof object({...})` is the run-type node, `InferType<typeof …>` recovers the
  *  object type, and the value drops straight into `createValidate(...)` or nests
  *  inside another composer. The nested field builders are skipped by the scanner —
  *  the enclosing `object` marker reflects the whole shape. **/

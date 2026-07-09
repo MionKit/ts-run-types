@@ -22,7 +22,7 @@ import * as TF from '../../src/formats/index.ts';
 import * as TFT from '../../src/formats/datetime/temporalFormats.ts';
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId} from '../../src/index.ts';
-import type {RunType, Static} from '../../src/index.ts';
+import type {RunType, InferType} from '../../src/index.ts';
 import * as RT from '../../src/schema/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
@@ -139,11 +139,11 @@ function assertionsValueFirstDefine(): void {
   void _n;
   void _b;
 
-  // `Static<…>` recovers the format type the RunType carries — both
+  // `InferType<…>` recovers the format type the RunType carries — both
   // directions compile only if it resolves EXACTLY to `TF.String<P>` (the
   // no-`infer` indexed-access round-trip).
-  const _rtToFormat = (x: Static<RunType<TF.String<{maxLength: 5}>>>): TF.String<{maxLength: 5}> => x;
-  const _formatToRt = (x: TF.String<{maxLength: 5}>): Static<RunType<TF.String<{maxLength: 5}>>> => x;
+  const _rtToFormat = (x: InferType<RunType<TF.String<{maxLength: 5}>>>): TF.String<{maxLength: 5}> => x;
+  const _formatToRt = (x: TF.String<{maxLength: 5}>): InferType<RunType<TF.String<{maxLength: 5}>>> => x;
   void _rtToFormat;
   void _formatToRt;
 
@@ -287,8 +287,8 @@ function assertionsComposers(): void {
   void _re;
   void _sym;
 
-  // `Static<…>` round-trips a composed type back to its tuple form.
-  const _back = (x: Static<RunType<[boolean, number]>>): [boolean, number] => x;
+  // `InferType<…>` round-trips a composed type back to its tuple form.
+  const _back = (x: InferType<RunType<[boolean, number]>>): [boolean, number] => x;
   void _back;
 
   // @ts-expect-error — `array` takes a RunType schema, not the bare builder fn.
@@ -398,8 +398,8 @@ function assertionsNewBuilders(): void {
   // would reject plain `number` and fail here. A positive annotated assignment
   // alone would NOT catch it (branded ⊆ plain).
   const _tplBuilt = RT.templateLiteral(['api/user/', TF.number()]);
-  const _tplFwd = (x: Static<typeof _tplBuilt>): `api/user/${number}` => x;
-  const _tplRev = (x: `api/user/${number}`): Static<typeof _tplBuilt> => x;
+  const _tplFwd = (x: InferType<typeof _tplBuilt>): `api/user/${number}` => x;
+  const _tplRev = (x: `api/user/${number}`): InferType<typeof _tplBuilt> => x;
   void _tplBuilt;
   void _tplFwd;
   void _tplRev;
@@ -485,30 +485,30 @@ function assertionsComposerExactInference(): void {
   // in the `CompTimeArgs` brand intersection — fails HERE loudly instead of
   // silently degrading the structural id the scanner reads off the brand.
   const _tup = RT.tuple([RT.boolean(), TF.number()]);
-  assertExact<Static<typeof _tup>, [boolean, number]>(true);
+  assertExact<InferType<typeof _tup>, [boolean, number]>(true);
 
   const _tupOpt = RT.tuple([TF.number()], [RT.boolean()]);
-  assertExact<Static<typeof _tupOpt>, [number, boolean?]>(true);
+  assertExact<InferType<typeof _tupOpt>, [number, boolean?]>(true);
 
   const _tupRest = RT.tuple([TF.number()], TF.string());
-  assertExact<Static<typeof _tupRest>, [number, ...string[]]>(true);
+  assertExact<InferType<typeof _tupRest>, [number, ...string[]]>(true);
 
   // func array-overload: the contravariance trap lives here — only an exact
   // check catches a widened param tuple.
   const _fn = RT.func([TF.string(), TF.number()], RT.boolean());
-  assertExact<Static<typeof _fn>, (a: string, b: number) => boolean>(true);
+  assertExact<InferType<typeof _fn>, (a: string, b: number) => boolean>(true);
 
   const _fn0 = RT.func();
-  assertExact<Static<typeof _fn0>, () => void>(true);
+  assertExact<InferType<typeof _fn0>, () => void>(true);
 
   // union keeps its spread `[...T]` (the `[number]` index flattens, so the brand
   // can't widen the member union) — pinned exact to lock that in.
   const _uni = RT.union([RT.boolean(), RT.literal('x')]);
-  assertExact<Static<typeof _uni>, boolean | 'x'>(true);
+  assertExact<InferType<typeof _uni>, boolean | 'x'>(true);
 
   // array: the simple-generic shape stays exact under the brand.
   const _arr = RT.array(RT.boolean());
-  assertExact<Static<typeof _arr>, boolean[]>(true);
+  assertExact<InferType<typeof _arr>, boolean[]>(true);
 
   // Spread composition — split a shared fragment into a `const` and merge it at
   // the call site. TypeScript performs the type-level merge, so the builder
@@ -517,7 +517,7 @@ function assertionsComposerExactInference(): void {
   // in the merged inference fails here.
   const _baseFields = {id: TF.number(), name: TF.string()};
   const _objSpread = RT.object({..._baseFields, active: RT.boolean()});
-  assertExact<Static<typeof _objSpread>, {id: number; name: string; active: boolean}>(true);
+  assertExact<InferType<typeof _objSpread>, {id: number; name: string; active: boolean}>(true);
 
   // tuple / union spread: the operand must be a TUPLE (`as const` / const-
   // inferred) — spreading a tuple preserves per-slot precision, whereas
@@ -525,11 +525,11 @@ function assertionsComposerExactInference(): void {
   // pin the tuple-operand path that keeps the exact per-slot / per-member types.
   const _tupleParts = [TF.number(), RT.boolean()] as const;
   const _tupSpread = RT.tuple([..._tupleParts, TF.string()]);
-  assertExact<Static<typeof _tupSpread>, [number, boolean, string]>(true);
+  assertExact<InferType<typeof _tupSpread>, [number, boolean, string]>(true);
 
   const _unionParts = [TF.string(), TF.number()] as const;
   const _uniSpread = RT.union([..._unionParts, RT.boolean()]);
-  assertExact<Static<typeof _uniSpread>, string | number | boolean>(true);
+  assertExact<InferType<typeof _uniSpread>, string | number | boolean>(true);
 }
 
 // Value-first leaf branding — the `string` / `number` / `bigint` / `date`
@@ -539,7 +539,7 @@ function assertionsComposerExactInference(): void {
 //
 // Asserted by assignability (+ `@ts-expect-error` for the nominal rejections)
 // rather than `assertExact`: the `const P` capture adds a `readonly` modifier to
-// the params, so the value-first `Static<…>` differs from the type-first alias by
+// the params, so the value-first `InferType<…>` differs from the type-first alias by
 // `readonly` only — id-irrelevant (the scanner canonicalises params), but enough
 // to fail exact equality. Mutual assignability is `readonly`-tolerant and still
 // proves the two authoring paths converge on one interchangeable type; the
@@ -549,22 +549,22 @@ function assertionsValueFirstBranding(): void {
   // DEFAULT (no brand tag) → TRANSPARENT: base value flows in AND out, and the
   // leaf is mutually assignable with the UNbranded type-first alias (convergence).
   const codeStr = TF.string({minLength: 1});
-  const _strIn: Static<typeof codeStr> = 'hello';
+  const _strIn: InferType<typeof codeStr> = 'hello';
   const _strOut: string = _strIn;
   const _vfToTypeFirst: TF.String<{minLength: 1}> = _strIn; // value-first → type-first
-  const _typeFirstToVf: Static<typeof codeStr> = _vfToTypeFirst; // type-first → value-first
+  const _typeFirstToVf: InferType<typeof codeStr> = _vfToTypeFirst; // type-first → value-first
   void _strIn;
   void _strOut;
   void _vfToTypeFirst;
   void _typeFirstToVf;
 
   const createdAt = TF.date({max: 'now'});
-  const _dateIn: Static<typeof createdAt> = new Date(); // transparent: plain Date flows in
+  const _dateIn: InferType<typeof createdAt> = new Date(); // transparent: plain Date flows in
   const _dateVfToTf: TF.Date<{max: 'now'}> = _dateIn;
   const numLeaf = TF.number({min: 0});
   const bigLeaf = TF.bigInt({min: 0n});
-  const _numIn: Static<typeof numLeaf> = 42; // number leaf transparent
-  const _bigIn: Static<typeof bigLeaf> = 0n; // bigint leaf transparent
+  const _numIn: InferType<typeof numLeaf> = 42; // number leaf transparent
+  const _bigIn: InferType<typeof bigLeaf> = 0n; // bigint leaf transparent
   void _dateIn;
   void _dateVfToTf;
   void _numIn;
@@ -579,13 +579,13 @@ function assertionsValueFirstBranding(): void {
   const balanceBrand = TF.bigInt({min: 0n}, TF.brand('Balance'));
   const createdBrand = TF.date({max: 'now'}, TF.brand('CreatedAt'));
   // @ts-expect-error — nominal: a plain string is not assignable to a branded string leaf.
-  const _brandedStr: Static<typeof userId> = 'hello';
+  const _brandedStr: InferType<typeof userId> = 'hello';
   // @ts-expect-error — nominal: a plain number is not assignable to a branded number leaf.
-  const _brandedNum: Static<typeof ageBrand> = 42;
+  const _brandedNum: InferType<typeof ageBrand> = 42;
   // @ts-expect-error — nominal: a plain bigint is not assignable to a branded bigint leaf.
-  const _brandedBig: Static<typeof balanceBrand> = 0n;
+  const _brandedBig: InferType<typeof balanceBrand> = 0n;
   // @ts-expect-error — nominal: a plain Date is not assignable to a branded date leaf.
-  const _brandedDate: Static<typeof createdBrand> = new Date();
+  const _brandedDate: InferType<typeof createdBrand> = new Date();
   void _brandedStr;
   void _brandedNum;
   void _brandedBig;
@@ -593,9 +593,9 @@ function assertionsValueFirstBranding(): void {
 
   // The branded leaf converges with the type-first `Format*<P, 'UserId'>` (mutually
   // assignable) and still flows OUT to the unbranded form + base (brand = refinement).
-  const _brandFlows = (b: Static<typeof userId>): void => {
+  const _brandFlows = (b: InferType<typeof userId>): void => {
     const _toTypeFirstBranded: TF.String<{minLength: 1}, 'UserId'> = b;
-    const _backToVf: Static<typeof userId> = _toTypeFirstBranded;
+    const _backToVf: InferType<typeof userId> = _toTypeFirstBranded;
     const _toUnbranded: TF.String<{minLength: 1}> = b;
     const _toBase: string = b;
     void _toTypeFirstBranded;

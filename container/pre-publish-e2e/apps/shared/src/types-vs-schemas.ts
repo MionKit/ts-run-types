@@ -1,8 +1,8 @@
 // Family 2 — Types ⇄ Schemas duality. Mirrors guide/types-vs-schemas-*.ts.
 // A plain type and the value-first RT.* schema builder resolve to the SAME
-// validator, and Static<typeof schema> recovers the TypeScript type.
+// validator, and InferType<typeof schema> recovers the TypeScript type.
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type Static} from '@ts-runtypes/core';
+import {createValidate, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {type CheckResult, ok} from './check';
 
@@ -24,8 +24,8 @@ export const productSchema = RT.object({
 });
 export const isProductSchemaFirst = createValidate(productSchema);
 
-// Static maps the schema value back to a usable TypeScript type.
-export type ProductFromSchema = Static<typeof productSchema>;
+// InferType maps the schema value back to a usable TypeScript type.
+export type ProductFromSchema = InferType<typeof productSchema>;
 const home: ProductFromSchema = {id: 1, name: 'Widget', tags: ['a'], status: 'live'};
 
 export function checkTypesVsSchemas(): CheckResult[] {
@@ -39,6 +39,6 @@ export function checkTypesVsSchemas(): CheckResult[] {
     // for both a good and a bad value — the type ⇄ schema duality.
     ok('duality: type-first and schema-first validators agree (good)', isProductTypeFirst(good) === isProductSchemaFirst(good)),
     ok('duality: type-first and schema-first validators agree (bad)', isProductTypeFirst(bad) === isProductSchemaFirst(bad)),
-    ok('duality: Static<typeof schema> is a usable type', home.status === 'live'),
+    ok('duality: InferType<typeof schema> is a usable type', home.status === 'live'),
   ];
 }

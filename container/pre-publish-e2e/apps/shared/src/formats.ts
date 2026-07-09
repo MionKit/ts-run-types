@@ -2,7 +2,7 @@
 // custom-format-pattern.ts. Named formats, the custom-param escape hatch, a
 // registered reusable pattern, and schema-first format builders.
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, registerFormatPattern, type Static} from '@ts-runtypes/core';
+import {createValidate, registerFormatPattern, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {type CheckResult, ok} from './check';
 
@@ -33,7 +33,7 @@ export const isPost = createValidate<Post>();
 
 // Schema-first format builders.
 export const accountSchema = RT.object({id: TF.uuidv4(), email: TF.email(), age: TF.int32(), credits: TF.positive()});
-export type FormatAccount = Static<typeof accountSchema>;
+export type FormatAccount = InferType<typeof accountSchema>;
 export const isFormatAccount = createValidate(accountSchema);
 
 export function checkFormats(): CheckResult[] {

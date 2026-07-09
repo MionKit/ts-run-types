@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type Static} from '@ts-runtypes/core';
+import {createValidate, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 // Prefer schemas? Describe the same shape with the RT.* builders (Zod / TypeBox style).
@@ -14,4 +14,4 @@ const userSchema = RT.object({
 const isUser = createValidate(userSchema);
 
 // Recover the TypeScript type from the schema whenever you need it.
-type User = Static<typeof userSchema>;
+type User = InferType<typeof userSchema>;

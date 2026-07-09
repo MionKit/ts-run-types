@@ -1,6 +1,6 @@
 // The value-first surface's COMPOSER type channel — the type-level helpers the
 // structural builders (compose.ts / utility.ts) carry. The format-builder type
-// helpers (`Static`, `LeafType`, `BrandArg`, the temporal lookups) moved to
+// helpers (`InferType`, `LeafType`, `BrandArg`, the temporal lookups) moved to
 // runtypes/builderTypes.ts so the format builders under `formats/` and the
 // composers here can share them without a cross-surface dependency; they're
 // re-exported below so existing `./static.ts` importers keep resolving. No `infer`
@@ -8,13 +8,13 @@
 // indexed-access read.
 
 import type {RunType} from '../runtypes/types.ts';
-import type {Static} from '../runtypes/builderTypes.ts';
+import type {InferType} from '../runtypes/builderTypes.ts';
 
 // Format-builder type helpers — moved to runtypes/builderTypes.ts; re-exported so
 // the schema barrel and the sibling builder files keep their `./static.ts` import
 // paths through the formats split.
 export type {
-  Static,
+  InferType,
   LeafType,
   LeafTypeByFormatName,
   LeafFormatName,
@@ -46,10 +46,10 @@ export interface PropModCarrier<M extends PropModifiers, F> {
 
 // object's per-field readers — all INDEXED ACCESS / structural guards, no `infer`.
 /** The branded field type a value carries. Leaf builders return `RunType<…>`, so
- *  `Static` unwraps either the `__field` inside a `propMod` carrier (itself a
+ *  `InferType` unwraps either the `__field` inside a `propMod` carrier (itself a
  *  `RunType<…>`) or a bare `RunType<…>` back to the format type the property should
  *  hold. **/
-export type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} ? Static<V['__field']> : Static<V>;
+export type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} ? InferType<V['__field']> : InferType<V>;
 /** Whether a value carries the `optional` / `readonly` property modifier. **/
 export type IsOptional<V> = V extends {__propMod: {optional: true}} ? true : false;
 export type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : false;
@@ -112,9 +112,9 @@ export type ObjectType<C> =
  *  `readonly` that `const T` inference adds at the variadic composer call sites
  *  (`tuple` / `func`), so a fixed-tuple return is mutable `[A, B]` and converges
  *  with the type-first tuple. **/
-export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: Static<T[K]>};
+export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: InferType<T[K]>};
 
-/** The union of the `Static` types of a RunType tuple, built RECURSIVELY so EACH
+/** The union of the `InferType` types of a RunType tuple, built RECURSIVELY so EACH
  *  member survives as a distinct arm. The obvious non-recursive form
  *  `MapTuple<T>[number]` is subtype-REDUCED by tsgo — a subset arm swallows its
  *  superset (`{a} | {a; b}` → `{a}`) — so it diverges from the written
@@ -131,11 +131,11 @@ export type UnionOf<T extends readonly RunType[]> = T extends readonly [
   infer Head extends RunType,
   ...infer Tail extends readonly RunType[],
 ]
-  ? Static<Head> | UnionOf<Tail>
+  ? InferType<Head> | UnionOf<Tail>
   : never;
 
-/** The intersection of the `Static` types of a RunType tuple, built recursively
- *  (`Static<Head> & IntersectionOf<Tail>`), terminating at `unknown` — the identity
+/** The intersection of the `InferType` types of a RunType tuple, built recursively
+ *  (`InferType<Head> & IntersectionOf<Tail>`), terminating at `unknown` — the identity
  *  of `&` (`X & unknown = X`). The array-form `intersection` fallback brands this for
  *  9+ members (the positional overloads can't carry a trailing injected id past a
  *  rest). Same recursive-`infer` perf caveat as `UnionOf`, reached only past the
@@ -144,7 +144,7 @@ export type IntersectionOf<T extends readonly RunType[]> = T extends readonly [
   infer Head extends RunType,
   ...infer Tail extends readonly RunType[],
 ]
-  ? Static<Head> & IntersectionOf<Tail>
+  ? InferType<Head> & IntersectionOf<Tail>
   : unknown;
 
 /** A template-literal part: a string-literal segment or a `RunType` placeholder. **/
@@ -175,7 +175,7 @@ type Unbrand<X> = '__rtFormatName' extends keyof X
         ? bigint
         : X & Interpolatable
   : X & Interpolatable;
-type PartText<Part extends TemplatePart> = Part extends RunType ? Unbrand<Static<Part>> : Part & Interpolatable;
+type PartText<Part extends TemplatePart> = Part extends RunType ? Unbrand<InferType<Part>> : Part & Interpolatable;
 
 /** Folds a parts tuple into the template-literal type it denotes:
  *  `['api/user/', RunType<number>]` → `` `api/user/${number}` ``. Recursion over

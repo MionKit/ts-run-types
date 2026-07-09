@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type Static} from '@ts-runtypes/core';
+import {createValidate, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 type Point = {x: number; y: number};
@@ -18,7 +18,7 @@ const isPointC = createValidate(pointSchema);
 // end-forms
 
 // All three resolve to the same generated validator.
-type PointFromSchema = Static<typeof pointSchema>;
+type PointFromSchema = InferType<typeof pointSchema>;
 
 export {isPointA, isPointB, isPointC};
 export type {PointFromSchema};

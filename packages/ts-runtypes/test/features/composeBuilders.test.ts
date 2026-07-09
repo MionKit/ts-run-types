@@ -162,7 +162,7 @@ describe('leaf builders — literal / regexp', () => {
   });
 });
 
-describe('compose builders — null member survives composition (Static carrier)', () => {
+describe('compose builders — null member survives composition (InferType carrier)', () => {
   // Regression: a bare-`T` carrier + `NonNullable` collapsed `literal(null)` to
   // `never`, silently dropping the null arm/slot/prop from union/tuple/object.
   it('union keeps the literal(null) arm and converges', () => {

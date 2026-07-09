@@ -13,7 +13,7 @@
 // shapes (static `getRunTypeId<T>()` and reflection `getRunTypeId(value)`) and
 // asserts hash equivalence between them.
 import {describe, expect, test} from 'vitest';
-import {createValidate, createJsonEncoder, getRunTypeId, type Static} from '@ts-runtypes/core';
+import {createValidate, createJsonEncoder, getRunTypeId, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
 import '@ts-runtypes/core/formats';
@@ -30,7 +30,7 @@ describe('CompTimeArgs spread — builders', () => {
     // a plain `{id: number}` and no builders). Reflect-first sidesteps it.
     const value = {id: 1, name: 'a', active: true};
     const reflectId = getRunTypeId(value); // reflection form (T inferred from value)
-    const spreadId = getRunTypeId<Static<typeof spreadModel>>(); // static form
+    const spreadId = getRunTypeId<InferType<typeof spreadModel>>(); // static form
     const directId = getRunTypeId<{id: number; name: string; active: boolean}>();
 
     expect(reflectId).toBe(spreadId); // the two call shapes converge on one id
@@ -40,7 +40,7 @@ describe('CompTimeArgs spread — builders', () => {
   test('object spread produces a validator over the full merged shape', () => {
     const base = {id: TF.number(), name: TF.string()};
     const User = RT.object({...base, active: RT.boolean()});
-    const isUser = createValidate<Static<typeof User>>();
+    const isUser = createValidate<InferType<typeof User>>();
 
     expect(isUser({id: 1, name: 'a', active: true})).toBe(true);
     expect(isUser({id: 1, name: 'a'})).toBe(false); // missing the inline field
@@ -51,7 +51,7 @@ describe('CompTimeArgs spread — builders', () => {
   test('tuple spread validates each merged slot', () => {
     const head = [TF.number(), TF.string()] as const;
     const Tup = RT.tuple([...head, RT.boolean()]);
-    const isTup = createValidate<Static<typeof Tup>>();
+    const isTup = createValidate<InferType<typeof Tup>>();
 
     expect(isTup([1, 'a', true])).toBe(true);
     expect(isTup([1, 'a', 'not-bool'])).toBe(false); // wrong type in the inline slot
