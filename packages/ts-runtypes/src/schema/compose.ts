@@ -35,6 +35,7 @@
 
 import {builderResult} from '../runtypes/builderCore.ts';
 import type {RunType} from '../runtypes/types.ts';
+import type {ExactParams} from '../runtypes/builderTypes.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {
   Static,
@@ -388,7 +389,7 @@ export function templateLiteral<const P extends readonly TemplatePart[]>(
  *  true}, number())`, or both. A bare `propMod(...)` is only meaningful as a
  *  field inside `object(...)`. **/
 export function propMod<const M extends PropModifiers, const F>(
-  modifiers: CompTimeArgs<M>,
+  modifiers: CompTimeArgs<ExactParams<M, PropModifiers>>,
   field: CompTimeArgs<F>
 ): PropModCarrier<M, F> {
   return {__propMod: modifiers, __field: field};

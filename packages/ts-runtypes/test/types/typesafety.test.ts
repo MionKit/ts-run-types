@@ -32,6 +32,7 @@ test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsAcceptAny).toBe('function');
   expect(typeof assertionsAcceptUnknown).toBe('function');
   expect(typeof assertionsValueFirstDefine).toBe('function');
+  expect(typeof assertionsExactParams).toBe('function');
   expect(typeof assertionsComposers).toBe('function');
   expect(typeof assertionsNewBuilders).toBe('function');
   expect(typeof assertionsComposerExactInference).toBe('function');
@@ -185,6 +186,70 @@ function assertionsValueFirstDefine(): void {
   // @ts-expect-error — a temporal builder's only params are min/max/gt/lt; a
   // string param (`maxLength`) is rejected.
   TFT.instant({maxLength: 5});
+}
+
+// Exact-params regression — each format / TypeFormat builder must reject a param
+// key that isn't in its family's params interface, EVEN when a valid key is also
+// present. A bare `<const P extends XParams>` constraint does NOT catch this: an
+// object literal with one valid + one excess key satisfies the constraint
+// structurally, so excess-property checking never fires and the typo silently
+// widens the accepted params. `ExactParams<P, XParams>` (folded inside the
+// `CompTimeArgs<…>` type arg, builderTypes.ts) closes the hole by resolving every
+// excess key to `never`. Strong param typing is a core reason to author with
+// schemas instead of hand-written types, so these guard against a regression that
+// would quietly re-open the gap. Each `@ts-expect-error` pins a rejection; a
+// regression that makes the line compile surfaces as TS2578 "unused directive".
+function assertionsExactParams(): void {
+  // Valid params (single OR multiple valid keys) still compile — no directive.
+  const _okNum = TF.number({min: 0, max: 100, lt: 50, integer: true});
+  const _okStr = TF.string({minLength: 1, maxLength: 50, trim: true});
+  const _okBig = TF.bigInt({min: 0n, max: 1000n});
+  const _okDate = TF.date({min: 'now', max: '2030-01-01T00:00:00'});
+  const _okTemporal = TFT.instant({min: 'now', max: 'now'});
+  const _okAlpha = TF.alpha({maxLength: 3});
+  void _okNum;
+  void _okStr;
+  void _okBig;
+  void _okDate;
+  void _okTemporal;
+  void _okAlpha;
+
+  // A single misspelled key (all keys unknown) is caught by plain excess-property
+  // checking — the constraint's baseline. Kept so a change that loses even this
+  // weaker guard is visible.
+  // @ts-expect-error — `minn` is a typo for `min`; no such number param.
+  TF.number({minn: 0});
+
+  // The REGRESSION-CRITICAL cases: an excess / misspelled key alongside a VALID
+  // key. Without `ExactParams` these compiled (the excess key was silently
+  // swallowed and its constraint dropped). Each must now error.
+
+  // @ts-expect-error — `mn` (typo for `max`) is not a number param, even with a valid `min`.
+  TF.number({min: 0, mn: 100});
+  // @ts-expect-error — `bogus` is not a number param.
+  TF.number({lt: 100, bogus: 5});
+  // @ts-expect-error — `maxLenght` (typo) is not a string param, even with a valid `minLength`.
+  TF.string({minLength: 1, maxLenght: 50});
+  // @ts-expect-error — `trimm` (typo for `trim`) is not a string param.
+  TF.string({maxLength: 5, trimm: true});
+  // @ts-expect-error — `mx` (typo for `max`) is not a bigint param.
+  TF.bigInt({min: 0n, mx: 10n});
+  // @ts-expect-error — `maxx` (typo) is not a date param.
+  TF.date({min: 'now', maxx: 'now'});
+  // @ts-expect-error — `gtt` (typo for `gt`) is not a temporal param.
+  TFT.instant({min: 'now', gtt: 'now'});
+  // @ts-expect-error — `maxLenght` (typo) is not a valid `alpha` string param.
+  TF.alpha({minLength: 1, maxLenght: 3});
+
+  // A branded call (params + `brand(...)`) keeps the same exactness — the excess
+  // key errors even in the two-arg overload.
+  // @ts-expect-error — `bogus` is not a number param (branded overload).
+  TF.number({min: 0, bogus: 1}, TF.brand('Age'));
+
+  // `propMod`'s modifier bag is exact too — a misspelled modifier no longer slips
+  // through and silently fails to apply.
+  // @ts-expect-error — `optionl` is a typo for `optional`; not a valid modifier.
+  RT.propMod({optionl: true}, TF.string({maxLength: 8}));
 }
 
 function assertionsComposers(): void {

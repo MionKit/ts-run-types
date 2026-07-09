@@ -79,6 +79,20 @@ export interface LeafTypeByFormatName<P extends object, BrandName extends string
 /** Every leaf format brand name (the keys of `LeafTypeByFormatName`). **/
 export type LeafFormatName = keyof LeafTypeByFormatName<Record<string, never>>;
 
+/** Exact-params guard — keeps a format builder's `formatParams` STRONGLY typed by
+ *  rejecting any key of `P` that isn't declared in the family's `Allowed` params
+ *  interface. A generic `<const P extends Allowed>` alone does NOT reject excess
+ *  keys once a valid key is also present (excess-property checking doesn't fire on
+ *  constraint satisfaction), so `number({min: 0, mn: 100})` — a `max` typo — would
+ *  otherwise compile and silently drop the constraint. Folding `Record<Exclude<…>,
+ *  never>` in forces every excess key to `never`, so it errors instead. It is
+ *  wrapped INSIDE the `CompTimeArgs<…>` type argument (never intersected onto the
+ *  parameter annotation) so the annotation stays a single `CompTimeArgs<…>`
+ *  reference the Go scanner detects syntactically. Transparent when `P` has no
+ *  excess key (`Record<never, never>` is `{}`, so `P & {}` is `P`), so `P` — and
+ *  the reflected type / structural id read off it — is unchanged. **/
+export type ExactParams<P, Allowed> = P & Record<Exclude<keyof P, keyof Allowed>, never>;
+
 /** The branded leaf type for a format `Name` with params `P` and optional nominal
  *  `BrandName` — the builders' carried `RunType<…>` type and the type the scanner
  *  reflects off the brand. `BrandName` defaults to `never` (no brand): an unbranded
@@ -141,7 +155,7 @@ export interface TemporalBaseByTag {
 export interface TemporalBuilderFn<Tag extends keyof TemporalFormatByTag<MinMax>> {
   (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>): RunType<TemporalBaseByTag[Tag]>;
   <const P extends MinMax>(
-    formatParams: CompTimeArgs<P>,
+    formatParams: CompTimeArgs<ExactParams<P, MinMax>>,
     id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
   ): RunType<TemporalFormatByTag<P>[Tag]>;
 }
