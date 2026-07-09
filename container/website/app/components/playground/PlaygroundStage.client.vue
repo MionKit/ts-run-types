@@ -36,6 +36,15 @@ import {
   type ResolverOptions,
 } from '../../playground/index.ts';
 import {PRESETS, type Preset} from '../../playground/presets.ts';
+// Monaco's language services (TypeScript completions, hovers, signature help) run
+// inside web workers. Vite's `?worker` suffix bundles each entry as its own worker
+// chunk and hands back a constructor - the canonical way to wire Monaco under Vite.
+// Static imports are safe here: this is a `.client.vue` component (never SSR'd) and
+// the worker code lands in separate chunks, so the main Monaco module still
+// lazy-loads. The previous empty-blob stub kept the editor rendering but left the
+// TS worker mute, so autocomplete never appeared; these give it a real worker.
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 
 type Monaco = typeof import('monaco-editor');
 type Editor = import('monaco-editor').editor.IStandaloneCodeEditor;
@@ -253,8 +262,13 @@ function ensureMonacoWorkers(): void {
   const scope = globalThis as unknown as {MonacoEnvironment?: unknown};
   if (scope.MonacoEnvironment) return;
   scope.MonacoEnvironment = {
-    getWorker(): Worker {
-      return new Worker(URL.createObjectURL(new Blob([''], {type: 'application/javascript'})));
+    // Hand Monaco the language-service worker matching the requested label: the
+    // TypeScript worker (also serves 'javascript') powers completions / hovers /
+    // signature help; the base editor worker handles everything else. Anything
+    // but a real worker here silently disables IntelliSense.
+    getWorker(_workerId: string, label: string): Worker {
+      if (label === 'typescript' || label === 'javascript') return new TsWorker();
+      return new EditorWorker();
     },
   };
 }

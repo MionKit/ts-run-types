@@ -55,8 +55,9 @@ export default defineNuxtConfig({
         { find: /^@ts-runtypes\/core$/, replacement: `${rtDist}/index.js` }
       ]
     },
-    // Monaco is loaded lazily (client-only) with a no-op worker stub, so Vite must
-    // not pre-bundle it (its optional worker entry points break optimizeDeps).
+    // Monaco is loaded lazily (client-only); its language-service workers are wired
+    // via Vite's `?worker` imports in PlaygroundStage.client.vue. Keep it out of
+    // dep pre-bundling - its optional worker entry points break optimizeDeps.
     optimizeDeps: { exclude: ['monaco-editor'] }
   },
   nitro: {

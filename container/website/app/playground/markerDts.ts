@@ -49,19 +49,29 @@ const FORMATS: FormatEntry[] = [
   {alias: 'PositiveInt', builder: 'positiveInt', base: 'number', name: 'numberFormat', params: {min: 0, integer: true}},
 ];
 
-// A loose `ts-runtypes/formats` module for the in-editor type checker (Monaco):
-// each format alias is just its base type and each builder returns `any`. The
-// RESOLVER type-checks against the REAL ts-runtypes sources (packageSources.ts),
-// which carry the precise format brands; the editor only needs the names to
-// resolve so a user's `import { Email } from '@ts-runtypes/core/formats'` doesn't error.
+// A `ts-runtypes/formats` module for the in-editor type checker (Monaco): each
+// format alias is its base type; the fixed-preset builders (email / uuidv4 / … )
+// return `any`; and the PARAMETERISED scalar builders (string / number / bigInt /
+// date / currency) carry their param bag so typing `number({ ` autocompletes the
+// constraints (min / max / lt / …) — the strongly-typed-params feature, surfaced
+// in the playground. The param interfaces MIRROR the real ones
+// (packages/ts-runtypes/src/formats/**); the RESOLVER still type-checks against the
+// real sources (packageSources.ts), so these only drive the completion popup.
 export function formatsEditorModule(): string {
   const aliases = FORMATS.map((f) => `  export type ${f.alias} = ${f.base};`).join('\n');
   const builders = FORMATS.map((f) => `  export function ${f.builder}(): any;`).join('\n');
   return [
     `declare module '@ts-runtypes/core/formats' {`,
+    `  interface NumberParams { integer?: boolean; float?: boolean; min?: number; max?: number; lt?: number; gt?: number; multipleOf?: number; isCurrency?: boolean; }`,
+    `  interface StringParams { minLength?: number; maxLength?: number; length?: number; trim?: boolean; lowercase?: boolean; uppercase?: boolean; capitalize?: boolean; pattern?: { source: string; flags?: string; mockSamples: readonly string[] }; }`,
+    `  interface BigIntParams { min?: bigint; max?: bigint; lt?: bigint; gt?: bigint; multipleOf?: bigint; }`,
+    `  interface DateBoundParams { min?: string; max?: string; gt?: string; lt?: string; }`,
     aliases,
-    `  export function string(): any;`,
-    `  export function number(): any;`,
+    `  export function string(params?: StringParams): any;`,
+    `  export function number(params?: NumberParams): any;`,
+    `  export function currency(params?: NumberParams): any;`,
+    `  export function bigInt(params?: BigIntParams): any;`,
+    `  export function date(params?: DateBoundParams): any;`,
     `  export function boolean(): any;`,
     builders,
     `}`,
