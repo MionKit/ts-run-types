@@ -61,6 +61,7 @@ export const REGISTRY = [
   // — image source toggles (opt out of the GHCR pull; build/use a local image) —
   {name: 'RT_WEBSITE_USE_LOCAL', scope: 'dev', task: '-', desc: 'Build the shared image locally instead of pulling from GHCR'},
   {name: 'RT_BENCH_USE_LOCAL', scope: 'dev', task: '-', desc: 'Build the shared image locally for benchmark runs'},
+  {name: 'RT_SETUP_SKIP_E2E', scope: 'dev', task: '-', desc: 'Skip pulling the pre-publish e2e image in scripts/setup-claude-web.sh (default 0; the image is large)'},
 
   // — docs website knobs (scripts/website/site.mjs, scripts/container/image.mjs) —
   {name: 'RT_WEBSITE_ENGINE', scope: 'dev', task: '-', desc: 'Container engine (default podman)'},

@@ -417,23 +417,55 @@ neutralize_placeholder_env() {
 #     private tsrt-website image instead of rebuilding it. Login is auth only - it
 #     pulls nothing, so it stays within the setup time budget.
 # -----------------------------------------------------------------------------
+GHCR_LOGGED_IN=0
 ghcr_login() {
   local reg="${GHCR_REGISTRY:-ghcr.io}" owner="${GHCR_OWNER:-mionkit}" user="${GHCR_USER:-}"
-  bold "GHCR login (private image $reg/$owner/tsrt-website)"
+  bold "GHCR login (private images $reg/$owner/tsrt-website + tsrt-e2e)"
   if [ "$CHECK_ONLY" = 1 ]; then
-    [ -n "${GHCR_PAT:-}" ] && ok "GHCR_PAT present - login would run" || warn "GHCR_PAT not set - image would build locally on demand"
+    [ -n "${GHCR_PAT:-}" ] && ok "GHCR_PAT present - login would run" || warn "GHCR_PAT not set - images would build locally on demand"
     return 0
   fi
-  [ -n "${GHCR_PAT:-}" ] || { warn "GHCR_PAT not set - skipping login (image would build locally on demand)"; return 0; }
+  [ -n "${GHCR_PAT:-}" ] || { warn "GHCR_PAT not set - skipping login (images would build locally on demand)"; return 0; }
   command -v podman >/dev/null 2>&1 || { warn "podman missing - skipping GHCR login"; return 0; }
   if printf '%s' "$GHCR_PAT" | podman login "$reg" -u "${user:-x-access-token}" --password-stdin >/dev/null 2>&1; then
     ok "logged in to $reg as ${user:-x-access-token}"
+    GHCR_LOGGED_IN=1
   else
-    warn "GHCR login failed (check GHCR_PAT / egress policy) - image would build locally on demand"
+    warn "GHCR login failed (check GHCR_PAT / egress policy) - images would build locally on demand"
   fi
-  # NOTE: PULLING the image also needs the egress policy to allow the GHCR blob
+  # NOTE: PULLING an image also needs the egress policy to allow the GHCR blob
   # host pkg-containers.githubusercontent.com; auth + manifest via $reg alone are
   # not sufficient. That is a network-policy matter, outside this script.
+}
+
+# -----------------------------------------------------------------------------
+# 11b. Pull the pre-publish e2e image (verdaccio + the multi-bundler builder
+#      toolchains) so `pnpm rtx release e2e` has it ready. Unlike the website
+#      image (pulled on demand by the docs/bench lanes), the e2e image is only
+#      pulled here because the pre-publish gate needs it up front. Best-effort:
+#      a failed/blocked pull only warns (the e2e lane rebuilds locally on
+#      demand), so a restricted egress policy never fails setup. The image is
+#      large, so this can exceed the tight setup budget; set RT_SETUP_SKIP_E2E=1
+#      to skip. Coordinates are duplicated from scripts/container/image.mjs on
+#      purpose - this script MUST stay self-contained (see the banner below).
+# -----------------------------------------------------------------------------
+pull_e2e_image() {
+  local reg="${GHCR_REGISTRY:-ghcr.io}" owner="${GHCR_OWNER:-mionkit}"
+  local ref="$reg/$owner/tsrt-e2e:latest" local_img="tsrt-e2e:dev"
+  bold "GHCR pull (pre-publish e2e image $ref)"
+  if [ "${RT_SETUP_SKIP_E2E:-0}" = 1 ]; then note "RT_SETUP_SKIP_E2E=1 - skipping e2e image pull"; return 0; fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    { [ -n "${GHCR_PAT:-}" ] && command -v podman >/dev/null 2>&1; } \
+      && ok "would pull $ref -> $local_img" || warn "GHCR_PAT / podman missing - e2e image would build locally on demand"
+    return 0
+  fi
+  command -v podman >/dev/null 2>&1 || { warn "podman missing - skipping e2e image pull"; return 0; }
+  [ "$GHCR_LOGGED_IN" = 1 ] || { warn "not logged in to GHCR - skipping e2e image pull (e2e lane rebuilds on demand)"; return 0; }
+  if podman pull "$ref" >/dev/null 2>&1 && podman tag "$ref" "$local_img" >/dev/null 2>&1; then
+    ok "pulled $ref -> $local_img"
+  else
+    warn "e2e image pull failed (egress policy may block pkg-containers.githubusercontent.com) - e2e lane rebuilds on demand"
+  fi
 }
 
 main() {
@@ -471,6 +503,7 @@ main() {
   build_devtools
   neutralize_placeholder_env
   ghcr_login
+  pull_e2e_image
 
   bold "Ready. Verify / work from the repo root (this setup ran no tests):"
   echo "  pnpm rtx --help         # the internal dev/website/bench/publish CLI"
