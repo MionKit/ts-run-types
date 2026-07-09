@@ -13,7 +13,7 @@
 //   - 'not-supported'    → " (not supported)";   assert silently early-returns
 
 import {expect} from 'vitest';
-import {runTypeErrorsToIssues, createFriendly} from '@ts-runtypes/core';
+import {runTypeErrorsToIssues, createFriendlyText} from '@ts-runtypes/core';
 import type {RTValidationError} from '@ts-runtypes/core';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
@@ -381,7 +381,7 @@ function runMockPass(c: AssertableCase, mockFn: () => unknown, label: string): v
   }
 }
 
-/** Static form: createMockType<T>(). **/
+/** Static form: createMockData<T>(). **/
 export function assertMockTypeStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.mockType);
   if (!factory) return;
@@ -394,7 +394,7 @@ export function assertMockTypeStatic(c: AssertableCase): void {
   runMockPass(c, factory(), 'static');
 }
 
-/** Reflect form: createMockType(value). **/
+/** Reflect form: createMockData(value). **/
 export function assertMockTypeReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.mockTypeReflect);
   if (!factory) return;
@@ -572,18 +572,18 @@ export function assertStandardSchema(c: AssertableCase): void {
 }
 
 // =========================================================================
-// Friendly renderer coverage — createFriendly().errors()
+// Friendly renderer coverage — createFriendlyText().errors()
 // =========================================================================
 
 /** The `failed` roles a Map / Set entry segment may carry. */
 const FRIENDLY_FAILED_ROLES = new Set(['mapKey', 'mapValue', 'setKey']);
 
-/** Every path-segment shape `createFriendly`'s descend() can route: an object
+/** Every path-segment shape `createFriendlyText`'s descend() can route: an object
  *  field (string), an array / tuple index (number), or a Map / Set entry
  *  ({key: number, failed?}). A segment outside this set would dead-end in
  *  descend — the bug class that silently broke Map/Set and tuple rendering — so
  *  this guard fails loudly if the validator ever emits a new path-segment shape
- *  without createFriendly being taught to route it. **/
+ *  without createFriendlyText being taught to route it. **/
 function assertFriendlySegment(seg: unknown, ctx: string): void {
   if (typeof seg === 'string' || typeof seg === 'number') return;
   if (seg && typeof seg === 'object') {
@@ -592,17 +592,17 @@ function assertFriendlySegment(seg: unknown, ctx: string): void {
     if (typeof key === 'number' && okFailed) return;
   }
   throw new Error(
-    `${ctx}: unhandled friendly path segment ${safeStringify(seg)} — createFriendly.descend would dead-end; teach it this shape.`
+    `${ctx}: unhandled friendly path segment ${safeStringify(seg)} — createFriendlyText.descend would dead-end; teach it this shape.`
   );
 }
 
 /** Suite-wide guard that EVERY type renders a friendly error. Runs the case's
  *  real `getValidationErrors` over each INVALID sample and checks the renderer
  *  copes with the output: (1) every path segment is a shape descend() routes
- *  (the census above), and (2) `createFriendly` emits exactly one non-empty
+ *  (the census above), and (2) `createFriendlyText` emits exactly one non-empty
  *  message per error, with a string path, without throwing. Routing CORRECTNESS
  *  per category (object → field, array → rt$items, tuple → rt$slots, Map/Set →
- *  rt$keys/rt$values) is pinned in createFriendly.test.ts; this is the cross-suite
+ *  rt$keys/rt$values) is pinned in createFriendlyText.test.ts; this is the cross-suite
  *  net that no type produces an unrenderable error. **/
 export function assertFriendlyCoverage(c: AssertableCase): void {
   const factory = resolveThunk(c.getValidationErrors);
@@ -613,7 +613,7 @@ export function assertFriendlyCoverage(c: AssertableCase): void {
   // every type's errors render with pure fallback messages. `FriendlyText<unknown>`
   // reduces to `FriendlyMeta`, whose `rt$errors` needs the base `type` key (blank =
   // no custom message, everything falls to the generic fallback).
-  const renderer = createFriendly<unknown>({rt$label: '', rt$errors: {type: ''}});
+  const renderer = createFriendlyText<unknown>({rt$label: '', rt$errors: {type: ''}});
   const {invalid} = c.getSamples();
   invalid.forEach((sample, i) => {
     const errs = getErrors(sample);

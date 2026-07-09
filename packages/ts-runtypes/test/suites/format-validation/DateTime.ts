@@ -32,7 +32,7 @@ import * as TF from '@ts-runtypes/core/formats';
 import * as TFT from '@ts-runtypes/core/formats/temporal';
 import type {FormatValidationCase} from './types.ts';
 import '@ts-runtypes/core/formats';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
@@ -95,7 +95,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> = new Date();
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
@@ -103,7 +103,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    mockType: () => createMockType<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    mockType: () => createMockData<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 0, 1, 0, 0, 0)), new Date(Date.UTC(2020, 11, 31, 23, 59, 59))],
       invalid: [new Date(Date.UTC(2019, 11, 31, 23, 59, 59)), new Date(Date.UTC(2021, 0, 1, 0, 0, 0)), 'not-a-date'],
@@ -141,7 +141,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> = new Date();
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(TF.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
@@ -149,7 +149,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-    mockType: () => createMockType<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    mockType: () => createMockData<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 5, 15))],
       // the bound values themselves are excluded (gt/lt are strict)
@@ -231,14 +231,14 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TF.Date<{max: 'now'}> = new Date();
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Date<{max: 'now'}>>>(),
     validateSchema: () => createValidate(TF.date({max: 'now'})),
     getValidationErrors: () => createGetValidationErrors<TF.Date<{max: 'now'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Date<{max: 'now'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.date({max: 'now'})),
-    mockType: () => createMockType<TF.Date<{min: 'now-P1Y'; max: 'now'}>>(),
+    mockType: () => createMockData<TF.Date<{min: 'now-P1Y'; max: 'now'}>>(),
     getSamples: () => ({
       valid: [new Date('2020-01-01T00:00:00Z')],
       invalid: [new Date('2999-01-01T00:00:00Z'), 'not-a-date'],
@@ -275,14 +275,14 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = new Date();
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(TF.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
     getValidationErrors: () => createGetValidationErrors<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    mockType: () => createMockType<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    mockType: () => createMockData<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [new Date(Date.UTC(2020, 5, 15))],
       invalid: [new Date(Date.UTC(1000, 0, 1)), new Date(Date.UTC(3500, 0, 1))],
@@ -368,7 +368,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}> = T.Instant.from('2020-06-15T12:00:00Z');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
     validateSchema: () => createValidate(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
@@ -378,7 +378,7 @@ export const DATETIME = {
       createGetValidationErrors<DataOnly<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
-    mockType: () => createMockType<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    mockType: () => createMockData<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-01-01T00:00:00Z'), T.Instant.from('2020-12-31T23:59:59Z')],
       invalid: [T.Instant.from('2019-12-31T23:59:59Z'), T.Instant.from('2021-01-01T00:00:00Z'), 'not-an-instant'],
@@ -424,7 +424,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}> = T.Instant.from('2020-06-15T12:00:00Z');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
     validateSchema: () => createValidate(TFT.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
@@ -433,7 +433,7 @@ export const DATETIME = {
       createGetValidationErrors<DataOnly<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TFT.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
-    mockType: () => createMockType<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    mockType: () => createMockData<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-06-15T12:00:00Z')],
       invalid: [T.Instant.from('2020-01-01T00:00:00Z'), T.Instant.from('2020-12-31T23:59:59Z'), 'not-an-instant'],
@@ -479,7 +479,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}> = T.Instant.from('2020-06-15T12:00:00Z');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
     validateSchema: () => createValidate(TFT.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
@@ -487,7 +487,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
-    mockType: () => createMockType<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    mockType: () => createMockData<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-06-15T12:00:00Z')],
       invalid: [T.Instant.from('1000-01-01T00:00:00Z'), T.Instant.from('3500-01-01T00:00:00Z')],
@@ -532,7 +532,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(TFT.plainDate({min: '2020-01-01', max: '2020-12-31'})),
@@ -540,7 +540,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDate({min: '2020-01-01', max: '2020-12-31'})),
-    mockType: () => createMockType<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    mockType: () => createMockData<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2020-12-31')],
       invalid: [T.PlainDate.from('2019-12-31'), T.PlainDate.from('2021-01-01'), T.Instant.from('2020-06-15T00:00:00Z')],
@@ -585,14 +585,14 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}> = T.PlainDate.from('2020-06-15');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(TFT.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
     getValidationErrors: () => createGetValidationErrors<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
-    mockType: () => createMockType<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    mockType: () => createMockData<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-02'), T.PlainDate.from('2020-12-30')],
       invalid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2020-12-31'), 'not-a-date'],
@@ -636,7 +636,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
     validateSchema: () => createValidate(TFT.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
@@ -644,7 +644,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
-    mockType: () => createMockType<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    mockType: () => createMockData<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2020-01-09')],
       invalid: [T.PlainDate.from('2019-12-31'), T.PlainDate.from('2020-01-10')],
@@ -687,7 +687,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}> = T.PlainDate.from('2020-06-15');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
     validateSchema: () => createValidate(TFT.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
@@ -695,7 +695,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
-    mockType: () => createMockType<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    mockType: () => createMockData<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-01-02'), T.PlainDate.from('2020-01-10')],
       invalid: [T.PlainDate.from('2020-01-01'), T.PlainDate.from('2020-01-11')],
@@ -912,7 +912,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDate.from('2020-06-15');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(TFT.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
@@ -920,7 +920,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    mockType: () => createMockType<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    mockType: () => createMockData<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.PlainDate.from('2020-06-15')],
       invalid: [T.PlainDate.from('0500-01-01'), T.PlainDate.from('3500-01-01')],
@@ -1052,14 +1052,14 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}> = T.PlainTime.from('12:00:00');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
     validateSchema: () => createValidate(TFT.plainTime({min: '09:00:00', max: '17:00:00'})),
     getValidationErrors: () => createGetValidationErrors<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainTime({min: '09:00:00', max: '17:00:00'})),
-    mockType: () => createMockType<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    mockType: () => createMockData<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     getSamples: () => ({
       valid: [T.PlainTime.from('09:00:00'), T.PlainTime.from('17:00:00')],
       invalid: [T.PlainTime.from('08:59:59'), T.PlainTime.from('17:00:01'), 'not-a-time'],
@@ -1104,14 +1104,14 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}> = T.PlainTime.from('12:00:00');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
     validateSchema: () => createValidate(TFT.plainTime({gt: '09:00:00', lt: '17:00:00'})),
     getValidationErrors: () => createGetValidationErrors<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainTime({gt: '09:00:00', lt: '17:00:00'})),
-    mockType: () => createMockType<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    mockType: () => createMockData<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
     getSamples: () => ({
       valid: [T.PlainTime.from('09:00:01'), T.PlainTime.from('16:59:59')],
       invalid: [T.PlainTime.from('09:00:00'), T.PlainTime.from('17:00:00'), 'not-a-time'],
@@ -1164,7 +1164,7 @@ export const DATETIME = {
     mockTypeReflect: () => {
       const v: TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}> =
         T.PlainDateTime.from('2020-06-15T12:00:00');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<DataOnly<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
@@ -1175,7 +1175,7 @@ export const DATETIME = {
       createGetValidationErrors<DataOnly<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-    mockType: () => createMockType<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    mockType: () => createMockData<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [T.PlainDateTime.from('2020-01-01T00:00:00'), T.PlainDateTime.from('2020-12-31T23:59:59')],
       invalid: [T.PlainDateTime.from('2019-12-31T23:59:59'), T.PlainDateTime.from('2021-01-01T00:00:00'), 'nope'],
@@ -1226,7 +1226,7 @@ export const DATETIME = {
     mockTypeReflect: () => {
       const v: TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}> =
         T.PlainDateTime.from('2020-06-15T12:00:00');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
     validateSchema: () => createValidate(TFT.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
@@ -1236,7 +1236,7 @@ export const DATETIME = {
       createGetValidationErrors<DataOnly<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TFT.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-    mockType: () => createMockType<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    mockType: () => createMockData<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     getSamples: () => ({
       valid: [T.PlainDateTime.from('2020-06-15T12:00:00')],
       invalid: [T.PlainDateTime.from('2020-01-01T00:00:00'), T.PlainDateTime.from('2020-12-31T23:59:59'), 'nope'],
@@ -1281,7 +1281,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainDateTime.from('2020-06-15T12:00:00');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(TFT.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
@@ -1289,7 +1289,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    mockType: () => createMockType<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    mockType: () => createMockData<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.PlainDateTime.from('2020-06-15T12:00:00')],
       invalid: [T.PlainDateTime.from('0500-01-01T00:00:00'), T.PlainDateTime.from('3500-01-01T00:00:00')],
@@ -1378,7 +1378,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}> = T.PlainYearMonth.from('2020-06');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
     validateSchema: () => createValidate(TFT.plainYearMonth({min: '2020-01', max: '2020-12'})),
@@ -1386,7 +1386,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainYearMonth({min: '2020-01', max: '2020-12'})),
-    mockType: () => createMockType<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    mockType: () => createMockData<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-01'), T.PlainYearMonth.from('2020-12')],
       invalid: [T.PlainYearMonth.from('2019-12'), T.PlainYearMonth.from('2021-01'), 'nope'],
@@ -1431,14 +1431,14 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}> = T.PlainYearMonth.from('2020-06');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
     validateSchema: () => createValidate(TFT.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
     getValidationErrors: () => createGetValidationErrors<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
-    mockType: () => createMockType<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    mockType: () => createMockData<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-02'), T.PlainYearMonth.from('2020-11')],
       invalid: [T.PlainYearMonth.from('2020-01'), T.PlainYearMonth.from('2020-12'), 'nope'],
@@ -1484,7 +1484,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.PlainYearMonth.from('2020-06');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(TFT.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
@@ -1492,7 +1492,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    mockType: () => createMockType<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    mockType: () => createMockData<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-06')],
       invalid: [T.PlainYearMonth.from('0500-01'), T.PlainYearMonth.from('3500-01')],
@@ -1546,7 +1546,7 @@ export const DATETIME = {
     mockTypeReflect: () => {
       const v: TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}> =
         T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<DataOnly<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>>(),
@@ -1559,7 +1559,7 @@ export const DATETIME = {
       >(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
-    mockType: () => createMockType<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    mockType: () => createMockData<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     getSamples: () => ({
       valid: [T.ZonedDateTime.from('2020-01-01T00:00:00[UTC]'), T.ZonedDateTime.from('2020-12-31T23:59:59[UTC]')],
       invalid: [T.ZonedDateTime.from('2019-12-31T23:59:59[UTC]'), T.ZonedDateTime.from('2021-01-01T00:00:00[UTC]'), 'nope'],
@@ -1612,7 +1612,7 @@ export const DATETIME = {
     mockTypeReflect: () => {
       const v: TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}> =
         T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<DataOnly<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>>(),
@@ -1623,7 +1623,7 @@ export const DATETIME = {
       createGetValidationErrors<DataOnly<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TFT.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
-    mockType: () => createMockType<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    mockType: () => createMockData<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
     getSamples: () => ({
       valid: [T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]')],
       invalid: [T.ZonedDateTime.from('2020-01-01T00:00:00[UTC]'), T.ZonedDateTime.from('2020-12-31T23:59:59[UTC]'), 'nope'],
@@ -1669,7 +1669,7 @@ export const DATETIME = {
     },
     mockTypeReflect: () => {
       const v: TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}> = T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]');
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(TFT.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
@@ -1677,7 +1677,7 @@ export const DATETIME = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TFT.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
-    mockType: () => createMockType<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    mockType: () => createMockData<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]')],
       invalid: [T.ZonedDateTime.from('0500-01-01T00:00:00[UTC]'), T.ZonedDateTime.from('3500-01-01T00:00:00[UTC]')],

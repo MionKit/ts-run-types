@@ -427,7 +427,7 @@ An inline value-channel regex **converges** with the type-first
 recovered `{source, flags}` → one structural id). This is one small _additive_
 Go change to the existing format scanner — **not** the value-AST front-end the
 fork anticipated. The only thing an inline `/…/` lacks is `mockSamples`, so
-`createMockType` can't generate matching values for it (use the
+`createMockData` can't generate matching values for it (use the
 `registerFormatPattern` form, which carries samples, when you need mocks).
 
 ### What's still parked (Option B proper)

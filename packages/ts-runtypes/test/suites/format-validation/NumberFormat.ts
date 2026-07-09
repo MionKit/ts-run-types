@@ -8,7 +8,7 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
 import '@ts-runtypes/core/formats';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const NUMBER_FORMAT = {
@@ -56,14 +56,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Number<{max: 100}> = 100;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Number<{max: 100}>>>(),
     validateSchema: () => createValidate(TF.number({max: 100})),
     getValidationErrors: () => createGetValidationErrors<TF.Number<{max: 100}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Number<{max: 100}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.number({max: 100})),
-    mockType: () => createMockType<TF.Number<{max: 100}>>(),
+    mockType: () => createMockData<TF.Number<{max: 100}>>(),
     getSamples: () => ({valid: [100, 0, -50], invalid: [101, '5']}),
     expectedFormatErrors: () => [{name: 'numberFormat', val: 100, formatPathTail: 'max'}, null],
   },
@@ -93,14 +93,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Number<{min: 0}> = 0;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Number<{min: 0}>>>(),
     validateSchema: () => createValidate(TF.number({min: 0})),
     getValidationErrors: () => createGetValidationErrors<TF.Number<{min: 0}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Number<{min: 0}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.number({min: 0})),
-    mockType: () => createMockType<TF.Number<{min: 0}>>(),
+    mockType: () => createMockData<TF.Number<{min: 0}>>(),
     getSamples: () => ({valid: [0, 1, 9999], invalid: [-1]}),
     expectedFormatErrors: () => [{name: 'numberFormat', val: 0, formatPathTail: 'min'}],
   },
@@ -131,14 +131,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Number<{lt: 10}> = 9;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Number<{lt: 10}>>>(),
     validateSchema: () => createValidate(TF.number({lt: 10})),
     getValidationErrors: () => createGetValidationErrors<TF.Number<{lt: 10}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Number<{lt: 10}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.number({lt: 10})),
-    mockType: () => createMockType<TF.Number<{lt: 10}>>(),
+    mockType: () => createMockData<TF.Number<{lt: 10}>>(),
     getSamples: () => ({valid: [9, 0, -100], invalid: [10, 11]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: 10, formatPathTail: 'lt'},
@@ -171,14 +171,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Number<{gt: 0}> = 1;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Number<{gt: 0}>>>(),
     validateSchema: () => createValidate(TF.number({gt: 0})),
     getValidationErrors: () => createGetValidationErrors<TF.Number<{gt: 0}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Number<{gt: 0}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.number({gt: 0})),
-    mockType: () => createMockType<TF.Number<{gt: 0}>>(),
+    mockType: () => createMockData<TF.Number<{gt: 0}>>(),
     getSamples: () => ({valid: [1, 100], invalid: [0, -1]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: 0, formatPathTail: 'gt'},
@@ -212,14 +212,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Integer = 0;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Integer>>(),
     validateSchema: () => createValidate(TF.integer()),
     getValidationErrors: () => createGetValidationErrors<TF.Integer>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Integer>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.integer()),
-    mockType: () => createMockType<TF.Integer>(),
+    mockType: () => createMockData<TF.Integer>(),
     getSamples: () => ({valid: [0, 1, -1, 42], invalid: [1.5, 3.14]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: true, formatPathTail: 'integer'},
@@ -253,14 +253,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Float = 1.5;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Float>>(),
     validateSchema: () => createValidate(TF.float()),
     getValidationErrors: () => createGetValidationErrors<TF.Float>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Float>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.float()),
-    mockType: () => createMockType<TF.Float>(),
+    mockType: () => createMockData<TF.Float>(),
     getSamples: () => ({valid: [1.5, -0.5, 3.14], invalid: [1, 0, -2]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: true, formatPathTail: 'float'},
@@ -295,14 +295,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Number<{multipleOf: 5}> = 0;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Number<{multipleOf: 5}>>>(),
     validateSchema: () => createValidate(TF.number({multipleOf: 5})),
     getValidationErrors: () => createGetValidationErrors<TF.Number<{multipleOf: 5}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Number<{multipleOf: 5}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.number({multipleOf: 5})),
-    mockType: () => createMockType<TF.Number<{multipleOf: 5}>>(),
+    mockType: () => createMockData<TF.Number<{multipleOf: 5}>>(),
     getSamples: () => ({valid: [0, 5, 10, -15], invalid: [3, 7]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: 5, formatPathTail: 'multipleOf'},
@@ -338,7 +338,7 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}> = 0;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
     validateSchema: () => createValidate(TF.number({min: 0, max: 100, integer: true, multipleOf: 5})),
@@ -346,7 +346,7 @@ export const NUMBER_FORMAT = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.number({min: 0, max: 100, integer: true, multipleOf: 5})),
-    mockType: () => createMockType<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    mockType: () => createMockData<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
     getSamples: () => ({valid: [0, 5, 50, 100], invalid: [-5, 105, 7, 2.5]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', formatPathTail: 'min'},
@@ -382,14 +382,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Int8 = -128;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Int8>>(),
     validateSchema: () => createValidate(TF.int8()),
     getValidationErrors: () => createGetValidationErrors<TF.Int8>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Int8>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.int8()),
-    mockType: () => createMockType<TF.Int8>(),
+    mockType: () => createMockData<TF.Int8>(),
     getSamples: () => ({valid: [-128, 0, 127], invalid: [128, -129, 1.5]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: 127, formatPathTail: 'max'},
@@ -424,14 +424,14 @@ export const NUMBER_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.UInt8 = 0;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.UInt8>>(),
     validateSchema: () => createValidate(TF.uint8()),
     getValidationErrors: () => createGetValidationErrors<TF.UInt8>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.UInt8>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.uint8()),
-    mockType: () => createMockType<TF.UInt8>(),
+    mockType: () => createMockData<TF.UInt8>(),
     getSamples: () => ({valid: [0, 128, 255], invalid: [256, -1]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: 255, formatPathTail: 'max'},

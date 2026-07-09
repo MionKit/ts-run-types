@@ -97,8 +97,8 @@ logged gap — never a silent skip).
 | 7 | **Unknown-keys family** | has / strip / errors / toUndefined on an object with extras | `createHasUnknownKeys` + the four `create*UnknownKey*` | `unknown-keys-*` |
 | 8 | **Type formats** | branded format good/bad; custom `registerFormatPattern`; `createFormatTransform` | `TypeFormat`, `registerFormatPattern`, `createFormatTransform` | `type-formats-*`, `custom-format-pattern` |
 | 9 | **Markers** | wrap/parse helper rewritten + runs; comptime literal selects variant; not-triggered stays inert | `InjectRunTypeId`, `InjectTypeFnArgs`, `CompTimeArgs`, `CompTimeFnArgs` | `markers-*` |
-| 10 | **Mocking** | `createMockType<T>()` output passes `createValidate<T>()`; options/formats; custom generator | `createMockType`, `registerMockingFunction` | `mocking-*`, `custom-mocking-function` |
-| 11 | **Enrichment / FriendlyText** | see **Enrichment** below (higher setup) | `FriendlyText`, `MockData`, `createFriendly`, `createFriendlyI18n` | `3.ai-integration` + enrich skill |
+| 10 | **Mocking** | `createMockData<T>()` output passes `createValidate<T>()`; options/formats; custom generator | `createMockData`, `registerMockingFunction` | `mocking-*`, `custom-mocking-function` |
+| 11 | **Enrichment / FriendlyText** | see **Enrichment** below (higher setup) | `FriendlyText`, `MockData`, `createFriendlyText`, `createFriendlyTextI18n` | `3.ai-integration` + enrich skill |
 | 12 | **Standard Schema** | `~standard.validate` good→`{value}`, bad→`{issues}`; `runTypeErrorsToIssues` | `createStandardSchema`, `runTypeErrorsToIssues` | `standard-schema` |
 | 13 | **Custom pure fn / overrides** | `overrideValidate<T>(fn)` wins; `PureFunction` | the `override*` group, `PureFunction` | `custom-pure-fn` |
 
@@ -173,8 +173,8 @@ means a **republish** (per the image-inputs-changed rule).
 (authored via the **enrich** skill layout: `rt$label` / `rt$errors` / pool keys /
 `@rtType`), and each builder's tsconfig gains the enrichment config the plugin
 reads (`enrichDir`, the i18n block; the `friendlyErrors` plugin option). Assert
-(post-build): `createFriendly` renders a message, `createFriendlyI18n` selects a
-second locale + a plural, `createMockType` draws from the pool. Most likely family
+(post-build): `createFriendlyText` renders a message, `createFriendlyTextI18n` selects a
+second locale + a plural, `createMockData` draws from the pool. Most likely family
 to hide a packaging bug in the enrich subtree — worth the extra wiring.
 
 ## Acceptance criteria

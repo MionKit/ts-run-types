@@ -6,7 +6,7 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
-  createMockType,
+  createMockData,
   createStandardSchema,
 } from '@ts-runtypes/core';
 
@@ -56,7 +56,7 @@ const order2 = fromBytes(bytes); // back to a typed object
 // end-binary
 
 // start-mock
-const mockOrder = createMockType<Order>();
+const mockOrder = createMockData<Order>();
 const fake = mockOrder(); // a valid, randomized Order for your tests
 // end-mock
 

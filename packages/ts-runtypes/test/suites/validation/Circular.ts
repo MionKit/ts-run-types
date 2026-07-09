@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -162,7 +162,7 @@ export const CIRCULAR = {
         c?: Circular;
         d?: Date;
       }
-      return createMockType<Circular>();
+      return createMockData<Circular>();
     },
     mockTypeReflect: () => {
       interface Circular {
@@ -172,7 +172,7 @@ export const CIRCULAR = {
         d?: Date;
       }
       const v: Circular = {n: 1, s: 'hello'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -270,12 +270,12 @@ export const CIRCULAR = {
     },
     mockType: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createMockType<CuArray>();
+      return createMockData<CuArray>();
     },
     mockTypeReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
       const v: CuArray = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const date = new Date();
@@ -399,14 +399,14 @@ export const CIRCULAR = {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createMockType<CircularTuple>();
+      return createMockData<CircularTuple>();
     },
     mockTypeReflect: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
       const v: CircularTuple = {tuple: [1n]};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]}, {tuple: [1n, {tuple: [2n]}]}, {tuple: [1n]}],
@@ -529,14 +529,14 @@ export const CIRCULAR = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createMockType<CircularIndex>();
+      return createMockData<CircularIndex>();
     },
     mockTypeReflect: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
       const v: CircularIndex = {index: {}};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
@@ -666,14 +666,14 @@ export const CIRCULAR = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createMockType<CircularDeep>();
+      return createMockData<CircularDeep>();
     },
     mockTypeReflect: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
@@ -899,7 +899,7 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createMockType<RootNotCircular>();
+      return createMockData<RootNotCircular>();
     },
     mockTypeReflect: () => {
       interface ICircularDeep {
@@ -915,7 +915,7 @@ export const CIRCULAR = {
         isRoot: true,
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
       };
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -1305,7 +1305,7 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createMockType<RootCircular>();
+      return createMockData<RootCircular>();
     },
     mockTypeReflect: () => {
       interface ICircularDeep {
@@ -1331,7 +1331,7 @@ export const CIRCULAR = {
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         ciDate: {date: new Date(), month: 1, year: 2021},
       };
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [

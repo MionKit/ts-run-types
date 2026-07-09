@@ -12,7 +12,7 @@
 
 import type * as TF from '@ts-runtypes/core/formats';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {createValidate, createMockType} from '@ts-runtypes/core';
+import {createValidate, createMockData} from '@ts-runtypes/core';
 import '@ts-runtypes/core/formats';
 
 // Pin "now" to 2026-06-15T12:00:00Z for every test.
@@ -79,7 +79,7 @@ describe('relative bounds — mock respects them (every generated value is valid
 
   it('TF.StringDate min:now-P1Y max:now+P1M — mock stays in range', () => {
     const validate = createValidate<TF.StringDate<{format: 'YYYY-MM-DD'; min: 'now-P1Y'; max: 'now+P1M'}>>();
-    const mock = createMockType<TF.StringDate<{format: 'YYYY-MM-DD'; min: 'now-P1Y'; max: 'now+P1M'}>>();
+    const mock = createMockData<TF.StringDate<{format: 'YYYY-MM-DD'; min: 'now-P1Y'; max: 'now+P1M'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);
@@ -88,7 +88,7 @@ describe('relative bounds — mock respects them (every generated value is valid
 
   it('TF.StringTime min:now-PT1H max:now+PT2H — mock stays in range', () => {
     const validate = createValidate<TF.StringTime<{format: 'HH:mm'; min: 'now-PT1H'; max: 'now+PT2H'}>>();
-    const mock = createMockType<TF.StringTime<{format: 'HH:mm'; min: 'now-PT1H'; max: 'now+PT2H'}>>();
+    const mock = createMockData<TF.StringTime<{format: 'HH:mm'; min: 'now-PT1H'; max: 'now+PT2H'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);
@@ -97,7 +97,7 @@ describe('relative bounds — mock respects them (every generated value is valid
 
   it('TF.StringDate absolute bounds — mock stays in range', () => {
     const validate = createValidate<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
-    const mock = createMockType<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
+    const mock = createMockData<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);
@@ -153,7 +153,7 @@ describe('exclusive bounds — mock respects them (every generated value is vali
 
   it('TF.StringDate gt/lt — mock stays strictly inside', () => {
     const validate = createValidate<TF.StringDate<{format: 'YYYY-MM-DD'; gt: '2020-01-01'; lt: '2020-12-31'}>>();
-    const mock = createMockType<TF.StringDate<{format: 'YYYY-MM-DD'; gt: '2020-01-01'; lt: '2020-12-31'}>>();
+    const mock = createMockData<TF.StringDate<{format: 'YYYY-MM-DD'; gt: '2020-01-01'; lt: '2020-12-31'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);
@@ -162,7 +162,7 @@ describe('exclusive bounds — mock respects them (every generated value is vali
 
   it('TF.StringTime gt/lt — mock stays strictly inside', () => {
     const validate = createValidate<TF.StringTime<{format: 'HH:mm'; gt: '08:00'; lt: '17:00'}>>();
-    const mock = createMockType<TF.StringTime<{format: 'HH:mm'; gt: '08:00'; lt: '17:00'}>>();
+    const mock = createMockData<TF.StringTime<{format: 'HH:mm'; gt: '08:00'; lt: '17:00'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);
@@ -178,7 +178,7 @@ describe('exclusive bounds — mock respects them (every generated value is vali
         lt: '2020-12-31T17:00:00';
       }>
     >();
-    const mock = createMockType<
+    const mock = createMockData<
       TF.StringDateTime<{
         date: {format: 'YYYY-MM-DD'};
         time: {format: 'HH:mm:ss'};
@@ -204,7 +204,7 @@ describe('exclusive bounds — mock respects them (every generated value is vali
         lt: '2020-12-31T17:00';
       }>
     >();
-    const mock = createMockType<
+    const mock = createMockData<
       TF.StringDateTime<{
         date: {format: 'YYYY-MM-DD'};
         time: {format: 'HH:mm'};
@@ -220,7 +220,7 @@ describe('exclusive bounds — mock respects them (every generated value is vali
 
   it('TF.Date (native) gt/lt — mock stays strictly inside', () => {
     const validate = createValidate<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2021-01-01T00:00:00'}>>();
-    const mock = createMockType<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2021-01-01T00:00:00'}>>();
+    const mock = createMockData<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2021-01-01T00:00:00'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(validate(value), `iteration ${i}: ${String(value)}`).toBe(true);

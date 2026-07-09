@@ -1,5 +1,5 @@
 import type {FriendlyText} from '@ts-runtypes/core';
-import {createFriendlyI18n} from '@ts-runtypes/core';
+import {createFriendlyTextI18n} from '@ts-runtypes/core';
 import type {Order} from './i18n-currency-type';
 
 const friendlyOrder: FriendlyText<Order> = {
@@ -13,7 +13,7 @@ const de_friendlyOrder: FriendlyText<Order> = {
   total: {rt$label: 'Summe', rt$errors: {type: '', max: 'höchstens $[val]'}},
 };
 
-export const friendly = createFriendlyI18n<Order>(friendlyOrder, {
+export const friendly = createFriendlyTextI18n<Order>(friendlyOrder, {
   locale: 'de',
   translations: {de: de_friendlyOrder},
   currency: 'EUR',

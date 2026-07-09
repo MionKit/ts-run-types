@@ -1,5 +1,5 @@
 // Public types for the mock-value generator. Surface mirrors the
-// `MockOptions` shape. `createMockType<T>()` merges caller options over
+// `MockOptions` shape. `createMockData<T>()` merges caller options over
 // `defaultMockOptions` before walking the runtype graph.
 
 import type {MockData} from '../enrich/mockData.ts';
@@ -142,7 +142,7 @@ export interface RunTypeMockOptions<T = unknown> {
   dataNode?: MockDataNode;
 }
 
-/** Generator returned by `createMockType<T>()`. Call-time options may carry a
+/** Generator returned by `createMockData<T>()`. Call-time options may carry a
  *  `data` enrichment map (typed loosely as `MockData<unknown>` here so the
  *  return type stays structurally stable across `T`; the precisely-typed
  *  `MockData<T>` surface is the factory's `options` param). **/

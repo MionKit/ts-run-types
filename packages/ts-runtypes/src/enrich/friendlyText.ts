@@ -1,6 +1,6 @@
 // `FriendlyText<T>` — the human-readable enrichment map for a type: a combined
 // per-field LABEL + ERROR-MESSAGE mapping, authored once and committed (see
-// docs/AI_ENRICHMENT.md). Pure type-level here; `createFriendly` (./createFriendly.ts)
+// docs/AI_ENRICHMENT.md). Pure type-level here; `createFriendlyText` (./createFriendlyText.ts)
 // renders validation errors against it at runtime.
 //
 // The recursive `FriendlyNode` follows the `DataOnly<T>` construction

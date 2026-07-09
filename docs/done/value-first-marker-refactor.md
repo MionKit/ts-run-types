@@ -216,7 +216,7 @@ emits a discriminated `ModelConfig`:
 
 ```ts
 createValidate<T>(); // → validator
-createMockType<T>(); // → mock generator
+createMockData<T>(); // → mock generator
 reflectModel<T>(); // NEW → typed runtime model   (inject id → getRunType(id) → walk → ModelConfigOf<T>)
 ```
 

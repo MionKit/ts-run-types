@@ -1,4 +1,4 @@
-import {createFriendlyI18n, createGetValidationErrors} from '@ts-runtypes/core';
+import {createFriendlyTextI18n, createGetValidationErrors} from '@ts-runtypes/core';
 import type {User} from './user';
 import {friendlyUser} from './friendly-user';
 import {es_friendlyUser} from './i18n-es';
@@ -6,7 +6,7 @@ import {pl_friendlyUser} from './i18n-pl';
 
 const getUserErrors = createGetValidationErrors<User>();
 
-const friendly = createFriendlyI18n<User>(friendlyUser, {
+const friendly = createFriendlyTextI18n<User>(friendlyUser, {
   locale: 'pl',
   translations: {es: es_friendlyUser, pl: pl_friendlyUser},
 });

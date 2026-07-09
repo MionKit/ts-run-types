@@ -73,7 +73,7 @@ describe('looksLikeEnrichmentFile', () => {
     expect(looksLikeEnrichmentFile(`export type ${FRIENDLY_TYPE_NAME}<T> = unknown; // the \`${TODO_TAG}\` layer`)).toBe(false);
     expect(looksLikeEnrichmentFile(`// ${TODO_TAG}: refactor\nexport const a = 1;`)).toBe(false);
     // The runtime's own signature takes the map as a PARAMETER — not a mirror.
-    expect(looksLikeEnrichmentFile(`export function createFriendly<T>(map: ${FRIENDLY_TYPE_NAME}<T>) {}`)).toBe(false);
+    expect(looksLikeEnrichmentFile(`export function createFriendlyText<T>(map: ${FRIENDLY_TYPE_NAME}<T>) {}`)).toBe(false);
   });
 });
 

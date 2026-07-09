@@ -75,7 +75,7 @@ committed, so its link is committed too):
 ```ts
 import {friendlyUser} from 'runtypes/generated/friendly/models/user';
 import {mockUser} from 'runtypes/generated/mock/models/user';
-createMockType<User>({data: mockUser});
+createMockData<User>({data: mockUser});
 ```
 
 ## The JSDoc tags
@@ -101,7 +101,7 @@ A combined, per-field map: `rt$label` (a human name) + `rt$errors` (one message 
 declared failable constraint — the mapped type requires each key — or the exclusive
 `{rt$default: '…'}` catch-all; count-bearing constraints scaffold plural objects; the
 tsconfig `friendlyErrors` knob picks the scaffold mode for NEW nodes). Pure data;
-rendered at runtime by `createFriendly<T>(map)`, or by `createFriendlyI18n` with
+rendered at runtime by `createFriendlyText<T>(map)`, or by `createFriendlyTextI18n` with
 committed translations. The full authoring DSL — node shape, constraint keys, the `$[…]`
 placeholder DSL, plural rules, the `rt$default` mode, the FT0xx checks, runtime
 rendering — is the **`runtypes-friendly-type`** skill; use it whenever you author or
@@ -168,14 +168,14 @@ zero change when absent):
 }
 ```
 
-Runtime rendering — `createFriendlyI18n`, `resolveLocale` matching, per-leaf fallback,
+Runtime rendering — `createFriendlyTextI18n`, `resolveLocale` matching, per-leaf fallback,
 type-driven `$[val]` rendering (Currency / date bounds) — is covered in the
 **`runtypes-friendly-type`** skill.
 
 ## `MockData<T>` — realistic sample data
 
 Per-field value pools and ranges (`pool`, `min`/`max`, `rt$items`/`rt$length`, `rt$optional`)
-that feed `createMockType<T>({ data })`: the mechanical generator keeps handling
+that feed `createMockData<T>({ data })`: the mechanical generator keeps handling
 structure + format-correctness, you supply _believable_ values. The full authoring DSL
 — node shapes per field kind, the MD0xx checks, end-to-end wiring — is the
 **`runtypes-mock-data`** skill; use it whenever you author or fill a mock map.

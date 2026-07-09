@@ -63,7 +63,7 @@ Everything else keeps the `friendly` brand and does NOT change:
 
 - `friendly*` const naming (`friendlyUser`, `pl_friendlyUser`)
 - the `<enrichDir>/friendly/` family directory
-- `createFriendly` / `createFriendlyI18n` / `FriendlyRenderer` / `FriendlyMessage`
+- `createFriendlyText` / `createFriendlyTextI18n` / `FriendlyRenderer` / `FriendlyMessage`
 - the `@rtType`-marker machinery (name-independent ids)
 
 Changes:

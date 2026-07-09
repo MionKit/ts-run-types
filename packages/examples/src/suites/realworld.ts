@@ -6,7 +6,7 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
-  createMockType,
+  createMockData,
 } from '@ts-runtypes/core';
 
 // One real-world type — the single source of truth every suite + benchmark
@@ -66,7 +66,7 @@ const bytes = toBytes(order); // a Uint8Array; smaller than JSON
 const order2 = fromBytes(bytes); // back to a typed object
 
 // Mock — believable, valid, randomized data for your tests and fixtures.
-const mockOrder = createMockType<Order>();
+const mockOrder = createMockData<Order>();
 const fake = mockOrder(); // a valid, randomized Order
 
 export {order, back, order2, fake};

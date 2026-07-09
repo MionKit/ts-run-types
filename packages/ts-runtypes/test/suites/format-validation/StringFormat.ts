@@ -11,7 +11,7 @@ import '@ts-runtypes/core/formats';
 import {
   createValidate,
   createGetValidationErrors,
-  createMockType,
+  createMockData,
   createStandardSchema,
   registerFormatPattern,
   type DataOnly,
@@ -80,14 +80,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{maxLength: 5}> = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{maxLength: 5}>>>(),
     validateSchema: () => createValidate(TF.string({maxLength: 5})),
     getValidationErrors: () => createGetValidationErrors<TF.String<{maxLength: 5}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.String<{maxLength: 5}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({maxLength: 5})),
-    mockType: () => createMockType<TF.String<{maxLength: 5}>>(),
+    mockType: () => createMockData<TF.String<{maxLength: 5}>>(),
     getSamples: () => ({valid: ['', 'hello'], invalid: ['hello!', 42]}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 5}, null],
   },
@@ -117,14 +117,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{minLength: 3}> = 'abc';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{minLength: 3}>>>(),
     validateSchema: () => createValidate(TF.string({minLength: 3})),
     getValidationErrors: () => createGetValidationErrors<TF.String<{minLength: 3}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.String<{minLength: 3}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({minLength: 3})),
-    mockType: () => createMockType<TF.String<{minLength: 3}>>(),
+    mockType: () => createMockData<TF.String<{minLength: 3}>>(),
     getSamples: () => ({valid: ['abc', 'abcd'], invalid: ['ab', '']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 3},
@@ -157,14 +157,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{length: 4}> = 'abcd';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{length: 4}>>>(),
     validateSchema: () => createValidate(TF.string({length: 4})),
     getValidationErrors: () => createGetValidationErrors<TF.String<{length: 4}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.String<{length: 4}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({length: 4})),
-    mockType: () => createMockType<TF.String<{length: 4}>>(),
+    mockType: () => createMockData<TF.String<{length: 4}>>(),
     getSamples: () => ({valid: ['abcd'], invalid: ['abc', 'abcde']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 4},
@@ -198,14 +198,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{minLength: 2; maxLength: 4}> = 'ab';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{minLength: 2; maxLength: 4}>>>(),
     validateSchema: () => createValidate(TF.string({minLength: 2, maxLength: 4})),
     getValidationErrors: () => createGetValidationErrors<TF.String<{minLength: 2; maxLength: 4}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.String<{minLength: 2; maxLength: 4}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({minLength: 2, maxLength: 4})),
-    mockType: () => createMockType<TF.String<{minLength: 2; maxLength: 4}>>(),
+    mockType: () => createMockData<TF.String<{minLength: 2; maxLength: 4}>>(),
     getSamples: () => ({valid: ['ab', 'abcd'], invalid: ['a', 'abcde']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 2},
@@ -242,7 +242,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{allowedChars: {val: '0123456789abcdef'}}> = 'deadbeef';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedChars: {val: '0123456789abcdef'}})),
@@ -250,7 +250,7 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({allowedChars: {val: '0123456789abcdef'}})),
-    mockType: () => createMockType<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    mockType: () => createMockData<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
     getSamples: () => ({valid: ['deadbeef', '0042'], invalid: ['xyz', 'dead beef', '']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}, null, null],
   },
@@ -282,7 +282,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}> = 'ABC';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedChars: {val: 'abc', ignoreCase: true}})),
@@ -290,7 +290,7 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({allowedChars: {val: 'abc', ignoreCase: true}})),
-    mockType: () => createMockType<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+    mockType: () => createMockData<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     getSamples: () => ({valid: ['ABC', 'aAbBcC'], invalid: ['abcd']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}],
   },
@@ -321,14 +321,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{allowedChars: {val: '.-'}}> = '...---';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedChars: {val: '.-'}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedChars: {val: '.-'}})),
     getValidationErrors: () => createGetValidationErrors<TF.String<{allowedChars: {val: '.-'}}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.String<{allowedChars: {val: '.-'}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({allowedChars: {val: '.-'}})),
-    mockType: () => createMockType<TF.String<{allowedChars: {val: '.-'}}>>(),
+    mockType: () => createMockData<TF.String<{allowedChars: {val: '.-'}}>>(),
     getSamples: () => ({valid: ['...---'], invalid: ['a']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}],
   },
@@ -360,7 +360,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}> = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>>(),
     validateSchema: () => createValidate(TF.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
@@ -368,7 +368,7 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
-    mockType: () => createMockType<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+    mockType: () => createMockData<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     getSamples: () => ({valid: ['hello'], invalid: ['hi!', 'a@b']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 'Invalid characters'},
@@ -406,7 +406,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}> = 'red';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedValues: {val: ['red', 'green', 'blue']}})),
@@ -414,7 +414,7 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({allowedValues: {val: ['red', 'green', 'blue']}})),
-    mockType: () => createMockType<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+    mockType: () => createMockData<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     getSamples: () => ({valid: ['red', 'blue'], invalid: ['yellow', 'RED', 'redgreen']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}, null, null],
   },
@@ -446,7 +446,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}> = 'RED';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
@@ -455,7 +455,7 @@ export const STRING_FORMAT = {
       createGetValidationErrors<DataOnly<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TF.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
-    mockType: () => createMockType<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    mockType: () => createMockData<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     getSamples: () => ({valid: ['RED', 'Green'], invalid: ['blue']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}],
   },
@@ -486,14 +486,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{allowedValues: {val: ['a.b', 'c+d']}}> = 'a.b';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
     validateSchema: () => createValidate(TF.string({allowedValues: {val: ['a.b', 'c+d']}})),
     getValidationErrors: () => createGetValidationErrors<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.string({allowedValues: {val: ['a.b', 'c+d']}})),
-    mockType: () => createMockType<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+    mockType: () => createMockData<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     getSamples: () => ({valid: ['a.b', 'c+d'], invalid: ['axb', 'ccd']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 'Invalid value'},
@@ -530,7 +530,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}> = 'alice';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<DataOnly<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>>(),
@@ -543,7 +543,7 @@ export const STRING_FORMAT = {
       >(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TF.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
-    mockType: () => createMockType<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+    mockType: () => createMockData<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     getSamples: () => ({valid: ['alice'], invalid: ['admin', 'root']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 'Invalid value'},
@@ -578,7 +578,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}> = 'a';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<DataOnly<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
@@ -589,7 +589,7 @@ export const STRING_FORMAT = {
       createGetValidationErrors<DataOnly<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TF.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
-    mockType: () => createMockType<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    mockType: () => createMockData<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     getSamples: () => ({valid: ['a', 'b'], invalid: ['c']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'pick a or b'}],
   },
@@ -625,14 +625,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Alpha = 'Hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Alpha>>(),
     validateSchema: () => createValidate(TF.alpha()),
     getValidationErrors: () => createGetValidationErrors<TF.Alpha>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Alpha>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.alpha()),
-    mockType: () => createMockType<TF.Alpha>(),
+    mockType: () => createMockData<TF.Alpha>(),
     getSamples: () => ({valid: ['Hello', 'abcXYZ'], invalid: ['hello1', 'hi there', '']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, null, null],
   },
@@ -663,14 +663,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.AlphaNumeric = 'abc123';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.AlphaNumeric>>(),
     validateSchema: () => createValidate(TF.alphaNumeric()),
     getValidationErrors: () => createGetValidationErrors<TF.AlphaNumeric>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.AlphaNumeric>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.alphaNumeric()),
-    mockType: () => createMockType<TF.AlphaNumeric>(),
+    mockType: () => createMockData<TF.AlphaNumeric>(),
     getSamples: () => ({valid: ['abc123', 'ABC', '123'], invalid: ['a-b', 'a b']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 'Invalid pattern'},
@@ -704,14 +704,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Numeric = '12345';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Numeric>>(),
     validateSchema: () => createValidate(TF.numeric()),
     getValidationErrors: () => createGetValidationErrors<TF.Numeric>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Numeric>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.numeric()),
-    mockType: () => createMockType<TF.Numeric>(),
+    mockType: () => createMockData<TF.Numeric>(),
     getSamples: () => ({valid: ['12345', '007'], invalid: ['12.3', '12a']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 'Invalid pattern'},
@@ -745,14 +745,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Alpha<{maxLength: 3}> = 'abc';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Alpha<{maxLength: 3}>>>(),
     validateSchema: () => createValidate(TF.alpha({maxLength: 3})),
     getValidationErrors: () => createGetValidationErrors<TF.Alpha<{maxLength: 3}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Alpha<{maxLength: 3}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.alpha({maxLength: 3})),
-    mockType: () => createMockType<TF.Alpha<{maxLength: 3}>>(),
+    mockType: () => createMockData<TF.Alpha<{maxLength: 3}>>(),
     getSamples: () => ({valid: ['abc'], invalid: ['abcd', 'a1']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 3},
@@ -786,14 +786,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Lowercase = 'already lower';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Lowercase>>(),
     validateSchema: () => createValidate(TF.lowercase()),
     getValidationErrors: () => createGetValidationErrors<TF.Lowercase>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Lowercase>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.lowercase()),
-    mockType: () => createMockType<TF.Lowercase>(),
+    mockType: () => createMockData<TF.Lowercase>(),
     getSamples: () => ({valid: ['already lower', 'HasUpper'], invalid: [42]}),
     expectedFormatErrors: () => [null],
   },
@@ -829,14 +829,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.UUIDv4 = V4;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.UUIDv4>>(),
     validateSchema: () => createValidate(TF.uuidv4()),
     getValidationErrors: () => createGetValidationErrors<TF.UUIDv4>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.UUIDv4>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.uuidv4()),
-    mockType: () => createMockType<TF.UUIDv4>(),
+    mockType: () => createMockData<TF.UUIDv4>(),
     getSamples: () => ({valid: [V4], invalid: [V7, 'not-a-uuid', '', V4.replace(/-/g, ''), 123]}),
     expectedFormatErrors: () => [{name: 'uuid', val: '4'}, {name: 'uuid', val: '4'}, null, null, null],
   },
@@ -869,14 +869,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.UUIDv7 = V7;
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.UUIDv7>>(),
     validateSchema: () => createValidate(TF.uuidv7()),
     getValidationErrors: () => createGetValidationErrors<TF.UUIDv7>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.UUIDv7>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.uuidv7()),
-    mockType: () => createMockType<TF.UUIDv7>(),
+    mockType: () => createMockData<TF.UUIDv7>(),
     getSamples: () => ({
       valid: [V7],
       invalid: [V4, V7.slice(0, -1), V7.replace('1', 'g'), V7.replace('7b5c', 'cb5c'), '', 123],
@@ -915,14 +915,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringDate = '2024-02-29';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringDate>>(),
     validateSchema: () => createValidate(TF.stringDate()),
     getValidationErrors: () => createGetValidationErrors<TF.StringDate>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringDate>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringDate()),
-    mockType: () => createMockType<TF.StringDate>(),
+    mockType: () => createMockData<TF.StringDate>(),
     getSamples: () => ({
       valid: ['2024-02-29', '2026-05-28', '0001-01-01'],
       invalid: ['2023-02-29', '2024-13-01', '2024-04-31', '2024-1-1', 'not-a-date'],
@@ -956,14 +956,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringDate<{format: 'DD-MM-YYYY'}> = '29-02-2024';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringDate<{format: 'DD-MM-YYYY'}>>>(),
     validateSchema: () => createValidate(TF.stringDate({format: 'DD-MM-YYYY'})),
     getValidationErrors: () => createGetValidationErrors<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringDate<{format: 'DD-MM-YYYY'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringDate({format: 'DD-MM-YYYY'})),
-    mockType: () => createMockType<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
+    mockType: () => createMockData<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
     getSamples: () => ({valid: ['29-02-2024'], invalid: ['2024-02-29', '31-04-2024']}),
     expectedFormatErrors: () => [
       {name: 'date', val: 'DD-MM-YYYY'},
@@ -997,14 +997,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringDate<{format: 'YYYY-MM'}> = '2024-02';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringDate<{format: 'YYYY-MM'}>>>(),
     validateSchema: () => createValidate(TF.stringDate({format: 'YYYY-MM'})),
     getValidationErrors: () => createGetValidationErrors<TF.StringDate<{format: 'YYYY-MM'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringDate<{format: 'YYYY-MM'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringDate({format: 'YYYY-MM'})),
-    mockType: () => createMockType<TF.StringDate<{format: 'YYYY-MM'}>>(),
+    mockType: () => createMockData<TF.StringDate<{format: 'YYYY-MM'}>>(),
     getSamples: () => ({valid: ['2024-02'], invalid: ['2024-13', '2024-02-29']}),
     expectedFormatErrors: () => [
       {name: 'date', val: 'YYYY-MM'},
@@ -1038,14 +1038,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringDate<{format: 'MM-DD'}> = '02-29';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringDate<{format: 'MM-DD'}>>>(),
     validateSchema: () => createValidate(TF.stringDate({format: 'MM-DD'})),
     getValidationErrors: () => createGetValidationErrors<TF.StringDate<{format: 'MM-DD'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringDate<{format: 'MM-DD'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringDate({format: 'MM-DD'})),
-    mockType: () => createMockType<TF.StringDate<{format: 'MM-DD'}>>(),
+    mockType: () => createMockData<TF.StringDate<{format: 'MM-DD'}>>(),
     getSamples: () => ({valid: ['02-29'], invalid: ['13-01', '02-30']}),
     expectedFormatErrors: () => [
       {name: 'date', val: 'MM-DD'},
@@ -1080,7 +1080,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}> = '2020-01-01';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<DataOnly<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>>(),
@@ -1093,7 +1093,7 @@ export const STRING_FORMAT = {
       createGetValidationErrors(TF.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
     // mockType must respect the bounds — assertMockType re-validates every
     // generated value through validate, so an out-of-range mock would fail.
-    mockType: () => createMockType<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    mockType: () => createMockData<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     getSamples: () => ({
       valid: ['2020-01-01', '2020-06-15', '2020-12-31'],
       invalid: ['2019-12-31', '2021-01-01'],
@@ -1135,14 +1135,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringTime = '12:30:45Z';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringTime>>(),
     validateSchema: () => createValidate(TF.stringTime()),
     getValidationErrors: () => createGetValidationErrors<TF.StringTime>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringTime>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringTime()),
-    mockType: () => createMockType<TF.StringTime>(),
+    mockType: () => createMockData<TF.StringTime>(),
     getSamples: () => ({
       valid: ['12:30:45Z', '12:30:45.123Z', '12:30:45+05:30', '00:00:00-08:00'],
       invalid: ['12:30:45', '24:00:00Z', '12:60:00Z'],
@@ -1180,14 +1180,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringTime<{format: 'HH:mm:ss'}> = '23:59:59';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringTime<{format: 'HH:mm:ss'}>>>(),
     validateSchema: () => createValidate(TF.stringTime({format: 'HH:mm:ss'})),
     getValidationErrors: () => createGetValidationErrors<TF.StringTime<{format: 'HH:mm:ss'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringTime<{format: 'HH:mm:ss'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringTime({format: 'HH:mm:ss'})),
-    mockType: () => createMockType<TF.StringTime<{format: 'HH:mm:ss'}>>(),
+    mockType: () => createMockData<TF.StringTime<{format: 'HH:mm:ss'}>>(),
     getSamples: () => ({valid: ['23:59:59'], invalid: ['99:99:99', '23:59', '24:00:00']}),
     expectedFormatErrors: () => [{name: 'time', val: 'HH:mm:ss'}, null, null],
   },
@@ -1218,14 +1218,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringTime<{format: 'HH:mm:ss[.mmm]'}> = '12:30:45';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>>(),
     validateSchema: () => createValidate(TF.stringTime({format: 'HH:mm:ss[.mmm]'})),
     getValidationErrors: () => createGetValidationErrors<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringTime({format: 'HH:mm:ss[.mmm]'})),
-    mockType: () => createMockType<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+    mockType: () => createMockData<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     getSamples: () => ({valid: ['12:30:45', '12:30:45.999'], invalid: ['12:30:45.9999']}),
     expectedFormatErrors: () => [{name: 'time', val: 'HH:mm:ss[.mmm]'}],
   },
@@ -1258,7 +1258,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}> = '09:00';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
     validateSchema: () => createValidate(TF.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
@@ -1266,7 +1266,7 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
-    mockType: () => createMockType<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+    mockType: () => createMockData<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     getSamples: () => ({
       valid: ['09:00', '12:30', '17:00'],
       invalid: ['08:59', '17:01'],
@@ -1309,14 +1309,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringDateTime = '2024-02-29T12:30:45Z';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.StringDateTime>>(),
     validateSchema: () => createValidate(TF.stringDateTime()),
     getValidationErrors: () => createGetValidationErrors<TF.StringDateTime>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.StringDateTime>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.stringDateTime()),
-    mockType: () => createMockType<TF.StringDateTime>(),
+    mockType: () => createMockData<TF.StringDateTime>(),
     getSamples: () => ({
       valid: ['2024-02-29T12:30:45Z', '2026-05-28T00:00:00.500+02:00'],
       invalid: ['2024-02-29 12:30:45Z', '2023-02-29T12:30:45Z', '2024-02-29T25:30:45Z', 'not-a-datetime'],
@@ -1359,7 +1359,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}> = '29-02-2024 23:59';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<DataOnly<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>>(),
@@ -1373,7 +1373,7 @@ export const STRING_FORMAT = {
       >(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TF.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
-    mockType: () => createMockType<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    mockType: () => createMockData<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     getSamples: () => ({
       valid: ['29-02-2024 23:59'],
       invalid: ['2024-02-29 23:59', '29-02-2024T23:59', '29-02-2024 24:00'],
@@ -1477,7 +1477,7 @@ export const STRING_FORMAT = {
         min: '2020-01-01T00:00:00';
         max: '2020-12-31T23:59:59';
       }> = '';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () =>
       createValidate<
@@ -1534,7 +1534,7 @@ export const STRING_FORMAT = {
         })
       ),
     mockType: () =>
-      createMockType<
+      createMockData<
         TF.StringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
@@ -1583,14 +1583,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.IPv4 = '192.168.0.1';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.IPv4>>(),
     validateSchema: () => createValidate(TF.ipv4()),
     getValidationErrors: () => createGetValidationErrors<TF.IPv4>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.IPv4>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.ipv4()),
-    mockType: () => createMockType<TF.IPv4>(),
+    mockType: () => createMockData<TF.IPv4>(),
     getSamples: () => ({
       valid: ['192.168.0.1', '0.0.0.0', '255.255.255.255'],
       invalid: ['999.999.999.999', '256.0.0.1', '1.2.3', '::1'],
@@ -1625,14 +1625,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.IPv6 = '2001:db8:0:0:0:0:0:1';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.IPv6>>(),
     validateSchema: () => createValidate(TF.ipv6()),
     getValidationErrors: () => createGetValidationErrors<TF.IPv6>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.IPv6>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.ipv6()),
-    mockType: () => createMockType<TF.IPv6>(),
+    mockType: () => createMockData<TF.IPv6>(),
     getSamples: () => ({valid: ['2001:db8:0:0:0:0:0:1', '::1', 'fe80::1'], invalid: ['192.168.0.1', '12345::1']}),
     expectedFormatErrors: () => [
       {name: 'ip', val: 6},
@@ -1666,14 +1666,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.IP = '10.0.0.1';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.IP>>(),
     validateSchema: () => createValidate(TF.ip()),
     getValidationErrors: () => createGetValidationErrors<TF.IP>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.IP>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.ip()),
-    mockType: () => createMockType<TF.IP>(),
+    mockType: () => createMockData<TF.IP>(),
     getSamples: () => ({valid: ['10.0.0.1', '2001:db8::1'], invalid: ['definitely not an ip']}),
     expectedFormatErrors: () => [{name: 'ip', val: 'any'}],
   },
@@ -1704,14 +1704,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.IPv4WithPort = '192.168.0.1:8080';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.IPv4WithPort>>(),
     validateSchema: () => createValidate(TF.ipv4WithPort()),
     getValidationErrors: () => createGetValidationErrors<TF.IPv4WithPort>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.IPv4WithPort>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.ipv4WithPort()),
-    mockType: () => createMockType<TF.IPv4WithPort>(),
+    mockType: () => createMockData<TF.IPv4WithPort>(),
     getSamples: () => ({valid: ['192.168.0.1:8080'], invalid: ['192.168.0.1:70000']}),
     expectedFormatErrors: () => [{name: 'ip', val: 4}],
   },
@@ -1742,14 +1742,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.IPv6WithPort = '[2001:db8::1]:443';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.IPv6WithPort>>(),
     validateSchema: () => createValidate(TF.ipv6WithPort()),
     getValidationErrors: () => createGetValidationErrors<TF.IPv6WithPort>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.IPv6WithPort>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.ipv6WithPort()),
-    mockType: () => createMockType<TF.IPv6WithPort>(),
+    mockType: () => createMockData<TF.IPv6WithPort>(),
     getSamples: () => ({valid: ['[2001:db8::1]:443'], invalid: ['[2001:db8::1]:99999']}),
     expectedFormatErrors: () => [{name: 'ip', val: 6}],
   },
@@ -1784,14 +1784,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Domain = 'mion.io';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Domain>>(),
     validateSchema: () => createValidate(TF.domain()),
     getValidationErrors: () => createGetValidationErrors<TF.Domain>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Domain>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.domain()),
-    mockType: () => createMockType<TF.Domain>(),
+    mockType: () => createMockData<TF.Domain>(),
     getSamples: () => ({
       valid: ['mion.io', 'example.com', 'sub.example.co.uk', 'a-b.example.org'],
       invalid: ['not-a-domain', '.com', 'example.c', '-bad.com', 'exa mple.com', ''],
@@ -1828,14 +1828,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.DomainStrict = 'mion.io';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.DomainStrict>>(),
     validateSchema: () => createValidate(TF.domainStrict()),
     getValidationErrors: () => createGetValidationErrors<TF.DomainStrict>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.DomainStrict>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.domainStrict()),
-    mockType: () => createMockType<TF.DomainStrict>(),
+    mockType: () => createMockData<TF.DomainStrict>(),
     getSamples: () => ({
       valid: ['mion.io', 'sub.example.com', 'aa.bb.cc.dd.ee.com'],
       invalid: ['-bad.com', 'aa.bb.cc.dd.ee.ff.com', 'example.123', 'ex_ample.com', 'localhost'],
@@ -1873,14 +1873,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Email = 'john@example.com';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Email>>(),
     validateSchema: () => createValidate(TF.email()),
     getValidationErrors: () => createGetValidationErrors<TF.Email>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Email>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.email()),
-    mockType: () => createMockType<TF.Email>(),
+    mockType: () => createMockData<TF.Email>(),
     getSamples: () => ({
       valid: ['john@example.com', 'jane.doe@mion.io', 'ab@cd.co', 'user+tag@sub.example.org'],
       invalid: ['not-an-email', 'a@b.co', '@example.com', 'john@', 'john@example', 'john doe@example.com', ''],
@@ -1916,14 +1916,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.EmailPunycode = 'john@example.xn--fiqs8s';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.EmailPunycode>>(),
     validateSchema: () => createValidate(TF.emailPunycode()),
     getValidationErrors: () => createGetValidationErrors<TF.EmailPunycode>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.EmailPunycode>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.emailPunycode()),
-    mockType: () => createMockType<TF.EmailPunycode>(),
+    mockType: () => createMockData<TF.EmailPunycode>(),
     getSamples: () => ({
       valid: ['john@example.xn--fiqs8s', 'user@xn--e1afmkfd.xn--p1ai'],
       invalid: ['not-an-email', 'john@.xn--fiqs8s', 'john@example.x'],
@@ -1961,14 +1961,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.EmailStrict = 'john@example.com';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.EmailStrict>>(),
     validateSchema: () => createValidate(TF.emailStrict()),
     getValidationErrors: () => createGetValidationErrors<TF.EmailStrict>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.EmailStrict>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.emailStrict()),
-    mockType: () => createMockType<TF.EmailStrict>(),
+    mockType: () => createMockData<TF.EmailStrict>(),
     getSamples: () => ({
       valid: ['john@example.com', 'jane.doe@mion.io'],
       invalid: ['a+b@x.com', 'a b@example.com', 'john@@example.com', 'john@bad_domain.com', 'no-at-symbol'],
@@ -2006,14 +2006,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.Url = 'https://example.com';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.Url>>(),
     validateSchema: () => createValidate(TF.url()),
     getValidationErrors: () => createGetValidationErrors<TF.Url>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Url>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.url()),
-    mockType: () => createMockType<TF.Url>(),
+    mockType: () => createMockData<TF.Url>(),
     getSamples: () => ({
       valid: ['https://example.com', 'http://mion.io/path?q=1', 'ftp://files.example.org', 'wss://socket.example.com'],
       invalid: ['not-a-url', 'example.com', 'mailto:john@example.com', 'https://'],
@@ -2047,14 +2047,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.UrlHttp = 'https://example.com';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.UrlHttp>>(),
     validateSchema: () => createValidate(TF.urlHttp()),
     getValidationErrors: () => createGetValidationErrors<TF.UrlHttp>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.UrlHttp>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.urlHttp()),
-    mockType: () => createMockType<TF.UrlHttp>(),
+    mockType: () => createMockData<TF.UrlHttp>(),
     getSamples: () => ({valid: ['https://example.com', 'http://example.com'], invalid: ['ftp://example.com']}),
     expectedFormatErrors: () => [{name: 'url'}],
   },
@@ -2085,14 +2085,14 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: TF.UrlFile = 'file:///etc/hosts';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<TF.UrlFile>>(),
     validateSchema: () => createValidate(TF.urlFile()),
     getValidationErrors: () => createGetValidationErrors<TF.UrlFile>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.UrlFile>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(TF.urlFile()),
-    mockType: () => createMockType<TF.UrlFile>(),
+    mockType: () => createMockData<TF.UrlFile>(),
     getSamples: () => ({valid: ['file:///etc/hosts'], invalid: ['https://example.com']}),
     expectedFormatErrors: () => [{name: 'url'}],
   },
@@ -2129,7 +2129,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: Slug = 'my-slug';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<Slug>>(),
     // Value-first can't reference the OPAQUE `registerFormatPattern` result
@@ -2150,7 +2150,7 @@ export const STRING_FORMAT = {
           pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'},
         })
       ),
-    mockType: () => createMockType<Slug>(),
+    mockType: () => createMockData<Slug>(),
     getSamples: () => ({valid: ['my-slug', 'a-b-c'], invalid: ['Has Capitals', 'UPPER', 'has space', '']}),
     // `pattern`'s custom message lives under the key-excluded `message`
     // field, so the emitter uses the static default 'Invalid pattern'
@@ -2190,7 +2190,7 @@ export const STRING_FORMAT = {
     },
     mockTypeReflect: () => {
       const v: Hex = '0042';
-      return createMockType(v);
+      return createMockData(v);
     },
     validateDataOnly: () => createValidate<DataOnly<Hex>>(),
     validateSchema: () =>
@@ -2199,7 +2199,7 @@ export const STRING_FORMAT = {
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Hex>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(TF.string({pattern: {source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']}})),
-    mockType: () => createMockType<Hex>(),
+    mockType: () => createMockData<Hex>(),
     getSamples: () => ({valid: ['0042', 'DEADbeef'], invalid: ['xyz', '']}),
     expectedFormatErrors: () => [
       {name: 'stringFormat', val: 'Invalid pattern'},

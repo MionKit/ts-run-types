@@ -16,7 +16,7 @@
 
 import path from 'node:path';
 import {describe, it, expect} from 'vitest';
-import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, createMockType} from '@ts-runtypes/core';
+import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, createMockData} from '@ts-runtypes/core';
 import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {
   RUNTYPES_DTS,
@@ -189,7 +189,7 @@ describe('binary size — reserve floors hold at a tiny adversarial config', () 
       for (const c of FLOORS) {
         const compiled = await compile(client, c.title, c.decls ?? '', c.rootExpr);
         expect(compiled.refl, `no reflection tuple for ${c.title}`).toBeTruthy();
-        const mock = createMockType(
+        const mock = createMockData(
           undefined,
           {mock: {respectBinarySize: true, binarySizingOptions: TINY}},
           compiled.refl as never

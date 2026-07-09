@@ -1,4 +1,4 @@
-// `createFriendly<T>(map)` — renders `getValidationErrors` output into
+// `createFriendlyText<T>(map)` — renders `getValidationErrors` output into
 // human-readable messages using a `FriendlyText<T>` map (see docs/AI_ENRICHMENT.md).
 //
 // Pure data over (map, errors): for each error it walks `error.path` into the map,
@@ -12,7 +12,7 @@
 // (a list) — or ONE message per field when the node uses the exclusive
 // `rt$default` mode ({rt$default: '…'} instead of per-constraint keys).
 //
-// `createFriendlyI18n<T>(source, options)` — the locale-selecting wrapper over
+// `createFriendlyTextI18n<T>(source, options)` — the locale-selecting wrapper over
 // the SAME walk (docs/todos → docs/done friendly-type-i18n). The source map IS
 // the source language and the terminal fallback; a translation is another
 // same-tree `FriendlyText<T>` const. Per leaf, an untranslated / @todo-blank
@@ -43,7 +43,7 @@ export interface FriendlyMessage {
   message: string;
 }
 
-/** What `createFriendly` returns. */
+/** What `createFriendlyText` returns. */
 export interface FriendlyRenderer {
   /** The friendly label for a path (dotted string or a raw segment array). */
   label(path: string | RTValidationErrorPathSegment[]): string;
@@ -274,14 +274,14 @@ function groupByPath(errs: RTValidationError[]): PathGroup[] {
 // source's own plural-rules locale, and — on the i18n path — the type-driven
 // bound rendering flag + the app-supplied currency code. Built fresh per
 // label()/errors() call by the i18n wrapper (the reactive `{value}` seam),
-// once by `createFriendly`.
+// once by `createFriendlyText`.
 interface RenderState {
   root: FriendlyNodeRuntime;
   rootLocale: string;
   source?: FriendlyNodeRuntime;
   sourceLocale: string;
-  /** True on the `createFriendlyI18n` path: `$[val]` renders by the bound's
-   *  type format. Plain `createFriendly` stays byte-stable (`String(val)`). */
+  /** True on the `createFriendlyTextI18n` path: `$[val]` renders by the bound's
+   *  type format. Plain `createFriendlyText` stays byte-stable (`String(val)`). */
   i18n?: boolean;
   /** ISO 4217 code for `currency`-branded bounds; absent → plain number. */
   currency?: string;
@@ -385,7 +385,7 @@ function renderErrors(state: RenderState, errs: RTValidationError[]): FriendlyMe
   return out;
 }
 
-export function createFriendly<T>(map: FriendlyText<T>): FriendlyRenderer {
+export function createFriendlyText<T>(map: FriendlyText<T>): FriendlyRenderer {
   const state: RenderState = {
     root: map as FriendlyNodeRuntime,
     rootLocale: DEFAULT_LOCALE,
@@ -397,7 +397,7 @@ export function createFriendly<T>(map: FriendlyText<T>): FriendlyRenderer {
   };
 }
 
-/** Options for `createFriendlyI18n`. */
+/** Options for `createFriendlyTextI18n`. */
 export interface FriendlyI18nOptions<T> {
   /** The active locale: a plain tag, or any `{value}` ref (e.g. a Vue Ref) —
    *  read structurally on EVERY render, so switching the ref re-renders with
@@ -444,11 +444,11 @@ export function resolveLocale<T>(locale: string, translations: Partial<Record<st
   return undefined;
 }
 
-/** The locale-selecting wrapper over the one pure `createFriendly` walk. The
+/** The locale-selecting wrapper over the one pure `createFriendlyText` walk. The
  *  `source` map is the source language and the terminal fallback; every leaf
  *  (labels, error templates) falls through to it when the active translation
  *  leaves it blank. Never throws on a partial translation. */
-export function createFriendlyI18n<T>(source: FriendlyText<T>, options: FriendlyI18nOptions<T>): FriendlyRenderer {
+export function createFriendlyTextI18n<T>(source: FriendlyText<T>, options: FriendlyI18nOptions<T>): FriendlyRenderer {
   const sourceRoot = source as FriendlyNodeRuntime;
   const sourceLocale = options.sourceLocale ?? DEFAULT_LOCALE;
 

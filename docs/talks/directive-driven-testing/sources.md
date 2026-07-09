@@ -110,5 +110,5 @@
   [`../../done/binary-buffer-sizing.md`](../../done/binary-buffer-sizing.md)
 - **Generators / harness** — `packages/ts-runtypes/test/fuzz/`
   (`typeGen.ts`, `shapeValue.ts`, `invalidValue.ts`, `fuzzOracle.ts`,
-  `seededRng.ts`); value gen `packages/ts-runtypes/src/mocking/createMockType.ts`;
+  `seededRng.ts`); value gen `packages/ts-runtypes/src/mocking/createMockData.ts`;
   reflection `packages/ts-runtypes/src/getRunType.ts`.

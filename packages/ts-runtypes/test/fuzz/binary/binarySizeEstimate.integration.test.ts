@@ -1,13 +1,13 @@
 // End-to-end: the binary cold-start size estimate holds for in-bounds data. For
 // each varied estimator config, generate a random serialisable type, compile it
-// with that config, and source values from createMockType(respectBinarySize):
+// with that config, and source values from createMockData(respectBinarySize):
 //
 //   in-bounds (true)  — the cold buffer NEVER resizes, and the bytes round-trip.
 //   oversized (false) — the cold buffer DOES resize, and still round-trips (the
 //                       negative control proving the lane has teeth + grow-in-place
 //                       stays sound).
 //
-// The oracle is dumb (just "did it resize?"); soundness lives in createMockType's
+// The oracle is dumb (just "did it resize?"); soundness lives in createMockData's
 // `respectBinarySize` bounds + the matching estimate. Needs the Go binary (spawned
 // by the runner's ResolverClient); skipped when it isn't built.
 

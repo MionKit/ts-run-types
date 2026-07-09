@@ -84,7 +84,7 @@ const getUserErrors = createGetValidationErrors<User>();
 The same type drives more than validation: JSON and binary serialization
 (`createJsonEncoder` / `createJsonDecoder`, `createBinaryEncoder` /
 `createBinaryDecoder`), reflection (`getRunTypeId`), and realistic mock data
-(`createMockType`). See the documentation for the full factory reference.
+(`createMockData`). See the documentation for the full factory reference.
 
 ## License
 

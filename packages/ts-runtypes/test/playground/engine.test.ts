@@ -154,7 +154,7 @@ describeIf('playground engine (WASM, live execution)', () => {
     expect(mods[0].code).toMatch(/export const __rt_/);
   });
 
-  it('createMockType generates a value that validates', async () => {
+  it('createMockData generates a value that validates', async () => {
     const m = await mock(TYPE);
     expect(m.value).toBeTypeOf('object');
     const ok = await run('validate', TYPE, m.value);

@@ -54,7 +54,7 @@ export type RunResult =
     };
 
 interface ScanResult {
-  // fnId is absent for reflection call sites (getRunTypeId / createMockType),
+  // fnId is absent for reflection call sites (getRunTypeId / createMockData),
   // which inject the facade tuple under `__rt_<id>` rather than `__rt_<fnId>_<id>`.
   site: {id: string; fnId?: string; [key: string]: unknown} | null;
   entryModules: Record<string, string>;
@@ -193,7 +193,7 @@ interface LinkedEntry {
 
 // linkEntry scans <factory><MyType>(), links the emitted entry modules, and
 // returns the root tuple. The binding is `__rt_<fnId>_<id>` for type-fn families
-// (validate / encoders / …) and `__rt_<id>` for reflection ones (createMockType /
+// (validate / encoders / …) and `__rt_<id>` for reflection ones (createMockData /
 // getRunTypeId), which inject a facade tuple with no fnId. `options` selects the
 // JSON strategy (folded into the fnId), so each strategy links its own entry.
 function linkEntry(
@@ -310,7 +310,7 @@ export async function generatedCache(
   return Object.entries(entryModules).map(([basename, code]) => ({name: `virtual:rt/${basename}.js`, code: code.trim()}));
 }
 
-// mock generates a random value for the type via createMockType (the same
+// mock generates a random value for the type via createMockData (the same
 // generator MockData feeds). Returns the value plus any diagnostics.
 export async function mock(
   userCode: string,
@@ -318,11 +318,11 @@ export async function mock(
   mode: Mode = 'type'
 ): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
   const {dispatch} = await getResolver(options);
-  const {fn, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
+  const {fn, diagnostics} = materialize(dispatch, 'createMockData', userCode, mode);
   return {value: fn(), diagnostics};
 }
 
-// mockInvalid generates a value that FAILS validation via the core createMockType
+// mockInvalid generates a value that FAILS validation via the core createMockData
 // `invalid` option (a valid mock with one type-aware position corrupted; see
 // invalidLeafProbability). It additionally verifies against the live validator and
 // retries, so the rare position the core can't make invalid on its own (a
@@ -336,7 +336,7 @@ export async function mockInvalid(
 ): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
   const {dispatch} = await getResolver(options);
   const validate = materialize(dispatch, 'createValidate', userCode, mode).fn as (v: unknown) => boolean;
-  const {fn: generate, diagnostics} = materialize(dispatch, 'createMockType', userCode, mode);
+  const {fn: generate, diagnostics} = materialize(dispatch, 'createMockData', userCode, mode);
   const callOpts = {mock: {invalid: true, invalidLeafProbability}};
   let last: unknown;
   for (let attempt = 0; attempt < 12; attempt++) {
@@ -371,7 +371,7 @@ export async function run(
     case 'graph': {
       // Type mode reflects via getRunType<MyType>(); schema mode resolves the
       // same graph through a value-first reflection call on the schema.
-      const reflectFactory = mode === 'schema' ? 'createMockType' : 'getRunType';
+      const reflectFactory = mode === 'schema' ? 'createMockData' : 'getRunType';
       const {site, runTypes, diagnostics} = scan(dispatch, reflectFactory, userCode, mode);
       const rootId = site?.id ?? null;
       const root = runTypes.find((n) => n.id === rootId) ?? runTypes[0] ?? null;

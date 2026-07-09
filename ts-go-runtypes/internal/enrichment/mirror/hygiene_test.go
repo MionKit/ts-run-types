@@ -121,9 +121,9 @@ func TestIsEnrichmentFile(t *testing.T) {
 		// The DSL package's own sources DECLARE and document the bare names
 		// (and may carry @todo in prose) — never enrichment files.
 		{"dsl declaration file", "// the `" + TodoTag + "`/diagnostic layer enforces this\nexport type " + enrichment.FriendlyTypeName + "<T> = {[K in keyof T]?: unknown};\ntype Use = " + enrichment.FriendlyTypeName + "<{a: 1}>;", false},
-		// A runtime that TAKES a map parameter (createFriendly's own signature)
+		// A runtime that TAKES a map parameter (createFriendlyText's own signature)
 		// is not a mirror — only the const-declaration shape scaffolds emit is.
-		{"parameter annotation", "// blank '' (an unfilled " + TodoTag + ") counts as absent\nexport function createFriendly<T>(map: " + enrichment.FriendlyTypeName + "<T>) {\n  return map;\n}", false},
+		{"parameter annotation", "// blank '' (an unfilled " + TodoTag + ") counts as absent\nexport function createFriendlyText<T>(map: " + enrichment.FriendlyTypeName + "<T>) {\n  return map;\n}", false},
 		// A JSDoc CODE EXAMPLE showing the const shape lives inside a comment —
 		// masked out, so docs-heavy sources with @todo prose never read as mirrors.
 		{"jsdoc code example", "/**\n * Example:\n *   export const friendlyUser: " + enrichment.FriendlyTypeName + "<User> = {};\n * then fill the " + TodoTag + " blanks.\n */\nexport function helper() {}", false},

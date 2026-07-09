@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -34,10 +34,10 @@ export const ATOMIC = {
       const v: any = null;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<any>(),
+    mockType: () => createMockData<any>(),
     mockTypeReflect: () => {
       const v: any = null;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [null, undefined, 42, 'hello'],
@@ -92,10 +92,10 @@ export const ATOMIC = {
       const v: bigint = 1n;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<bigint>(),
+    mockType: () => createMockData<bigint>(),
     mockTypeReflect: () => {
       const v: bigint = 1n;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [1n, BigInt(42)],
@@ -142,10 +142,10 @@ export const ATOMIC = {
       const v: boolean = true;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<boolean>(),
+    mockType: () => createMockData<boolean>(),
     mockTypeReflect: () => {
       const v: boolean = true;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [true, false],
@@ -193,10 +193,10 @@ export const ATOMIC = {
       const v: Date = new Date();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Date>(),
+    mockType: () => createMockData<Date>(),
     mockTypeReflect: () => {
       const v: Date = new Date();
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [new Date()],
@@ -333,7 +333,7 @@ export const ATOMIC = {
         Green = 'green',
         Blue = 2,
       }
-      return createMockType<Color>();
+      return createMockData<Color>();
     },
     mockTypeReflect: () => {
       enum Color {
@@ -342,7 +342,7 @@ export const ATOMIC = {
         Blue = 2,
       }
       const v: Color = Color.Red;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       enum Color {
@@ -397,10 +397,10 @@ export const ATOMIC = {
       const v = 2 as const;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<2>(),
+    mockType: () => createMockData<2>(),
     mockTypeReflect: () => {
       const v = 2 as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: [2], invalid: [4, '2', null, undefined]}),
     getExpectedErrors: () => [
@@ -440,10 +440,10 @@ export const ATOMIC = {
       const v = 'a' as const;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<'a'>(),
+    mockType: () => createMockData<'a'>(),
     mockTypeReflect: () => {
       const v = 'a' as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: ['a'], invalid: ['b', 'A', '', null, undefined]}),
     getExpectedErrors: () => [
@@ -485,10 +485,10 @@ export const ATOMIC = {
       const v = true as const;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<true>(),
+    mockType: () => createMockData<true>(),
     mockTypeReflect: () => {
       const v = true as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: [true], invalid: [false, 1, 'true', null]}),
     getExpectedErrors: () => [
@@ -528,10 +528,10 @@ export const ATOMIC = {
       const v = 1n as const;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<1n>(),
+    mockType: () => createMockData<1n>(),
     mockTypeReflect: () => {
       const v = 1n as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: [1n], invalid: [2n, 1, '1n', 0n, null]}),
     getExpectedErrors: () => [
@@ -606,12 +606,12 @@ export const ATOMIC = {
     },
     mockType: () => {
       const sym = Symbol('hello');
-      return createMockType<typeof sym>();
+      return createMockData<typeof sym>();
     },
     mockTypeReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const sym = Symbol('hello');
@@ -659,10 +659,10 @@ export const ATOMIC = {
       const v: never = null as never;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<never>(),
+    mockType: () => createMockData<never>(),
     mockTypeReflect: () => {
       const v: never = null as never;
-      return createMockType(v);
+      return createMockData(v);
     },
     mockTypeExpect: 'throw',
     getSamples: () => ({
@@ -713,10 +713,10 @@ export const ATOMIC = {
       const v: null = null;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<null>(),
+    mockType: () => createMockData<null>(),
     mockTypeReflect: () => {
       const v: null = null;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [null],
@@ -767,10 +767,10 @@ export const ATOMIC = {
       const v: number = 42;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<number>(),
+    mockType: () => createMockData<number>(),
     mockTypeReflect: () => {
       const v: number = 42;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [42],
@@ -823,10 +823,10 @@ export const ATOMIC = {
       const v: object = {};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<object>(),
+    mockType: () => createMockData<object>(),
     mockTypeReflect: () => {
       const v: object = {};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{}, {a: 42, b: 'hello'}, [], new Date(), /abc/],
@@ -876,7 +876,7 @@ export const ATOMIC = {
     // type and dispatches to the regexp-literal arm, diverging from the static form.
     getValidationErrorsReflect: 'not-supported',
     deserializeGetValidationErrorsReflect: 'not-supported',
-    mockType: () => createMockType<RegExp>(),
+    mockType: () => createMockData<RegExp>(),
     mockTypeReflect: 'not-supported',
     getSamples: () => ({
       valid: [/abc/, new RegExp('abc')],
@@ -921,10 +921,10 @@ export const ATOMIC = {
       const v: string = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string>(),
+    mockType: () => createMockData<string>(),
     mockTypeReflect: () => {
       const v: string = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['hello', ''],
@@ -970,10 +970,10 @@ export const ATOMIC = {
       const v: symbol = Symbol();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<symbol>(),
+    mockType: () => createMockData<symbol>(),
     mockTypeReflect: () => {
       const v: symbol = Symbol();
-      return createMockType(v);
+      return createMockData(v);
     },
     factoryThrows: true,
     getSamples: () => ({valid: [], invalid: []}),
@@ -1008,10 +1008,10 @@ export const ATOMIC = {
       const v: undefined = undefined;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<undefined>(),
+    mockType: () => createMockData<undefined>(),
     mockTypeReflect: () => {
       const v: undefined = undefined;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [undefined],
@@ -1059,10 +1059,10 @@ export const ATOMIC = {
       const v: void = undefined;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<void>(),
+    mockType: () => createMockData<void>(),
     mockTypeReflect: () => {
       const v: void = undefined;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       function vd(): void {}
@@ -1116,10 +1116,10 @@ export const ATOMIC = {
       const v = 2 as const;
       return deserializeGetValidationErrors(v, {noLiterals: true});
     },
-    mockType: () => createMockType<2>(undefined, undefined),
+    mockType: () => createMockData<2>(undefined, undefined),
     mockTypeReflect: () => {
       const v = 2 as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: [4, 0, -1], invalid: ['4', Infinity, NaN, null]}),
     getExpectedErrors: () => [
@@ -1160,10 +1160,10 @@ export const ATOMIC = {
       const v = 'a' as const;
       return deserializeGetValidationErrors(v, {noLiterals: true});
     },
-    mockType: () => createMockType<'a'>(undefined, undefined),
+    mockType: () => createMockData<'a'>(undefined, undefined),
     mockTypeReflect: () => {
       const v = 'a' as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: ['c', ''], invalid: [1, null, undefined, true]}),
     getExpectedErrors: () => [
@@ -1234,12 +1234,12 @@ export const ATOMIC = {
     },
     mockType: () => {
       const reg = /abc/i;
-      return createMockType<typeof reg>(undefined, undefined);
+      return createMockData<typeof reg>(undefined, undefined);
     },
     mockTypeReflect: () => {
       const reg = /abc/i;
       const v: typeof reg = reg;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: [/otherReg/, new RegExp('foo')], invalid: ['otherReg', null, undefined, {}]}),
     getExpectedErrors: () => [
@@ -1280,10 +1280,10 @@ export const ATOMIC = {
       const v = true as const;
       return deserializeGetValidationErrors(v, {noLiterals: true});
     },
-    mockType: () => createMockType<true>(undefined, undefined),
+    mockType: () => createMockData<true>(undefined, undefined),
     mockTypeReflect: () => {
       const v = true as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: [false, true], invalid: [1, 0, 'true', null, undefined]}),
     getExpectedErrors: () => [
@@ -1325,10 +1325,10 @@ export const ATOMIC = {
       const v = 1n as const;
       return deserializeGetValidationErrors(v, {noLiterals: true});
     },
-    mockType: () => createMockType<1n>(undefined, undefined),
+    mockType: () => createMockData<1n>(undefined, undefined),
     mockTypeReflect: () => {
       const v = 1n as const;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({valid: [3n, 0n, 1n], invalid: [3, null, undefined, 1, '1n']}),
     getExpectedErrors: () => [
@@ -1399,12 +1399,12 @@ export const ATOMIC = {
     },
     mockType: () => {
       const sym = Symbol('hello');
-      return createMockType<typeof sym>(undefined, undefined);
+      return createMockData<typeof sym>(undefined, undefined);
     },
     mockTypeReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return createMockType(v);
+      return createMockData(v);
     },
     factoryThrows: true,
     getSamples: () => ({valid: [], invalid: []}),
@@ -1444,10 +1444,10 @@ export const ATOMIC = {
       const v: unknown = null;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<unknown>(),
+    mockType: () => createMockData<unknown>(),
     mockTypeReflect: () => {
       const v: unknown = null;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [null, undefined, 42, 'hello', true, {}, [], Symbol(), () => null, new Date()],

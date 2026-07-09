@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -54,10 +54,10 @@ export const UNION = {
       const v: Date | number | string | null | bigint = 123;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Date | number | string | null | bigint>(),
+    mockType: () => createMockData<Date | number | string | null | bigint>(),
     mockTypeReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [new Date(), 123, 'hello', null, 1n],
@@ -106,10 +106,10 @@ export const UNION = {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<'UNO' | 'DOS' | 'TRES'>(),
+    mockType: () => createMockData<'UNO' | 'DOS' | 'TRES'>(),
     mockTypeReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['UNO', 'DOS', 'TRES'],
@@ -191,10 +191,10 @@ export const UNION = {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    mockType: () => createMockData<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     mockTypeReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['a', 'b', 42, true, null, {a: 'x'}, {a: 'x', b: 1}, {c: 10n}],
@@ -242,10 +242,10 @@ export const UNION = {
       const v: string | number = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string | number>(),
+    mockType: () => createMockData<string | number>(),
     mockTypeReflect: () => {
       const v: string | number = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['hello', 42, 0, ''],
@@ -295,10 +295,10 @@ export const UNION = {
       const v: string[] | number[] | boolean[] = ['a'];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string[] | number[] | boolean[]>(),
+    mockType: () => createMockData<string[] | number[] | boolean[]>(),
     mockTypeReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [['a'], [1], [true, false], [], ['a', 'b']],
@@ -347,10 +347,10 @@ export const UNION = {
       const v: (string | bigint | boolean | Date)[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<(string | bigint | boolean | Date)[]>(),
+    mockType: () => createMockData<(string | bigint | boolean | Date)[]>(),
     mockTypeReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[1n, 'b', new Date(), true]],
@@ -414,10 +414,10 @@ export const UNION = {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    mockType: () => createMockData<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     mockTypeReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       // union.spec.ts uses loose matching — `{a, b, c}` passes
@@ -476,10 +476,10 @@ export const UNION = {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    mockType: () => createMockData<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     mockTypeReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -590,12 +590,12 @@ export const UNION = {
     },
     mockType: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createMockType<UnionC>();
+      return createMockData<UnionC>();
     },
     mockTypeReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       const v: UnionC = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
@@ -670,13 +670,13 @@ export const UNION = {
       };
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    mockType: () => createMockData<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     mockTypeReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
         name: 'x',
         getName: () => 'x',
       };
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
@@ -727,10 +727,10 @@ export const UNION = {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{a: string} & {b: number}>(),
+    mockType: () => createMockData<{a: string} & {b: number}>(),
     mockTypeReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -807,10 +807,10 @@ export const UNION = {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    mockType: () => createMockData<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     mockTypeReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
@@ -900,13 +900,13 @@ export const UNION = {
       };
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    mockType: () => createMockData<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     mockTypeReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
         type: 'a',
         prop: true,
       };
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -1022,14 +1022,14 @@ export const UNION = {
       return deserializeGetValidationErrors(v);
     },
     mockType: () =>
-      createMockType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      createMockData<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     mockTypeReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
         'a',
         'b',
         'c',
       ];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -1092,10 +1092,10 @@ export const UNION = {
       const v: {a: boolean} | {a: number} = {a: true};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{a: boolean} | {a: number}>(),
+    mockType: () => createMockData<{a: boolean} | {a: number}>(),
     mockTypeReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
@@ -1235,7 +1235,7 @@ export const UNION = {
       return deserializeGetValidationErrors(v);
     },
     mockType: () =>
-      createMockType<
+      createMockData<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
@@ -1249,7 +1249,7 @@ export const UNION = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -1302,10 +1302,10 @@ export const UNION = {
       const v: string | any = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string | any>(),
+    mockType: () => createMockData<string | any>(),
     mockTypeReflect: () => {
       const v: string | any = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -1346,10 +1346,10 @@ export const UNION = {
       const v: string | unknown = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string | unknown>(),
+    mockType: () => createMockData<string | unknown>(),
     mockTypeReflect: () => {
       const v: string | unknown = 'hello';
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -1489,7 +1489,7 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createMockType<SmallObj | LargeObj>();
+      return createMockData<SmallObj | LargeObj>();
     },
     mockTypeReflect: () => {
       interface SmallObj {
@@ -1500,7 +1500,7 @@ export const UNION = {
         b: number;
       }
       const v: SmallObj | LargeObj = {a: 'hello'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{a: 'hello'}, {a: 'hello', b: 123}],
@@ -1722,7 +1722,7 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createMockType<Tiny | Medium | Large>();
+      return createMockData<Tiny | Medium | Large>();
     },
     mockTypeReflect: () => {
       interface Tiny {
@@ -1738,7 +1738,7 @@ export const UNION = {
         z: boolean;
       }
       const v: Tiny | Medium | Large = {x: 'hello'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
@@ -1929,7 +1929,7 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createMockType<Base | Extended | Unrelated>();
+      return createMockData<Base | Extended | Unrelated>();
     },
     mockTypeReflect: () => {
       interface Base {
@@ -1943,7 +1943,7 @@ export const UNION = {
         value: number;
       }
       const v: Base | Extended | Unrelated = {id: '123'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],

@@ -22,7 +22,7 @@
 >    re-scaffolding.
 > 3. **`FriendlyI18nOptions` gained `sourceLocale?`** (default `'en'`): the
 >    renderer needs it to select source-map plurals with the source language's
->    rules; plain `createFriendly` uses `'en'` (deterministic, matching the
+>    rules; plain `createFriendlyText` uses `'en'` (deterministic, matching the
 >    tsconfig default) rather than the host locale.
 > 4. ~~The formatter cache is scoped per `NamedFormats` table~~ — superseded by
 >    deviation #10 (named formats removed entirely).
@@ -58,7 +58,7 @@
 >     which currency a value is in is app DATA, never a type param; omitted →
 >     plain localized number, no guessed symbol); date-family bounds render via
 >     `Intl.DateTimeFormat(locale)` (unparseable relative bounds stay
->     verbatim); everything else stays `String(val)`. Plain `createFriendly`
+>     verbatim); everything else stays `String(val)`. Plain `createFriendlyText`
 >     stays byte-stable. FT005 flags leftover colon-form tokens with a
 >     migration pointer. `relativeTime` / `list` kinds were dropped — nothing
 >     in the type system expresses them.
@@ -142,7 +142,7 @@ mandatory `other` arm as backstop.
 | **File layout** | One committed file per (source file, locale) under a **path-segment** subtree: `runtypes/generated/i18n/<locale>/<rel>.ts`, const `<Locale>_friendly<Name>: Translation<Name>`. |
 | **Plurals** | **Generator-owned, constraint-classified.** Objects on count-bearing constraints (`minLength`/`maxLength`/`min`/`max`/`lt`/`gt`), strings elsewhere. Arms = the file-locale's CLDR categories from a built-in table (11 languages shipped; unknown → all six). Runtime selects via `Intl.PluralRules`; `other` mandatory + backstop. |
 | **Leaf type** | `TemplateLeaf = string \| PluralTemplate` (permissive in TS; the Go checker validates plural placement + arms — FT006/FT007/FT008 as shipped; a plain string stays legal anywhere, deviation #6). Language-agnostic. |
-| **Runtime** | `createFriendlyI18n(source, { locale, translations, currency?, sourceLocale? })` — thin locale selector over the one pure `createFriendly` walk; per-leaf fallback to source. `resolveLocale()` exported standalone. |
+| **Runtime** | `createFriendlyTextI18n(source, { locale, translations, currency?, sourceLocale? })` — thin locale selector over the one pure `createFriendlyText` walk; per-leaf fallback to source. `resolveLocale()` exported standalone. |
 | **Interpolation** | Keep the **closed `$[…]` DSL** — `$[val]` only, rendered TYPE-DRIVEN (deviation #10: `TF.Currency` bounds via the renderer `currency` option; date-family bounds via `Intl.DateTimeFormat`). **No ICU/MF2, no per-template format syntax.** |
 | **Count source** | Always the **violated bound** (`$[val]`, cardinal). Because objects appear only on count-bearing constraints, there is no cardinal-vs-ordinal ambiguity. |
 | **Reconcile** | Reuse the generic merge/rename/orphan/splice core; swap the type-bound outer shell (desired side = source-const bytes; orphan oracle = source mirror). **One genuinely-new capability:** descend into `$errors` (today opaque) and into plural objects (locale-owned arms). |
@@ -236,8 +236,8 @@ constraint keys are the verified `(format.name, formatPath-tail)` discriminator:
 `(failed) => string` arrow (the opaque escape hatch, documented for "joining,
 pluralization, i18n").
 
-`createFriendly<T>(map)`
-([createFriendly.ts:161](../../packages/ts-runtypes/src/enrich/createFriendly.ts)) is the
+`createFriendlyText<T>(map)`
+([createFriendlyText.ts:161](../../packages/ts-runtypes/src/enrich/createFriendlyText.ts)) is the
 **sole** runtime consumer of a map — **pure data over `(map, RTValidationError[])`, no
 type-id, no `rtUtils`, no runtime hashing.** It walks `error.path` into the node, picks a
 template by constraint key, and interpolates the `$[label]` / `$[val]` / `$[path]` /
@@ -338,7 +338,7 @@ and translations stay same-tree.**
 // self-contained (lib + own decls only) and cheap — the extract is measured by an
 // instantiation-budget compile test (compileHarness.ts: lib.es2023.d.ts alone). Do NOT
 // reference `Intl.LDMLPluralRule` here; use this local union (runtime code in
-// createFriendly.ts, which is NOT sliced, may use Intl.LDMLPluralRule directly).
+// createFriendlyText.ts, which is NOT sliced, may use Intl.LDMLPluralRule directly).
 type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
 
 /** A plural template: one arm per CLDR category the file's locale uses. `other` is
@@ -401,7 +401,7 @@ per-language table**:
   runtime thanks to the `other` backstop. The table can later be widened / generated from
   the resolver's bundled ICU (residual decision below).
 
-**Runtime selection** (inside `createFriendly`'s template-picking step, gated on the locale
+**Runtime selection** (inside `createFriendlyText`'s template-picking step, gated on the locale
 context):
 
 1. Resolve the leaf for the constraint key. A `string` interpolates as today.
@@ -487,7 +487,7 @@ source `one`/`other` string if `few` is still `@todo`).
 
 ### 5. Runtime API — a thin wrapper over the one pure walk
 
-Two additions in [createFriendly.ts](../../packages/ts-runtypes/src/enrich/createFriendly.ts).
+Two additions in [createFriendlyText.ts](../../packages/ts-runtypes/src/enrich/createFriendlyText.ts).
 The plural/format branch lives **inside** the existing walk, gated on a locale context that
 is **absent by default** (single-locale callers are byte-behaviour-unchanged), and the
 wrapper pre-selects which map the walk reads:
@@ -506,21 +506,21 @@ export interface FriendlyI18nOptions<T> {
   strict?: boolean;                                        // reserved; runtime stays lenient — strictness lives in `check`
 }
 
-export function createFriendlyI18n<T>(
+export function createFriendlyTextI18n<T>(
   source: FriendlyType<T>,                                 // the terminal fallback = source language
   options: FriendlyI18nOptions<T>,
-): FriendlyRenderer;                                       // SAME return type as createFriendly
+): FriendlyRenderer;                                       // SAME return type as createFriendlyText
 ```
 
 Consumers import the source const and each locale const **by name** (committed imports — no
 plugin injection) and pass them in; the active locale is app-owned (a Vue `useI18n().locale`,
-a route param, `navigator.language`). **Reactive seam:** `createFriendlyI18n` reads
+a route param, `navigator.language`). **Reactive seam:** `createFriendlyTextI18n` reads
 `typeof locale === 'object' ? locale.value : locale` on **every** render, so a Vue `ref`
 re-renders on switch with zero API churn (documented honestly: the renderer is not itself
 reactivity-tracked — call it inside a `computed()` / re-invoke `errors()` per render; a truly
 reactive renderer would need an optional `@vue/reactivity` peer, deferred).
 
-**Crash guard (mandatory, touches the walk — VERIFIED createFriendly.ts:190 has no
+**Crash guard (mandatory, touches the walk — VERIFIED createFriendlyText.ts:190 has no
 `typeof` guard, so a plural object hits `interpolate`'s `.replace()` → `TypeError`):**
 before interpolate, branch on `typeof template === 'string'`; a `PluralTemplate` routes
 through `selectPlural` (§4), which returns a string arm and never calls `select` with a
@@ -542,7 +542,7 @@ non-finite count.
 > `dateTime`, `time`, `nativeDate`, `temporal*`) parse and render via
 > `Intl.DateTimeFormat(locale)` with a per-family style; an unparseable
 > relative bound (`now-P1D`) stays verbatim. Everything else stays
-> `String(val)`; plain `createFriendly` is byte-stable. Caching: `PluralRules`
+> `String(val)`; plain `createFriendlyText` is byte-stable. Caching: `PluralRules`
 > per locale; bound formatters per `${locale}\0${currency}` /
 > `${locale}\0${formatName}` maps — module-scope singletons beside the pure
 > walk. Rationale: the type is the single source of truth — asking templates
@@ -660,8 +660,8 @@ files resolve to sibling `i18n/<locale>/` paths. The **plural-category table** l
 
 ## Fallback semantics — always lenient at runtime
 
-`createFriendlyI18n` calls `resolveLocale` to pick `translations[matched]` (or `source` when
-none matches), then renders through the **one** `createFriendly` walk. Per error the walk
+`createFriendlyTextI18n` calls `resolveLocale` to pick `translations[matched]` (or `source` when
+none matches), then renders through the **one** `createFriendlyText` walk. Per error the walk
 reads the chosen translation node's `$errors[constraintKey]`; if that leaf is **absent**
 (untranslated / `@todo`-blank / orphaned / whole node missing) it falls through to the
 **source** node's leaf. Same for `$label`. A plural leaf falls through as a **whole unit**.
@@ -714,7 +714,7 @@ configurable `sourceLocale`.
   source-added constraint keys aren't scaffolded and plural-arm reconcile has no attachment
   point. `$errors`-aware descent is genuinely new merge code (see §Reconcile), not a predicate
   bolt-on.
-- **[CRASH]** `createFriendly.ts:190` does `template ? interpolate(template, …)` with **no**
+- **[CRASH]** `createFriendlyText.ts:190` does `template ? interpolate(template, …)` with **no**
   `typeof` guard; a plural object is truthy with no `.replace` → `TypeError`. A `typeof`/plural
   branch **must** be added to the walk (gated off by default).
 - **[CRASH]** `Intl.PluralRules.select(NaN)` throws `RangeError`; a plural on a bound that isn't
@@ -749,14 +749,14 @@ configurable `sourceLocale`.
   no-op). See §Prerequisite.
 - **Phase 0 — type + crash guard (ships independently).** Widen the leaf (`PluralTemplate` /
   `TemplateLeaf`, local `PluralCategory`), add `Translation<T>`, keep `$label: string`. Add the
-  `typeof`-template guard in `createFriendly.ts:190`. Re-measure the enrichHarness compile-budget
+  `typeof`-template guard in `createFriendlyText.ts:190`. Re-measure the enrichHarness compile-budget
   test; add compile-test cases for the widened leaf.
 - **Phase 1 — pure runtime plural + named formats.** `selectPlural` (cardinal-on-bound, NaN
   guard, `other` backstop), the widened `$[…:kind:name]` regex with verbatim fallback, the
   module-level `intlCache`. Vitest: per-category selection (en `one/other`, pl
   `one/few/many/other`, ar all six, ja `other`-only), format tokens, unknown-token/format
   verbatim, the `ratio 3:1` non-mis-parse.
-- **Phase 2 — locale-selecting wrapper.** `createFriendlyI18n` + `resolveLocale` (naive
+- **Phase 2 — locale-selecting wrapper.** `createFriendlyTextI18n` + `resolveLocale` (naive
   truncation — the decided product call, deviation #1), leaf-granular fallback-to-source,
   reactive `{ value }` seam. Vitest: partial-translation fallback, whole-plural atomic
   fallback, ref-driven switch, function-form node ignores i18n.
@@ -805,7 +805,7 @@ the `ts-runtypes` npm package, installable via `npx ts-runtypes-skills`).
   **inside `$errors`**) and orphans removed nodes; `--prune` is the only delete.
 - The generator emits a plural **object** exactly on count-bearing constraints and a **string**
   elsewhere; the LLM only ever fills string leaves; the checker enforces the per-constraint kind.
-- `createFriendlyI18n` renders labels + error messages in the active locale, falls through to the
+- `createFriendlyTextI18n` renders labels + error messages in the active locale, falls through to the
   source language per-leaf for anything untranslated, selects plurals via `Intl.PluralRules`
   (asymmetric-safe), formats via named `Intl` formats, and **never throws** on a partial
   translation.

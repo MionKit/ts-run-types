@@ -12,7 +12,7 @@ import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from '@ts-runtypes/core/schema';
 import {
-  createMockType,
+  createMockData,
   createValidate,
   createGetValidationErrors,
   createJsonEncoder,
@@ -31,7 +31,7 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'User',
     schema,
-    mock: createMockType(schema),
+    mock: createMockData(schema),
     validate: createValidate(schema),
     getValidationErrors: createGetValidationErrors(schema),
     jsonEncode: createJsonEncoder(schema),
@@ -47,7 +47,7 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'Nested',
     schema,
-    mock: createMockType(schema),
+    mock: createMockData(schema),
     validate: createValidate(schema),
     getValidationErrors: createGetValidationErrors(schema),
     jsonEncode: createJsonEncoder(schema),
@@ -63,7 +63,7 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'Tuple',
     schema,
-    mock: createMockType(schema),
+    mock: createMockData(schema),
     validate: createValidate(schema),
     getValidationErrors: createGetValidationErrors(schema),
     jsonEncode: createJsonEncoder(schema),
@@ -79,7 +79,7 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'OptionalLiteral',
     schema,
-    mock: createMockType(schema),
+    mock: createMockData(schema),
     validate: createValidate(schema),
     getValidationErrors: createGetValidationErrors(schema),
     jsonEncode: createJsonEncoder(schema),
@@ -95,7 +95,7 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'DateBigint',
     schema,
-    mock: createMockType(schema),
+    mock: createMockData(schema),
     validate: createValidate(schema),
     getValidationErrors: createGetValidationErrors(schema),
     jsonEncode: createJsonEncoder(schema),
@@ -111,7 +111,7 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'UnionField',
     schema,
-    mock: createMockType(schema),
+    mock: createMockData(schema),
     validate: createValidate(schema),
     getValidationErrors: createGetValidationErrors(schema),
     jsonEncode: createJsonEncoder(schema),

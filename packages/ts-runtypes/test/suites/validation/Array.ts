@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -52,10 +52,10 @@ export const ARRAY = {
       const v: string[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string[]>(),
+    mockType: () => createMockData<string[]>(),
     mockTypeReflect: () => {
       const v: string[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], ['hello', 'world']],
@@ -107,10 +107,10 @@ export const ARRAY = {
       const v: number[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<number[]>(),
+    mockType: () => createMockData<number[]>(),
     mockTypeReflect: () => {
       const v: number[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [1, 2, 3], [42]],
@@ -159,10 +159,10 @@ export const ARRAY = {
       const v: boolean[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<boolean[]>(),
+    mockType: () => createMockData<boolean[]>(),
     mockTypeReflect: () => {
       const v: boolean[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [true, false]],
@@ -209,10 +209,10 @@ export const ARRAY = {
       const v: bigint[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<bigint[]>(),
+    mockType: () => createMockData<bigint[]>(),
     mockTypeReflect: () => {
       const v: bigint[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [1n, 2n]],
@@ -257,10 +257,10 @@ export const ARRAY = {
       const v: Date[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Date[]>(),
+    mockType: () => createMockData<Date[]>(),
     mockTypeReflect: () => {
       const v: Date[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
@@ -309,10 +309,10 @@ export const ARRAY = {
       const v: RegExp[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<RegExp[]>(),
+    mockType: () => createMockData<RegExp[]>(),
     mockTypeReflect: () => {
       const v: RegExp[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [/abc/, new RegExp('abc')]],
@@ -357,10 +357,10 @@ export const ARRAY = {
       const v: undefined[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<undefined[]>(),
+    mockType: () => createMockData<undefined[]>(),
     mockTypeReflect: () => {
       const v: undefined[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [undefined, undefined]],
@@ -406,10 +406,10 @@ export const ARRAY = {
       const v: null[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<null[]>(),
+    mockType: () => createMockData<null[]>(),
     mockTypeReflect: () => {
       const v: null[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [null]],
@@ -457,10 +457,10 @@ export const ARRAY = {
       const v: Array<string> = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<Array<string>>(),
+    mockType: () => createMockData<Array<string>>(),
     mockTypeReflect: () => {
       const v: Array<string> = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], ['hello']],
@@ -505,10 +505,10 @@ export const ARRAY = {
       const v: string[][] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string[][]>(),
+    mockType: () => createMockData<string[][]>(),
     mockTypeReflect: () => {
       const v: string[][] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -572,10 +572,10 @@ export const ARRAY = {
       const v: string[][][] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<string[][][]>(),
+    mockType: () => createMockData<string[][][]>(),
     mockTypeReflect: () => {
       const v: string[][][] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
@@ -628,10 +628,10 @@ export const ARRAY = {
       return deserializeGetValidationErrors(v, {noIsArrayCheck: true});
     },
     getValidationErrorsSchema: () => createGetValidationErrors(RT.array(TF.string()), {noIsArrayCheck: true}),
-    mockType: () => createMockType<string[]>(undefined, undefined),
+    mockType: () => createMockData<string[]>(undefined, undefined),
     mockTypeReflect: () => {
       const v: string[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], ['hello']],
@@ -677,10 +677,10 @@ export const ARRAY = {
       const v: {a: string}[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<{a: string}[]>(),
+    mockType: () => createMockData<{a: string}[]>(),
     mockTypeReflect: () => {
       const v: {a: string}[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], [{a: 'hello'}, {a: 'world'}], [{a: 'hello', extraA: 'extraA'}, {a: 'world'}]],
@@ -728,10 +728,10 @@ export const ARRAY = {
       const v: (string | number)[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<(string | number)[]>(),
+    mockType: () => createMockData<(string | number)[]>(),
     mockTypeReflect: () => {
       const v: (string | number)[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], ['a', 1, 'b', 2], [1], ['a']],
@@ -786,10 +786,10 @@ export const ARRAY = {
       const v: [string, number][] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[string, number][]>(),
+    mockType: () => createMockData<[string, number][]>(),
     mockTypeReflect: () => {
       const v: [string, number][] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -883,12 +883,12 @@ export const ARRAY = {
     },
     mockType: () => {
       type CircularArray = CircularArray[];
-      return createMockType<CircularArray>();
+      return createMockData<CircularArray>();
     },
     mockTypeReflect: () => {
       type CircularArray = CircularArray[];
       const v: CircularArray = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
@@ -991,12 +991,12 @@ export const ARRAY = {
     },
     mockType: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return createMockType<ObjectType>();
+      return createMockData<ObjectType>();
     },
     mockTypeReflect: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       const v: ObjectType = {a: 'hello'};
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -1061,10 +1061,10 @@ export const ARRAY = {
       const v: symbol[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<symbol[]>(),
+    mockType: () => createMockData<symbol[]>(),
     mockTypeReflect: () => {
       const v: symbol[] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     // validate/getValidationErrors throw at factory creation (alwaysThrow). The
     // mock can still construct an array of symbols, but there is no
@@ -1105,10 +1105,10 @@ export const ARRAY = {
       const v: ReadonlyArray<string> = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<ReadonlyArray<string>>(),
+    mockType: () => createMockData<ReadonlyArray<string>>(),
     mockTypeReflect: () => {
       const v: ReadonlyArray<string> = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[], ['hello'], ['a', 'b', 'c']],

@@ -11,7 +11,7 @@ import {describe, expect, it} from 'vitest';
 import {
   createValidate,
   createGetValidationErrors,
-  createMockType,
+  createMockData,
   createJsonEncoder,
   createJsonDecoder,
   createBinaryEncoder,
@@ -228,22 +228,22 @@ describe('Temporal mock — every generated value passes validate', () => {
   const ITER = 30;
   it('PlainDate', () => {
     const validate = createValidate<Temporal.PlainDate>();
-    const mock = createMockType<Temporal.PlainDate>();
+    const mock = createMockData<Temporal.PlainDate>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('Instant', () => {
     const validate = createValidate<Temporal.Instant>();
-    const mock = createMockType<Temporal.Instant>();
+    const mock = createMockData<Temporal.Instant>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('Duration', () => {
     const validate = createValidate<Temporal.Duration>();
-    const mock = createMockType<Temporal.Duration>();
+    const mock = createMockData<Temporal.Duration>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('ZonedDateTime', () => {
     const validate = createValidate<Temporal.ZonedDateTime>();
-    const mock = createMockType<Temporal.ZonedDateTime>();
+    const mock = createMockData<Temporal.ZonedDateTime>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
 });

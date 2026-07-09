@@ -14,7 +14,7 @@ All three milestones landed; the container track (M4) stays a follow-up as plann
 (`typescript`, `oxc`, `unicorn`). This is a **deliberate superset** of `eslint:recommended` +
 `tseslint:recommended` (adds unicorn/oxc *correctness* rules — the only category enabled), chosen to
 converge on the oxc stack; empirically it produced just **2** findings (both `unicorn/no-useless-fallback-in-spread`
-in `createMockType.ts`, fixed as a safe `...(x ?? {})` → `...x` simplification). Ported the three
+in `createMockData.ts`, fixed as a safe `...(x ?? {})` → `...x` simplification). Ported the three
 rule-offs and **enabled `typescript/no-empty-object-type`** so the 6 existing `@typescript-eslint/no-empty-object-type`
 inline disables stay meaningful (oxlint maps the eslint-disable directive to its rule). Reconciled the
 ignore lists; **kept `**/test/**` out of the general pass** to match the old `eslint src` scope, so

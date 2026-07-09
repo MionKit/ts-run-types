@@ -87,7 +87,7 @@ export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3
  *     MODELS: `getRunTypeId(object({…}))`. `T` is the UNWRAPPED modeled type;
  *     without this overload a value-first `getRunTypeId(schema)` infers
  *     `T = RunType<…>` and returns the id of the `RunType` wrapper interface
- *     instead of the type the schema describes. Mirrors `createMockType`.
+ *     instead of the type the schema describes. Mirrors `createMockData`.
  *
  * Throws if the transformer is not active — the id can only be computed at
  * build time. The plugin injects the runtype's entry-module tuple at the

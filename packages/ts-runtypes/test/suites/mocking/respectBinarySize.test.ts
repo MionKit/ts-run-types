@@ -1,11 +1,11 @@
-// The `respectBinarySize` mock option — steer createMockType against the binary
+// The `respectBinarySize` mock option — steer createMockData against the binary
 // cold-start size estimate. `true` keeps a value within the estimate's per-kind
 // budget (so a `dynamic` buffer encodes it without growing); `false` overshoots
 // one unbounded position so it must grow. Driven value-first (the schema carries
 // its own runtype, no plugin needed) so the assertions exercise the real factory.
 
 import {describe, it, expect} from 'vitest';
-import {createMockType, createValidate} from '@ts-runtypes/core';
+import {createMockData, createValidate} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
 
@@ -16,7 +16,7 @@ describe('respectBinarySize: true — values fit the estimate', () => {
   it('caps collections at sizeItems, strings at stringBytes, bigints at the decimal budget', () => {
     const schema = RT.object({s: TF.string(), arr: RT.array(TF.number()), big: TF.bigInt(), n: TF.number()});
     const validate = createValidate(schema);
-    const mock = createMockType(schema, {mock: {respectBinarySize: true, binarySizingOptions: SZ}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: true, binarySizingOptions: SZ}});
     for (let i = 0; i < 200; i++) {
       const v = mock() as {s: string; arr: number[]; big: bigint};
       expect(validate(v)).toBe(true);
@@ -29,7 +29,7 @@ describe('respectBinarySize: true — values fit the estimate', () => {
   it('honors sizeBias for strings (content ≤ round(bias·stringBytes))', () => {
     const schema = RT.array(TF.string());
     const cfg = {...SZ, sizeBias: 0.5};
-    const mock = createMockType(schema, {mock: {respectBinarySize: true, binarySizingOptions: cfg}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: true, binarySizingOptions: cfg}});
     for (let i = 0; i < 200; i++) {
       for (const s of mock() as string[]) expect(utf8(s)).toBeLessThanOrEqual(Math.round(cfg.sizeBias * cfg.sizeStringBytes));
     }
@@ -37,7 +37,7 @@ describe('respectBinarySize: true — values fit the estimate', () => {
 
   it('omits optionals below bias 1 (an undefined optional writes 0 wire bytes, so it fits)', () => {
     const schema = RT.object({a: TF.number(), b: RT.optional(TF.string()), c: RT.optional(TF.number())});
-    const mock = createMockType(schema, {mock: {respectBinarySize: true, binarySizingOptions: {...SZ, sizeBias: 0.5}}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: true, binarySizingOptions: {...SZ, sizeBias: 0.5}}});
     for (let i = 0; i < 100; i++) {
       const v = mock() as Record<string, unknown>;
       expect(v.b).toBeUndefined();
@@ -48,7 +48,7 @@ describe('respectBinarySize: true — values fit the estimate', () => {
   it('respects a maxLength format bound (tighter than sizeStringBytes)', () => {
     const schema = TF.string({maxLength: 3});
     const validate = createValidate(schema);
-    const mock = createMockType(schema, {mock: {respectBinarySize: true, binarySizingOptions: SZ}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: true, binarySizingOptions: SZ}});
     for (let i = 0; i < 200; i++) {
       const v = mock() as string;
       expect(validate(v)).toBe(true);
@@ -63,7 +63,7 @@ describe('respectBinarySize: true — values fit the estimate', () => {
       rec: RT.record(TF.string(), TF.number()),
     });
     const validate = createValidate(schema);
-    const mock = createMockType(schema, {mock: {respectBinarySize: true, binarySizingOptions: SZ}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: true, binarySizingOptions: SZ}});
     for (let i = 0; i < 100; i++) {
       const v = mock() as {grid: number[][]; rec: Record<string, number>};
       expect(validate(v)).toBe(true);
@@ -78,7 +78,7 @@ describe('respectBinarySize: false — values exceed the estimate', () => {
   it('overshoots an unbounded position while staying valid', () => {
     const schema = RT.object({s: TF.string(), arr: RT.array(TF.number())});
     const validate = createValidate(schema);
-    const mock = createMockType(schema, {mock: {respectBinarySize: false, binarySizingOptions: SZ}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: false, binarySizingOptions: SZ}});
     let exceeded = 0;
     for (let i = 0; i < 200; i++) {
       const v = mock() as {s: string; arr: number[]};
@@ -90,7 +90,7 @@ describe('respectBinarySize: false — values exceed the estimate', () => {
 
   it('inflates an unbounded bigint past the decimal budget', () => {
     const schema = RT.array(TF.bigInt());
-    const mock = createMockType(schema, {mock: {respectBinarySize: false, binarySizingOptions: SZ}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: false, binarySizingOptions: SZ}});
     let big = 0;
     for (let i = 0; i < 100; i++) {
       for (const v of mock() as bigint[]) if (v.toString().replace('-', '').length > 20) big++;
@@ -101,7 +101,7 @@ describe('respectBinarySize: false — values exceed the estimate', () => {
   it('does not inflate a maxLength-bounded string (stays valid)', () => {
     const schema = RT.object({fixed: TF.string({maxLength: 4}), free: TF.string()});
     const validate = createValidate(schema);
-    const mock = createMockType(schema, {mock: {respectBinarySize: false, binarySizingOptions: SZ}});
+    const mock = createMockData(schema, {mock: {respectBinarySize: false, binarySizingOptions: SZ}});
     for (let i = 0; i < 100; i++) {
       const v = mock() as {fixed: string; free: string};
       expect(validate(v)).toBe(true);
@@ -114,7 +114,7 @@ describe('respectBinarySize: undefined — unchanged', () => {
   it('still generates valid values with no size bounding', () => {
     const schema = RT.object({s: TF.string(), arr: RT.array(TF.number())});
     const validate = createValidate(schema);
-    const mock = createMockType(schema);
+    const mock = createMockData(schema);
     for (let i = 0; i < 50; i++) expect(validate(mock())).toBe(true);
   });
 });

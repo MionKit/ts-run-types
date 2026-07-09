@@ -30,12 +30,12 @@ schema language to learn or keep in sync.
 - **Schema builders.** `RT.*` builders are a second door into the same engine — a plain
   type and an `RT.*` schema resolve to the identical representation — with `Static<>` to
   extract the type back out.
-- **Mock data.** `createMockType<T>()` produces realistic sample values, drawing on the
+- **Mock data.** `createMockData<T>()` produces realistic sample values, drawing on the
   committed `MockData<T>` enrichment maps.
 - **AI-assisted enrichment.** Committed, type-keyed `FriendlyText<T>` (human labels and
   friendly validation messages, with per-locale i18n) and `MockData<T>` maps, maintained
   by the `ts-runtypes` CLI (`describe` / `gen` / `check`) and the enrich skill, and
-  rendered at runtime by `createFriendly<T>()` / `createFriendlyI18n()`.
+  rendered at runtime by `createFriendlyText<T>()` / `createFriendlyTextI18n()`.
 - **Custom per-type overrides.** `overrideValidate`, `overrideJsonEncoder`,
   `overrideBinaryEncoder`, and the rest register a hand-tuned pure function for one type;
   the override folds into the type id and propagates to every type that contains it.

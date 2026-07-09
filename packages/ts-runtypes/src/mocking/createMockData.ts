@@ -1,6 +1,6 @@
 // Public surface for the mock-value generator — separated from
 // `createRTFunctions.ts` so bundlers can drop the whole mock subtree from
-// bundles that don't reference `createMockType`. Mock has no per-type RT
+// bundles that don't reference `createMockData`. Mock has no per-type RT
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
 import {getRTUtils, isRunTypeSchema} from '../runtypes/rtUtils.ts';
@@ -16,11 +16,11 @@ import type {MockDataNode, MockOptions, MockTypeFn, RunTypeMockOptions, DeepPart
 
 /** Returns a mock-value generator for `T`. Each call produces a fresh value
  *  that passes `validate<T>`. Options merge: call < factory < defaults. Accepts
- *  either a value-first schema (`createMockType(rt)`) or the value/static form.
+ *  either a value-first schema (`createMockData(rt)`) or the value/static form.
  *  Throws if the Vite plugin isn't active (no `id` injected). **/
-export function createMockType<T>(schema: RunType<T>, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
-export function createMockType<T>(val?: T, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
-export function createMockType<T>(
+export function createMockData<T>(schema: RunType<T>, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
+export function createMockData<T>(val?: T, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
+export function createMockData<T>(
   valOrSchema?: T | RunType<T>,
   options?: RunTypeMockOptions<T>,
   id?: InjectRunTypeId<T>
@@ -35,14 +35,14 @@ export function createMockType<T>(
   const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : injectedId;
   if (effectiveId === undefined) {
     throw new Error(
-      'createMockType(): no id injected. ts-runtypes-devtools must be active for createMockType to resolve the runtype graph.'
+      'createMockData(): no id injected. ts-runtypes-devtools must be active for createMockData to resolve the runtype graph.'
     );
   }
   const utils = getRTUtils();
   const runType = utils.getRunType(effectiveId);
   if (!runType) {
     throw new Error(
-      `createMockType(): no RunType entry for "${effectiveId}" in rtUtils. The build pipeline didn't emit a cache entry for that runtype.`
+      `createMockData(): no RunType entry for "${effectiveId}" in rtUtils. The build pipeline didn't emit a cache entry for that runtype.`
     );
   }
   const factoryOpts = mergeMockOptions(undefined, options as DeepPartial<RunTypeMockOptions<unknown>> | undefined);

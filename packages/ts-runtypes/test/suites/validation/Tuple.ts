@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockType, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -62,10 +62,10 @@ export const TUPLE = {
       const v: [string, number] = ['hello', 1];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[string, number]>(),
+    mockType: () => createMockData<[string, number]>(),
     mockTypeReflect: () => {
       const v: [string, number] = ['hello', 1];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -145,10 +145,10 @@ export const TUPLE = {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[Date, number, string, null, string[], bigint]>(),
+    mockType: () => createMockData<[Date, number, string, null, string[], bigint]>(),
     mockTypeReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
@@ -211,10 +211,10 @@ export const TUPLE = {
       const v: [number, bigint?, boolean?, number?] = [3];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[number, bigint?, boolean?, number?]>(),
+    mockType: () => createMockData<[number, bigint?, boolean?, number?]>(),
     mockTypeReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
@@ -265,10 +265,10 @@ export const TUPLE = {
       const v: [string, number][] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[string, number][]>(),
+    mockType: () => createMockData<[string, number][]>(),
     mockTypeReflect: () => {
       const v: [string, number][] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -334,10 +334,10 @@ export const TUPLE = {
       const v: [number, ...string[]] = [3];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[number, ...string[]]>(),
+    mockType: () => createMockData<[number, ...string[]]>(),
     mockTypeReflect: () => {
       const v: [number, ...string[]] = [3];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
@@ -427,12 +427,12 @@ export const TUPLE = {
     },
     mockType: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createMockType<TupleCircular>();
+      return createMockData<TupleCircular>();
     },
     mockTypeReflect: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => {
       const tc: any = [new Date(), 1, 'a', null, [], 1n];
@@ -500,10 +500,10 @@ export const TUPLE = {
       const v: [number, bigint?, boolean?, number?] = [3];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[number, bigint?, boolean?, number?]>(),
+    mockType: () => createMockData<[number, bigint?, boolean?, number?]>(),
     mockTypeReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -577,10 +577,10 @@ export const TUPLE = {
       const v: [name: string, age: number] = ['Alice', 30];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[name: string, age: number]>(),
+    mockType: () => createMockData<[name: string, age: number]>(),
     mockTypeReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
@@ -660,10 +660,10 @@ export const TUPLE = {
       const v: [number, () => any] = [3, () => null];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[number, () => any]>(),
+    mockType: () => createMockData<[number, () => any]>(),
     mockTypeReflect: () => {
       const v: [number, () => any] = [3, () => null];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       // `[3]` is valid — v[1] is undefined which satisfies the
@@ -723,10 +723,10 @@ export const TUPLE = {
       const v: [] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[]>(),
+    mockType: () => createMockData<[]>(),
     mockTypeReflect: () => {
       const v: [] = [];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [[]],
@@ -774,10 +774,10 @@ export const TUPLE = {
       const v: [string] = ['x'];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<[string]>(),
+    mockType: () => createMockData<[string]>(),
     mockTypeReflect: () => {
       const v: [string] = ['x'];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [['hello'], ['']],
@@ -828,10 +828,10 @@ export const TUPLE = {
       const v: readonly [string, number] = ['x', 1];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockType<readonly [string, number]>(),
+    mockType: () => createMockData<readonly [string, number]>(),
     mockTypeReflect: () => {
       const v: readonly [string, number] = ['x', 1];
-      return createMockType(v);
+      return createMockData(v);
     },
     getSamples: () => ({
       valid: [
