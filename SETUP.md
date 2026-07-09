@@ -365,7 +365,7 @@ pnpm rtx release unpublish <version>
 
 Merging a release PR into `prod` runs [`publish.yml`](.github/workflows/publish.yml): the full release gate, then it **stages** every package to npm and tags the release. It never holds a 2FA-capable credential — CI stages, a human approves. Two GA npm features compose for this:
 
-- **Trusted Publishing (OIDC)** — npm ↔ GitHub trust over OIDC, so there is **no `NPM_TOKEN`** in CI. The `publish-npm` job grants `id-token: write`; provenance is attached automatically.
+- **Trusted Publishing (OIDC)** — npm ↔ GitHub trust over OIDC, so there is **no `NPM_TOKEN`** in CI. The `publish-npm` job grants `id-token: write`. Provenance is **off by default** — npm refuses provenance from a private source repo; once this repo is public, set repo variable `RT_NPM_PROVENANCE=1` to re-enable it (no code change).
 - **Staged publishing** — `npm stage publish` uploads to a **stage queue** and needs **no 2FA**, so CI can stage unattended. A maintainer then **approves** each staged version with a **live 2FA challenge** — the one step that cannot be done by a token, OIDC, or any non-interactive path.
 
 The trusted publisher is configured **stage-only** (allow `npm stage publish`, disallow `npm publish`), so every CI publish is forced through the stage queue and nothing goes live without a human 2FA approval.
