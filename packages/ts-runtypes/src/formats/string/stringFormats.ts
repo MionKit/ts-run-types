@@ -31,6 +31,7 @@ import {
 } from './string-patterns.ts';
 import {builderResult, presetBuilder} from '../../runtypes/builderCore.ts';
 import type {RunType} from '../../runtypes/types.ts';
+import type {ExactParams} from '../../runtypes/builderTypes.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../../markers.ts';
 import type {
   StringDate,
@@ -311,7 +312,7 @@ export type UrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTER
 /** Alphabetic-only string (`Alpha`); `alpha({maxLength: 3})` adds bounds. **/
 export function alpha(id?: InjectRunTypeId<Alpha>): RunType<Alpha>;
 export function alpha<const P extends StringParams>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, StringParams>>,
   id?: InjectRunTypeId<Alpha<P>>
 ): RunType<Alpha<P>>;
 export function alpha(formatParamsOrId?: StringParams | InjectRunTypeId<Alpha>, id?: InjectRunTypeId<Alpha>): RunType<Alpha> {
@@ -377,7 +378,7 @@ export const urlFile = presetBuilder<UrlFile>('url');
  *  picks the layout and may add min/max bounds. **/
 export function stringDate(id?: InjectRunTypeId<StringDate>): RunType<StringDate>;
 export function stringDate<const P extends Partial<DateParams>>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, Partial<DateParams>>>,
   id?: InjectRunTypeId<StringDate<P>>
 ): RunType<StringDate<P>>;
 export function stringDate(
@@ -392,7 +393,7 @@ export function stringDate(
 /** A string-time field (`StringTime`). **/
 export function stringTime(id?: InjectRunTypeId<StringTime>): RunType<StringTime>;
 export function stringTime<const P extends Partial<TimeParams>>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, Partial<TimeParams>>>,
   id?: InjectRunTypeId<StringTime<P>>
 ): RunType<StringTime<P>>;
 export function stringTime(
@@ -407,7 +408,7 @@ export function stringTime(
 /** A string-dateTime field (`StringDateTime`). **/
 export function stringDateTime(id?: InjectRunTypeId<StringDateTime>): RunType<StringDateTime>;
 export function stringDateTime<const P extends Partial<DateTimeParams>>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, Partial<DateTimeParams>>>,
   id?: InjectRunTypeId<StringDateTime<P>>
 ): RunType<StringDateTime<P>>;
 export function stringDateTime(

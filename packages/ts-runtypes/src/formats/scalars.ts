@@ -23,7 +23,7 @@
 import {builderResult, lastInjectedId, brand} from '../runtypes/builderCore.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
-import type {LeafType, BrandArg} from '../runtypes/builderTypes.ts';
+import type {LeafType, BrandArg, ExactParams} from '../runtypes/builderTypes.ts';
 import type {StringParams, StringParamsValueFirst} from './string/stringFormats.ts';
 import type {NumberParams, Currency} from './numberFormats.ts';
 import type {BigIntParams} from './bigintFormats.ts';
@@ -43,11 +43,11 @@ export {brand};
  *  `T` keeps the pattern literals and the value-first id stays faithful. **/
 export function string(id?: InjectRunTypeId<string>): RunType<string>;
 export function string<const P extends StringParamsValueFirst>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, StringParamsValueFirst>>,
   id?: InjectRunTypeId<LeafType<'stringFormat', P>>
 ): RunType<LeafType<'stringFormat', P>>;
 export function string<const P extends StringParamsValueFirst, const B extends string>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, StringParamsValueFirst>>,
   brandTag: BrandArg<B>,
   id?: InjectRunTypeId<LeafType<'stringFormat', P, B>>
 ): RunType<LeafType<'stringFormat', P, B>>;
@@ -65,11 +65,11 @@ export function string(
  *  nominal `RunType<Number<P, 'Age'>>`. **/
 export function number(id?: InjectRunTypeId<number>): RunType<number>;
 export function number<const P extends NumberParams>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, NumberParams>>,
   id?: InjectRunTypeId<LeafType<'numberFormat', P>>
 ): RunType<LeafType<'numberFormat', P>>;
 export function number<const P extends NumberParams, const B extends string>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, NumberParams>>,
   brandTag: BrandArg<B>,
   id?: InjectRunTypeId<LeafType<'numberFormat', P, B>>
 ): RunType<LeafType<'numberFormat', P, B>>;
@@ -90,11 +90,11 @@ export function number(
  *  (`createFriendlyI18n`'s `currency` option) instead. **/
 export function currency(id?: InjectRunTypeId<Currency>): RunType<Currency>;
 export function currency<const P extends NumberParams>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, NumberParams>>,
   id?: InjectRunTypeId<LeafType<'numberFormat', P & {isCurrency: true}>>
 ): RunType<LeafType<'numberFormat', P & {isCurrency: true}>>;
 export function currency<const P extends NumberParams, const B extends string>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, NumberParams>>,
   brandTag: BrandArg<B>,
   id?: InjectRunTypeId<LeafType<'numberFormat', P & {isCurrency: true}, B>>
 ): RunType<LeafType<'numberFormat', P & {isCurrency: true}, B>>;
@@ -112,11 +112,11 @@ export function currency(
  *  nominal `RunType<BigInt<P, 'Balance'>>`. **/
 export function bigInt(id?: InjectRunTypeId<bigint>): RunType<bigint>;
 export function bigInt<const P extends BigIntParams>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, BigIntParams>>,
   id?: InjectRunTypeId<LeafType<'bigintFormat', P>>
 ): RunType<LeafType<'bigintFormat', P>>;
 export function bigInt<const P extends BigIntParams, const B extends string>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, BigIntParams>>,
   brandTag: BrandArg<B>,
   id?: InjectRunTypeId<LeafType<'bigintFormat', P, B>>
 ): RunType<LeafType<'bigintFormat', P, B>>;
@@ -134,11 +134,11 @@ export function bigInt(
  *  → nominal `RunType<Date<P, 'CreatedAt'>>`. **/
 export function date(id?: InjectRunTypeId<Date>): RunType<Date>;
 export function date<const P extends NativeDateParams>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, NativeDateParams>>,
   id?: InjectRunTypeId<LeafType<'nativeDate', P>>
 ): RunType<LeafType<'nativeDate', P>>;
 export function date<const P extends NativeDateParams, const B extends string>(
-  formatParams: CompTimeArgs<P>,
+  formatParams: CompTimeArgs<ExactParams<P, NativeDateParams>>,
   brandTag: BrandArg<B>,
   id?: InjectRunTypeId<LeafType<'nativeDate', P, B>>
 ): RunType<LeafType<'nativeDate', P, B>>;
