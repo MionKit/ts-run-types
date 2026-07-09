@@ -16,8 +16,10 @@ import (
 // is left unapplied and the raw field carriers get reflected.
 //
 // The overlay mirrors the REAL schema types (packages/ts-runtypes/src/schema/
-// static.ts + compose.ts): PropModCarrier / FieldOf / ObjectType / ObjectOptionalOnly,
-// plus `object` / `optional` / `string` builders and the two `getRunType` overloads.
+// static.ts + compose.ts): PropModCarrier / FieldOf / ObjectType / ObjectOptionalOnly
+// (each modifier tier `Flatten`ed into one literal, as in static.ts — so the
+// cold-scan resolver must see through that extra homomorphic map too), plus
+// `object` / `optional` / `string` builders and the two `getRunType` overloads.
 const schemaOptionalDTS = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T;
@@ -30,17 +32,18 @@ const schemaOptionalDTS = `declare module '@ts-runtypes/core' {
   export type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : false;
   export type AnyOptional<C> = true extends {[K in keyof C]: IsOptional<C[K]>}[keyof C] ? true : false;
   export type AnyReadonly<C> = true extends {[K in keyof C]: IsReadonly<C[K]>}[keyof C] ? true : false;
-  type ObjectOptionalOnly<C> = {
+  type Flatten<T> = { [K in keyof T]: T[K] };
+  type ObjectOptionalOnly<C> = Flatten<{
     -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : K]: FieldOf<C[K]>;
   } & {
     -readonly [K in keyof C as IsOptional<C[K]> extends true ? K : never]?: FieldOf<C[K]>;
-  };
-  type ObjectReadonlyOnly<C> = {
+  }>;
+  type ObjectReadonlyOnly<C> = Flatten<{
     -readonly [K in keyof C as IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
   } & {
     readonly [K in keyof C as IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
-  };
-  type ObjectMixed<C> = {
+  }>;
+  type ObjectMixed<C> = Flatten<{
     -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
   } & {
     readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
@@ -48,7 +51,7 @@ const schemaOptionalDTS = `declare module '@ts-runtypes/core' {
     -readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? never : K) : never]?: FieldOf<C[K]>;
   } & {
     readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? K : never) : never]?: FieldOf<C[K]>;
-  };
+  }>;
   export type ObjectType<C> =
     AnyOptional<C> extends false
       ? AnyReadonly<C> extends false
@@ -70,7 +73,7 @@ const schemaOptionalDTS = `declare module '@ts-runtypes/core' {
 var leakedSchemaTypeNames = map[string]bool{
 	"RunType": true, "PropModCarrier": true, "ObjectOptionalOnly": true,
 	"ObjectType": true, "ObjectReadonlyOnly": true, "ObjectMixed": true,
-	"FormatAnnotation": true, "PropModifiers": true,
+	"FormatAnnotation": true, "PropModifiers": true, "Flatten": true,
 }
 
 // TestSchemaOptionalReflect_ColdModeledType is the regression guard: on a COLD

@@ -20,6 +20,11 @@
 //   2. A faithful lazy/TypeBox-style carrier is NOT cheaper (≈ same or worse).
 //   3. A tiered ObjectType<C> cuts all-required ~73%, optional-only ~30%,
 //      readonly-only ~30%, mixed ~break-even — all faithful.
+//   3b. `Flatten`ing each modifier tier's group-intersection into one object
+//      literal (so InferType reads `{a; b?}`, never `{a} & {b?}`) is a further
+//      ~4–9% saving on the optional/readonly/mixed profiles — flattening the
+//      intersection is cheaper to instantiate + consume than carrying it, so the
+//      DX win and the type-cost win point the same way.
 //   4. Widening union overloads 4→8 cuts an 8-arm union ~32% — faithful.
 import ts from 'typescript';
 
@@ -96,22 +101,26 @@ declare function object<const C extends Record<string, unknown>>(c: CompTimeArgs
 declare function union<const T extends readonly RunType[]>(m: CompTimeArgs<T>, id?: InjectRunTypeId<UnionOf<T>>): RunType<UnionOf<T>>;
 type UnionOf<T extends readonly RunType[]> = T extends readonly [infer H extends RunType, ...infer R extends readonly RunType[]] ? InferType<H> | UnionOf<R> : never;`,
 
-  // PROPOSED: probe the modifier profile ONCE, pick the leanest faithful map.
+  // SHIPPED (static.ts): probe the modifier profile ONCE, pick the leanest faithful
+  // map, and `Flatten` each modifier tier's group-intersection back into a single
+  // object literal so `InferType` reads `{a; b?}` not `{a} & {b?}` — measurably
+  // CHEAPER than leaving the raw intersection, not just cosmetic.
   tiered: `
 type AnyOptional<C> = true extends { [K in keyof C]: IsOptional<C[K]> }[keyof C] ? true : false;
 type AnyReadonly<C> = true extends { [K in keyof C]: IsReadonly<C[K]> }[keyof C] ? true : false;
+type Flatten<T> = { [K in keyof T]: T[K] };
 type ObjAllRequired<C> = { -readonly [K in keyof C]: FieldOf<C[K]> };
-type ObjOptionalOnly<C> = {
+type ObjOptionalOnly<C> = Flatten<{
   -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : K]: FieldOf<C[K]>;
 } & {
   -readonly [K in keyof C as IsOptional<C[K]> extends true ? K : never]?: FieldOf<C[K]>;
-};
-type ObjReadonlyOnly<C> = {
+}>;
+type ObjReadonlyOnly<C> = Flatten<{
   -readonly [K in keyof C as IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
 } & {
   readonly [K in keyof C as IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
-};
-type ObjMixed<C> = ${OBJ_4WAY};
+}>;
+type ObjMixed<C> = Flatten<${OBJ_4WAY}>;
 type ObjectType<C> =
   AnyOptional<C> extends false
     ? (AnyReadonly<C> extends false ? ObjAllRequired<C> : ObjReadonlyOnly<C>)

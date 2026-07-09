@@ -14,13 +14,24 @@ work. Reproduce the guardrail measurements with
 Each looks more complex than necessary; each is shaped to avoid a specific,
 measured instantiation cost. Re-simplifying silently reintroduces it.
 
-1. **`ObjectType<C>` is tiered** ([src/schema/static.ts](../packages/ts-runtypes/src/schema/static.ts)).
+1. **`ObjectType<C>` is tiered, and each modifier tier is `Flatten`ed**
+   ([src/schema/static.ts](../packages/ts-runtypes/src/schema/static.ts)).
    It probes the modifier profile and emits the leanest *exact* mapped type — a
    single homomorphic map for the common all-required object — falling to the 4-way
    `Pick`-group intersection ONLY when one field is optional AND another readonly.
    The flat 4-way runs all four passes on every object and compounds with nesting
    (collapsing it back is ~+70%). Every tier must recover the IDENTICAL type to the
-   4-way — proven across modifier profiles in `isolated-experiment.mjs`.
+   4-way — proven across modifier profiles in `isolated-experiment.mjs`. Each
+   modifier-carrying tier then wraps its group-intersection in `Flatten<T> =
+   {[K in keyof T]: T[K]}`, so `InferType<typeof schema>` recovers a single object
+   literal `{a: string; b?: number}` instead of the group intersection `{a: string}
+   & {b?: number}` (which otherwise re-forms at every nesting level). This is NOT
+   just cosmetic: the flattened literal is ~4–9% CHEAPER to instantiate than the raw
+   intersection across the optional/readonly/mixed profiles, so DX and type-cost
+   agree. `Flatten` must stay the plain homomorphic map (NO `-readonly`, or it
+   strips the readonly tiers) — the readonly-sensitive `assertExact` in
+   `test/types/staticEquivalence.test.ts` pins that it neither drops readonly nor
+   re-introduces an intersection.
 
 2. **`CompTimeArgs<T>` is the identity `T`** ([src/markers.ts](../packages/ts-runtypes/src/markers.ts)),
    detected off the parameter's `CompTimeArgs<…>` annotation node, NOT a brand
