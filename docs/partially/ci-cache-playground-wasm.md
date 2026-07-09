@@ -1,10 +1,39 @@
 # CI rebuilds the playground WASM on every container-smoke run
 
-**Status:** todo
+**Status:** partially done (PR #205 — the `ci.yml` smoke lane; two lower-frequency
+jobs remain).
 **Created:** 2026-07-09
 **Found while:** diagnosing the `container smoke` job failure that led to splitting
 the e2e image out of `tsrt-website` (branch `ci/split-e2e-image`). This is a
 SEPARATE inefficiency surfaced along the way — not the disk-exhaustion cause.
+
+## Resolved in PR #205 (the `ci.yml → smoke` lane)
+
+Implemented the fix plan for the container-smoke job — the one the title calls
+out and the one that runs on every website PR:
+
+- `actions/cache` on `.cache/rt-wasm`, keyed on the WASM inputs
+  (`ts-go-runtypes/cmd/ts-runtypes-wasm/**`, `internal/**`, `go.mod`, `go.sum`,
+  `container/website/scripts/build-playground.mjs`, `scripts/lib/garble.mjs`,
+  `.github/actions/bootstrap/**`), prefixed `rt-wasm-plain-`.
+- On a cache hit, `touch .cache/rt-wasm/.wasm-stamp` so the mtime gate
+  short-circuits (`wasm up to date`) instead of rebuilding-to-compare — the
+  "bump the STAMP after restore" option from the fix plan.
+- Build the smoke's WASM plain (`RT_GARBLE=0`): obfuscation isn't needed to prove
+  a page serves, and a plain build is faster on a cache miss. The deployed site
+  still builds its own garbled WASM in the release/deploy workflow.
+
+Verified locally: touching the stamp then running `build-playground` with
+`RT_GARBLE=0` logs `wasm up to date` and skips the build.
+
+## Remaining (why this is `partially`, not `done`)
+
+The same cache pattern is NOT yet applied to the two other jobs the fix plan
+lists — `release-gate.yml → website-build` and `website-deploy.yml`. They still
+rebuild the WASM (garbled, since they ship the real artifact). Extending the
+cache there is the same shape (an `actions/cache` step keyed the same way, minus
+`RT_GARBLE=0`), but those are release-critical workflows and were out of scope
+for the smoke-speedup PR.
 
 ## Symptom
 
