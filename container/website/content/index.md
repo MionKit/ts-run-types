@@ -35,7 +35,7 @@ TypeScript decided it is **(Just a Linter)** and to ditch your types at run-time
 :::
 
 :::div{class="tsgo-kicker"}
-[Built on top of Typescript-go V7 · **100% compatible**](/introduction/built-on-typescript-go){.tsgo-badge}
+[Built on top of Typescript 7 · **100% compatible**](/introduction/built-on-typescript-go){.tsgo-badge}
 :::
 
 #links
@@ -167,7 +167,7 @@ Stop gluing five libraries together. RunTypes shares a single type graph across 
 
 :::div{class="rt-object-fns"}
 ::::div{class="rt-object-fn"}
-### Validate
+### Validation
 <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-validate" commentEnd="// end-validate" />
 ::::
 
