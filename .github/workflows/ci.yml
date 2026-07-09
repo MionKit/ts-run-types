@@ -234,23 +234,12 @@ jobs:
         run: pnpm rtx core build all linux-go linux-extract
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
-      # Reuse the playground wasm across runs so a PR that only touches the website /
-      # playground UI doesn't pay the ~8-min wasm rebuild. Keyed on the wasm's REAL
-      # inputs (the Go sources it links + the build script + toolchain pin); a Go
-      # change misses the key and rebuilds. `plain` mirrors RT_GARBLE=0 below.
+      # Reuse the playground wasm so a PR that only touches the website / playground
+      # UI doesn't pay the ~8-min rebuild. `plain` matches RT_GARBLE=0 below.
       - name: Cache the playground wasm
-        id: wasm-cache
-        uses: actions/cache@v4
+        uses: ./.github/actions/cache-playground-wasm
         with:
-          path: .cache/rt-wasm
-          key: rt-wasm-plain-${{ hashFiles('ts-go-runtypes/cmd/ts-runtypes-wasm/**', 'ts-go-runtypes/internal/**', 'ts-go-runtypes/go.mod', 'ts-go-runtypes/go.sum', 'container/website/scripts/build-playground.mjs', 'scripts/lib/garble.mjs', '.github/actions/bootstrap/**') }}
-      # A fresh checkout stamps every file with `now`, so build-playground's mtime gate
-      # would treat the (older) cached wasm as stale and rebuild it just to compare.
-      # Bump the stamp past the checkout so the gate short-circuits (`wasm up to date`).
-      # Sound: a cache HIT means the wasm inputs are unchanged, so the bytes are correct.
-      - name: Reuse cached wasm (skip the rebuild)
-        if: steps.wasm-cache.outputs.cache-hit == 'true'
-        run: touch .cache/rt-wasm/.wasm-stamp
+          mode: plain
       - name: Website serves-a-page smoke
         # Build the smoke's wasm plain (no garble): obfuscation isn't needed to prove
         # the page serves, and a plain build is faster on a cache miss. The DEPLOYED
