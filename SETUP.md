@@ -18,7 +18,7 @@ The repository contains a **Go binary** at [ts-go-runtypes/cmd/ts-runtypes/](ts-
 | git    | recent   | submodule + `git apply` are used              | -                                    |
 | podman | ≥ 4.0    | docs website + benchmarks containers          | tested 4.9.3 / 5.8.3                 |
 
-> **Container runtime is Node 26.** A single shared image ([`container/website/Containerfile`](container/website/Containerfile)) builds `FROM node:26-bookworm`, which unflags the global `Temporal` API, so benchmark timings and the docs build run on native Temporal (no `temporal-polyfill`), the same runtime the published library targets. The one image holds both dependency trees in separate dirs: the website at `/app`, the benchmarks at `/bench`. Node 26 ships only `npm` (the bundled `corepack` shim was removed), so the image installs the repo-pinned pnpm globally. The **host** also needs Node >= 26 now: with `temporal-polyfill` dropped, the test suite runs on the native `Temporal` global too. Override the base with `RT_WEBSITE_BASE_IMAGE` (mirror / air-gapped / offline-built base).
+> **Container runtime is Node 26.** Both podman images ([`container/website/Containerfile`](container/website/Containerfile) and [`container/pre-publish-e2e/Containerfile`](container/pre-publish-e2e/Containerfile)) build `FROM node:26-bookworm`, which unflags the global `Temporal` API, so benchmark timings and the docs build run on native Temporal (no `temporal-polyfill`), the same runtime the published library targets. The `tsrt-website` image holds two dependency trees in separate dirs: the website at `/app`, the benchmarks at `/bench`; the `tsrt-e2e` image holds verdaccio + the pre-publish e2e builder toolchains at `/e2e` (kept separate so the light lanes never pull the heavy toolchains). Node 26 ships only `npm` (the bundled `corepack` shim was removed), so each image installs the repo-pinned pnpm globally. The **host** also needs Node >= 26 now: with `temporal-polyfill` dropped, the test suite runs on the native `Temporal` global too. Override the base with `RT_WEBSITE_BASE_IMAGE` (mirror / air-gapped / offline-built base).
 
 **macOS Apple Silicon also needs Rosetta 2** — the podman-machine `vfkit` backend requires it and exits 1 without it. Install with `softwareupdate --install-rosetta --agree-to-license` (the skill does this automatically).
 
@@ -141,7 +141,7 @@ Behind a corporate / MITM proxy: pass `RT_WEBSITE_CA_CERT=... RT_WEBSITE_BUILD_N
 
 ### Publishing & consuming the image via GHCR
 
-The single deps-only image is published to the GitHub Container Registry as `ghcr.io/mionkit/tsrt-website:latest` so any host can **pull a ready-to-run image** (website at `/app`, benchmarks at `/bench`) instead of re-running all installs. Helpers live in [scripts/lib/engine.mjs](scripts/lib/engine.mjs).
+Two deps-only images are published to the GitHub Container Registry so any host can **pull a ready-to-run image** instead of re-running all installs: `ghcr.io/mionkit/tsrt-website:latest` (website at `/app`, benchmarks at `/bench`) and `ghcr.io/mionkit/tsrt-e2e:latest` (verdaccio + the pre-publish e2e builder toolchains at `/e2e`). Helpers live in [scripts/lib/engine.mjs](scripts/lib/engine.mjs).
 
 **By default every run command pulls the latest published image first** (`scripts/lib/engine.mjs:ghcrTryPullRetag` — a cheap no-op when your local copy already matches the remote digest), so a `dev` / `build` / `bench` always runs the current published deps. If the registry is unreachable (offline / not logged in / not yet published) it falls back to an existing local image, then to a local build.
 
@@ -149,13 +149,13 @@ The single deps-only image is published to the GitHub Container Registry as `ghc
 | ---- | ------- | ----- |
 | Authenticate (once) | `pnpm rtx container login` | Reads the PAT from `GHCR_PAT`, pipes via `--password-stdin`. Only needed for a **private** package. |
 | Run (consume) | `pnpm rtx website dev` / `pnpm rtx bench` | Pulls the latest published image, then runs. This is the default. |
-| Publish | `pnpm rtx container push` | Builds the **multi-arch** (`linux/amd64,linux/arm64`) shared image and pushes it to `tsrt-website:latest`. |
+| Publish | `pnpm rtx container push` | Builds the **multi-arch** (`linux/amd64,linux/arm64`) images and pushes them. No target = BOTH (`tsrt-website:latest` + `tsrt-e2e:latest`); add `website` or `e2e` to push just one. |
 | Build/run locally | `RT_WEBSITE_USE_LOCAL=1 pnpm rtx website dev` (or `RT_BENCH_USE_LOCAL=1`) | Skip the pull; build/use a local image. The maintainer/offline loop — also how you test a dep bump before pushing. |
 | Pull only | `pnpm rtx container pull` | Fetch + retag without running. |
 
 Dep-bump loop (host stays pnpm-free): edit `container/website/_deps/package.json` → `pnpm rtx container lock` (regen the lockfile in-container) → `RT_WEBSITE_USE_LOCAL=1 pnpm rtx website check` (verify the new local image) → `pnpm rtx container push`.
 
-GHCR env (see [scripts/lib/engine.mjs](scripts/lib/engine.mjs)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT`, `RT_WEBSITE_USE_LOCAL` / `RT_BENCH_USE_LOCAL` (opt out of the pull), `RT_WEBSITE_REMOTE_IMAGE` / `RT_BENCH_REMOTE_IMAGE` (both now default to the one shared image `ghcr.io/$GHCR_OWNER/tsrt-website:latest`).
+GHCR env (see [scripts/lib/engine.mjs](scripts/lib/engine.mjs)): `GHCR_OWNER` (default `mionkit`), `GHCR_USER` (default `M-jerez`), `GHCR_PAT`, `RT_WEBSITE_USE_LOCAL` / `RT_BENCH_USE_LOCAL` (opt out of the pull), `RT_WEBSITE_REMOTE_IMAGE` / `RT_BENCH_REMOTE_IMAGE` (both default to `ghcr.io/$GHCR_OWNER/tsrt-website:latest`). The `tsrt-e2e` image's coordinates are fixed (`ghcr.io/$GHCR_OWNER/tsrt-e2e:latest`); it reuses the shared `RT_WEBSITE_*` engine / network / CA knobs.
 
 Notes:
 
@@ -408,12 +408,12 @@ pnpm rtx release e2e --pack     # rebuild tarballs/ first (else it reuses them)
 
 It packs the tarballs (if `tarballs/` is missing), then runs two axes:
 
-- **Feature matrix, in the container (Linux).** The shared image starts **verdaccio inside a rootless container**, publishes the mounted tarballs to its own `:4873`, and a multi-bundler feature library (`container/pre-publish-e2e/apps/`) is built through each adapter's RunTypes plugin — the heavy `build-vite` (Vite-on-Rolldown + oxlint) runs all 13 feature families; `smoke-esbuild` (+ eslint), `smoke-rollup`, `smoke-rolldown`, `smoke-webpack`, `smoke-rspack` each prove their adapter loads, transforms, and its output runs. Tests assert runtime behavior, rewrite evidence, and lint transport over the build output.
+- **Feature matrix, in the container (Linux).** The `tsrt-e2e` image starts **verdaccio inside a rootless container**, publishes the mounted tarballs to its own `:4873`, and a multi-bundler feature library (`container/pre-publish-e2e/apps/`) is built through each adapter's RunTypes plugin — the heavy `build-vite` (Vite-on-Rolldown + oxlint) runs all 13 feature families; `smoke-esbuild` (+ eslint), `smoke-rollup`, `smoke-rolldown`, `smoke-webpack`, `smoke-rspack` each prove their adapter loads, transforms, and its output runs. Tests assert runtime behavior, rewrite evidence, and lint transport over the build output.
 - **Per-OS binary smoke, host-native.** A lean vitest fixture (`host-smoke/`) installs the published packages from the port-published `:4873` and runs on **this** OS/arch, so the plugin resolves + spawns the real host-platform binary via `@ts-runtypes/bin`'s optional-dependency model (the one thing no container can substitute).
 
 **Supply-chain point (why the container):** verdaccio and its whole dependency tree run **inside** the rootless container (read-only tarballs mount + a loopback port, nothing else) — **never** installed into your host's node/npm environment. On a dev machine the flow is **container-or-error**: if podman is down it fails with a pointer to the [ts-runtypes-setup skill](.claude/skills/ts-runtypes-setup/) and never falls back to a host verdaccio. The `host-npx` fallback (on-runner `npx verdaccio`) exists **only** for CI's macOS/Windows runners (which can't run a Linux container) and is guarded by `CI` — it refuses to run locally.
 
-The e2e is gated in CI by [`release-gate.yml`](.github/workflows/release-gate.yml) (the ubuntu lane uses the container backend; the macOS/Windows lanes use host-npx). The builder toolchains are baked into the shared image (`container/pre-publish-e2e/_deps`), so each run installs only the changing `@ts-runtypes/*` — a **republish** of the shared image (`pnpm rtx container push`) is required after any change to `_deps/`, `registry/`, or the Containerfile.
+The e2e is gated in CI by [`release-gate.yml`](.github/workflows/release-gate.yml) (the ubuntu lane uses the container backend; the macOS/Windows lanes use host-npx). The builder toolchains are baked into the `tsrt-e2e` image (`container/pre-publish-e2e/_deps`), so each run installs only the changing `@ts-runtypes/*` — a **republish** of that image (`pnpm rtx container push e2e`) is required after any change to `container/pre-publish-e2e/{_deps,registry}/` or its Containerfile.
 
 ---
 

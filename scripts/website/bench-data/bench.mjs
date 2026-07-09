@@ -1,12 +1,14 @@
-// bench.mjs — drive the validation benchmarks inside the shared (podman) image.
+// bench.mjs — drive the validation benchmarks inside the tsrt-website (podman) image.
 // Port of the former scripts/website/bench-data/bench.sh.
 //
-// The image is BUILT + PUBLISHED by scripts/container/image.mjs: ONE merged image
-// holds the website deps (at /app) and the benchmark deps (at /bench), in separate
-// dirs with separate node_modules. This module runs the benchmark half under
-// WORKDIR /bench and delegates image build/login/push/pull to image.mjs (mapping
-// the RT_BENCH_* knobs onto RT_WEBSITE_* via an explicit env override, replacing the
-// old run_manager subshell). The in-container `sh -c '…'` blocks stay shell.
+// The image is BUILT + PUBLISHED by scripts/container/image.mjs: the tsrt-website
+// image holds the website deps (at /app) and the benchmark deps (at /bench), in
+// separate dirs with separate node_modules (the pre-publish e2e's verdaccio +
+// builder toolchains live in a SEPARATE tsrt-e2e image, not here). This module runs
+// the benchmark half under WORKDIR /bench and delegates image build/login/push/pull
+// to image.mjs (mapping the RT_BENCH_* knobs onto RT_WEBSITE_* via an explicit env
+// override, replacing the old run_manager subshell). The in-container `sh -c '…'`
+// blocks stay shell.
 //
 // Commands: prep | build-image | bench | bench-one <name> | fullbench | serialization
 // | website-bench | build [<name>] | smoke | audit | typecost | compiletime |

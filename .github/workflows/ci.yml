@@ -226,6 +226,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
+      # Reclaim ~15-25 GB of preinstalled cruft before the multi-GB image pull +
+      # Go build-cache restore, so the runner's root fs doesn't fill up.
+      - uses: ./.github/actions/free-disk
       - uses: ./.github/actions/bootstrap
       - name: Build the resolver + linux binaries for the container mounts
         run: pnpm rtx core build all linux-go linux-extract

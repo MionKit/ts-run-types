@@ -14,3 +14,8 @@ apps/shared/runtypes/generated/*
 /pnpm-workspace.yaml
 /.npmrc
 /pnpm-lock.yaml
+
+# Extra CA certs injected for proxied image builds (never commit certs). The dir is
+# recreated by scripts/container/image.mjs before every build; keep the .gitkeep.
+.cacerts/*
+!.cacerts/.gitkeep
