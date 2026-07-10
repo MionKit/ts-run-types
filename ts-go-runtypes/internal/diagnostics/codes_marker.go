@@ -7,6 +7,7 @@ const (
 	CodeMarkerFreeTypeParameter       = "MKR003"
 	CodeValidateOptionsNoLiteralsNoop = "MKR004"
 	CodeValidateOptionsNoArrayNoop    = "MKR005"
+	CodeMarkerDuplicateFnKey          = "MKR006"
 )
 
 // CompTimeArgs-marker codes (CTAxxx). Issued by the resolver when a
@@ -35,6 +36,7 @@ func init() {
 		{Code: CodeMarkerFreeTypeParameter, Family: FamilyMarker, Severity: SeverityError, Title: "Marker call inside a generic function — type argument is unresolved"},
 		{Code: CodeValidateOptionsNoLiteralsNoop, Family: FamilyMarker, Severity: SeverityWarning, Title: "`ValidateOptions.noLiterals` has no effect on this type — the option is a no-op"},
 		{Code: CodeValidateOptionsNoArrayNoop, Family: FamilyMarker, Severity: SeverityWarning, Title: "`ValidateOptions.noIsArrayCheck` has no effect on this type — the option is a no-op"},
+		{Code: CodeMarkerDuplicateFnKey, Family: FamilyMarker, Severity: SeverityError, Title: "`InjectTypeFnArgs` names the same function family more than once"},
 		{Code: CodeCompTimeArgsNonLiteral, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> argument must be a literal at the call site or const-bound to a literal"},
 		{Code: CodeCompTimeArgsDepthExceeded, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> literal nesting exceeds depth cap (16) — refactor to flatten"},
 		{Code: CodeCompTimeArgsForbiddenConstruct, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> literal contains a forbidden construct (computed property, function call, ternary, template substitution, or a non-mergeable spread)"},

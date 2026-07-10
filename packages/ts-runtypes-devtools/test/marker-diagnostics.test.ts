@@ -173,6 +173,55 @@ export const d = describeType<{a: number}>();
     });
   });
 
+  register('accepts an InjectTypeFnArgs marker with more than three DISTINCT families', async () => {
+    // The historical alias capped at three fn keys; a wrapper (mion's route())
+    // may name more. Four distinct families must scan clean and inject one
+    // handle per family, in declaration order.
+    const sources = {
+      'four-fn.ts': `import type {InjectTypeFnArgs} from '@ts-runtypes/core';
+type Handler = (ctx: unknown, ...rest: any[]) => unknown;
+function route<H extends Handler>(handler: H, fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'huk', 'suk', 'uke'>) {
+  return {handler, fns};
+}
+export const r = route((ctx: unknown, name: string) => name.length);
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources));
+      // No duplicate-family error; the four-family marker is a valid site.
+      expect(markerDiagsOf(response).filter((d) => d.code === 'MKR006')).toEqual([]);
+      expect(response.sites.length).toBe(1);
+      // One injected handle per named family — four, in declaration order.
+      expect(response.sites[0].fnIds?.length).toBe(4);
+    });
+  });
+
+  register('errors with MKR006 when an InjectTypeFnArgs marker repeats a family', async () => {
+    const sources = {
+      'dup-fn.ts': `import type {InjectTypeFnArgs} from '@ts-runtypes/core';
+type Handler = (ctx: unknown, ...rest: any[]) => unknown;
+function route<H extends Handler>(handler: H, fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'verr'>) {
+  return {handler, fns};
+}
+export const r = route((ctx: unknown, name: string) => name.length);
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources));
+      const diagnostics = markerDiagsOf(response).filter((d) => d.code === 'MKR006');
+      expect(diagnostics).toHaveLength(1);
+      // Error severity: a repeated family is almost always a copy-paste slip,
+      // so the build halts rather than injecting a redundant handle silently.
+      expect(diagnostics[0].severity).toBe(Severity.Error);
+      // Args carry the repeated family name for the catalog headline.
+      expect(diagnostics[0].args).toEqual(['verr']);
+      // The site is still emitted with the duplicate removed — the injection
+      // stays sane even though the Error halts the build.
+      expect(response.sites.length).toBe(1);
+      expect(response.sites[0].fnIds?.length).toBe(2);
+    });
+  });
+
   register('formatTscDiagnostic renders marker warnings in tsc line format', async () => {
     const sources = {
       'fmt.ts': `import {createValidate} from '@ts-runtypes/core';

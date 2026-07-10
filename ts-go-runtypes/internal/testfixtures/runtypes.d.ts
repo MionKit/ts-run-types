@@ -28,9 +28,9 @@ declare module '@ts-runtypes/core' {
 
   // createX trailing-slot marker — like InjectRunTypeId but names one (or more)
   // function families the site needs for T.
-  export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {
+  export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never, F4 extends string = never, F5 extends string = never, F6 extends string = never, F7 extends string = never, F8 extends string = never, F9 extends string = never, F10 extends string = never, F11 extends string = never, F12 extends string = never> = string & {
     readonly __rtInjectTypeFnArgsBrand?: T;
-    readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3];
+    readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12];
   };
 
   // One public createX factory, enough for the override fixtures to exercise the

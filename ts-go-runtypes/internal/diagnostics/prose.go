@@ -146,6 +146,21 @@ export const errorsOf = createGetValidationErrors<unknown>();`,
 		Fix: `import {registerPureFnFactory} from '@ts-runtypes/core';
 registerPureFnFactory('rt::newRunTypeErr', (utl) => (message) => new Error(message));`,
 	},
+	CodeMarkerDuplicateFnKey: {
+		Summary: "An `InjectTypeFnArgs` marker lists each function family it needs once, in order. Naming the same family twice injects a second identical handle that nothing reads, so it is almost always a copy-paste slip and the build stops. List each family at most once.",
+		Fix: `function route<H extends Handler>(
+  handler: H,
+  fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'jsonEncoder'>,
+) {
+  return {handler, fns};
+}`,
+		Example: `import type {InjectTypeFnArgs} from '@ts-runtypes/core';
+type Handler = (ctx: unknown, ...rest: any[]) => unknown;
+function route<H extends Handler>(handler: H, fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'verr'>) {
+  return {handler, fns};
+}
+export const lenRoute = route((ctx: unknown, name: string) => name.length);`,
+	},
 }
 
 // init folds the prose onto the registered Definitions. It runs after the
