@@ -119,16 +119,6 @@ export interface PluginOptions {
   //             for a non-JS / plugin-free host, and the safe fallback when an
   //             upstream pre-plugin rewrites the source before us.
   transformMode?: 'go' | 'edits';
-  // Extra module specifiers that mark a file as scan-worthy for the transform's
-  // textual pre-filter, in ADDITION to the always-on '@ts-runtypes/core'. A
-  // wrapper framework re-exposing the markers behind its own factories (e.g.
-  // mion's `route()` from '@mionkit/router') needs this: user files import the
-  // FRAMEWORK's package name, never '@ts-runtypes/core', so without it their
-  // call sites are never handed to the resolver — generation sees them (whole-
-  // program scan) but the per-file rewrite is skipped. Match rule is the same
-  // as the built-in one: the specifier as a quoted import prefix. Host-side
-  // only (a pre-filter): it never affects resolver output or disk caches.
-  markerModules?: string[];
   // 'go' mode only — whether the returned source map embeds the original source
   // in `sourcesContent`. Default true (self-contained maps). Set false to drop
   // it: the bundler composes the chained map and fills original content itself,
@@ -137,12 +127,15 @@ export interface PluginOptions {
   sourcesContent?: boolean;
 }
 
-// MARKER_MODULE is the package whose import marks a file as worth scanning;
-// files that don't import it are short-circuited as a cheap pre-filter. The
-// scanner itself recognises the marker types by a structural brand, so a
-// package that re-exports or vendors them (keeping the brand) is recognised
-// automatically with no config. Only a fully custom marker brand needs the
-// escape hatch: embed the Go resolver directly and pass marker.Options{Specs}.
+// MARKER_MODULE backs the transform's textual FALLBACK pre-filter. The primary
+// gate is the resolver's own site-file set (populated from the whole-program
+// scan at buildStart, maintained per-file on HMR): a file is handed to the
+// per-file rewrite when the scan actually found marker sites in it, so wrapper
+// frameworks re-exposing the markers behind their own factories (e.g. mion's
+// `route()` from '@mionkit/router') work with ZERO configuration — their
+// users' files never import '@ts-runtypes/core' by name. The textual check
+// only catches files the last scan couldn't have seen (created mid-session,
+// before their first HMR scan lands them in the set).
 const MARKER_MODULE = '@ts-runtypes/core';
 
 // ts-runtypes-devtools is built on unplugin: ONE factory, many bundler entry
@@ -163,10 +156,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       `[ts-runtypes-devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
     );
   }
-  // The transform pre-filter's accept list: the marker package itself plus any
-  // wrapper frameworks' module names the consumer registered (deduped).
-  const markerModules = [...new Set([MARKER_MODULE, ...(options.markerModules ?? [])])];
   let resolver: ResolverClient | null = null;
+  // The transform gate: cwd-relative paths (forward-slashed) of every source
+  // file the resolver's scan found marker sites in. Rebuilt from generate()'s
+  // siteFiles at buildStart, kept current per-file by handleHotUpdate.
+  let siteFiles = new Set<string>();
   let cwdAbs = '';
   // The resolved RunTypes output root (<cwd>/__runtypes by default). Set by
   // ensureResolver once cwdAbs is known; modules land under <outDirAbs>/types.
@@ -240,6 +234,16 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     }
     const gitkeep = path.join(enrichedDir, '.gitkeep');
     if (!fs.existsSync(gitkeep)) fs.writeFileSync(gitkeep, '');
+  }
+
+  // siteKey canonicalizes a source path for the siteFiles set. The resolver
+  // reports whole-program scan paths (absolute) while per-file ops and the
+  // transform hook use cwd-relative ids — both collapse to one cwd-relative,
+  // forward-slashed key so membership checks match across the two shapes
+  // (and across platform separators).
+  function siteKey(file: string): string {
+    const rel = path.isAbsolute(file) ? path.relative(cwdAbs || process.cwd(), file) : file;
+    return rel.split(path.sep).join('/');
   }
 
   // transformViaGo is the 'go'-mode path: the resolver applies the rewrite and
@@ -341,6 +345,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // right tree and every later transform/HMR call reuses it.
       const gen = await resolver!.generate(outDirAbs || undefined);
       if (gen.outDir) outDirAbs = gen.outDir;
+      // Adopt the whole-program scan's site-file set as the transform gate
+      // (see MARKER_MODULE): exactly the files with rewritable marker sites,
+      // wrapper call sites included. Rebuilt (not merged) so watch-mode
+      // rebuilds drop files whose sites are gone.
+      siteFiles = new Set(gen.siteFiles.map(siteKey));
       ensureOutputDirs();
       // Pure-fn extraction errors halt the build (files-mode has no virtual
       // fallback, so a generation error is fatal); RT-render diagnostics flow
@@ -356,24 +365,25 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     async transform(this: any, code: string, id: string) {
       if (!resolver) return null;
       if (!/\.[mc]?[jt]sx?$/.test(id)) return null;
-      // Short-circuit: a file that doesn't reference a marker module
-      // can't contain rewritable sites. Cheap textual check before the
-      // round-trip to the resolver. We match each module only as a quoted
-      // import specifier (`'ts-runtypes`, `"ts-runtypes`, incl. subpaths
-      // like `ts-runtypes/schema`) — a bare `includes(MARKER_MODULE)` also
-      // fires on path mentions in comments (e.g. `packages/ts-runtypes/…`),
-      // which would force the resolver to scan files that never import the
-      // markers. `registerPureFnFactory` is checked separately because the
-      // marker package's OWN sources call it via relative imports (no
-      // package-name string in the file). `markerModules` adds wrapper
-      // frameworks' package names to the same check (their users' files
-      // import the framework, not '@ts-runtypes/core').
-      const importsMarkerModule = markerModules.some(
-        (markerModule) => code.includes(`'${markerModule}`) || code.includes(`"${markerModule}`)
-      );
-      if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
-
       const rel = path.relative(cwdAbs || process.cwd(), id);
+      // Gate: the buildStart scan already knows exactly which files carry
+      // rewritable marker sites (siteFiles) — wrapper call sites included,
+      // whatever package declared the wrapper. Files outside the set can't
+      // need a rewrite, EXCEPT ones the last scan couldn't have seen (created
+      // mid-session, before their first HMR scan): those fall back to cheap
+      // textual checks. We match the marker package only as a quoted import
+      // specifier (`'@ts-runtypes/core`, `"@ts-runtypes/core`, incl.
+      // subpaths) — a bare `includes(...)` also fires on path mentions in
+      // comments (e.g. `packages/ts-runtypes/…`), which would force the
+      // resolver to scan files that never import the markers.
+      // `registerPureFnFactory` is checked separately because the marker
+      // package's OWN sources call it via relative imports (no package-name
+      // string in the file).
+      if (!siteFiles.has(siteKey(rel))) {
+        const importsMarkerModule = code.includes(`'${MARKER_MODULE}`) || code.includes(`"${MARKER_MODULE}`);
+        if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
+      }
+
       return transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(rel, {ctx: this, code});
     },
 
@@ -417,6 +427,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         } catch {
           return;
         }
+        // Keep the transform gate current: the edit may have added this
+        // file's first marker site (files created after buildStart enter the
+        // set here) or removed its last one.
+        if (result.sites.length > 0) siteFiles.add(siteKey(rel));
+        else siteFiles.delete(siteKey(rel));
         // Regenerate so any new/changed modules hit disk; the watcher reloads
         // them (the folder lives in the project root, which Vite watches).
         try {

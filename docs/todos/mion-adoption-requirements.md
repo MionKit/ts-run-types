@@ -22,48 +22,48 @@ publishing mion's own precompiled internal routes.
 
 ## Workstream A — wrapper-framework support (the `route()` foundation)
 
-### A1. `markerModules` plugin option — DONE on this branch
-Shipped in this PR: `PluginOptions.markerModules` + regression test
-(`packages/ts-runtypes-devtools/test/marker-modules.test.ts`) + website/ARCHITECTURE
-docs. mion's `@mionkit/devtools` already forwards it and drops its gate shim on the
-first release that includes it. **Remaining: none (release it)** — and see A1b,
-which supersedes it as the DEFAULT gating so consumers need no config at all.
-
-### A1b. Zero-config transform gating — the resolver's site-file set (supersedes markerModules as the default)
+### A1. Zero-config transform gating — the resolver's site-file set — DONE on this branch
 - **Requirement (mion's author):** wrapper markers must work transparently for ANY
   imported package — node_modules included — with no plugin config. The marker
   SCANNER already is transparent (recognition keys on the marker type's declaring
   package, so a wrapper in any package is detected; mion's first failing run proved
   it: whole-program generation found the sites while the per-file transform skipped
-  the file). Only the plugin's textual pre-filter is config-bound.
-- **Considered: a d.ts signal.** Nothing needs emitting — any wrapper's declaration
-  file already contains the marker types by construction (`id?: InjectTypeFnArgs<…>`
-  plus the `@ts-runtypes/core` import in the emitted signature). But entry d.ts
-  files are often bare re-exports (`export * from './initFunctions'` — mion's own
-  index has no marker string), so a robust check means resolving every imported
-  specifier and walking that package's d.ts tree (or package.json dependency
-  fallbacks) — cached but still heuristic, still per-plugin resolution logic.
-- **Chosen design: ask the compiler.** The resolver already computes the exact
-  answer: `generate`/`dump` run `sess.scanAllProgramFiles()` and every `Site`
-  carries `.File`. Surface it:
-  1. Go: extend the generate response with `siteFiles: string[]` — unique
-     program-relative paths of files with at least one marker or pure-fn site
-     (a map over `sess.Sites()`, already computed; no extra scanning).
-  2. Plugin: hold the set from `buildStart`; the transform gate becomes
-     `siteFiles.has(rel)` — exact and O(1), no text sniffing. `handleHotUpdate`
-     already rescans changed files per-file, so the set stays live in dev (add
-     when a rescan reports sites, drop when it reports none).
-  3. The textual check + `markerModules` demote to a fallback for edge timing
-     (a file created mid-session before its first rescan) and back-compat;
-     deprecate `markerModules` once the set path proves out.
+  the file). Only the plugin's textual pre-filter was config-bound.
+- **Considered and rejected:**
+  - *A `markerModules` plugin option* (extra package names for the textual
+    pre-filter — an earlier iteration of this branch, never released): works but is
+    exactly the config the requirement forbids, and still misses call sites that
+    reach a wrapper through RELATIVE imports.
+  - *A d.ts signal.* Nothing needs emitting — any wrapper's declaration file
+    already contains the marker types by construction (`id?: InjectTypeFnArgs<…>`
+    plus the `@ts-runtypes/core` import in the emitted signature). But entry d.ts
+    files are often bare re-exports (`export * from './initFunctions'` — mion's own
+    index has no marker string), so a robust check means resolving every imported
+    specifier and walking that package's d.ts tree (or package.json dependency
+    fallbacks) — cached but still heuristic, still per-plugin resolution logic.
+- **Shipped design: ask the compiler.** The resolver already computes the exact
+  answer: `generate` runs `sess.scanAllProgramFiles()` and every `Site` carries
+  `.File`. Surfaced as:
+  1. Go: `protocol.Response.SiteFiles` — OpGenerate returns the sorted unique
+     file list of `sess.Sites()` (`uniqueSiteFiles` in `resolver/dispatch.go`;
+     already-computed data, no extra scanning).
+  2. Plugin: `buildStart` adopts the set (`siteFiles = new Set(gen.siteFiles.map(siteKey))`,
+     paths canonicalized cwd-relative + forward-slashed); the transform gate is
+     `siteFiles.has(siteKey(rel))` — exact and O(1), no text sniffing.
+     `handleHotUpdate` keeps it live in dev: add when a rescan reports sites,
+     drop when it reports none.
+  3. The textual check (quoted `'@ts-runtypes/core'` import prefix +
+     `registerPureFnFactory`) stays as the fallback for files the last scan
+     couldn't have seen (created mid-session before their first rescan).
 - **Extra correctness win:** the site-set also catches call-site files that reach a
   wrapper through RELATIVE imports — a false-negative class NO textual heuristic
   can see (bit mion's own e2e on day one; see mion migration-docs/04 issue #6).
-- **Acceptance:** a fresh consumer app with `plugins: [runtypes()]` and zero
-  options gets wrapper call sites rewritten for any framework package (mion drops
-  `markerPackages`/shim entirely); a relative-import call-site fixture rewrites;
-  HMR adds/removes files from the gate correctly; `markerModules` still honoured
-  but unnecessary.
+- **Shipped in this PR:** the Go + plugin wiring above; regression test
+  `packages/ts-runtypes-devtools/test/wrapper-zero-config.test.ts` (zero-options
+  plugin rewrites a wrapper consumer that never names a marker package; wrapper
+  forward stays a pass-through; site-free file short-circuits); website +
+  ARCHITECTURE docs. mion drops its `markerPackages`/shim on the first release
+  that includes it. **Remaining: none (release it).**
 
 ### A2. Pin mion's exact marker shape in the fixture suite
 - **Current:** the wrapper story is regression-tested for a single-family wrapper with
@@ -125,8 +125,8 @@ which supersedes it as the DEFAULT gating so consumers need no config at all.
     `async (): Promise<Date>`); assert one site each, `FnIds` length 3 in declaration
     order, demand rows for all three families, and distinct resolved ids for the
     1-tuple (void) vs pair shapes.
-  - devtools e2e (self-contained fixture project like `marker-modules.test.ts` until
-    A3 lets it move in-program): after transform, forward each injected element to
+  - devtools e2e (self-contained fixture project like `wrapper-zero-config.test.ts`
+    until A3 lets it move in-program): after transform, forward each injected element to
     its factory and assert per-slot behaviour (errors array / revived Date / encoded
     string — misordering fails loudly); assert the probe verdicts on both shapes;
     assert `[null, …]` optional-slot encoding + decode revival; assert the wrapper's
@@ -145,7 +145,7 @@ which supersedes it as the DEFAULT gating so consumers need no config at all.
 - **Work:** Go repro fixture; instrument `analyzeCall` (`resolver/scan.go`) —
   suspicion is `Checker_getResolvedSignature`/`Type_alias` dropping the marker alias
   when the callee declaration + marker declaration resolve through the self-reference
-  lane. Fix; move the marker-modules test fixture in-program afterwards.
+  lane. Fix; move the wrapper-zero-config test fixture in-program afterwards.
 - **Acceptance:** `scanFiles(['B'])` yields the site with the wrapper in A inside the
   marker package's own test program; monorepo consumers that source-link
   `@ts-runtypes/core` (pnpm workspace `source` condition) can't hit it either.
@@ -157,8 +157,8 @@ which supersedes it as the DEFAULT gating so consumers need no config at all.
 - **Work (either/both):** (a) resolve one level of alias chain in `aliasForSpec` so
   framework-named aliases work, with a fixture; or (b) document the verbatim rule +
   the whole wrapper recipe (trailing optional param, forwarding as pass-through,
-  multi-key arrays, `markerModules`) as a first-class website guide page — today the
-  recipe only exists in `markers.ts` comments and mion's migration docs.
+  multi-key arrays, zero-config detection) as a first-class website guide page —
+  today the recipe only exists in `markers.ts` comments and mion's migration docs.
 - **Acceptance:** a framework author can build a `route()`-style wrapper from the
   website docs alone; if (a) lands, an aliased marker fixture injects.
 
@@ -385,10 +385,9 @@ which supersedes it as the DEFAULT gating so consumers need no config at all.
 
 ## Suggested order / release mapping (lockstep versioning)
 
-1. **0.9.1 (patch):** A1 release (already on this branch), A1b (zero-config gating
-   via the resolver's site-file set — small Go response field + plugin set), D1, D2
-   — unblocks mion removing its shim, `markerPackages` config AND tsconfig
-   workarounds. A2 rides along (tests only).
+1. **0.9.1 (patch):** A1 release (zero-config gating via the resolver's site-file
+   set — already on this branch), D1, D2 — unblocks mion removing its shim AND
+   tsconfig workarounds. A2 rides along (tests only).
 2. **0.10.0 (minor):** A5 (per-side markers: multi-slot injection + Fn-key cap ≥ 4 +
    the 'rt' reflection key — deletes the pair, probe and conditional), B1 (new public
    fnKeys → cache-affecting), C1 (new public API), B3 fixture+docs, E1 recipe. This

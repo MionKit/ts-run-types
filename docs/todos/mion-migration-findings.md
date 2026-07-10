@@ -9,8 +9,9 @@ workaround on published 0.9.0).
 `claude/migrate-mion-ts-runtypes-8rvzhn`, see its `migration-docs/`). mion's
 `route()`/`hook()` carry `InjectTypeFnArgs<[Params?, Return?], 'verr', 'jsonDecoder',
 'jsonEncoder'>` and forward the injected handles to the public factories — the wrapper
-story from `markers.ts` works end-to-end on the published packages. `markerModules`
-(shipped alongside this note) closed the one hard gap; the rest are recorded here.
+story from `markers.ts` works end-to-end on the published packages. The zero-config
+site-file transform gate (shipped alongside this note; adoption plan item A1) closed
+the one hard gap; the rest are recorded here.
 
 ## 1. Cross-file wrapper call sites are not scanned inside the marker package's own program
 
@@ -105,7 +106,8 @@ CSP note (`new Function` on ingest).
   recognised (alias-name + declaring-module match). Verified empirically; mion re-exports
   the original symbols instead. Worth one sentence in the website custom-markers/wrapper
   docs.
-- A wrapper's callers must import the wrapper's package BY NAME for the plugin pre-filter
-  (now solvable with `markerModules`); relative-import call sites inside the framework
-  itself still need the file to mention a marker module (mion keeps its e2e importing
-  the public package name).
+- A wrapper's callers used to need the wrapper's package imported BY NAME for the
+  plugin's textual pre-filter — including relative-import call sites inside the
+  framework itself, which NO textual heuristic can see. Resolved by the zero-config
+  site-file gate (adoption plan item A1): the transform now rewrites exactly the
+  files the whole-program scan found sites in, whatever the import style.

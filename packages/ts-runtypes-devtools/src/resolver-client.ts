@@ -215,11 +215,13 @@ export interface TransformFilesResult {
 // GenerateResult is the shape returned by generate(): the live manifest of
 // module basenames written under <outDir>/types, the output root actually
 // written to (the resolver-inferred <srcDir>/__runtypes when none was passed),
-// plus any diagnostics the full-program render produced (pure-fn extraction
-// errors are halt-worthy).
+// the source files carrying marker sites (the plugin's transform gate), plus
+// any diagnostics the full-program render produced (pure-fn extraction errors
+// are halt-worthy).
 export interface GenerateResult {
   modules: string[];
   outDir: string;
+  siteFiles: string[];
   diagnostics?: Diagnostic[];
 }
 
@@ -326,7 +328,12 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (outDir) req.outDir = outDir;
     const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`generate: ${resp.error}`);
-    return {modules: resp.generated ?? [], outDir: resp.outDir ?? outDir ?? '', diagnostics: resp.diagnostics};
+    return {
+      modules: resp.generated ?? [],
+      outDir: resp.outDir ?? outDir ?? '',
+      siteFiles: resp.siteFiles ?? [],
+      diagnostics: resp.diagnostics,
+    };
   }
 
   async dump(): Promise<Response> {
