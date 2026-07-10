@@ -73,6 +73,13 @@ first release that includes it. **Remaining: none (release it).**
      silently. The codec twins ride along: `enc([undefined, ret])` must emit
      `[null,<R>]` (absent optional slot → JSON null) and `dec('[[…]]')[0]` must
      revive params.
+  Note (2026-07-10, verified): the conditional itself is OPTIONAL — a plain
+  `[MionParams<H>?, MionReturn<H>?]` compiles and validates params-only even for
+  void returns (`[P?, void?]` is fine); its only job is the void signal feeding
+  `hasReturnData` (without it the probe passes for void routes too). The slots
+  being OPTIONAL is the load-bearing part (a required pair's emitted validator
+  checks slot 1 unconditionally). A2 pins whichever alias mion ships; A5
+  supersedes the whole pattern.
 - **Work:**
   - Go resolver test: a wrapper fixture with the verbatim `MionRouteTypes`
     conditional and three consumer call sites (value-returning, `void`,
@@ -116,17 +123,47 @@ first release that includes it. **Remaining: none (release it).**
 - **Acceptance:** a framework author can build a `route()`-style wrapper from the
   website docs alone; if (a) lands, an aliased marker fixture injects.
 
-### A5 (design discussion, ROADMAP first). Function-type projection for RPC markers
-- **Current:** one trailing slot per call means mion encodes params+return as the
-  optional pair `[P?, R?]` and derives `paramsLength`/`hasReturnData` via
-  `handler.length` and the verr probe. Works, but every RPC framework will reinvent it.
-- **Work:** discuss in ROADMAP: when the marker's `T` is a FUNCTION type, project it
-  Go-side to the canonical pair (params tuple, `Awaited` return) instead of the current
-  root `alwaysThrow` — or add a dedicated marker/variant that also injects static
-  metadata (params length, has-return, is-async) as data. Explicitly out of mion-0.9
-  scope; the pair-type pattern is fine.
-- **Acceptance:** ROADMAP entry with a decision; if adopted, mion's
-  `MionRouteTypes<H>` conditional collapses to one alias and the probe disappears.
+### A5. Per-side entry groups for RPC wrappers — `RTParams` / `RTResponse` (design in ROADMAP, then implement)
+- **The requirement (mion's author):** a route wants TWO independent groups of
+  compiled functions — one over the params tuple, one over the return type —
+  presented as plain objects, mirroring mion's old reflection API:
+  `RTParams {validate, getValidationErrors, jsonDecoder, …}` and
+  `RTResponse {validate, jsonEncoder, …}`. No pair-wrapping in runtime calls, no
+  conditional type mapping, no runtime probing: read `isNoop` / the return kind off
+  the entries to decide behaviour (a void route simply gets an empty/noop response
+  group).
+- **Why it needs upstream work — the one-slot constraint:** independent
+  `createValidate<MionParams<H>>()` calls cannot live inside the wrapper's generic
+  body (free type parameter — the scanner resolves call sites in SOURCE once, not
+  per instantiation; that is the MKR003 gate and the reason forwarding exists), and
+  a call site has exactly ONE trailing injection slot. So with 0.9 semantics the
+  only single-call encoding of both sides is one T covering both — the pair.
+- **What the pair costs (all empirically pinned, 2026-07-10):**
+  - The slots must be OPTIONAL: the emitted validator for a required pair checks
+    slot 1 unconditionally (`if (typeof v[1] !== 'string') nRT(…)`), so
+    `verr([params])` fails on the missing return at request time. The optional pair
+    (`if (v[1] !== undefined) {…}`) is what makes params-only validation work.
+  - The void-conditional in mion's current alias is NOT structurally needed —
+    `[P?, void?]` compiles and validates params-only fine — but dropping it loses
+    the runtime void signal (`verr([undefined, undefined])` passes for `void?`
+    slots too), so `hasReturnData` needs a type-level check or a metadata source.
+  - Every runtime call wraps/unwraps (`verr([params])`,
+    `JSON.parse(enc([undefined, ret]))[1]`), and the 3-fnKey marker ceiling caps a
+    route at three families TOTAL across both sides.
+- **Work:** ROADMAP design entry, then: accept a FUNCTION type (or the plain
+  `[Params, Return]` pair) as the marker `T` for a wrapper-oriented variant;
+  Go-side, project params/`Awaited` return and emit each side's demanded families
+  as independently resolvable roots; inject a STRUCTURED handle (per-side entry
+  arrays); add a public runtime helper that materializes the two objects from the
+  handle (this is where mion's `getFunctionReflection` collapses to selection).
+  Void/never returns produce an empty or noop-flagged response group — the
+  "read isNoop and decide" contract. Demand syntax to design: per-side family
+  lists (e.g. `InjectRouteFnArgs<H, ['val','verr','jsonDecoder'], ['jsonEncoder']>`
+  — naming open).
+- **Acceptance:** mion deletes `MionRouteTypes`' conditional, the hasReturnData
+  probe, and every pair wrap/unwrap; a route requests more than 3 families across
+  the two sides; a void route is detected from entry metadata; A2's pair-shape
+  pins are superseded by fixtures for the structured handle.
 
 ## Workstream B — dispatch data-path parity
 
@@ -266,11 +303,12 @@ first release that includes it. **Remaining: none (release it).**
 
 1. **0.9.1 (patch):** A1 release (already on this branch), D1, D2 — unblocks mion
    removing its shim + tsconfig workarounds. A2 rides along (tests only).
-2. **0.10.0 (minor):** B1 (new public fnKeys → cache-affecting), C1 (new public API),
-   B3 fixture+docs, E1 recipe. This is the release mion's client lane and perf pass
-   target.
+2. **0.10.0 (minor):** A5 (per-side entry groups — the RTParams/RTResponse target
+   shape; ROADMAP design first, it also subsumes most of A2's pins), B1 (new public
+   fnKeys → cache-affecting), C1 (new public API), B3 fixture+docs, E1 recipe. This
+   is the release mion's client lane, route-API cleanup and perf pass target.
 3. **Backlog / as-needed:** A3 (scanner edge), A4 (docs or alias support), B2
-   (decision note), C2, E2/E3 recipes, A5 (ROADMAP discussion).
+   (decision note), C2, E2/E3 recipes.
 
 Each shipped item moves its section into `docs/done/` per repo convention; mion-side
 uptake for every item is tracked in mion `migration-docs/03-migration-plan.md` phase 6.
