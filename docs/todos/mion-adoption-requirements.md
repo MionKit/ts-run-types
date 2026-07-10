@@ -151,38 +151,51 @@ first release that includes it. **Remaining: none (release it).**
     `JSON.parse(enc([undefined, ret]))[1]`), and the 3-fnKey marker ceiling caps a
     route at three families TOTAL across both sides.
 - **Chosen mechanism (mion's author): MULTIPLE marker slots per signature.** Lift
-  the "only the trailing slot is recognised" rule: every parameter whose type is an
-  `InjectTypeFnArgs` marker is its own injection slot, each with its OWN `T` and its
-  own family list. The type splitting stays in ordinary wrapper aliases (no Go-side
+  the "only the trailing slot is recognised" rule: every parameter whose type is a
+  marker (`InjectTypeFnArgs` OR `InjectRunTypeId`) is its own injection slot, each
+  with its OWN `T`. The type splitting stays in ordinary wrapper aliases (no Go-side
   function-type projection needed — `MionParams<H>`/`MionReturn<H>` already resolve
-  at call sites), and per-slot multi-family keys keep the parameter count sane:
+  at call sites). Preferred style: ONE single-family marker per compiled function —
+  reads as plain code, and the existing per-marker multi-family keys stay as
+  optional sugar (no new DX work strictly required). Reflection markers join the
+  same signature so metadata comes from `getRunType` instead of probes:
 
   ```ts
-  // inside @mionkit/router — compiled once; slots filled at each USER call site
+  // inside @mionkit/router — compiled once; ALL slots filled at each USER call site
   export function route<H extends Handler>(
     handler: H,
     opts?: RouteOptions,
-    paramsFns?: InjectTypeFnArgs<MionParams<H>, 'val', 'verr', 'jsonDecoder'>,
-    responseFns?: InjectTypeFnArgs<MionReturn<H>, 'val', 'jsonEncoder'>
+    paramsErrorsArgs?: InjectTypeFnArgs<MionParams<H>, 'verr'>,
+    paramsDecodeArgs?: InjectTypeFnArgs<MionParams<H>, 'jsonDecoder'>,
+    resultEncodeArgs?: InjectTypeFnArgs<MionReturn<H>, 'jsonEncoder'>,
+    paramsRt?: InjectRunTypeId<MionParams<H>>,
+    responseRt?: InjectRunTypeId<MionReturn<H>>
   ) {
-    const injectedParams = paramsFns as unknown as readonly unknown[] | undefined;
-    const injectedResponse = responseFns as unknown as readonly unknown[] | undefined;
     const RTParams = {
-      validate: createValidate(undefined, undefined, injectedParams?.[0] as never),
-      getErrors: createGetValidationErrors(undefined, undefined, injectedParams?.[1] as never),
-      jsonDecoder: createJsonDecoder(undefined, undefined, injectedParams?.[2] as never),
+      getValidationErrors: createGetValidationErrors(undefined, undefined, paramsErrorsArgs as never),
+      jsonDecoder: createJsonDecoder(undefined, undefined, paramsDecodeArgs as never),
     };
     const RTResponse = {
-      validate: createValidate(undefined, undefined, injectedResponse?.[0] as never),
-      jsonEncoder: createJsonEncoder(undefined, undefined, injectedResponse?.[1] as never),
+      jsonEncoder: createJsonEncoder(undefined, undefined, resultEncodeArgs as never),
     };
-    return {handler, RTParams, RTResponse};
+    // deepkit-style metadata from reflection (mechanism verified on 0.9.0):
+    //   string return -> kind === RunTypeKind.string; void -> RunTypeKind.void;
+    //   Promise<Date> -> class node (Awaited unwraps); params tuple ->
+    //   kind === RunTypeKind.tuple with children.length === paramsLength.
+    const returnNode = getRunType(undefined, responseRt as never);
+    const paramsNode = getRunType(undefined, paramsRt as never);
+    const hasReturnData = returnNode !== undefined && returnNode.kind !== RunTypeKind.void;
+    const paramsLength = (paramsNode as {children?: unknown[]} | undefined)?.children?.length ?? 0;
+    return {handler, RTParams, RTResponse, hasReturnData, paramsLength};
   }
-
-  // user call site — the rewrite fills BOTH slots:
-  // route((ctx, user) => ..., undefined, [__rt_val_P, __rt_verr_P, __rt_dec_P],
-  //                                      [__rt_val_R, __rt_enc_R])
   ```
+
+  **Evidence that this is gated on the scanner change (published 0.9.0, 2026-07-10):**
+  with several marker params only the TRAILING one injects — tested with two
+  multi-family markers (params slot `undefined`, response slot filled) AND with five
+  single-family markers (`{"paramsValidate":false,"paramsErrors":false,
+  "paramsDecode":false,"returnValidate":false,"resultEncode":true}`). The
+  `getRunType` metadata mechanism itself IS verified (as trailing single markers).
 
 - **Work:** ROADMAP design entry, then:
   1. Scanner: recognise EVERY `InjectTypeFnArgs`/`InjectRunTypeId` parameter as an
@@ -195,12 +208,13 @@ first release that includes it. **Remaining: none (release it).**
   3. Pass-through per slot: an argument explicitly supplied at a marker index leaves
      THAT slot untouched (a wrapper forwarding all slots stays fully untouched, as
      today); diagnostics for partially-supplied marker args.
-  4. Design points to settle: void/never/undefined ROOT types on the response slot
-     should emit noop-flagged entries (so `RTResponse` reads as noop — "check isNoop
-     and decide"), never alwaysThrow — verify + pin current root-void family
-     behaviour; interaction with `CompTimeFnArgs` options params in multi-slot
-     signatures; whether the per-marker 3-family cap needs raising (two slots ×3
-     covers mion today).
+  4. Design points to settle: void/never/undefined ROOT types on fn-family slots
+     (e.g. `resultEncodeArgs` for a void route) should emit noop-flagged entries,
+     never alwaysThrow — verify + pin current root-void family behaviour (metadata
+     itself comes from the reflection slots: `getRunType(...).kind ===
+     RunTypeKind.void`); interaction with `CompTimeFnArgs` options params in
+     multi-slot signatures; the per-marker 3-family cap needs NO change (the split
+     style makes it moot; the multi-key form stays as sugar).
   5. Docs: ARCHITECTURE "one trailing slot" sections + the website wrapper guide
      (A4) get the multi-slot story.
 - **Alternative considered (not chosen):** a single structured handle where the
