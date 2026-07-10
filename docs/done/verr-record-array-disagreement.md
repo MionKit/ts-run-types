@@ -31,7 +31,7 @@ Scope: pure validation-family work (one emitter term + tests). Does not touch JS
     renders `Record<string, number>` and `Record<string, Date>` through both
     families and asserts BOTH carry the brand guard (fails without the fix).
   - JS end-to-end regression
-    ([packages/ts-runtypes/test/verr-record-array-disagreement.test.ts](../../packages/ts-runtypes/test/verr-record-array-disagreement.test.ts)):
+    ([packages/ts-runtypes/test/features/verr-record-array-disagreement.test.ts](../../packages/ts-runtypes/test/features/verr-record-array-disagreement.test.ts)):
     pins the minimal repro table for `Record<string, number>` and
     `Record<string, Date>`, plus a direct O4-invariant sweep over `[]`, arrays,
     `Date`, `Map`, `Set`, null-proto objects, and primitives.
