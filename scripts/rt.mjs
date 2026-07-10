@@ -246,6 +246,7 @@ release   npm publish + site build (CI stages to npm; a maintainer approves with
   rtx release stage-approve [--dry-run]   approve this version's staged packages (2FA, leaves-first)
   rtx release manual-publish [--skip-build|--dry-run|--yes]   first-publish bootstrap: build + npm login + publish all 10 LIVE (resumable)
   rtx release e2e [--backend container|host-npx] [--pack]   pre-publish e2e (containerized verdaccio + feature matrix + host smoke)
+  rtx release e2e --backend npm [--registry URL] [--version V] [--no-matrix]   post-publish e2e (install the LIVE @ts-runtypes/* from npm + run the same suite)
 
 container  rtx container <build-image|ensure|login|push|pull|lock|clean> [website|e2e]
            (build-image/push/pull/clean act on BOTH images when no target is given)

@@ -113,4 +113,6 @@ jobs:
         run: gh release create "v${VERSION}" --title "v${VERSION}" --notes-file RELEASE_NOTES.md
         # The run ends at "packages staged + tagged + GitHub Release drafted". A
         # maintainer approves the stage-ids with 2FA (`pnpm rtx release
-        # stage-approve`), then triggers website-deploy.yml to ship the docs.
+        # stage-approve`), then — once the packages are LIVE — dispatches
+        # post-publish.yml to verify them from the real registry and triggers
+        # website-deploy.yml to ship the docs.

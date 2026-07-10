@@ -310,7 +310,31 @@ export function startRegistry(opts = {}) {
   return {engine: cfg.engine, container, port, image: cfg.image};
 }
 
-// Remove the registry container (best-effort; ignores "no such container").
+// Start the e2e toolchain image as a plain keep-alive container (NO verdaccio, NO
+// tarballs) for the POST-publish matrix (scripts/release/e2e.mjs --backend npm):
+// the multi-bundler apps install the LIVE @ts-runtypes/* from a real registry
+// (registry.npmjs.org) instead of verdaccio, so the container only supplies the
+// baked builder toolchains + the bind-mounted source at /e2e-src. Default
+// networking gives egress to the public registry (no port publish, no healthcheck).
+// Returns the coordinates so the caller can `podman exec` the matrix, then
+// stopRegistry() (a plain `rm -f`) tears it down.
+export function startToolchainContainer(opts = {}) {
+  const cfg = config(opts.env, 'e2e');
+  if (!opts.e2eSrcDir || !existsSync(opts.e2eSrcDir)) die(`image: toolchain: e2e source dir '${opts.e2eSrcDir ?? ''}' not found`);
+  ensureImage({env: opts.env, target: 'e2e'});
+  const container = `${cfg.containerBase}-e2e-matrix`;
+  const net = cfg.runNetwork ? [`--network=${cfg.runNetwork}`] : [];
+  capture(cfg.engine, ['rm', '-f', container]); // drop any stale container
+  note(`starting e2e toolchain container (${container}) for the real-registry matrix`);
+  runOrThrow(
+    cfg.engine,
+    ['run', '-d', '--init', '--name', container, '-v', `${opts.e2eSrcDir}:/e2e-src:ro${cfg.mountOpts}`, ...net, cfg.image, 'sleep', 'infinity'],
+    {stdio: ['inherit', 'ignore', 'inherit']}
+  );
+  return {engine: cfg.engine, container, image: cfg.image};
+}
+
+// Remove the registry / toolchain container (best-effort; ignores "no such container").
 export function stopRegistry(engine, container) {
   capture(engine, ['rm', '-f', container]);
 }
