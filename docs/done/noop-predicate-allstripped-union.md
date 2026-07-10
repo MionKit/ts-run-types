@@ -57,7 +57,7 @@ as empty code. Rendering `createJsonEncoder<{x: ArrayBuffer | SharedArrayBuffer;
   `TestNoopPredicate_SoundAgainstEmitters` on `pj` / `rj` / `cjr` before the fix,
   passes after.
 - **Behavioral pin (runtime).** Added a gate-elision regression test to
-  [dataonly-union-drop.test.ts](../../packages/ts-runtypes/test/dataonly-union-drop.test.ts)
+  [dataonly-union-drop.test.ts](../../packages/ts-runtypes/test/features/dataonly-union-drop.test.ts)
   (the "collapse-to-never / empty still throws" suite): a NAMED, externalized
   all-stripped union at a nested property (`{x: ArrayBuffer | SharedArrayBuffer; y}`)
   must throw for every encoder strategy (mutate / clone / direct / binary),

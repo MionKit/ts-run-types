@@ -61,7 +61,7 @@ how the oracle isolated them.
    matched the Record candidate and serialized as `{}`. Fixed in
    [internal/cachegen/typefunctions/validate.go](../../internal/cachegen/typefunctions/validate.go)
    (brand-guard index-signature objects). Pinned in
-   [packages/ts-runtypes/test/indexSigUnionDispatch.test.ts](../../packages/ts-runtypes/test/indexSigUnionDispatch.test.ts).
+   [packages/ts-runtypes/test/features/indexSigUnionDispatch.test.ts](../../packages/ts-runtypes/test/features/indexSigUnionDispatch.test.ts).
 3. **`direct` wrote invalid JSON for an all-optional object with an index sig.**
    The skip-commas flag was set once before the prop loop; a nested-object child
    cleared the shared flag, baking a trailing comma into a later sibling. Fixed
@@ -113,7 +113,7 @@ were not byte-for-byte stable across a round-trip.
   [json_prepare_safe.go](../../internal/cachegen/typefunctions/json_prepare_safe.go).
   The decoder is unchanged; binary keeps its independent validate-dispatch as an
   oracle. Seed 84967679; pinned in
-  [indexSigUnionDispatch.test.ts](../../packages/ts-runtypes/test/indexSigUnionDispatch.test.ts).
+  [indexSigUnionDispatch.test.ts](../../packages/ts-runtypes/test/features/indexSigUnionDispatch.test.ts).
 
 Run `FUZZ_ROUNDTRIP_SOAK_MS=120000 FUZZ_SEED=4660 pnpm exec vitest run packages/ts-runtypes/test/fuzz/roundtrip/allStrategyRoundtrip.integration.test.ts`
 to soak. The website fuzzing page documents the fuzzer:
