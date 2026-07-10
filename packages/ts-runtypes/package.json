@@ -10,45 +10,23 @@
   "exports": {
     ".": {
       "source": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/cjs/index.js"
-    },
-    "./caches/runTypesCache": {
-      "source": "./src/caches/runTypesCache.ts",
-      "types": "./dist/caches/runTypesCache.d.ts",
-      "import": "./dist/caches/runTypesCache.js",
-      "require": "./dist/cjs/caches/runTypesCache.js"
-    },
-    "./caches/isTypeCache": {
-      "source": "./src/caches/isTypeCache.ts",
-      "types": "./dist/caches/isTypeCache.d.ts",
-      "import": "./dist/caches/isTypeCache.js",
-      "require": "./dist/cjs/caches/isTypeCache.js"
-    },
-    "./caches/pureFnsCache": {
-      "source": "./src/caches/pureFnsCache.ts",
-      "types": "./dist/caches/pureFnsCache.d.ts",
-      "import": "./dist/caches/pureFnsCache.js",
-      "require": "./dist/cjs/caches/pureFnsCache.js"
+      "import": {"types": "./dist/index.d.ts", "default": "./dist/index.js"},
+      "require": {"types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js"}
     },
     "./formats": {
       "source": "./src/formats/index.ts",
-      "types": "./dist/formats/index.d.ts",
-      "import": "./dist/formats/index.js",
-      "require": "./dist/cjs/formats/index.js"
+      "import": {"types": "./dist/formats/index.d.ts", "default": "./dist/formats/index.js"},
+      "require": {"types": "./dist/cjs/formats/index.d.ts", "default": "./dist/cjs/formats/index.js"}
     },
     "./formats/temporal": {
       "source": "./src/formats/datetime/temporalFormats.ts",
-      "types": "./dist/formats/datetime/temporalFormats.d.ts",
-      "import": "./dist/formats/datetime/temporalFormats.js",
-      "require": "./dist/cjs/formats/datetime/temporalFormats.js"
+      "import": {"types": "./dist/formats/datetime/temporalFormats.d.ts", "default": "./dist/formats/datetime/temporalFormats.js"},
+      "require": {"types": "./dist/cjs/formats/datetime/temporalFormats.d.ts", "default": "./dist/cjs/formats/datetime/temporalFormats.js"}
     },
     "./schema": {
       "source": "./src/schema/index.ts",
-      "types": "./dist/schema/index.d.ts",
-      "import": "./dist/schema/index.js",
-      "require": "./dist/cjs/schema/index.js"
+      "import": {"types": "./dist/schema/index.d.ts", "default": "./dist/schema/index.js"},
+      "require": {"types": "./dist/cjs/schema/index.d.ts", "default": "./dist/cjs/schema/index.js"}
     }
   },
   "bin": {

@@ -160,3 +160,14 @@ export interface TemporalBuilderFn<Tag extends keyof TemporalFormatByTag<MinMax>
     id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
   ): RunType<TemporalFormatByTag<P>[Tag]>;
 }
+
+/** Shape of the no-ordering temporal builders (`plainMonthDay` / `duration`):
+ *  one no-params overload, no min/max form. A NAMED generic interface on
+ *  purpose — the emitted `.d.ts` references it unresolved
+ *  (`TemporalInstanceBuilderFn<"temporal.duration">`) instead of inlining and
+ *  resolving `TemporalBaseByTag[Tag]` to a bare `Temporal.*`, which would
+ *  re-introduce the Temporal-lib requirement into the published surface (the
+ *  same reason the branded aliases route through the guarded base map). **/
+export interface TemporalInstanceBuilderFn<Tag extends 'temporal.plainMonthDay' | 'temporal.duration'> {
+  (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>): RunType<TemporalBaseByTag[Tag]>;
+}

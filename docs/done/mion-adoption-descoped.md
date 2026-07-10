@@ -1,11 +1,13 @@
 # mion adoption — descoped items (solve at the consumer/mion level)
 
-**Status:** working scope doc for the current PR (`claude/mion-migration-implementation-fgfbda`).
+**Status:** DONE — the scope-decision record for the mion-adoption PR
+(`claude/mion-migration-implementation-fgfbda`). See
+[`mion-adoption.md`](./mion-adoption.md) for what shipped.
 **Principle:** ts-runtypes ships the *tools*; mion owns its own integration. Anything below
 is intentionally NOT implemented in ts-runtypes. The tool that covers each case already
-exists; the remaining work is mion's to do on its side. When this PR lands, the descoped
-items are deleted from `mion-adoption-requirements.md` / `mion-migration-findings.md` so no
-partial or follow-up remains.
+exists; the remaining work is mion's to do on its side. The old working trackers
+(`mion-adoption-requirements.md`, `mion-migration-findings.md`) were removed when this
+landed, so nothing partial or follow-up remains in `docs/todos/`.
 
 ---
 

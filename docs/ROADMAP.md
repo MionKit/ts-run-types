@@ -57,6 +57,14 @@ JSON cannot carry a `RegExp` instance, but the _literal_ `RegExp` is compile-tim
 
 These are real reflection features we intend to ship; each has a concrete approach.
 
+### Bun loader (deferred)
+
+A `Bun.plugin` transpile-on-load loader that calls the resolver per file would be
+a dev-friendly path for bun runtimes (`@mionkit/bun` and similar). Deferred to a
+follow-up package; `--compile` (the batch build mode) is the documented bun path
+in the meantime. This is a ts-runtypes-owned future package, not something a
+consuming framework should hand-roll.
+
 ### Reflection features that need AST-level scanning beyond tsgo's checker
 
 | Feature                                                   | Where it lives                                                                             | Approach                                                                                                                                                                                                                                                                                                                                                                                                             |
