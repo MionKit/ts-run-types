@@ -1,6 +1,8 @@
 # Findings from the mion → ts-runtypes 0.9 migration spike
 
-**Status:** todo — evidence + fix plans below; none block mion (each has a mion-side
+**Status:** todo — evidence log. The authoritative requirements + work plan is
+[`mion-adoption-requirements.md`](./mion-adoption-requirements.md); this file keeps the
+detailed evidence + repro notes behind its items. None block mion (each has a mion-side
 workaround on published 0.9.0).
 **Created:** 2026-07-10
 **Context:** first real wrapper-framework consumer (MionKit/mion branch
