@@ -78,7 +78,26 @@ exist internally (`pj`/`rj`).
 factories (new fnKeys over the existing internal families) per the "Adding a new RT
 function family" checklist; decide after mion benchmarks the string round-trip cost.
 
-## 5. Marker docs nits surfaced by the wrapper story
+## 5. Public wire-serialization helpers for cache entries (RPC metadata lane)
+
+mion's client lane replaces deepkit's `serializedTypes` by shipping RunTypes'
+OWN cache records over the wire: code-mode `CompiledFnData` is already serializable
+(factory body string + `args`/`defaultParamValues` + `rtDependencies`/
+`pureFnDependencies` string keys), the public registry covers both ends
+(`getRTFnCaches()` to read server-side, `getRTUtils().addToRTCache`/`.addPureFn` to
+ingest client-side), and materialization is the existing `new Function('utl', code)`
+path. mion will hand-roll: (a) the record projection (strip `createRTFn`/`fn`),
+(b) the dependency-closure walk from a set of root hashes, (c) ingest shims for the
+noop short-form (family identity via `familyTag`) and `alwaysThrow` records
+(rebuild the thrower from `alwaysThrowMessage`).
+
+**Fix plan (nice-to-have):** consider public helpers formalizing (a)-(c) —
+`serializeEntryGraph(rootHashes) → WirePayload` / `ingestEntryGraph(payload)` — so
+RPC frameworks don't depend on the record internals staying stable; document the
+constraint that the producing build must run `emitMode: 'code' | 'both'` and the
+CSP note (`new Function` on ingest).
+
+## 6. Marker docs nits surfaced by the wrapper story
 
 - An ALIAS of a marker type (`type MyHandle<H> = InjectTypeFnArgs<…>`) is NOT
   recognised (alias-name + declaring-module match). Verified empirically; mion re-exports
