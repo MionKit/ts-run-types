@@ -200,7 +200,7 @@ export const r = route((ctx: unknown, name: string) => name.length);
     const sources = {
       'dup-fn.ts': `import type {InjectTypeFnArgs} from '@ts-runtypes/core';
 type Handler = (ctx: unknown, ...rest: any[]) => unknown;
-function route<H extends Handler>(handler: H, fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'verr'>) {
+function route<H extends Handler>(handler: H, fns?: InjectTypeFnArgs<Parameters<H>, 'huk', 'verr', 'jsonDecoder', 'verr'>) {
   return {handler, fns};
 }
 export const r = route((ctx: unknown, name: string) => name.length);
@@ -213,12 +213,13 @@ export const r = route((ctx: unknown, name: string) => name.length);
       // Error severity: a repeated family is almost always a copy-paste slip,
       // so the build halts rather than injecting a redundant handle silently.
       expect(diagnostics[0].severity).toBe(Severity.Error);
-      // Args carry the repeated family name for the catalog headline.
+      // Args carry the FIRST REPEATED family ('verr'), NOT the first key 'huk' —
+      // pins first-repeated-key reporting rather than first-key.
       expect(diagnostics[0].args).toEqual(['verr']);
-      // The site is still emitted with the duplicate removed — the injection
-      // stays sane even though the Error halts the build.
+      // The site is still emitted with the duplicate removed (huk, verr,
+      // jsonDecoder) — the injection stays sane even though the Error halts.
       expect(response.sites.length).toBe(1);
-      expect(response.sites[0].fnIds?.length).toBe(2);
+      expect(response.sites[0].fnIds?.length).toBe(3);
     });
   });
 

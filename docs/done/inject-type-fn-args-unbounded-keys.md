@@ -61,17 +61,27 @@ error before the scanner ever ran. There was also no duplicate-family check.
 - Go — `ts-go-runtypes/internal/compiler/resolver/multifn_keys_test.go`:
   four-distinct-key injection (exact ordered fnIds + demand for all four
   families), static-vs-reflection form equivalence (marker-coverage rule),
-  mion's verbatim three-family shape, and the duplicate-key → MKR006 case
-  (Error severity, `Args == ["verr"]`, deduped fnIds). The MKR006 prose Example
-  also runs through `diag_examples_test.go`.
+  mion's verbatim three-family shape, and the duplicate-key → MKR006 case. The
+  duplicate is deliberately NOT the first key (`'huk', 'verr', 'suk', 'verr'`)
+  so `Args == ["verr"]` pins first-repeated-key reporting rather than a naive
+  "report the first key"; the deduped fnIds keep first-occurrence order
+  (`huk, verr, suk`). The MKR006 prose Example also runs through
+  `diag_examples_test.go`.
+- Go — `packages/ts-runtypes/test/features/injectTypeFnArgs-arity.test.ts`:
+  a type-level regression guard resolving the REAL `@ts-runtypes/core` marker
+  via the `source` condition (six- and twelve-family aliases). Every other test
+  resolves an independent overlay copy, so this is the only guard that fails
+  `pnpm --filter @ts-runtypes/core typecheck:test` (wired into `pnpm run
+  typecheck` and CI) if `markers.ts` is ever narrowed below the declared arity —
+  verified by temporarily reverting to `F3` and observing `TS2707`.
 - JS — `packages/ts-runtypes-devtools/test/marker-diagnostics.test.ts`: a
   four-family marker scans clean and injects four handles; a repeated family
-  surfaces MKR006 (Error, `args == ['verr']`) with the site deduped to two
-  handles. `packages/ts-runtypes-devtools/test/wrapper-multi-fn.test.ts`: an
-  end-to-end transform of a mion-shaped `route()` wrapper (three families) whose
-  consumer never names `@ts-runtypes/core` — the injected value is an ordered
-  array of three distinct bindings imported from real on-disk modules, and the
-  wrapper's forwarded factory calls stay pass-throughs.
+  (again not first) surfaces MKR006 (Error, `args == ['verr']`) with the site
+  deduped from four keys to three. `packages/ts-runtypes-devtools/test/wrapper-multi-fn.test.ts`:
+  an end-to-end transform of a mion-shaped `route()` wrapper (three families)
+  whose consumer never names `@ts-runtypes/core` — the injected value is an
+  ordered array of three distinct bindings imported from real on-disk modules,
+  and the wrapper's forwarded factory calls stay pass-throughs.
 
 **Docs.** `packages/ts-runtypes/src/markers.ts` comment (multi-family + duplicate
 rule), `docs/ARCHITECTURE.md` (the `InjectTypeFnArgs` section), website
@@ -109,6 +119,12 @@ already tuned — `scanAllProgramFiles` skips declaration files, which are the
 largest ASTs in the program and can never hold a rewritable call site. So the
 most performant solution was to keep the merged site-file gate and add no d.ts
 scan. Pinned by
-`packages/ts-runtypes-devtools/test/wrapper-zero-config.test.ts` (existing) and
+`packages/ts-runtypes-devtools/test/wrapper-zero-config.test.ts` (existing),
 the new `wrapper-multi-fn.test.ts` (a multi-family wrapper through the same
-zero-config path).
+zero-config path), and — the strongest form — the new
+`packages/ts-runtypes/test/third_party_markers/third-party-node-modules.test.ts`:
+a REAL `node_modules/@acme/router` package (its own `package.json` + `index.d.ts`
+declaring the `route()` marker) and a consumer that imports it and never names
+`@ts-runtypes/core`; the consumer's call site is still detected and injected,
+proving the compiler resolves markers declared in an installed third-party
+package with zero configuration.

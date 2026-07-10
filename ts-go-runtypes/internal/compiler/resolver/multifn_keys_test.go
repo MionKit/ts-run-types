@@ -18,8 +18,10 @@ const multiFnDTS = `declare module '@ts-runtypes/core' {
   export function createFour<T>(val?: T, id?: InjectTypeFnArgs<T, 'verr', 'huk', 'suk', 'uke'>): unknown;
   // mion's interim route() shape: validator + JSON decoder + JSON encoder.
   export function createMion<T>(val?: T, id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>): unknown;
-  // A repeated family — must be rejected with MKR006 and deduped.
-  export function createDup<T>(val?: T, id?: InjectTypeFnArgs<T, 'verr', 'huk', 'verr'>): unknown;
+  // A repeated family — must be rejected with MKR006 and deduped. The duplicate
+  // 'verr' is deliberately NOT the first key, so the reported family pins the
+  // FIRST-REPEATED-KEY rule (a naive "report the first key" impl would say 'huk').
+  export function createDup<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk', 'verr', 'suk', 'verr'>): unknown;
 }
 `
 
@@ -188,15 +190,18 @@ createDup<string>();
 	if dupDiag.Severity != diagnostics.SeverityError {
 		t.Errorf("MKR006 severity = %v, want Error", dupDiag.Severity)
 	}
+	// The reported family is the FIRST REPEATED key ('verr'), NOT the first key
+	// of the list ('huk') — pins first-repeated-key reporting, not first-key.
 	if len(dupDiag.Args) != 1 || dupDiag.Args[0] != "verr" {
-		t.Errorf("MKR006 args = %v, want [verr] (the repeated family)", dupDiag.Args)
+		t.Errorf("MKR006 args = %v, want [verr] (the first repeated family, not the first key 'huk')", dupDiag.Args)
 	}
 
-	// Injection still proceeds with the duplicate removed: verr, huk (one each).
+	// Injection still proceeds with the duplicate removed, first-occurrence order
+	// preserved: huk, verr, suk (the trailing duplicate 'verr' dropped).
 	if len(resp.Sites) != 1 {
 		t.Fatalf("expected 1 site, got %d", len(resp.Sites))
 	}
-	want := []string{leafFnHash(t, "verr"), leafFnHash(t, "huk")}
+	want := []string{leafFnHash(t, "huk"), leafFnHash(t, "verr"), leafFnHash(t, "suk")}
 	site := resp.Sites[0]
 	if len(site.FnIds) != len(want) {
 		t.Fatalf("expected deduped fnIds %v, got %+v", want, site.FnIds)
