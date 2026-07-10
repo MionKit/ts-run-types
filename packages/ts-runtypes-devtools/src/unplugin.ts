@@ -119,6 +119,16 @@ export interface PluginOptions {
   //             for a non-JS / plugin-free host, and the safe fallback when an
   //             upstream pre-plugin rewrites the source before us.
   transformMode?: 'go' | 'edits';
+  // Extra module specifiers that mark a file as scan-worthy for the transform's
+  // textual pre-filter, in ADDITION to the always-on '@ts-runtypes/core'. A
+  // wrapper framework re-exposing the markers behind its own factories (e.g.
+  // mion's `route()` from '@mionkit/router') needs this: user files import the
+  // FRAMEWORK's package name, never '@ts-runtypes/core', so without it their
+  // call sites are never handed to the resolver — generation sees them (whole-
+  // program scan) but the per-file rewrite is skipped. Match rule is the same
+  // as the built-in one: the specifier as a quoted import prefix. Host-side
+  // only (a pre-filter): it never affects resolver output or disk caches.
+  markerModules?: string[];
   // 'go' mode only — whether the returned source map embeds the original source
   // in `sourcesContent`. Default true (self-contained maps). Set false to drop
   // it: the bundler composes the chained map and fills original content itself,
@@ -153,6 +163,9 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       `[ts-runtypes-devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
     );
   }
+  // The transform pre-filter's accept list: the marker package itself plus any
+  // wrapper frameworks' module names the consumer registered (deduped).
+  const markerModules = [...new Set([MARKER_MODULE, ...(options.markerModules ?? [])])];
   let resolver: ResolverClient | null = null;
   let cwdAbs = '';
   // The resolved RunTypes output root (<cwd>/__runtypes by default). Set by
@@ -343,17 +356,21 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     async transform(this: any, code: string, id: string) {
       if (!resolver) return null;
       if (!/\.[mc]?[jt]sx?$/.test(id)) return null;
-      // Short-circuit: a file that doesn't reference the marker module
+      // Short-circuit: a file that doesn't reference a marker module
       // can't contain rewritable sites. Cheap textual check before the
-      // round-trip to the resolver. We match the module only as a quoted
+      // round-trip to the resolver. We match each module only as a quoted
       // import specifier (`'ts-runtypes`, `"ts-runtypes`, incl. subpaths
       // like `ts-runtypes/schema`) — a bare `includes(MARKER_MODULE)` also
       // fires on path mentions in comments (e.g. `packages/ts-runtypes/…`),
       // which would force the resolver to scan files that never import the
       // markers. `registerPureFnFactory` is checked separately because the
       // marker package's OWN sources call it via relative imports (no
-      // package-name string in the file).
-      const importsMarkerModule = code.includes(`'${MARKER_MODULE}`) || code.includes(`"${MARKER_MODULE}`);
+      // package-name string in the file). `markerModules` adds wrapper
+      // frameworks' package names to the same check (their users' files
+      // import the framework, not '@ts-runtypes/core').
+      const importsMarkerModule = markerModules.some(
+        (markerModule) => code.includes(`'${markerModule}`) || code.includes(`"${markerModule}`)
+      );
       if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
 
       const rel = path.relative(cwdAbs || process.cwd(), id);
