@@ -124,6 +124,16 @@
       "example": null
     },
     {
+      "code": "MKR006",
+      "subsystem": "markers",
+      "severity": "error",
+      "headline": "`InjectTypeFnArgs` names the function family `{0}` more than once — remove the duplicate key.",
+      "detail": "An `InjectTypeFnArgs<T, …>` marker names each function family it needs for\n`T` once, in declaration order; the build injects one entry-module tuple\nper name and the wrapper forwards each to its factory. Naming a family\ntwice would inject a redundant identical tuple with no consumer, so it is\nalmost always a copy-paste slip and the build stops.\n\nFix — name each family at most once:\n-  id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'verr'>;\n+  id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>;",
+      "summary": "An `InjectTypeFnArgs` marker lists each function family it needs once, in order. Naming the same family twice injects a second identical handle that nothing reads, so it is almost always a copy-paste slip and the build stops. List each family at most once.",
+      "fix": "function route<H extends Handler>(\n  handler: H,\n  fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'jsonEncoder'>,\n) {\n  return {handler, fns};\n}",
+      "example": "import type {InjectTypeFnArgs} from '@ts-runtypes/core';\ntype Handler = (ctx: unknown, ...rest: any[]) => unknown;\nfunction route<H extends Handler>(handler: H, fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'verr'>) {\n  return {handler, fns};\n}\nexport const lenRoute = route((ctx: unknown, name: string) => name.length);"
+    },
+    {
       "code": "PFN001",
       "subsystem": "markers",
       "severity": "error",

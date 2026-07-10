@@ -244,6 +244,11 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     detail:
       "The `noIsArrayCheck` validate option skips the `Array.isArray` guard that\narray types compile to. This call's type argument resolves to a non-array\ntype, so there is no guard to skip and the option is a silent no-op.\n\nFix — drop the option:\n-  const isUser = createValidate<User>({noIsArrayCheck: true});\n+  const isUser = createValidate<User>();\n\nOr point it at the array type you meant:\n  const isUsers = createValidate<User[]>({noIsArrayCheck: true});",
   },
+  MKR006: {
+    headline: '`InjectTypeFnArgs` names the function family `{0}` more than once — remove the duplicate key.',
+    detail:
+      "An `InjectTypeFnArgs<T, …>` marker names each function family it needs for\n`T` once, in declaration order; the build injects one entry-module tuple\nper name and the wrapper forwards each to its factory. Naming a family\ntwice would inject a redundant identical tuple with no consumer, so it is\nalmost always a copy-paste slip and the build stops.\n\nFix — name each family at most once:\n-  id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'verr'>;\n+  id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>;",
+  },
   OVR001: {
     headline: 'Duplicate override for `{0}` — there can be exactly one override per (type, function).',
     detail:

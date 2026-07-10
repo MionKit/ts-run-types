@@ -213,10 +213,15 @@ publishing mion's own precompiled internal routes.
      `undefined` (generalise the existing interior padding); per-slot
      pass-through (an explicitly supplied arg leaves THAT slot untouched, so
      wrapper forwarding stays untouched) + diagnostics for partial supply.
-  2. **Raise the `InjectTypeFnArgs` Fn-key cap to ≥ 4** (3 today): each side
-     carries `'verr', 'jsonDecoder', 'jsonEncoder', 'rt'`. Add F4 (and F5 for
-     headroom) in `markers.ts`; `fnKeysFromAlias` already reads every type
-     argument after `T`.
+  2. **Raise the `InjectTypeFnArgs` Fn-key cap** — **DONE** (see
+     [`docs/done/inject-type-fn-args-unbounded-keys.md`](../done/inject-type-fn-args-unbounded-keys.md)).
+     `markers.ts` now declares `F1`…`F12` (comfortably above the ~11 public
+     families, so effectively unbounded given the duplicate rule below), and the
+     scanner rejects a marker that names the same family twice with **MKR006**
+     (`resolver.dedupeFnKeys`). `fnKeysFromAlias` already read every type
+     argument after `T`; the only remaining limit was the alias arity. A single
+     marker can now carry `'verr', 'jsonDecoder', 'jsonEncoder', 'rt'` (once the
+     `'rt'` key from enhancer #3 lands).
   3. **A requestable REFLECTION key** (working name `'rt'`) in the family list:
      injects the runtype facade entry for `T` alongside the fn entries so the
      wrapper reads `getRunType` graph metadata. The metadata mechanism is

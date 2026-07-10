@@ -523,6 +523,22 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	// multi-function marker like createStandardSchema's <T,'val','verr'>). The
 	// comptime options/strategy are SHARED across every family. Reflection sites
 	// (InjectRunTypeId, empty injectionFnKeys) yield no fnId and no demand.
+	// DUPLICATE-FAMILY GUARD: a marker names each function family at most once,
+	// in declaration order (InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'verr'>
+	// repeats 'verr'). A repeat would inject a second identical entry tuple that
+	// nothing reads — almost always a copy-paste slip — so reject it (MKR006,
+	// Error) and dedupe before computing fnIds so the emitted output stays sane
+	// even if a host surfaces the diagnostic as non-fatal.
+	if deduped, firstDup, hadDup := dedupeFnKeys(injectionFnKeys); hadDup {
+		if sourceFile := ast.GetSourceFileOfNode(call); sourceFile != nil {
+			diags = append(diags, diagnostics.New(
+				diagnostics.CodeMarkerDuplicateFnKey,
+				textpos.NodeSite(file, sourceFile, call),
+				firstDup,
+			))
+		}
+		injectionFnKeys = deduped
+	}
 	var fnIds []string
 	var demand []protocol.SiteDemand
 	for _, fnKey := range injectionFnKeys {
@@ -554,6 +570,34 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		typeArgument:  typeArgument,
 		owner:         state.scanChecker,
 	}, diags, true
+}
+
+// dedupeFnKeys removes repeated fn keys from a multi-function marker, keeping
+// first-occurrence order, and reports the first key that appeared more than
+// once. An InjectTypeFnArgs marker names each family at most once; a repeat is
+// rejected with MKR006, and the deduped list keeps injection sane if the
+// diagnostic is surfaced as non-fatal. hadDup is false (and deduped is the
+// input unchanged) for the common single-family / already-unique case.
+func dedupeFnKeys(keys []string) (deduped []string, firstDup string, hadDup bool) {
+	if len(keys) < 2 {
+		return keys, "", false
+	}
+	seen := make(map[string]bool, len(keys))
+	deduped = make([]string, 0, len(keys))
+	for _, key := range keys {
+		if seen[key] {
+			if !hadDup {
+				firstDup, hadDup = key, true
+			}
+			continue
+		}
+		seen[key] = true
+		deduped = append(deduped, key)
+	}
+	if !hadDup {
+		return keys, "", false
+	}
+	return deduped, firstDup, true
 }
 
 // computeSiteFn resolves both injection payloads for a createX call site in

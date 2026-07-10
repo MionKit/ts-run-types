@@ -46,24 +46,52 @@ export type InjectRunTypeId<T> = string & {
  * SINGLE function (the common case) — `InjectTypeFnArgs<T, 'val'>`: the injected
  * value is the family's entry-module tuple, resolved by the one `createX`.
  *
- * MULTIPLE functions — `InjectTypeFnArgs<T, 'val', 'verr'>`: the site needs
- * several compiled fns for the same `T` (e.g. `createStandardSchema` wants the
- * cheap boolean validator AND `getValidationErrors`). The injected value is an
- * ARRAY of entry-module tuples, ONE per named family in declaration order, and
- * the factory destructures it positionally. This keeps a single trailing marker
- * (one injection slot) rather than several markers.
+ * MULTIPLE functions — `InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>`:
+ * the site needs several compiled fns for the same `T` (a framework wrapper such
+ * as mion's `route()` asks for the validator, JSON decoder and JSON encoder in
+ * one marker). The injected value is an ARRAY of entry-module tuples, ONE per
+ * named family in declaration order, and the wrapper destructures it
+ * positionally (`fns?.[0]`, `fns?.[1]`, …), forwarding each element to its
+ * factory. This keeps a single trailing marker (one injection slot) rather than
+ * several markers.
+ *
+ * ANY number of families is accepted, in declaration order — there is no fixed
+ * three-key limit. A TypeScript type alias cannot declare a variadic type
+ * parameter list, so the arity is a generous fixed count (`F1` … `F12`) that
+ * comfortably exceeds the number of distinct public families; combined with the
+ * duplicate-key rule below, that is effectively unbounded (a marker can never
+ * meaningfully name more families than exist). Add another optional parameter
+ * here if the family set ever grows past the cap.
+ *
+ * DUPLICATE families are a build error. Naming the same family twice
+ * (`InjectTypeFnArgs<T, 'verr', 'verr'>`) is almost always a copy-paste slip —
+ * the second entry would inject a redundant identical tuple — so the Go scanner
+ * rejects it with `MKR006` (Error) at the call site. Use each family at most
+ * once per marker.
  *
  * The declared type mirrors `InjectRunTypeId`'s `string & {brand}` shape (rather
  * than a tuple type) so the Go marker scanner resolves the alias + its type
  * arguments the same way it does for `InjectRunTypeId` — a tuple-intersection
  * alias does not reliably preserve `T`/`Fn` on the resolved type. `T` and the
  * `Fn` keys are phantom; the runtime value is the injected (array of) tuples.
- * Up to three `Fn` keys are supported today; add more optional parameters if a
- * future factory needs more.
  */
-export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {
+export type InjectTypeFnArgs<
+  T,
+  F1 extends string,
+  F2 extends string = never,
+  F3 extends string = never,
+  F4 extends string = never,
+  F5 extends string = never,
+  F6 extends string = never,
+  F7 extends string = never,
+  F8 extends string = never,
+  F9 extends string = never,
+  F10 extends string = never,
+  F11 extends string = never,
+  F12 extends string = never,
+> = string & {
   readonly __rtInjectTypeFnArgsBrand?: T;
-  readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3];
+  readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12];
 };
 
 // NOTE: `any` is intentionally PERMITTED — there is no type-level `any` guard.
