@@ -312,6 +312,31 @@ export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefi
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn);
 
+// createPrepareForJson / createRestoreFromJson expose the VALUE-level JSON
+// transform pair that the string-level createJsonEncoder / createJsonDecoder
+// build on. `prepare` maps a typed value to a JSON-safe value (bigint to string,
+// Date preserved, undeclared keys stripped, …); `restore` maps a JSON-safe value
+// back to the typed shape (BigInt(...), Date revival, …). A framework that parses
+// ONE JSON envelope per request and needs per-value transforms uses these
+// directly instead of round-tripping through a string. Root `undefined` / `void`
+// are handled inside the primitives (prepare passes the value; restore returns
+// `undefined` for any input), so neither throws — the string encoder's `[value]`
+// array envelope is a JSON-document concern the caller's own envelope replaces.
+// Requestable as `'pj'` / `'rj'` keys in an InjectTypeFnArgs marker too.
+export const createPrepareForJson = createRTFunction<PrepareForJsonFn>('createPrepareForJson', identityValueFn) as unknown as (<
+  T,
+>(
+  schema: RunType<T>,
+  id?: InjectTypeFnArgs<T, 'pj'>
+) => PrepareForJsonFn) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'pj'>) => PrepareForJsonFn);
+
+export const createRestoreFromJson = createRTFunction<RestoreFromJsonFn>(
+  'createRestoreFromJson',
+  identityValueFn
+) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'rj'>) => RestoreFromJsonFn) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'rj'>) => RestoreFromJsonFn);
+
 // createFormatTransform returns a `(value) => transformedValue` for `T`. Identity
 // fallback covers both noop-format types and the no-plugin case.
 export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>>(

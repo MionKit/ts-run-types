@@ -44,9 +44,9 @@ func ComputeEdits(source string, sites []protocol.Site, replacements []protocol.
 	// is not load-bearing, but keeping it identical to Apply keeps the two
 	// modes trivially comparable.
 	edits := make([]protocol.Edit, 0, len(sites)+len(replacements))
-	for _, site := range sites {
-		charPos := toChar(site.Pos)
-		edits = append(edits, protocol.Edit{Start: charPos, End: charPos, Text: buildInsertion(site)})
+	for _, group := range groupSitesByPos(sites) {
+		charPos := toChar(group[0].Pos)
+		edits = append(edits, protocol.Edit{Start: charPos, End: charPos, Text: buildGroupInsertion(group)})
 	}
 	for _, rep := range replacements {
 		edits = append(edits, protocol.Edit{Start: toChar(rep.Start), End: toChar(rep.End), Text: rep.Text})

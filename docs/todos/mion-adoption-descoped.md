@@ -35,24 +35,22 @@ partial or follow-up remains.
   the new website guide section ("Asking for several functions at once").
 - **Tool offered:** the marker + the guide + a compilable example.
 
-### A5.1 — multi-SLOT injection (several marker *params* on one call)
-- **Why consumer-level:** today only the **trailing** marker parameter injects, so
-  `fn(a?: Inject…, b?: Inject…)` fills only `b`. mion uses **one** marker per route (over the
-  `[Params?, Return?]` pair), which works today. Lifting the trailing-only rule is a large
-  scanner + protocol + injector change for an ergonomic gain mion can avoid by keeping the
-  single-marker shape.
-- **Tool offered:** a single trailing multi-family marker; mion composes both sides through
-  it (interim pair) or splits work across its own runtime adapters.
+> **A5.1 (multi-slot injection) is IMPLEMENTED in this PR**, not descoped — every marker
+> parameter in a signature injects, so `fn(a?: Inject…, b?: Inject…)` fills both. It is the
+> tool that makes A5.3's "add another param" workaround real. See the done write-up.
 
 ### A5.3 — a `'rt'` / `'rtId'` reflection key inside `InjectTypeFnArgs`
 - **Why consumer-level:** reflection metadata (the runtype graph) does not belong on the
   fn-args marker. mion detects what it needs at runtime, with no reflection marker:
   parameter count from `handler.length`, void-return from the validate arity probe
-  (`verr([undefined, undefined]).length === 0`). A wrapper that wants ONLY the runtype graph
-  can use the existing `InjectRunTypeId` as its trailing marker. (Note: a fn-only site does
-  not emit the runtype bundle, so deriving `getRunType` from the fn handle's embedded typeId
-  is not supported — and mion does not need it.)
-- **Tool offered:** `InjectRunTypeId` (reflection) + the runtime probes above.
+  (`verr([undefined, undefined]).length === 0`). And because **multi-slot injection (A5.1)
+  now ships**, a wrapper that wants the runtype graph simply declares a **separate**
+  `InjectRunTypeId` parameter alongside its `InjectTypeFnArgs` one — both inject. So the
+  fn-args marker stays fn-only. (A fn-only site does not emit the runtype bundle, so deriving
+  `getRunType` from the fn handle's embedded typeId is intentionally unsupported — mion adds
+  the reflection param instead.)
+- **Tool offered:** a separate `InjectRunTypeId` parameter (injects via multi-slot) + the
+  runtime probes above.
 
 ### B2 — string-input coercion for header params (`"42"` → 42)
 - **Why consumer-level:** which fields are headers and how loosely to coerce is transport
