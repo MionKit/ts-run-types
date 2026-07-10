@@ -554,6 +554,14 @@ type Response struct {
 	// Generated is the manifest of live module basenames written under
 	// <OutDir>/types by OpGenerate (the current build's filesystem output).
 	Generated []string `json:"generated,omitempty"`
+	// SiteFiles is OpGenerate's sorted unique list of source files (program
+	// paths, exactly as the whole-program scan recorded them) carrying at
+	// least one marker site. The plugin gates its per-file transform on this
+	// set, so call sites of wrapper functions declared in OTHER packages
+	// (node_modules included) rewrite with zero configuration — no textual
+	// import sniffing required. Emitted via the hand-rolled MarshalJSON
+	// below (the struct tag alone doesn't put it on the wire).
+	SiteFiles []string `json:"siteFiles,omitempty"`
 	// OutDir is the RunTypes output root OpGenerate actually wrote to. When the
 	// request left OutDir empty the resolver infers <srcDir>/__runtypes from the
 	// tsconfig (rootDir → common-ancestor of the program's files → baseUrl →
@@ -798,6 +806,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.Generated) > 0 {
 		out["generated"] = response.Generated
+	}
+	if len(response.SiteFiles) > 0 {
+		out["siteFiles"] = response.SiteFiles
 	}
 	if response.OutDir != "" {
 		out["outDir"] = response.OutDir

@@ -418,6 +418,25 @@ func demandedEntryKeys(sites []protocol.Site) ([]string, map[string]string) {
 	return keys, tags
 }
 
+// uniqueSiteFiles lists the source files carrying at least one marker site,
+// sorted and deduplicated. OpGenerate returns it as Response.SiteFiles so the
+// plugin can gate its per-file transform on real scan results instead of
+// textual import sniffing — wrapper call sites (markers forwarded by another
+// package, node_modules included) are covered with zero configuration.
+func uniqueSiteFiles(sites []protocol.Site) []string {
+	seen := map[string]bool{}
+	var files []string
+	for _, site := range sites {
+		if site.File == "" || seen[site.File] {
+			continue
+		}
+		seen[site.File] = true
+		files = append(files, site.File)
+	}
+	sort.Strings(files)
+	return files
+}
+
 // pruneUnreachableTypeFnEntries drops every KindTypeFn entry nothing can
 // load: not a rewrite-injected binding (`demanded` — each site's own
 // `<FnId>_<ID>`, the only fn keys the plugin ever imports directly) and not
@@ -824,7 +843,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		if genErr != nil {
 			return protocol.Response{Error: genErr.Error()}
 		}
-		genResponse := protocol.Response{Generated: manifest, OutDir: outDir}
+		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites)}
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genPureFnsDiagnostics...)
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genDiagnostics...)
 		// PFE9012: same dangling-dep guard on the disk-generation path.

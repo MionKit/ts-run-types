@@ -450,6 +450,12 @@ export interface Response {
   // Manifest of live module basenames written under <outDir>/types by the
   // `generate` op (the current build's filesystem output).
   generated?: string[];
+  // Sorted unique list of source files carrying at least one marker site
+  // (program paths exactly as the whole-program scan recorded them), returned
+  // by the `generate` op. The plugin gates its per-file transform on this set
+  // so wrapper call sites (markers forwarded by another package, node_modules
+  // included) rewrite with zero configuration.
+  siteFiles?: string[];
   // The output root `generate` actually wrote to. When the request left
   // outDir empty the resolver infers <srcDir>/__runtypes from the tsconfig and
   // echoes the absolute path here so the plugin can adopt it.

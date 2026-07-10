@@ -14,10 +14,13 @@
 // `tsc -p packages/ts-runtypes/tsconfig.test.json --noEmit`.
 
 // NOTE: imports use RELATIVE `../src/…` paths (not the `ts-runtypes/*` package
-// specifiers) on purpose — it keeps this file out of the vite plugin's transform
-// scope so the `getRunTypeId()` "no id injected" runtime-contract tests below stay
-// un-injected and actually throw. The assertion bodies are type-only / never
-// invoked, so the value builders here never run.
+// specifiers) so this file exercises the in-tree source directly. Import style
+// no longer affects the vite plugin's transform scope (the gate is the
+// resolver's site-file set — a scan result, not text matching), so the
+// `getRunTypeId()` "no id injected" runtime-contract tests below call through a
+// TYPE-ERASED alias instead: the scanner matches calls by their resolved marker
+// signature, and an erased signature can never be rewritten. The assertion
+// bodies are type-only / never invoked, so the value builders here never run.
 import * as TF from '../../src/formats/index.ts';
 import * as TFT from '../../src/formats/datetime/temporalFormats.ts';
 import {describe, expect, test} from 'vitest';
@@ -43,15 +46,19 @@ test('type-only assertions are referenced (no runtime work here)', () => {
 // Runtime contract: the markers throw at runtime when no id is injected
 // (the vite plugin's job). Verifies the throw is reachable so consumers
 // who forget to wire the plugin see a clear error instead of getting a
-// useless empty-string id.
+// useless empty-string id. The type-erased callee stands in for "no plugin
+// wired": its resolved signature carries no marker param, so the scanner
+// never injects these two calls whatever program they run in.
 describe('runtime contract — markers throw without injected id', () => {
+  const unInjectedGetRunTypeId = getRunTypeId as (...args: unknown[]) => string;
+
   test('getRunTypeId<T>() (static) throws when no id is provided', () => {
-    expect(() => getRunTypeId<string>()).toThrow(/getRunTypeId\(\): no id injected/);
+    expect(() => unInjectedGetRunTypeId()).toThrow(/getRunTypeId\(\): no id injected/);
   });
 
   test('getRunTypeId(value) (reflect) throws when no id is provided', () => {
     const value: string = 'hello';
-    expect(() => getRunTypeId(value)).toThrow(/getRunTypeId\(\): no id injected/);
+    expect(() => unInjectedGetRunTypeId(value)).toThrow(/getRunTypeId\(\): no id injected/);
   });
 });
 
