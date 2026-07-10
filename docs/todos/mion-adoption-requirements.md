@@ -26,7 +26,44 @@ publishing mion's own precompiled internal routes.
 Shipped in this PR: `PluginOptions.markerModules` + regression test
 (`packages/ts-runtypes-devtools/test/marker-modules.test.ts`) + website/ARCHITECTURE
 docs. mion's `@mionkit/devtools` already forwards it and drops its gate shim on the
-first release that includes it. **Remaining: none (release it).**
+first release that includes it. **Remaining: none (release it)** — and see A1b,
+which supersedes it as the DEFAULT gating so consumers need no config at all.
+
+### A1b. Zero-config transform gating — the resolver's site-file set (supersedes markerModules as the default)
+- **Requirement (mion's author):** wrapper markers must work transparently for ANY
+  imported package — node_modules included — with no plugin config. The marker
+  SCANNER already is transparent (recognition keys on the marker type's declaring
+  package, so a wrapper in any package is detected; mion's first failing run proved
+  it: whole-program generation found the sites while the per-file transform skipped
+  the file). Only the plugin's textual pre-filter is config-bound.
+- **Considered: a d.ts signal.** Nothing needs emitting — any wrapper's declaration
+  file already contains the marker types by construction (`id?: InjectTypeFnArgs<…>`
+  plus the `@ts-runtypes/core` import in the emitted signature). But entry d.ts
+  files are often bare re-exports (`export * from './initFunctions'` — mion's own
+  index has no marker string), so a robust check means resolving every imported
+  specifier and walking that package's d.ts tree (or package.json dependency
+  fallbacks) — cached but still heuristic, still per-plugin resolution logic.
+- **Chosen design: ask the compiler.** The resolver already computes the exact
+  answer: `generate`/`dump` run `sess.scanAllProgramFiles()` and every `Site`
+  carries `.File`. Surface it:
+  1. Go: extend the generate response with `siteFiles: string[]` — unique
+     program-relative paths of files with at least one marker or pure-fn site
+     (a map over `sess.Sites()`, already computed; no extra scanning).
+  2. Plugin: hold the set from `buildStart`; the transform gate becomes
+     `siteFiles.has(rel)` — exact and O(1), no text sniffing. `handleHotUpdate`
+     already rescans changed files per-file, so the set stays live in dev (add
+     when a rescan reports sites, drop when it reports none).
+  3. The textual check + `markerModules` demote to a fallback for edge timing
+     (a file created mid-session before its first rescan) and back-compat;
+     deprecate `markerModules` once the set path proves out.
+- **Extra correctness win:** the site-set also catches call-site files that reach a
+  wrapper through RELATIVE imports — a false-negative class NO textual heuristic
+  can see (bit mion's own e2e on day one; see mion migration-docs/04 issue #6).
+- **Acceptance:** a fresh consumer app with `plugins: [runtypes()]` and zero
+  options gets wrapper call sites rewritten for any framework package (mion drops
+  `markerPackages`/shim entirely); a relative-import call-site fixture rewrites;
+  HMR adds/removes files from the gate correctly; `markerModules` still honoured
+  but unnecessary.
 
 ### A2. Pin mion's exact marker shape in the fixture suite
 - **Current:** the wrapper story is regression-tested for a single-family wrapper with
@@ -348,8 +385,10 @@ first release that includes it. **Remaining: none (release it).**
 
 ## Suggested order / release mapping (lockstep versioning)
 
-1. **0.9.1 (patch):** A1 release (already on this branch), D1, D2 — unblocks mion
-   removing its shim + tsconfig workarounds. A2 rides along (tests only).
+1. **0.9.1 (patch):** A1 release (already on this branch), A1b (zero-config gating
+   via the resolver's site-file set — small Go response field + plugin set), D1, D2
+   — unblocks mion removing its shim, `markerPackages` config AND tsconfig
+   workarounds. A2 rides along (tests only).
 2. **0.10.0 (minor):** A5 (per-side markers: multi-slot injection + Fn-key cap ≥ 4 +
    the 'rt' reflection key — deletes the pair, probe and conditional), B1 (new public
    fnKeys → cache-affecting), C1 (new public API), B3 fixture+docs, E1 recipe. This
