@@ -176,6 +176,7 @@ function runRelease(args) {
   const map = {
     preflight: ['node', ['scripts/release/preflight.mjs']],
     npm: ['node', ['scripts/release/publish.mjs']],
+    'manual-publish': ['node', ['scripts/release/manual-publish.mjs']],
     website: ['node', ['scripts/website/build.mjs', 'generate']],
     unpublish: ['node', ['scripts/release/unpublish.mjs']],
     bump: ['node', ['scripts/release/bump-version.mjs']],
@@ -243,6 +244,7 @@ release   npm publish + site build (CI stages to npm; a maintainer approves with
   rtx release [--preflight-only] [--no-website] [--dry-run]
   rtx release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
   rtx release stage-approve [--dry-run]   approve this version's staged packages (2FA, leaves-first)
+  rtx release manual-publish [--skip-build|--dry-run|--yes]   first-publish bootstrap: build + npm login + publish all 10 LIVE (resumable)
   rtx release e2e [--backend container|host-npx] [--pack]   pre-publish e2e (containerized verdaccio + feature matrix + host smoke)
 
 container  rtx container <build-image|ensure|login|push|pull|lock|clean> [website|e2e]
