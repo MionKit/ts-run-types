@@ -78,8 +78,10 @@ first release that includes it. **Remaining: none (release it).**
   void returns (`[P?, void?]` is fine); its only job is the void signal feeding
   `hasReturnData` (without it the probe passes for void routes too). The slots
   being OPTIONAL is the load-bearing part (a required pair's emitted validator
-  checks slot 1 unconditionally). A2 pins whichever alias mion ships; A5
-  supersedes the whole pattern.
+  checks slot 1 unconditionally). A2 pins whichever alias mion ships — and since
+  the single-marker pair is now the FINAL route() shape (A5 decision), these pins
+  are permanent; only the probe/conditional pins retire once A5's `'rt'`
+  reflection key ships.
 - **Work:**
   - Go resolver test: a wrapper fixture with the verbatim `MionRouteTypes`
     conditional and three consumer call sites (value-returning, `void`,
@@ -123,110 +125,76 @@ first release that includes it. **Remaining: none (release it).**
 - **Acceptance:** a framework author can build a `route()`-style wrapper from the
   website docs alone; if (a) lands, an aliased marker fixture injects.
 
-### A5. Multiple marker slots per signature — `RTParams` / `RTResponse` for RPC wrappers (design in ROADMAP, then implement)
-- **The requirement (mion's author):** a route wants TWO independent groups of
-  compiled functions — one over the params tuple, one over the return type —
-  presented as plain objects, mirroring mion's old reflection API:
-  `RTParams {validate, getValidationErrors, jsonDecoder, …}` and
-  `RTResponse {validate, jsonEncoder, …}`. No pair-wrapping in runtime calls, no
-  conditional type mapping, no runtime probing: read `isNoop` / the return kind off
-  the entries to decide behaviour (a void route simply gets an empty/noop response
-  group).
-- **Why it needs upstream work — the one-slot constraint:** independent
-  `createValidate<MionParams<H>>()` calls cannot live inside the wrapper's generic
-  body (free type parameter — the scanner resolves call sites in SOURCE once, not
-  per instantiation; that is the MKR003 gate and the reason forwarding exists), and
-  a call site has exactly ONE trailing injection slot. So with 0.9 semantics the
-  only single-call encoding of both sides is one T covering both — the pair.
-- **What the pair costs (all empirically pinned, 2026-07-10):**
-  - The slots must be OPTIONAL: the emitted validator for a required pair checks
-    slot 1 unconditionally (`if (typeof v[1] !== 'string') nRT(…)`), so
-    `verr([params])` fails on the missing return at request time. The optional pair
-    (`if (v[1] !== undefined) {…}`) is what makes params-only validation work.
-  - The void-conditional in mion's current alias is NOT structurally needed —
-    `[P?, void?]` compiles and validates params-only fine — but dropping it loses
-    the runtime void signal (`verr([undefined, undefined])` passes for `void?`
-    slots too), so `hasReturnData` needs a type-level check or a metadata source.
-  - Every runtime call wraps/unwraps (`verr([params])`,
-    `JSON.parse(enc([undefined, ret]))[1]`), and the 3-fnKey marker ceiling caps a
-    route at three families TOTAL across both sides.
-- **Chosen mechanism (mion's author): MULTIPLE marker slots per signature.** Lift
-  the "only the trailing slot is recognised" rule: every parameter whose type is a
-  marker (`InjectTypeFnArgs` OR `InjectRunTypeId`) is its own injection slot, each
-  with its OWN `T`. The type splitting stays in ordinary wrapper aliases (no Go-side
-  function-type projection needed — `MionParams<H>`/`MionReturn<H>` already resolve
-  at call sites). Preferred style: ONE single-family marker per compiled function —
-  reads as plain code, and the existing per-marker multi-family keys stay as
-  optional sugar (no new DX work strictly required). Reflection markers join the
-  same signature so metadata comes from `getRunType` instead of probes:
+### A5. Route marker FINAL SHAPE: one multi-family marker — plus two small enhancers
+
+- **Decision (mion's author, 2026-07-10):** after comparing the candidates side by
+  side, the single compact marker IS the final route() shape — it already works on
+  published 0.9.0 and reads better than 5-7 marker params:
 
   ```ts
-  // inside @mionkit/router — compiled once; ALL slots filled at each USER call site
   export function route<H extends Handler>(
     handler: H,
     opts?: RouteOptions,
-    paramsErrorsArgs?: InjectTypeFnArgs<MionParams<H>, 'verr'>,
-    paramsDecodeArgs?: InjectTypeFnArgs<MionParams<H>, 'jsonDecoder'>,
-    resultEncodeArgs?: InjectTypeFnArgs<MionReturn<H>, 'jsonEncoder'>,
-    paramsRt?: InjectRunTypeId<MionParams<H>>,
-    responseRt?: InjectRunTypeId<MionReturn<H>>
-  ) {
-    const RTParams = {
-      getValidationErrors: createGetValidationErrors(undefined, undefined, paramsErrorsArgs as never),
-      jsonDecoder: createJsonDecoder(undefined, undefined, paramsDecodeArgs as never),
-    };
-    const RTResponse = {
-      jsonEncoder: createJsonEncoder(undefined, undefined, resultEncodeArgs as never),
-    };
-    // deepkit-style metadata from reflection (mechanism verified on 0.9.0):
-    //   string return -> kind === RunTypeKind.string; void -> RunTypeKind.void;
-    //   Promise<Date> -> class node (Awaited unwraps); params tuple ->
-    //   kind === RunTypeKind.tuple with children.length === paramsLength.
-    const returnNode = getRunType(undefined, responseRt as never);
-    const paramsNode = getRunType(undefined, paramsRt as never);
-    const hasReturnData = returnNode !== undefined && returnNode.kind !== RunTypeKind.void;
-    const paramsLength = (paramsNode as {children?: unknown[]} | undefined)?.children?.length ?? 0;
-    return {handler, RTParams, RTResponse, hasReturnData, paramsLength};
-  }
+    id?: InjectTypeFnArgs<MionRouteTypes<H>, 'verr', 'jsonDecoder', 'jsonEncoder'>
+  ): RouteDef<H>;
+  // MionRouteTypes<H> = the optional pair [MionParams<H>?, MionReturn<H>?];
+  // `id` arrives as [verr, jsonDecoder, jsonEncoder] and the wrapper builds the
+  // grouped RTParams / RTResponse objects from it (pair adapters).
   ```
 
-  **Evidence that this is gated on the scanner change (published 0.9.0, 2026-07-10):**
-  with several marker params only the TRAILING one injects — tested with two
-  multi-family markers (params slot `undefined`, response slot filled) AND with five
-  single-family markers (`{"paramsValidate":false,"paramsErrors":false,
-  "paramsDecode":false,"returnValidate":false,"resultEncode":true}`). The
-  `getRunType` metadata mechanism itself IS verified (as trailing single markers).
+  Alternatives considered and REJECTED: per-side multi-family markers and the
+  one-single-family-marker-per-function split — both require lifting the
+  trailing-slot-only scanner rule (verified on 0.9.0: with several marker params
+  only the TRAILING one injects; tested with 2 multi-family markers — params slot
+  `undefined`, response slot filled — and with 5 single-family markers —
+  `{"paramsValidate":false,"paramsErrors":false,"paramsDecode":false,
+  "returnValidate":false,"resultEncode":true}`) and cost 2-7 extra params per
+  signature. A structured per-side handle (resolver projects a function-typed T)
+  was also considered: more Go machinery, new marker, rejected. The
+  trailing-slot-only rule therefore STAYS.
 
-- **Work:** ROADMAP design entry, then:
-  1. Scanner: recognise EVERY `InjectTypeFnArgs`/`InjectRunTypeId` parameter as an
-     injection slot (drop the `paramIndex == lastIndex` gate in
-     `resolver/scan.go`); resolve `T` + fn keys per slot; per-slot MKR003
-     free-type-parameter checks; one Site now carries multiple slot injections.
-  2. Injector: splice one value per marker slot in parameter order, padding skipped
-     optional non-marker params with `undefined` (the injector already pads interior
-     slots for the trailing case — generalise it).
-  3. Pass-through per slot: an argument explicitly supplied at a marker index leaves
-     THAT slot untouched (a wrapper forwarding all slots stays fully untouched, as
-     today); diagnostics for partially-supplied marker args.
-  4. Design points to settle: void/never/undefined ROOT types on fn-family slots
-     (e.g. `resultEncodeArgs` for a void route) should emit noop-flagged entries,
-     never alwaysThrow — verify + pin current root-void family behaviour (metadata
-     itself comes from the reflection slots: `getRunType(...).kind ===
-     RunTypeKind.void`); interaction with `CompTimeFnArgs` options params in
-     multi-slot signatures; the per-marker 3-family cap needs NO change (the split
-     style makes it moot; the multi-key form stays as sugar).
-  5. Docs: ARCHITECTURE "one trailing slot" sections + the website wrapper guide
-     (A4) get the multi-slot story.
-- **Alternative considered (not chosen):** a single structured handle where the
-  resolver projects a FUNCTION-typed `T` into per-side groups. More Go-side
-  machinery, less flexible family selection, and a new marker; multi-slot keeps the
-  splitting in userland type aliases.
-- **Acceptance:** mion's `route()` declares the two marker params above and deletes
-  `MionRouteTypes`' conditional, the hasReturnData probe, and every pair
-  wrap/unwrap; `route(handler)` AND `route(handler, opts)` call sites both receive
-  both injected arrays; explicit forwarding stays pass-through; a void route reads
-  as noop from the response entries; fixtures cover both slots' families and
-  supersede A2's pair-shape pins.
+- **Enhancer 1 — raise the `InjectTypeFnArgs` Fn-key cap (3 today).** Add F4/F5
+  optional type params in `markers.ts`; the Go side (`fnKeysFromAlias`) already
+  reads every type argument after `T`, so this is mostly type-level + fixtures.
+  Needed the moment a wrapper wants a 4th family (e.g. a `'val'` boolean
+  fast-path before `verr`) or the reflection key below.
+
+- **Enhancer 2 — a requestable REFLECTION key in the family list** (working name
+  `'rt'`): `InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder', 'rt'>`
+  injects the runtype facade entry ALONGSIDE the fn entries, so the wrapper reads
+  metadata from the graph instead of probing:
+
+  ```ts
+  const pairNode = getRunType(undefined, injected[3] as never);
+  // paramsLength  = pairNode.children[0].children.length   (params tuple)
+  // hasReturnData = pairNode.children[1] present && kind !== RunTypeKind.void
+  ```
+
+  The `getRunType` metadata mechanism is verified on 0.9.0 (via `InjectRunTypeId`
+  forwarding: string/void kinds, class node for `Awaited<Promise<Date>>`, tuple
+  `children.length`); what is missing is only the ability to request the
+  reflection entry through the SAME marker — today fn-family handles do not
+  register the runtype graph (mion's e2e `__runtypes` contains fn entries only),
+  and a second `InjectRunTypeId` param cannot inject (trailing-slot rule).
+  Opt-in (a key, not always-on) keeps the demand-driven bundle posture; the
+  alternative — fn handles always carrying the reflection graph — would force
+  bundle rows on every `createX` consumer.
+
+  With `'rt'` available mion deletes BOTH the `hasReturnData` arity probe AND the
+  void conditional in `MionRouteTypes` (the alias collapses to the plain optional
+  pair `[MionParams<H>?, MionReturn<H>?]`), and `paramsLength` stops relying on
+  `handler.length` (which misses default-valued params).
+
+- **What deliberately stays:** the pair wrap/unwrap adapters in mion's
+  `getRouteTypeFunctions` (small, isolated; the string round-trip they contain is
+  removed separately by B1's value-level prepare/restore factories), and the
+  scanner's trailing-slot-only rule (no multi-slot work).
+
+- **Acceptance:** mion's `route()` keeps its current signature plus the `'rt'`
+  key; the probe and the void conditional are deleted; `paramsLength` /
+  `hasReturnData` come from `getRunType` on the injected reflection entry; a
+  fixture pins the 4-key injection order (3 fn entries + reflection entry) and
+  the pair-node metadata reads.
 
 ## Workstream B — dispatch data-path parity
 
@@ -366,8 +334,8 @@ first release that includes it. **Remaining: none (release it).**
 
 1. **0.9.1 (patch):** A1 release (already on this branch), D1, D2 — unblocks mion
    removing its shim + tsconfig workarounds. A2 rides along (tests only).
-2. **0.10.0 (minor):** A5 (multi-slot markers — the RTParams/RTResponse target
-   shape; ROADMAP design first, it also subsumes most of A2's pins), B1 (new public
+2. **0.10.0 (minor):** A5 enhancers (Fn-key cap raise + the 'rt' reflection key —
+   deletes mion's probe + void conditional; subsumes part of A2's pins), B1 (new public
    fnKeys → cache-affecting), C1 (new public API), B3 fixture+docs, E1 recipe. This
    is the release mion's client lane, route-API cleanup and perf pass target.
 3. **Backlog / as-needed:** A3 (scanner edge), A4 (docs or alias support), B2
