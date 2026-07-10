@@ -12,9 +12,13 @@
     "moduleResolution": "node10",
     "ignoreDeprecations": "6.0",
     "outDir": "dist/cjs",
-    // Not a project reference here, so no composite/declaration/build-info.
+    // Not a project reference here (no composite/build-info), but DO emit
+    // CJS-scoped declarations. The `{ "type": "commonjs" }` marker makes TS read
+    // these `.d.ts` as CommonJS, so a CJS-format consumer under
+    // `moduleResolution: nodenext` resolves the `require` types condition to
+    // these instead of the ESM `dist/*.d.ts` (which raises TS1479).
     "composite": false,
-    "declaration": false,
+    "declaration": true,
     "declarationMap": false,
     "incremental": false,
     "sourceMap": false

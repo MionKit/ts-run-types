@@ -33,37 +33,64 @@ import {builderResult} from '../../runtypes/builderCore.ts';
 import type {MinMax} from './dateTimeParams.ts';
 import type {RunType} from '../../runtypes/types.ts';
 import type {InjectRunTypeId} from '../../markers.ts';
-import type {TemporalFormatByTag, TemporalBaseByTag, TemporalBuilderFn} from '../../runtypes/builderTypes.ts';
+import type {
+  TemporalFormatByTag,
+  TemporalBaseByTag,
+  TemporalBuilderFn,
+  TemporalInstanceBuilderFn,
+} from '../../runtypes/builderTypes.ts';
 
 // PlainMonthDay (no static compare) and Duration (a length, not an instant)
 // are intentionally absent — they have no min/max ordering semantics.
 
-export type Instant<P extends MinMax = MinMax> = Temporal.Instant & {
+// Guarded references to the global `Temporal.*` instance types. Each resolves to
+// the REAL type when the consumer's `lib` provides the Temporal namespace, and
+// falls back to `unknown` when it does NOT — so the published `.d.ts` never
+// forces the Temporal lib on a consumer who doesn't use these formats, even
+// though the root marker surface (`builderTypes` imports the branded aliases
+// below) transitively loads this file. `unknown` (deliberately NOT `any`) keeps
+// the `& {brand}` intersection intact, so the Go scanner still detects the
+// format brand structurally and a real Temporal consumer still gets the precise
+// type. Reading `{prototype: infer I}` off the constructor value works whether
+// `Temporal.X` is declared as a class or an interface + constructor const (the
+// value always carries a `prototype` typed as the instance).
+type TemporalInstanceOf<K extends string> = typeof globalThis extends {Temporal: Record<K, {prototype: infer I}>} ? I : unknown;
+
+type TInstant = TemporalInstanceOf<'Instant'>;
+type TZonedDateTime = TemporalInstanceOf<'ZonedDateTime'>;
+type TPlainDate = TemporalInstanceOf<'PlainDate'>;
+type TPlainTime = TemporalInstanceOf<'PlainTime'>;
+type TPlainDateTime = TemporalInstanceOf<'PlainDateTime'>;
+type TPlainYearMonth = TemporalInstanceOf<'PlainYearMonth'>;
+type TPlainMonthDay = TemporalInstanceOf<'PlainMonthDay'>;
+type TDuration = TemporalInstanceOf<'Duration'>;
+
+export type Instant<P extends MinMax = MinMax> = TInstant & {
   readonly __rtFormatName?: 'temporalInstant';
   readonly __rtFormatParams?: P;
 };
 
-export type ZonedDateTime<P extends MinMax = MinMax> = Temporal.ZonedDateTime & {
+export type ZonedDateTime<P extends MinMax = MinMax> = TZonedDateTime & {
   readonly __rtFormatName?: 'temporalZonedDateTime';
   readonly __rtFormatParams?: P;
 };
 
-export type PlainDate<P extends MinMax = MinMax> = Temporal.PlainDate & {
+export type PlainDate<P extends MinMax = MinMax> = TPlainDate & {
   readonly __rtFormatName?: 'temporalPlainDate';
   readonly __rtFormatParams?: P;
 };
 
-export type PlainTime<P extends MinMax = MinMax> = Temporal.PlainTime & {
+export type PlainTime<P extends MinMax = MinMax> = TPlainTime & {
   readonly __rtFormatName?: 'temporalPlainTime';
   readonly __rtFormatParams?: P;
 };
 
-export type PlainDateTime<P extends MinMax = MinMax> = Temporal.PlainDateTime & {
+export type PlainDateTime<P extends MinMax = MinMax> = TPlainDateTime & {
   readonly __rtFormatName?: 'temporalPlainDateTime';
   readonly __rtFormatParams?: P;
 };
 
-export type PlainYearMonth<P extends MinMax = MinMax> = Temporal.PlainYearMonth & {
+export type PlainYearMonth<P extends MinMax = MinMax> = TPlainYearMonth & {
   readonly __rtFormatName?: 'temporalPlainYearMonth';
   readonly __rtFormatParams?: P;
 };
@@ -75,18 +102,18 @@ export type PlainYearMonth<P extends MinMax = MinMax> = Temporal.PlainYearMonth 
 // Temporal-lib coupling stays in this module (define.ts indexes this map by
 // authoring tag and never names `Temporal.*` directly).
 export interface TemporalBaseByFormatName {
-  temporalInstant: Temporal.Instant;
-  temporalZonedDateTime: Temporal.ZonedDateTime;
-  temporalPlainDate: Temporal.PlainDate;
-  temporalPlainTime: Temporal.PlainTime;
-  temporalPlainDateTime: Temporal.PlainDateTime;
-  temporalPlainYearMonth: Temporal.PlainYearMonth;
+  temporalInstant: TInstant;
+  temporalZonedDateTime: TZonedDateTime;
+  temporalPlainDate: TPlainDate;
+  temporalPlainTime: TPlainTime;
+  temporalPlainDateTime: TPlainDateTime;
+  temporalPlainYearMonth: TPlainYearMonth;
   // PlainMonthDay / Duration have no min/max ordering (see note above), so they
   // appear ONLY here as base instance types — there is no `FormatTemporal*` brand
   // and no `LeafType`/`TemporalFormatByTag` row for them. Their value-first
   // builders are no-param-only and converge with the type-first raw-instance form.
-  temporalPlainMonthDay: Temporal.PlainMonthDay;
-  temporalDuration: Temporal.Duration;
+  temporalPlainMonthDay: TPlainMonthDay;
+  temporalDuration: TDuration;
 }
 
 // ─────────────────────── DataOnly augmentation ──────────────────────
@@ -100,14 +127,14 @@ export interface TemporalBaseByFormatName {
 // `DataOnly`; the keys are arbitrary labels.
 declare module '../../runtypes/dataOnly.ts' {
   interface DataOnlyNativeExtra {
-    temporalInstant: Temporal.Instant;
-    temporalZonedDateTime: Temporal.ZonedDateTime;
-    temporalPlainDate: Temporal.PlainDate;
-    temporalPlainTime: Temporal.PlainTime;
-    temporalPlainDateTime: Temporal.PlainDateTime;
-    temporalPlainYearMonth: Temporal.PlainYearMonth;
-    temporalPlainMonthDay: Temporal.PlainMonthDay;
-    temporalDuration: Temporal.Duration;
+    temporalInstant: TInstant;
+    temporalZonedDateTime: TZonedDateTime;
+    temporalPlainDate: TPlainDate;
+    temporalPlainTime: TPlainTime;
+    temporalPlainDateTime: TPlainDateTime;
+    temporalPlainYearMonth: TPlainYearMonth;
+    temporalPlainMonthDay: TPlainMonthDay;
+    temporalDuration: TDuration;
   }
 }
 
@@ -143,8 +170,9 @@ function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag
  *  `createValidate<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
 function temporalInstanceBuilder<Tag extends 'temporal.plainMonthDay' | 'temporal.duration'>(
   tag: Tag
-): (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => RunType<TemporalBaseByTag[Tag]> {
-  return (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => builderResult(id, {type: tag, formatParams: {}});
+): TemporalInstanceBuilderFn<Tag> {
+  return ((id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) =>
+    builderResult(id, {type: tag, formatParams: {}})) as TemporalInstanceBuilderFn<Tag>;
 }
 
 /** Temporal field builder — `TFT.instant()` / `TFT.instant({min: '…'})`. **/

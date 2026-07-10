@@ -9,11 +9,12 @@
 >    verified to already be delivered by the merged site-file gate (A1); the
 >    most performant option, kept as-is (no d.ts pattern-scan added).
 >
-> This is a partial delivery of adoption-plan **A5** (enhancer #2 — raise the
-> Fn-key cap) plus a new duplicate-family rule. A5's other two enhancers,
-> multi-SLOT injection (#1) and the `'rt'` reflection key (#3), were explicitly
-> out of scope and remain open in
-> [`mion-adoption-requirements.md`](../todos/mion-adoption-requirements.md).
+> This delivers adoption-plan **A5** enhancer #2 (raise the Fn-key cap) plus a
+> new duplicate-family rule. A5's other enhancers shipped in the same PR:
+> multi-SLOT injection (#1) landed too (see [`mion-adoption.md`](./mion-adoption.md)),
+> and the `'rt'` reflection key (#3) was descoped — a wrapper adds a separate
+> `InjectRunTypeId` param instead, which injects via multi-slot (see
+> [`mion-adoption-descoped.md`](./mion-adoption-descoped.md)).
 
 ## Feature 1 — any list of functions, no fixed length, error on repeats
 
