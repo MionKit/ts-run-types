@@ -44,11 +44,12 @@ type scanGroup struct {
 }
 
 // analyzedCall is one analyzeCall result captured during phase 1 and
-// replayed in order by the serial commit phase.
+// replayed in order by the serial commit phase. pendings carries every marker
+// slot the call injects (0 for a diagnostics-only call, 1 for the common
+// single-marker case, N for multi-slot injection).
 type analyzedCall struct {
-	pending     pendingCall
+	pendings    []pendingCall
 	diagnostics []diagnostics.Diagnostic
-	emitSite    bool
 }
 
 // planScanGroups resolves every requested file up front and partitions
@@ -126,9 +127,9 @@ func (sess *Session) dispatchScanFilesParallel(files []string) ([]protocol.Site,
 				file := files[fileIndex]
 				var calls []analyzedCall
 				forEachCallExpression(sourceFiles[fileIndex], func(call *ast.Node) bool {
-					pending, diags, ok := state.analyzeCall(file, call)
-					if ok || len(diags) > 0 {
-						calls = append(calls, analyzedCall{pending: pending, diagnostics: diags, emitSite: ok})
+					pendings, diags := state.analyzeCall(file, call)
+					if len(pendings) > 0 || len(diags) > 0 {
+						calls = append(calls, analyzedCall{pendings: pendings, diagnostics: diags})
 					}
 					return true
 				})
@@ -155,8 +156,8 @@ func (sess *Session) dispatchScanFilesParallel(files []string) ([]protocol.Site,
 			if len(call.diagnostics) > 0 {
 				diagnostics = append(diagnostics, call.diagnostics...)
 			}
-			if call.emitSite {
-				site := sess.commitPending(call.pending)
+			for _, pending := range call.pendings {
+				site := sess.commitPending(pending)
 				sites = append(sites, site)
 				sess.sites = append(sess.sites, site)
 			}

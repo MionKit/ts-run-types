@@ -63,8 +63,8 @@ func Apply(file, source string, sites []protocol.Site, replacements []protocol.R
 	// Sites are zero-width insertions keyed on Pos; replacements are span edits
 	// keyed on Start/End. The EditBuffer resolves every edit against ORIGINAL
 	// coordinates, so application order is irrelevant.
-	for _, site := range sites {
-		editBuffer.appendLeft(toChar(site.Pos), buildInsertion(site))
+	for _, group := range groupSitesByPos(sites) {
+		editBuffer.appendLeft(toChar(group[0].Pos), buildGroupInsertion(group))
 	}
 	for _, rep := range replacements {
 		if rep.Start == rep.End {
@@ -234,38 +234,84 @@ func buildImportBlock(sites []protocol.Site, replacements []protocol.Replacement
 	return strings.Join(statements, " ") + "\n"
 }
 
-// buildInsertion produces the text to splice in just before the call's closing
-// `)`. Mirrors rewrite.ts buildInsertion: leading-comma decision (argsCount /
-// trailingComma), `undefined` padding for earlier optional slots, and the
-// single binding vs the multi-function binding array.
-func buildInsertion(site protocol.Site) string {
-	argsCount := site.ArgsCount
-	paramIndex := site.ParamIndex
-	// JS: paramIndex = s.paramIndex ?? argsCount. Protocol's int zero value is 0
-	// (ParamIndex has omitempty); a real reflection site always sets ParamIndex.
-	// We keep the explicit value as-is (0 means slot 0), matching the wire.
-	padding := paramIndex - argsCount
-	if padding < 0 {
-		padding = 0
+// groupSitesByPos buckets sites by their injection position (a call's closing
+// paren). Every marker slot a single call injects shares that call's Pos, so a
+// group is exactly one call's slots; the transform composes ONE insertion per
+// group. Distinct calls have distinct closing parens, so single-marker calls
+// are groups of one (byte-identical to the pre-multislot path). First-occurrence
+// order keeps the output deterministic.
+func groupSitesByPos(sites []protocol.Site) [][]protocol.Site {
+	index := make(map[int]int, len(sites))
+	groups := make([][]protocol.Site, 0, len(sites))
+	for _, site := range sites {
+		gi, ok := index[site.Pos]
+		if !ok {
+			gi = len(groups)
+			index[site.Pos] = gi
+			groups = append(groups, nil)
+		}
+		groups[gi] = append(groups[gi], site)
 	}
-	parts := make([]string, 0, padding+1)
-	for i := 0; i < padding; i++ {
-		parts = append(parts, "undefined")
-	}
+	return groups
+}
+
+// slotBinding renders the entry-tuple binding one marker slot injects: an ARRAY
+// of bindings for a multi-function InjectTypeFnArgs<T, F1, F2, …> site
+// (len(FnIds) > 1), else the lone binding — a scalar fn binding, or the bare
+// reflection id when FnId is empty (InjectRunTypeId).
+func slotBinding(site protocol.Site) string {
 	if len(site.FnIds) > 1 {
 		bindings := make([]string, 0, len(site.FnIds))
 		for _, fnId := range site.FnIds {
 			bindings = append(bindings, entryBinding(site.ID, fnId))
 		}
-		parts = append(parts, "["+strings.Join(bindings, ", ")+"]")
-	} else {
-		parts = append(parts, entryBinding(site.ID, site.FnId))
+		return "[" + strings.Join(bindings, ", ") + "]"
+	}
+	return entryBinding(site.ID, site.FnId)
+}
+
+// buildGroupInsertion produces the text to splice in just before a call's
+// closing `)` for every marker slot that call injects. A call with ONE marker
+// param is a group of one and renders byte-identically to the pre-multislot
+// path: `undefined` padding for earlier optional params, then the binding. A
+// call with SEVERAL marker params (multi-slot injection — e.g. mion's per-side
+// route markers) renders one binding per marker at its own parameter index,
+// with `undefined` filling the non-marker optional gaps a positional call must
+// still pass. Every site in a group shares the call, so ArgsCount and
+// TrailingComma are read from the first. The scanner only emits slots whose
+// ParamIndex >= ArgsCount (a written arg at a slot is a pass-through, never a
+// site), so the walk below reaches every slot.
+func buildGroupInsertion(group []protocol.Site) string {
+	if len(group) == 0 {
+		return ""
+	}
+	slots := append([]protocol.Site(nil), group...)
+	sort.Slice(slots, func(i, j int) bool { return slots[i].ParamIndex < slots[j].ParamIndex })
+	argsCount := slots[0].ArgsCount
+	trailingComma := slots[0].TrailingComma
+	byIndex := make(map[int]protocol.Site, len(slots))
+	maxIndex := argsCount
+	for _, slot := range slots {
+		byIndex[slot.ParamIndex] = slot
+		if slot.ParamIndex > maxIndex {
+			maxIndex = slot.ParamIndex
+		}
+	}
+	parts := make([]string, 0, maxIndex-argsCount+1)
+	for index := argsCount; index <= maxIndex; index++ {
+		if slot, ok := byIndex[index]; ok {
+			parts = append(parts, slotBinding(slot))
+		} else {
+			// A non-marker optional parameter between argsCount and the last
+			// marker: a positional call must fill it, so pad with `undefined`.
+			parts = append(parts, "undefined")
+		}
 	}
 	body := strings.Join(parts, ", ")
 	// Bare body (no leading comma) when there are no prior args OR the arg list
 	// already ends with a trailing comma — both put the position right after a
 	// separator (`(` or `,`).
-	if argsCount == 0 || site.TrailingComma {
+	if argsCount == 0 || trailingComma {
 		return body
 	}
 	return ", " + body

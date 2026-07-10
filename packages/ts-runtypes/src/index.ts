@@ -96,8 +96,11 @@ export {registerFormatPattern, type FormatPattern, type StringPatternArgs} from 
 // without importing the internal module path.
 export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 
-// JSON I/O collapses to `createJsonEncoder` + `createJsonDecoder`; the lower-
-// level prepareForJson / restoreFromJson / stringifyJson primitives stay internal.
+// String JSON I/O is `createJsonEncoder` + `createJsonDecoder`; the VALUE-level
+// pair `createPrepareForJson` + `createRestoreFromJson` (what those build on) is
+// public for frameworks that own their own JSON envelope. The remaining
+// primitives (stringifyJson / prepareForJsonSafe / the compact + unknown-keys
+// wire helpers) stay internal.
 export {
   // createValidate / createGetValidationErrors are overloaded: a value-first `RunType`
   // schema as the first arg (the value a `define` builder returns) is a distinct
@@ -128,6 +131,10 @@ export {
   createJsonDecoder,
   type JsonDecoderFn,
   type JsonDecoderOptions,
+  createPrepareForJson,
+  type PrepareForJsonFn,
+  createRestoreFromJson,
+  type RestoreFromJsonFn,
 } from './createRTFunctions.ts';
 
 // Binary I/O re-exported from a dedicated module so bundlers can drop the

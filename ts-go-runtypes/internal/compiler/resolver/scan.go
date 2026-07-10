@@ -143,11 +143,11 @@ func (sess *Session) dispatchScanFilesSerial(files []string) ([]protocol.Site, [
 		}
 		fileStart := len(sites)
 		forEachCallExpression(sourceFile, func(call *ast.Node) bool {
-			pending, diags, ok := state.analyzeCall(file, call)
+			pendings, diags := state.analyzeCall(file, call)
 			if len(diags) > 0 {
 				diagnostics = append(diagnostics, diags...)
 			}
-			if ok {
+			for _, pending := range pendings {
 				site := sess.commitPending(pending)
 				sites = append(sites, site)
 				sess.sites = append(sess.sites, site)
@@ -281,14 +281,24 @@ func (sess *Session) commitPending(pending pendingCall) protocol.Site {
 // Diagnostics always flow — they're independent of Site emission. Every
 // checker read in here goes through state.scanChecker, so the analysis
 // can run on any pool checker; only commitPending touches the cache.
-func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []diagnostics.Diagnostic, bool) {
+// injectMarker is one InjectRunTypeId / InjectTypeFnArgs parameter found on a
+// call's resolved signature: its parameter index, the marker kind, the resolved
+// type argument T, and (InjectTypeFnArgs only) the named function-family keys.
+type injectMarker struct {
+	paramIndex int
+	kind       marker.Kind
+	typeArg    *checker.Type
+	fnKeys     []string
+}
+
+func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, []diagnostics.Diagnostic) {
 	signature := checker.Checker_getResolvedSignature(state.scanChecker, call, nil, 0)
 	if signature == nil {
-		return pendingCall{}, nil, false
+		return nil, nil
 	}
 	parameters := checker.Signature_parameters(signature)
 	if len(parameters) == 0 {
-		return pendingCall{}, nil, false
+		return nil, nil
 	}
 	lastIndex := len(parameters) - 1
 	callExpression := call.AsCallExpression()
@@ -301,14 +311,12 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		// whitespace), so the injector never has to scan source bytes backward.
 		trailingComma = callExpression.Arguments.HasTrailingComma()
 	}
-	// Walk every parameter and dispatch per marker Kind. CompTimeArgs /
-	// PureFunction validation runs regardless of whether the trailing
-	// slot is InjectRunTypeId — registerPureFnFactory and any other
-	// non-injection branded function must be validated too.
+	// Walk every parameter, collecting the injection markers and validating any
+	// CompTimeArgs / PureFunction argument. That validation is independent of
+	// injection — registerPureFnFactory and any other non-injection branded
+	// function must be checked too.
 	var diags []diagnostics.Diagnostic
-	var injectionTypeArgument *checker.Type
-	var injectionMatched bool
-	var injectionFnKeys []string
+	var markers []injectMarker
 	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
 		paramSymbol := parameters[paramIndex]
 		if paramSymbol == nil {
@@ -327,28 +335,21 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		}
 		switch kind {
 		case marker.KindInjectRunTypeId:
-			// Only the trailing slot is recognised for injection. A
-			// non-trailing InjectRunTypeId is defensively ignored — the
-			// injection codegen below assumes the id sits at lastIndex.
-			if paramIndex == lastIndex {
-				injectionTypeArgument = typeArg
-				injectionMatched = true
-			}
+			// EVERY injection-marker parameter is its own slot (multi-slot
+			// injection): a wrapper may declare several, and each injects at its
+			// own index. The single-trailing case stays byte-identical (see
+			// below); the free-type-parameter / pass-through gates run per slot.
+			markers = append(markers, injectMarker{paramIndex: paramIndex, kind: kind, typeArg: typeArg})
 		case marker.KindInjectTypeFnArgs:
-			// createX trailing-slot marker. Same injection contract as
-			// InjectRunTypeId, plus the Fn type-arg naming the function family
-			// so the backend can emit only the demanded cache. The fnId is
-			// computed after the loop (it folds in the call-site options/strategy).
-			if paramIndex == lastIndex {
-				injectionTypeArgument = typeArg
-				injectionMatched = true
-				// A multi-function marker (InjectTypeFnArgs<T,'val','verr'>) names
-				// several families; the scanner computes one fnId + demand per key
-				// below and the rewrite injects an array of entry tuples at this slot.
-				if fnKeys, fnOK := marker.FnKeysForInjectTypeFnArgs(state.scanChecker, paramType, state.sess.marker); fnOK {
-					injectionFnKeys = fnKeys
-				}
+			// Same, plus the Fn type-args naming the function families so the
+			// backend emits only the demanded caches. The fnId(s) are computed
+			// per slot below (folding in the call-site options/strategy for the
+			// single-trailing path).
+			var fnKeys []string
+			if keys, fnOK := marker.FnKeysForInjectTypeFnArgs(state.scanChecker, paramType, state.sess.marker); fnOK {
+				fnKeys = keys
 			}
+			markers = append(markers, injectMarker{paramIndex: paramIndex, kind: kind, typeArg: typeArg, fnKeys: fnKeys})
 		case marker.KindCompTimeArgs, marker.KindCompTimeFnArgs:
 			// Both validate the argument is fully literal (CTA0xx). CompTimeFnArgs
 			// additionally marks the fn-selecting slot; the scanner reads its value
@@ -374,38 +375,68 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 			diags = append(diags, state.checkPureFunction(file, argumentNode)...)
 		}
 	}
-	if !injectionMatched {
-		return pendingCall{}, diags, false
+	if len(markers) == 0 {
+		return nil, diags
 	}
-	// NESTED-BUILDER SKIP: a value-first builder call nested inside another
-	// marker call (e.g. `string({...})` inside `object({...})`) is reflected by
-	// the enclosing marker — the enclosing RunType already references this type
-	// as a child, so the nested call's own id would be redundant. Skip it; at
-	// runtime the nested builder returns a type-only carrier the enclosing
-	// marker discards. Only trailing-slot injection markers count as
-	// "enclosing" — wrappers without an InjectRunTypeId slot (`optional(...)`,
-	// plain helpers, vitest's `expect`) are transparent, so the walk continues
-	// past them and a `string()` inside `optional()` inside `object()` still
-	// skips via the `object` ancestor.
+	// NESTED-BUILDER SKIP (per call): a value-first builder call nested inside
+	// another marker call (e.g. `string({...})` inside `object({...})`) is
+	// reflected by the enclosing marker — the enclosing RunType already
+	// references this type as a child, so the nested call's own id would be
+	// redundant. Skip it; at runtime the nested builder returns a type-only
+	// carrier the enclosing marker discards. Only injection markers count as
+	// "enclosing" — wrappers without one (`optional(...)`, plain helpers,
+	// vitest's `expect`) are transparent, so the walk continues past them.
 	if state.enclosedByInjectionMarker(call) {
-		return pendingCall{}, diags, false
+		return nil, diags
 	}
-	// EXPLICIT PASS-THROUGH: the caller already placed an argument at (or past)
-	// the trailing id slot. Two shapes reach here — an explicit id string, or
-	// (the important one) a wrapper FORWARDING its own injected
-	// `InjectRunTypeId<T>` handle inward, e.g. `getRunType<T>(undefined, id)` in
-	// the body of a `describe<T>(id?: InjectRunTypeId<T>)` helper. Either way the
-	// slot is filled, so there is nothing to inject: leave the call completely
-	// untouched — no site, and NO injection diagnostic. This check MUST precede
-	// the free-type-parameter (MKR003) check below: inside a generic wrapper body
-	// `T` IS the wrapper's free type parameter, but a forwarded handle is a
-	// legitimate resolved value, not an injection request, so MKR003 would be a
-	// false positive that halts the build on the documented wrapper pattern.
-	// (CompTimeArgs / PureFunction validation on the other args, collected above,
-	// is still returned.)
-	if argsCount > lastIndex {
-		return pendingCall{}, diags, false
+	// EXPLICIT PASS-THROUGH (per slot): a marker parameter the caller already
+	// filled is a forwarded handle / explicit id, not an injection request —
+	// leave that slot untouched. A wrapper FORWARDING its own injected handle
+	// inward (`getRunType<T>(undefined, id)`) reaches here with the slot filled.
+	// argsCount is contiguous, so the injecting slots are exactly the trailing
+	// block paramIndex >= argsCount. This filter MUST precede the
+	// free-type-parameter (MKR003) check inside the per-slot paths: inside a
+	// generic wrapper body `T` IS the wrapper's free type parameter, but a
+	// forwarded handle is a legitimate resolved value, so MKR003 would be a false
+	// positive that halts the build on the documented wrapper pattern.
+	var injecting []injectMarker
+	for _, m := range markers {
+		if argsCount > m.paramIndex {
+			continue
+		}
+		injecting = append(injecting, m)
 	}
+	if len(injecting) == 0 {
+		return nil, diags
+	}
+	// SINGLE TRAILING MARKER — the full path (reflect-form, comptime options,
+	// annotation honoring, the Temporal-not-loaded guard). Byte-identical to the
+	// pre-multislot behaviour for every existing call.
+	if len(injecting) == 1 && injecting[0].paramIndex == lastIndex {
+		pending, extra, ok := state.analyzeTrailingInjection(file, call, callExpression, injecting[0], lastIndex, argsCount, trailingComma)
+		diags = append(diags, extra...)
+		if !ok {
+			return nil, diags
+		}
+		return []pendingCall{pending}, diags
+	}
+	// MULTI-SLOT INJECTION — several marker parameters (or a single non-trailing
+	// one) each inject at their own index; a wrapper forwards each. No
+	// reflect-form / comptime options: wrapper calls pass T through explicit type
+	// arguments and forward no options bag.
+	pendings, extra := state.analyzeMultiSlotInjection(file, call, injecting, argsCount, trailingComma)
+	diags = append(diags, extra...)
+	return pendings, diags
+}
+
+// analyzeTrailingInjection is the single-marker injection path: one marker in
+// the trailing parameter slot, with the full reflect-form / comptime-options /
+// annotation-honoring handling that value-first `createX(value)` and
+// options-carrying calls depend on. Byte-identical to the pre-multislot scanner.
+func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, callExpression *ast.CallExpression, slot injectMarker, lastIndex, argsCount int, trailingComma bool) (pendingCall, []diagnostics.Diagnostic, bool) {
+	var diags []diagnostics.Diagnostic
+	injectionTypeArgument := slot.typeArg
+	injectionFnKeys := slot.fnKeys
 	// Guard against a `Temporal.*` type that silently resolved to `any`
 	// because the consumer's tsconfig lib doesn't load the Temporal
 	// namespace — otherwise the emitted validator accepts anything. Emitted
@@ -570,6 +601,78 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 		typeArgument:  typeArgument,
 		owner:         state.scanChecker,
 	}, diags, true
+}
+
+// analyzeMultiSlotInjection is the multi-slot injection path: a call whose
+// signature carries SEVERAL injection-marker parameters (mion's per-side
+// `route(handler, opts?, paramsFns?, responseFns?)`), or a single non-trailing
+// one. Each injecting slot resolves independently — its own type argument, fn
+// keys, and MKR003 free-type-parameter check — and emits its own pendingCall at
+// the call's closing paren. The transform groups all slots of one call (same
+// Pos) into a single positional insertion, filling non-marker optional gaps with
+// `undefined`. Wrapper calls forward no comptime options, so fn ids resolve with
+// default options (no reflect-form / options handling here).
+func (state scanState) analyzeMultiSlotInjection(file string, call *ast.Node, injecting []injectMarker, argsCount int, trailingComma bool) ([]pendingCall, []diagnostics.Diagnostic) {
+	var diags []diagnostics.Diagnostic
+	sourceFile := ast.GetSourceFileOfNode(call)
+	// The Temporal-not-loaded guard is a per-call check (inspects written
+	// syntax, not the resolved type), so it fires once for the whole call.
+	diags = append(diags, detectTemporalNotLoaded(state.scanChecker, file, call)...)
+	pos := call.End() - 1
+	var pendings []pendingCall
+	for _, m := range injecting {
+		if marker.IsFreeTypeParameter(m.typeArg) {
+			// A marker slot whose `T` is the enclosing wrapper's own free type
+			// parameter — no concrete id until the wrapper is instantiated.
+			// MKR003 per slot; the other slots on this call may still inject.
+			if sourceFile != nil {
+				diags = append(diags, diagnostics.New(
+					diagnostics.CodeMarkerFreeTypeParameter,
+					textpos.NodeSite(file, sourceFile, call),
+				))
+			}
+			continue
+		}
+		fnKeys := m.fnKeys
+		if deduped, firstDup, hadDup := dedupeFnKeys(fnKeys); hadDup {
+			if sourceFile != nil {
+				diags = append(diags, diagnostics.New(
+					diagnostics.CodeMarkerDuplicateFnKey,
+					textpos.NodeSite(file, sourceFile, call),
+					firstDup,
+				))
+			}
+			fnKeys = deduped
+		}
+		var fnIds []string
+		var demand []protocol.SiteDemand
+		for _, fnKey := range fnKeys {
+			fnId, fnDemand := computeSiteFn(state.scanChecker, fnKey, validateOptions{}, call, m.paramIndex, argsCount)
+			fnIds = append(fnIds, fnId)
+			demand = append(demand, fnDemand...)
+		}
+		fnId := ""
+		if len(fnIds) > 0 {
+			fnId = fnIds[0]
+		}
+		var multiFnIds []string
+		if len(fnIds) > 1 {
+			multiFnIds = fnIds
+		}
+		pendings = append(pendings, pendingCall{
+			file:          file,
+			pos:           pos,
+			paramIndex:    m.paramIndex,
+			argsCount:     argsCount,
+			fnId:          fnId,
+			fnIds:         multiFnIds,
+			demand:        demand,
+			trailingComma: trailingComma,
+			typeArgument:  m.typeArg,
+			owner:         state.scanChecker,
+		})
+	}
+	return pendings, diags
 }
 
 // dedupeFnKeys removes repeated fn keys from a multi-function marker, keeping

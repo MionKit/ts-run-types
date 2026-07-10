@@ -69,6 +69,25 @@ export type InjectRunTypeId<T> = string & {
  * rejects it with `MKR006` (Error) at the call site. Use each family at most
  * once per marker.
  *
+ * MULTIPLE MARKER PARAMETERS (multi-slot) — a signature may declare SEVERAL
+ * injection-marker parameters, and each injects at its own index. A framework
+ * wrapper can carry one marker per side, resolving a DIFFERENT `T` for each:
+ *
+ *   function route<H extends Handler>(
+ *     handler: H,
+ *     opts?: RouteOptions,
+ *     paramsFns?: InjectTypeFnArgs<Params<H>, 'verr', 'jsonDecoder'>,
+ *     responseFns?: InjectTypeFnArgs<Return<H>, 'jsonEncoder'>,
+ *     meta?: InjectRunTypeId<Params<H>>,
+ *   ) { … }
+ *
+ * The build fills every marker slot in one positional insertion, padding
+ * non-marker optional gaps (`opts`) with `undefined`. A marker parameter the
+ * caller supplies explicitly (a forwarded handle) is a pass-through, left
+ * untouched. Mix `InjectTypeFnArgs` and `InjectRunTypeId` freely — this is how a
+ * wrapper reads a type's runtype graph (via the reflection marker) alongside its
+ * compiled functions without an extra call.
+ *
  * The declared type mirrors `InjectRunTypeId`'s `string & {brand}` shape (rather
  * than a tuple type) so the Go marker scanner resolves the alias + its type
  * arguments the same way it does for `InjectRunTypeId` — a tuple-intersection
