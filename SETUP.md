@@ -415,6 +415,18 @@ It packs the tarballs (if `tarballs/` is missing), then runs two axes:
 
 The e2e is gated in CI by [`release-gate.yml`](.github/workflows/release-gate.yml) (the ubuntu lane uses the container backend; the macOS/Windows lanes use host-npx). The builder toolchains are baked into the `tsrt-e2e` image (`container/pre-publish-e2e/_deps`), so each run installs only the changing `@ts-runtypes/*` — a **republish** of that image (`pnpm rtx container push e2e`) is required after any change to `container/pre-publish-e2e/{_deps,registry}/` or its Containerfile.
 
+### Post-publish e2e — `pnpm rtx release e2e --backend npm`
+
+The same suite, but against the **real** registry once a version is **live**. Where the pre-publish backends build + pack + publish tarballs to a throwaway verdaccio, the `npm` backend skips all of that and installs the already-published `@ts-runtypes/*` straight from `registry.npmjs.org` — so it verifies the bytes actually on npm, most importantly the per-OS platform-binary optional-dep chain (`@ts-runtypes/bin` → `@ts-runtypes/binary-<os>-<arch>`) resolving from the real registry.
+
+```bash
+pnpm rtx release e2e --backend npm                 # version.json, matrix + host smoke (matrix needs podman)
+pnpm rtx release e2e --backend npm --no-matrix     # host smoke only (no container)
+pnpm rtx release e2e --backend npm --version 0.9.0 --registry https://registry.npmjs.org
+```
+
+It waits for the version to be resolvable (a fresh publish can lag across the registry's CDN), then runs the same two axes — the multi-bundler matrix in the toolchain container (pointed at the real registry, no verdaccio) and the host-native per-OS binary smoke. CI drives it from [`post-publish.yml`](.github/workflows/post-publish.yml), a **manual** `workflow_dispatch` (ubuntu = matrix + smoke, macOS/Windows = host smoke, plus the `linux-arm64`/`linux-arm` binaries exec'd under QEMU). It's manual by design: the release path stage-publishes to npm and a maintainer promotes each package to live with 2FA (`pnpm rtx release stage-approve`), and there is no CI signal for "stage approved → live" — so run this **after** the stage-ids are approved.
+
 ---
 
 ## Troubleshooting

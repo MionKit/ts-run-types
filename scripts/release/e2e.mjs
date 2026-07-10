@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// The single front door for the pre-publish e2e (docs/todos/prepublish-e2e-1-harness.md).
+// The single front door for the pre- AND post-publish e2e
+// (docs/done/prepublish-e2e-1-harness.md + prepublish-e2e-3-post-publish-npm.md).
 // Local and every CI lane call the SAME script, so they cannot drift:
 //
 //   build -> registry -> install the PUBLISHED @ts-runtypes/* -> run the consumer suite
 //
-// Two registry backends:
+// Three registry backends:
 //   container (default; required locally) - the shared image runs verdaccio in a
 //     rootless container (its untrusted dep tree never touches the host), publishes
 //     the mounted tarballs, and the multi-bundler FEATURE MATRIX builds + tests
@@ -14,20 +15,38 @@
 //   host-npx (CI macOS/Windows only; GUARDED by CI) - GitHub's mac/win runners
 //     can't run a Linux container, so they fall back to on-runner `npx verdaccio`
 //     and run the host-native smoke only. Refused on a dev machine (container-or-error).
+//   npm (POST-publish) - the packages are ALREADY LIVE on a real registry (default
+//     registry.npmjs.org), so there is nothing to build, pack, or publish: skip
+//     verdaccio entirely and run the SAME consumer suite against the real registry.
+//     The per-OS host smoke proves the platform-binary optional-dep resolution works
+//     from the real registry; the ubuntu lane also runs the multi-bundler matrix in
+//     the e2e toolchain container (pointed at the real registry, no verdaccio). This
+//     is the post-publish smoke — .github/workflows/post-publish.yml drives it.
 //
-// Flags: --backend <container|host-npx>  --port <n>  --pack (rebuild tarballs)
+// Flags: --backend <container|host-npx|npm>  --port <n>  --pack (rebuild tarballs)
+//        --registry <url> (npm backend; default registry.npmjs.org)
+//        --version <v> (override version.json — the version to verify)
 //        --no-matrix  --no-host-smoke
 import {execFileSync, spawn} from 'node:child_process';
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadEnv, REPO_ROOT} from '../lib/env.mjs';
 import {requireEngine} from '../lib/engine.mjs';
-import {startRegistry, stopRegistry} from '../container/image.mjs';
+import {startRegistry, startToolchainContainer, stopRegistry} from '../container/image.mjs';
 import {capture, die, note, noteErr, reportCliError, run, runOrThrow, sleep, which} from '../lib/proc.mjs';
 
 const E2E_DIR = join(REPO_ROOT, 'container/pre-publish-e2e');
 const HOST_SMOKE_DIR = join(E2E_DIR, 'host-smoke');
 const TARBALLS = join(REPO_ROOT, 'tarballs');
+
+// The registry the consumer suite installs from. The container/host-npx backends
+// publish the release tarballs to a throwaway verdaccio; the npm backend installs
+// the already-live packages from the real registry. VERDACCIO_INTERNAL is the
+// registry as seen from INSIDE the e2e container (verdaccio always listens on 4873
+// there, whatever host port maps to it); the host-native smoke talks to whichever
+// host port the container published (or on-runner verdaccio for host-npx).
+const VERDACCIO_INTERNAL = 'http://127.0.0.1:4873';
+const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org';
 
 function readVersion() {
   return JSON.parse(readFileSync(join(REPO_ROOT, 'version.json'), 'utf8')).version;
@@ -65,7 +84,7 @@ const MATRIX_SCRIPT = `set -eu
 cd /e2e
 cp -a /e2e-src/apps /e2e-src/test /e2e-src/build-all.mjs /e2e-src/lint-all.mjs /e2e-src/tsconfig.base.json /e2e/
 rm -rf /e2e/apps/*/dist /e2e/apps/*/.rt /e2e/apps/shared/.rt
-echo "e2e-matrix: installing @ts-runtypes/core@$RT_E2E_VERSION + devtools from the in-container verdaccio"
+echo "e2e-matrix: installing @ts-runtypes/core@$RT_E2E_VERSION + devtools from $RT_E2E_REGISTRY"
 # Install with npm (like a real consumer + the host smoke): additive onto the
 # baked pnpm-hoisted toolchains, and store-agnostic (pnpm's build-time store lives
 # in a cache mount that isn't in the image, so a runtime 'pnpm add' would re-resolve
@@ -77,24 +96,26 @@ echo "e2e-matrix: installing @ts-runtypes/core@$RT_E2E_VERSION + devtools from t
 # also skips peer auto-install, so @ts-runtypes/bin (devtools' launcher peer, which
 # pulls the matching @ts-runtypes/binary-<os>-<arch> via its optional deps) is
 # installed explicitly - exactly the resolution chain the e2e exists to prove.
-npm install "@ts-runtypes/core@$RT_E2E_VERSION" "@ts-runtypes/devtools@$RT_E2E_VERSION" "@ts-runtypes/bin@$RT_E2E_VERSION" --registry http://127.0.0.1:4873 --no-audit --no-fund --legacy-peer-deps
+# $RT_E2E_REGISTRY is the in-container verdaccio for the pre-publish backends and
+# the real registry (registry.npmjs.org) for the post-publish npm backend.
+npm install "@ts-runtypes/core@$RT_E2E_VERSION" "@ts-runtypes/devtools@$RT_E2E_VERSION" "@ts-runtypes/bin@$RT_E2E_VERSION" --registry "$RT_E2E_REGISTRY" --no-audit --no-fund --legacy-peer-deps
 echo "e2e-matrix: building every bundler app"
 node build-all.mjs
 echo "e2e-matrix: asserting over the build output (runtime + rewrite evidence + lint transport)"
 node --test test/*.test.mjs`;
 
-function runContainerMatrix(engine, container, version) {
-  note('running the multi-bundler feature matrix inside the container');
-  const code = run(engine, ['exec', '-e', `RT_E2E_VERSION=${version}`, container, 'sh', '-c', MATRIX_SCRIPT], {stdio: ['inherit', 'inherit', 'inherit']});
+function runContainerMatrix(engine, container, version, registry) {
+  note(`running the multi-bundler feature matrix inside the container (registry: ${registry})`);
+  const code = run(engine, ['exec', '-e', `RT_E2E_VERSION=${version}`, '-e', `RT_E2E_REGISTRY=${registry}`, container, 'sh', '-c', MATRIX_SCRIPT], {stdio: ['inherit', 'inherit', 'inherit']});
   if (code !== 0) die('e2e: the in-container feature matrix failed', code);
 }
 
-// The host-native lean smoke: install the published packages from the
-// port-published verdaccio and run vitest, which transforms main.ts through the
-// RunTypes Vite plugin -> resolves + spawns THIS host's platform binary.
-function runHostSmoke(version, port) {
-  note(`running the host-native lean smoke (exercises this host's platform binary) against :${port}`);
-  const registry = `http://127.0.0.1:${port}`;
+// The host-native lean smoke: install the published packages from the given
+// registry (port-published verdaccio for the pre-publish backends, the real
+// registry for the npm backend) and run vitest, which transforms main.ts through
+// the RunTypes Vite plugin -> resolves + spawns THIS host's platform binary.
+function runHostSmoke(version, registry) {
+  note(`running the host-native lean smoke (exercises this host's platform binary) against ${registry}`);
   const env = {...process.env, npm_config_registry: registry};
   // npm install of the two packages also pulls the fixture's pinned vite/vitest
   // (proxied through verdaccio), exactly like a real consumer install.
@@ -154,7 +175,7 @@ async function runHostNpxBackend(version, port, opts) {
     execFileSync('node', ['scripts/release/publish-tarballs.mjs', '--registry', registry], {cwd: REPO_ROOT, stdio: 'inherit'});
     // The bundler matrix does NOT repeat per-OS (it's OS-agnostic; the ubuntu
     // container lane covers it) - the mac/win lanes are the per-OS binary axis only.
-    if (opts.hostSmoke) runHostSmoke(version, port);
+    if (opts.hostSmoke) runHostSmoke(version, `http://127.0.0.1:${port}`);
     noteErr('e2e: host-npx backend covered the per-OS binary smoke (the bundler matrix runs on the Linux container lane)');
   } finally {
     killVerdaccio();
@@ -176,32 +197,90 @@ async function runContainerBackend(version, port, opts) {
   try {
     await waitHealthy(engine, container);
     note(`containerized verdaccio is healthy on 127.0.0.1:${port}`);
-    if (opts.matrix) runContainerMatrix(engine, container, version);
-    if (opts.hostSmoke) runHostSmoke(version, port);
+    if (opts.matrix) runContainerMatrix(engine, container, version, VERDACCIO_INTERNAL);
+    if (opts.hostSmoke) runHostSmoke(version, `http://127.0.0.1:${port}`);
   } finally {
     teardown();
   }
 }
 
+// ── npm backend (post-publish; real registry) ────────────────────────────────
+// Poll the registry until <version> of the core package is resolvable. A fresh
+// publish can lag across the registry's CDN edges, so a post-publish run triggered
+// promptly might otherwise 404 the package it's meant to verify. `npm view` honors
+// --registry and exits non-zero (or prints nothing) until the version lands.
+async function waitForNpmVersion(registry, version, timeoutS = 300) {
+  const pkg = `@ts-runtypes/core@${version}`;
+  note(`waiting for ${pkg} to be live on ${registry}`);
+  const deadline = Date.now() + timeoutS * 1000;
+  while (Date.now() < deadline) {
+    const {status, stdout} = capture('npm', ['view', pkg, 'version', '--registry', registry]);
+    if (status === 0 && stdout.trim() === version) {
+      note(`${pkg} is live`);
+      return;
+    }
+    await sleep(3000);
+  }
+  die(`e2e: ${pkg} did not become resolvable on ${registry} within ${timeoutS}s (propagation delay or a missed publish)`);
+}
+
+// Verify the ALREADY-PUBLISHED @ts-runtypes/* on a real registry. No tarballs, no
+// verdaccio: install the live packages and run the SAME consumer suite the
+// pre-publish gate runs. The host smoke exercises THIS host's platform-binary
+// optional-dep resolution from the real registry; the matrix (ubuntu only) starts
+// the e2e toolchain container as a plain keep-alive (egress to the registry, no
+// verdaccio) and builds every bundler app against the live packages.
+async function runNpmBackend(version, registry, opts) {
+  await waitForNpmVersion(registry, version);
+  if (opts.matrix) {
+    const engine = process.env.RT_WEBSITE_ENGINE || 'podman';
+    if (!which(engine)) die(`e2e: --backend npm with the matrix needs container engine '${engine}' for the baked toolchains. Install podman (see the ts-runtypes-setup skill), or pass --no-matrix for the host smoke only.`);
+    requireEngine(engine);
+    const {container} = startToolchainContainer({e2eSrcDir: E2E_DIR});
+    let stopped = false;
+    const teardown = () => {
+      if (stopped) return;
+      stopped = true;
+      stopRegistry(engine, container);
+    };
+    process.on('exit', teardown);
+    process.on('SIGINT', () => (teardown(), process.exit(130)));
+    process.on('SIGTERM', () => (teardown(), process.exit(143)));
+    try {
+      runContainerMatrix(engine, container, version, registry);
+    } finally {
+      teardown();
+    }
+  }
+  if (opts.hostSmoke) runHostSmoke(version, registry);
+  note('post-publish e2e: PASS');
+}
+
 function parseArgs(argv) {
-  const opts = {backend: 'container', port: '4873', pack: false, matrix: true, hostSmoke: true};
+  const opts = {backend: 'container', port: '4873', pack: false, matrix: true, hostSmoke: true, registry: '', version: ''};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--backend') opts.backend = argv[++i];
     else if (arg === '--port') opts.port = argv[++i];
+    else if (arg === '--registry') opts.registry = argv[++i];
+    else if (arg === '--version') opts.version = argv[++i];
     else if (arg === '--pack') opts.pack = true;
     else if (arg === '--no-matrix') opts.matrix = false;
     else if (arg === '--no-host-smoke') opts.hostSmoke = false;
-    else die(`e2e: unknown flag '${arg}'. Usage: rtx release e2e [--backend container|host-npx] [--port N] [--pack] [--no-matrix] [--no-host-smoke]`);
+    else die(`e2e: unknown flag '${arg}'. Usage: rtx release e2e [--backend container|host-npx|npm] [--port N] [--registry URL] [--version V] [--pack] [--no-matrix] [--no-host-smoke]`);
   }
-  if (opts.backend !== 'container' && opts.backend !== 'host-npx') die(`e2e: unknown backend '${opts.backend}' (expected container | host-npx)`);
+  if (!['container', 'host-npx', 'npm'].includes(opts.backend)) die(`e2e: unknown backend '${opts.backend}' (expected container | host-npx | npm)`);
   return opts;
 }
 
 async function main(argv) {
   const opts = parseArgs(argv);
-  const version = readVersion();
-  note(`pre-publish e2e for @ts-runtypes/* @ ${version} (backend: ${opts.backend})`);
+  const version = opts.version || readVersion();
+  const phase = opts.backend === 'npm' ? 'post-publish' : 'pre-publish';
+  note(`${phase} e2e for @ts-runtypes/* @ ${version} (backend: ${opts.backend})`);
+  // npm backend (post-publish): the packages are already live — nothing to build,
+  // pack, or publish. Install them from the real registry and run the same suite.
+  if (opts.backend === 'npm') return runNpmBackend(version, opts.registry || DEFAULT_NPM_REGISTRY, opts);
   ensureTarballs(opts.pack);
   if (opts.backend === 'host-npx') return runHostNpxBackend(version, opts.port, opts);
   // container backend: podman must be reachable (fail clearly if not).
