@@ -30,16 +30,65 @@ first release that includes it. **Remaining: none (release it).**
 
 ### A2. Pin mion's exact marker shape in the fixture suite
 - **Current:** the wrapper story is regression-tested for a single-family wrapper with
-  `Parameters<H>`. mion's production shape is stronger: a 3-key marker
-  (`'verr','jsonDecoder','jsonEncoder'`) over a CONDITIONAL pair type
-  (`IsAnyOrUnknown<R> extends true ? [P?, R?] : [R] extends [void|undefined] ? [P?] :
-  [P?, R?]`), plus the runtime `hasReturnData` probe (`verr([undefined, undefined])`
-  arity check distinguishes the 1-tuple void form from the pair).
-- **Work:** add a fixture + tests (Go resolver fixture and/or devtools test) mirroring
-  that exact shape: multi-key injection order, conditional-T resolution at inferred-H
-  call sites, and the 1-tuple vs 2-tuple arity behaviour the probe depends on.
-- **Acceptance:** a future emitter/scanner change that breaks any of the three
-  (injection array order, conditional resolution, tuple arity verdicts) fails CI.
+  `Parameters<H>`. mion's production shape is stronger — every `route()`/`hook()`
+  carries:
+
+  ```ts
+  type MionParams<H>     = H extends (ctx: any, ...rest: infer P) => any ? P : never;
+  type MionReturn<H>     = Awaited<ReturnType<H>>;
+  type MionRouteTypes<H> =
+    IsAnyOrUnknown<MionReturn<H>> extends true ? [MionParams<H>?, MionReturn<H>?]
+    : [MionReturn<H>] extends [void | undefined] ? [MionParams<H>?]   // return slot DROPPED
+    : [MionParams<H>?, MionReturn<H>?];
+
+  id?: InjectTypeFnArgs<MionRouteTypes<H>, 'verr', 'jsonDecoder', 'jsonEncoder'>
+  ```
+
+  Its integration rests on THREE behaviours that are correct today but pinned by
+  nothing in this repo (only by mion's own downstream e2e). All three can regress
+  through upstream-only events — a tsgo submodule bump (conditional/`infer`/`Awaited`
+  eagerness), a scanner change (multi-key handling, free-type-param gate), or a `verr`
+  emitter arm change — and two of the three fail SILENTLY:
+  1. **3-key injection array order.** The injected value is an array of handles in
+     declaration order; mion destructures positionally and forwards each to its
+     factory. Factories don't verify the handle's family — a reordered array would
+     validate with the encoder and encode with the validator, with no error anywhere.
+     No fixture today uses more than 2 keys, and the one 2-key consumer
+     (`createStandardSchema`) resolves internally rather than via public forwarding.
+  2. **Conditional-T resolution at inferred-H call sites.** `H` inferred from an
+     arrow literal, then `ReturnType`/`Awaited`, the non-distributive
+     `[R] extends [void|undefined]` bracket form and the `unknown extends R`
+     any-guard, resolving to a concrete tuple-with-optional-members. The ingredients
+     are covered separately (ROADMAP's `Parameters<>`, F17's inferred wrappers);
+     the composed form is not. Failure modes: MKR003 at every mion call site, or a
+     different resolved shape demanding the wrong cache entry.
+  3. **Tuple-arity verdicts — the `hasReturnData` probe.** mion detects void handlers
+     at runtime with `verr([undefined, undefined]).length === 0`, leaning on two
+     emitter behaviours (visible in the emitted validator:
+     `if (!Array.isArray(v) || v.length > 2) {nRT(…)} else {if (v[0] !== undefined)
+     {…}}`): a 1-tuple validator REJECTS a length-2 input (`v.length > 1`), and a
+     pair validator ACCEPTS `[undefined, undefined]` (optional slots skip on
+     undefined). Relaxing extra-member rejection or tightening optional-slot
+     undefined acceptance flips `canReturnData` for every mion route at registration,
+     silently. The codec twins ride along: `enc([undefined, ret])` must emit
+     `[null,<R>]` (absent optional slot → JSON null) and `dec('[[…]]')[0]` must
+     revive params.
+- **Work:**
+  - Go resolver test: a wrapper fixture with the verbatim `MionRouteTypes`
+    conditional and three consumer call sites (value-returning, `void`,
+    `async (): Promise<Date>`); assert one site each, `FnIds` length 3 in declaration
+    order, demand rows for all three families, and distinct resolved ids for the
+    1-tuple (void) vs pair shapes.
+  - devtools e2e (self-contained fixture project like `marker-modules.test.ts` until
+    A3 lets it move in-program): after transform, forward each injected element to
+    its factory and assert per-slot behaviour (errors array / revived Date / encoded
+    string — misordering fails loudly); assert the probe verdicts on both shapes;
+    assert `[null, …]` optional-slot encoding + decode revival; assert the wrapper's
+    own forwarded 3-key call stays an untouched pass-through (no MKR003).
+- **Acceptance:** any upstream change breaking injection order, the conditional
+  resolution, the arity/optional-slot verdicts, or multi-key pass-through fails this
+  repo's CI instead of surfacing as a silent mion misbehaviour downstream — same
+  philosophy as the noop-predicate corpus.
 
 ### A3. Cross-file wrapper sites are not scanned in self-referential programs
 - **Current:** wrapper declared in file A, called from file B → 0 sites when the
