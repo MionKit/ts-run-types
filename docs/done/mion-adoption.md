@@ -37,13 +37,17 @@
   `resolver/multislot_test.go`, `wrapper-multi-slot.test.ts`. Docs: ARCHITECTURE,
   `markers.ts`.
 
-- **B1 — value-level JSON transforms.** Public `createPrepareForJson<T>()` /
-  `createRestoreFromJson<T>()` over the existing `pj`/`rj` primitives (families /
-  demand / `familyMeta` were already in place; only the public factories were
-  missing). A framework that owns its JSON envelope transforms values without a
-  string round-trip; root undefined/void handling lives in the primitives so
-  neither throws; requestable as `'pj'`/`'rj'` keys in a marker. Tests:
-  `prepareRestoreJson.test.ts`. Docs: serialization guide + a compilable example.
+- **B1 — value-level JSON transforms.** The per-strategy prepareForJson /
+  restoreFromJson primitives (`pj`/`pjs`/`rj`/`sj`/`ukuw`/`cj`/`cjr`) are recovered
+  by naming their fnKey in an `InjectTypeFnArgs<T, '<key>'>` marker and resolving
+  the injected slot with the generic `getRTFunction<'<key>'>(…)` resolver — there
+  is NO per-primitive factory (an early `createPrepareForJson`/`createRestoreFromJson`
+  pair was folded into `getRTFunction` for a uniform surface). A framework that
+  owns its JSON envelope transforms values without a string round-trip; root
+  undefined/void handling lives in the primitives so neither throws. All 7
+  primitives flip to `Public` so the marker names them. Tests:
+  `getRTFunctionRecovery.test.ts`. Docs: compiler-markers guide (+ compilable
+  example), serialization guide, ARCHITECTURE, `markers.ts`.
 
 - **D1 — published `.d.ts` no longer forces the Temporal lib.** The Temporal
   instance types in `formats/datetime/temporalFormats.ts` are guarded behind

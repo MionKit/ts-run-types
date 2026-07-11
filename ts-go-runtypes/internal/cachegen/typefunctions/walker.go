@@ -693,7 +693,7 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 		// (return empty code) so the parent's emit can compose
 		// around them — for serializer pairs, this matches the
 		// "skip the slot, let identity restore the original" semantic
-		// the JS-side createPrepareForJson fallback already uses for
+		// the JS-side value-level primitive fallback (getRTFunction's identity default) already uses for
 		// missing entries.
 		if !w.Emitter.Supports(rt) {
 			return RTCode{Code: "", Type: expectedCType}

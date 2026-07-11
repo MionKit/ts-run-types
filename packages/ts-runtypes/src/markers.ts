@@ -50,9 +50,10 @@ export type InjectRunTypeId<T> = string & {
  * `'pj'`/`'pjs'` (mutate/clone prepare), `'rj'` (restore), `'sj'` (direct
  * stringify), `'ukuw'` (strip wire pre-pass), `'cj'`/`'cjr'` (compact
  * encode/decode). A wrapper recovers those from the injected tuple with the
- * generic `getRTFunction(fns?.[i])` resolver instead of a factory, so a framework
- * that owns its own JSON envelope can pull a per-strategy `prepareForJson` /
- * `restoreFromJson` for `T` and apply it at the value level (no string hop).
+ * generic `getRTFunction<'pjs'>(fns?.[i])` resolver (keyed by the SAME fnKey)
+ * instead of a factory, so a framework that owns its own JSON envelope can pull a
+ * per-strategy `prepareForJson` / `restoreFromJson` for `T` and apply it at the
+ * value level (no string hop).
  *
  * MULTIPLE functions — `InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>`:
  * the site needs several compiled fns for the same `T` (a framework wrapper such

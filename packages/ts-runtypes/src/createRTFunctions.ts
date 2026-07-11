@@ -9,6 +9,9 @@ import {resolveEntryTupleFn} from './runtypes/entryTuple.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {DataOnly} from './runtypes/dataOnly.ts';
 import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
+// Type-only — the binary primitive fn shapes complete the getRTFunction key map.
+// createRTFBinary never imports back, so this is a one-way (erased) type edge.
+import type {ToBinaryFn, FromBinaryFn} from './createRTFBinary.ts';
 
 // =============================================================================
 // Type definitions
@@ -312,30 +315,18 @@ export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefi
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn);
 
-// createPrepareForJson / createRestoreFromJson expose the VALUE-level JSON
-// transform pair that the string-level createJsonEncoder / createJsonDecoder
-// build on. `prepare` maps a typed value to a JSON-safe value (bigint to string,
-// Date preserved, undeclared keys stripped, …); `restore` maps a JSON-safe value
-// back to the typed shape (BigInt(...), Date revival, …). A framework that parses
-// ONE JSON envelope per request and needs per-value transforms uses these
-// directly instead of round-tripping through a string. Root `undefined` / `void`
-// are handled inside the primitives (prepare passes the value; restore returns
-// `undefined` for any input), so neither throws — the string encoder's `[value]`
-// array envelope is a JSON-document concern the caller's own envelope replaces.
-// Requestable as `'pj'` / `'rj'` keys in an InjectTypeFnArgs marker too.
-export const createPrepareForJson = createRTFunction<PrepareForJsonFn>('createPrepareForJson', identityValueFn) as unknown as (<
-  T,
->(
-  schema: RunType<T>,
-  id?: InjectTypeFnArgs<T, 'pj'>
-) => PrepareForJsonFn) &
-  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'pj'>) => PrepareForJsonFn);
-
-export const createRestoreFromJson = createRTFunction<RestoreFromJsonFn>(
-  'createRestoreFromJson',
-  identityValueFn
-) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'rj'>) => RestoreFromJsonFn) &
-  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'rj'>) => RestoreFromJsonFn);
+// The VALUE-level JSON transforms — `prepareForJson` (maps a typed value to a
+// JSON-safe value: bigint to string, Date preserved, undeclared keys stripped, …)
+// and `restoreFromJson` (maps a JSON-safe value back to the typed shape:
+// BigInt(...), Date revival, …), plus their per-strategy siblings (`pjs`/`cj`/
+// `cjr`/`sj`/`ukuw`) — have NO dedicated `createX` factory. A framework that
+// parses ONE JSON envelope per request and needs per-value transforms names the
+// primitive it wants in an `InjectTypeFnArgs<T, '<key>'>` marker and recovers the
+// injected handle with `getRTFunction<'<key>'>(…)` (below). Root `undefined` /
+// `void` are handled inside the primitives (prepare passes the value; restore
+// returns `undefined` for any input), so neither throws — the string encoder's
+// `[value]` array envelope is a JSON-document concern the caller's own envelope
+// replaces.
 
 // createFormatTransform returns a `(value) => transformedValue` for `T`. Identity
 // fallback covers both noop-format types and the no-plugin case.
@@ -427,4 +418,71 @@ export function createJsonDecoder<T>(
     valOrSchema,
     id
   );
+}
+
+// =============================================================================
+// getRTFunction — recover ANY family's compiled fn from an injected marker tuple
+// =============================================================================
+
+/** Maps each `InjectTypeFnArgs` fnKey to the runtime function shape
+ *  `getRTFunction` returns for it. The JSON value-level primitives
+ *  (`pj`/`pjs`/`rj`/`sj`/`ukuw`/`cj`/`cjr`) are the primary users — they have no
+ *  `createX` factory — but every createX-backed family is keyed too, so a wrapper
+ *  resolves any of them by naming the SAME fnKey it put in the marker. Families
+ *  whose fn is generic in `T` (`val` / `jsonDecoder` / `fmt` / `fb`) resolve to
+ *  the base `T = unknown`; reach for the dedicated `createX<T>()` factory when you
+ *  need `T` preserved on the returned fn. **/
+export interface RTFunctionByKey {
+  // Validators.
+  val: ValidateFn;
+  verr: GetValidationErrorsFn;
+  // Unknown-keys group.
+  huk: HasUnknownKeysFn;
+  suk: StripUnknownKeysFn;
+  uke: UnknownKeyErrorsFn;
+  uku: UnknownKeysToUndefinedFn;
+  // Format transform.
+  fmt: FormatTransformFn<unknown>;
+  // JSON string I/O.
+  jsonEncoder: JsonEncoderFn;
+  jsonDecoder: JsonDecoderFn;
+  // Binary I/O primitives (serializer/deserializer-threaded).
+  tb: ToBinaryFn;
+  fb: FromBinaryFn;
+  // JSON value-level primitives — recovered ONLY through getRTFunction (no factory).
+  pj: PrepareForJsonFn; // mutate prepare
+  pjs: PrepareForJsonFn; // clone prepare
+  rj: RestoreFromJsonFn; // restore
+  sj: StringifyJsonFn; // direct (value -> JSON string)
+  ukuw: RestoreFromJsonFn; // strip decoder's unknown-keys-to-undefined wire pre-pass
+  cj: PrepareForJsonFn; // compact encode (positional wire)
+  cjr: RestoreFromJsonFn; // compact decode
+}
+
+/** Every fnKey nameable in an `InjectTypeFnArgs<T, Fn>` marker and recoverable
+ *  via `getRTFunction`. **/
+export type RTFunctionKey = keyof RTFunctionByKey;
+
+/** Recovers the compiled RT function for `T` from an injected `InjectTypeFnArgs`
+ *  tuple, keyed by the SAME fnKey the marker names — the generic,
+ *  family-agnostic counterpart of the `createX` factories. A framework wrapper
+ *  that declares its OWN `InjectTypeFnArgs<T, Fn>` marker parameter (e.g. mion's
+ *  `route()`) forwards the injected slot here to get the callable fn without a
+ *  dedicated factory per function. This is the only way to reach the JSON
+ *  value-level primitives that have no `createX` (`'pj'`/`'pjs'`/`'rj'`/`'sj'`/
+ *  `'ukuw'`/`'cj'`/`'cjr'`); it also resolves any createX-backed family the same
+ *  way. The type parameter is the fnKey (`getRTFunction<'pjs'>(fns?.[0])`), so the
+ *  return type comes straight from `RTFunctionByKey`.
+ *
+ *  Registers the tuple's dependency closure, then returns `entry.fn` by the
+ *  tuple's key (the fnHash already encodes the exact function). Degrade paths
+ *  mirror `resolveEntryTupleFn`: a missing-stub tuple / key miss on a registered
+ *  runtype returns `fallback` (default identity `(v) => v` — correct for every
+ *  value-shaped primitive; pass `JSON.stringify` for `'sj'`), and no tuple at all
+ *  (plugin inactive) throws with the actionable hint. It never applies the
+ *  circular-reference guard — that stays with the encoder/validator factories;
+ *  a framework owning its own envelope guards at the encoder level. **/
+export function getRTFunction<K extends RTFunctionKey>(injected: unknown, fallback?: RTFunctionByKey[K]): RTFunctionByKey[K] {
+  const identityFn = (fallback ?? ((value: unknown) => value)) as AnyFn;
+  return resolveEntryTupleFn('getRTFunction', identityFn, undefined, injected) as RTFunctionByKey[K];
 }
