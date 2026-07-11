@@ -71,6 +71,20 @@ func New(opts Options) (*Program, error) {
 		return nil, fmt.Errorf("tsconfig parse failed: %s", ast.Diagnostic_Localize(diagnostics[0], ast.DefaultLocale()))
 	}
 
+	// Project references are a build-orchestration concept (tsc --build); the
+	// resolver's job is scanning the SOURCES the bundler will execute, and
+	// bundlers (vite/esbuild/rollup) never honor reference redirects. Honoring
+	// them here redirected imports that land in a referenced project to that
+	// project's declaration OUTPUTS — which typically don't exist in a dev
+	// loop — silently resolving every marker to nothing and yielding a
+	// zero-site scan with no diagnostics (docs/done/
+	// project-references-unbuilt-outputs-silent-zero-sites.md, found by the
+	// mion migration). Dropping them keeps normal module resolution (paths,
+	// node_modules, custom conditions) pointed at real sources.
+	if parsedConfig.ParsedConfig != nil {
+		parsedConfig.ParsedConfig.ProjectReferences = nil
+	}
+
 	programOpts := compiler.ProgramOptions{
 		Config:         parsedConfig,
 		SingleThreaded: core.TSFalse,
