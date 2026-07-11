@@ -46,6 +46,14 @@ export type InjectRunTypeId<T> = string & {
  * SINGLE function (the common case) — `InjectTypeFnArgs<T, 'val'>`: the injected
  * value is the family's entry-module tuple, resolved by the one `createX`.
  *
+ * `Fn` also names the JSON value-level primitives that have NO dedicated factory —
+ * `'pj'`/`'pjs'` (mutate/clone prepare), `'rj'` (restore), `'sj'` (direct
+ * stringify), `'ukuw'` (strip wire pre-pass), `'cj'`/`'cjr'` (compact
+ * encode/decode). A wrapper recovers those from the injected tuple with the
+ * generic `getRTFunction(fns?.[i])` resolver instead of a factory, so a framework
+ * that owns its own JSON envelope can pull a per-strategy `prepareForJson` /
+ * `restoreFromJson` for `T` and apply it at the value level (no string hop).
+ *
  * MULTIPLE functions — `InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>`:
  * the site needs several compiled fns for the same `T` (a framework wrapper such
  * as mion's `route()` asks for the validator, JSON decoder and JSON encoder in
