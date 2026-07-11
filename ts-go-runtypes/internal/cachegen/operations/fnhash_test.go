@@ -96,8 +96,10 @@ func TestByFnKey(t *testing.T) {
 			t.Errorf("ByFnKey(%q).Name = %q, want %q", fnKey, op.Name, wantName)
 		}
 	}
+	// A marker names an operation by its FnKey (the tag "pj"), never by its
+	// canonical Name — so the Name must not resolve as an FnKey.
 	if _, ok := ByFnKey("prepareForJson"); ok {
-		t.Error("internal primitive prepareForJson must not be reachable by FnKey")
+		t.Error("operation name prepareForJson must not be reachable by FnKey (its FnKey is \"pj\")")
 	}
 }
 

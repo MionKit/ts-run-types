@@ -47,11 +47,15 @@ type Operation struct {
 	FamilyTag string
 	// Axis is the compile-time option axis refining this operation.
 	Axis Axis
-	// Public reports whether a createX factory can name this operation via the
-	// InjectTypeFnArgs<T, Fn> marker. Internal-only primitives are false.
+	// Public reports whether the operation is user-recoverable via the
+	// InjectTypeFnArgs<T, Fn> marker — either through a dedicated createX factory
+	// (validate / jsonEncoder / …) or the generic getRTFunction resolver (the
+	// JSON prepare/restore primitives). Only genuinely private plumbing stays
+	// false. Gates the overrideX path (a Public op may be overridden).
 	Public bool
 	// FnKey is the Fn token the InjectTypeFnArgs marker carries for a public
-	// operation (e.g. "val", "jsonEncoder"). Empty for internal primitives.
+	// operation (e.g. "val", "jsonEncoder", "pjs"). Empty only for operations no
+	// marker names.
 	FnKey string
 	// DefaultStrategy is the strategy applied when an AxisJsonStrategy call omits
 	// the options literal. Empty for non-JSON operations.
@@ -61,9 +65,10 @@ type Operation struct {
 	Strategies []string
 }
 
-// registry is the complete operation set: 11 public (one per createX factory)
-// plus 7 internal-only primitives the JSON composites and cross-family edges
-// reference. Order is not load-bearing (everything is keyed by Name / FnKey).
+// registry is the complete operation set: 11 createX-backed operations plus the
+// 7 JSON value-level primitives the composites and cross-family edges reference.
+// All are Public (marker-recoverable) — the primitives via getRTFunction rather
+// than a dedicated factory. Order is not load-bearing (keyed by Name / FnKey).
 var registry = []Operation{
 	// Public — validators (ValidateOptions axis).
 	{Name: "validate", FamilyTag: "val", Axis: AxisValidateOptions, Public: true, FnKey: "val"},
@@ -104,26 +109,31 @@ var registry = []Operation{
 		Strategies:      []string{"strip", "preserve", "compact"},
 	},
 
-	// Internal primitives — no PUBLIC createX factory, reachable as JSON
-	// composite dependencies (pj/pjs/rj/sj/ukuw) or cross-family edges. They
-	// carry an FnKey equal to their family tag so the TEST-ONLY deserialize twins
-	// (deserializePrepareForJson / deserializeRestoreFromJson / …) can route an
-	// InjectTypeFnArgs<T, '<tag>'> marker through the SAME fnHash path as the
-	// production factories — there is no runtime hashing, so a deserialize twin
-	// for an internal primitive must read the plugin-injected plain fnHash rather
-	// than reconstruct it. Public stays false (no user-facing factory names them).
-	{Name: "prepareForJson", FamilyTag: "pj", Axis: AxisNone, FnKey: "pj"},
-	{Name: "prepareForJsonSafe", FamilyTag: "pjs", Axis: AxisNone, FnKey: "pjs"},
-	{Name: "restoreFromJson", FamilyTag: "rj", Axis: AxisNone, FnKey: "rj"},
-	{Name: "stringifyJson", FamilyTag: "sj", Axis: AxisNone, FnKey: "sj"},
-	{Name: "unknownKeysToUndefinedWire", FamilyTag: "ukuw", Axis: AxisNone, FnKey: "ukuw"},
+	// JSON value-level primitives — the per-strategy prepareForJson / restoreFromJson
+	// building blocks the createJsonEncoder / createJsonDecoder composites wrap. They
+	// have no dedicated createX factory, but a framework wrapper (mion) recovers any
+	// of them by naming its FnKey in an InjectTypeFnArgs<T, '<tag>'> marker and
+	// resolving the injected tuple through the generic getRTFunction resolver — so
+	// they are Public (user-recoverable via the marker). Each FnKey equals its family
+	// tag; there is no runtime hashing, so the resolver reads the plugin-injected
+	// plain fnHash rather than reconstruct it (the same path the TEST-ONLY deserialize
+	// twins deserializePrepareForJson / deserializeRestoreFromJson / … exercise).
+	//   - pj (mutate prepare) / pjs (clone prepare): value → JSON-safe value.
+	//   - rj (preserve restore): JSON-safe value → typed value.
+	//   - sj (direct): single-pass value → JSON string (the `direct` encoder body).
+	//   - ukuw: the strip decoder's unknown-keys-to-undefined wire pre-pass.
+	{Name: "prepareForJson", FamilyTag: "pj", Axis: AxisNone, Public: true, FnKey: "pj"},
+	{Name: "prepareForJsonSafe", FamilyTag: "pjs", Axis: AxisNone, Public: true, FnKey: "pjs"},
+	{Name: "restoreFromJson", FamilyTag: "rj", Axis: AxisNone, Public: true, FnKey: "rj"},
+	{Name: "stringifyJson", FamilyTag: "sj", Axis: AxisNone, Public: true, FnKey: "sj"},
+	{Name: "unknownKeysToUndefinedWire", FamilyTag: "ukuw", Axis: AxisNone, Public: true, FnKey: "ukuw"},
 	// compactForJson / compactFromJson: the positional-tuple JSON round-trip pair
 	// the `compact` strategy composes. compactForJson builds a NEW value emitting
 	// declared object props as a positional array (no key names); compactFromJson
-	// rebuilds the keyed object from positions. Internal primitives (no public
-	// createX names them) — reached only as compact composite dependencies.
-	{Name: "compactForJson", FamilyTag: "cj", Axis: AxisNone, FnKey: "cj"},
-	{Name: "compactFromJson", FamilyTag: "cjr", Axis: AxisNone, FnKey: "cjr"},
+	// rebuilds the keyed object from positions. Recoverable via the marker like the
+	// other value-level primitives (and reached as compact composite dependencies).
+	{Name: "compactForJson", FamilyTag: "cj", Axis: AxisNone, Public: true, FnKey: "cj"},
+	{Name: "compactFromJson", FamilyTag: "cjr", Axis: AxisNone, Public: true, FnKey: "cjr"},
 }
 
 var (

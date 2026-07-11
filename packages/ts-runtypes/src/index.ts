@@ -96,11 +96,21 @@ export {registerFormatPattern, type FormatPattern, type StringPatternArgs} from 
 // without importing the internal module path.
 export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 
+// `getRTFunction` recovers the compiled fn for `T` from an injected
+// `InjectTypeFnArgs<T, Fn>` tuple — the generic resolver a framework wrapper
+// forwards its marker slot to. It reaches EVERY function, including the JSON
+// value-level primitives that have no dedicated factory (`'pj'` / `'pjs'` /
+// `'rj'` / `'sj'` / `'ukuw'` / `'cj'` / `'cjr'`), so a wrapper can request any
+// per-strategy prepare/restore via the marker and resolve it here.
+export {getRTFunction} from './runtypes/entryTuple.ts';
+
 // String JSON I/O is `createJsonEncoder` + `createJsonDecoder`; the VALUE-level
 // pair `createPrepareForJson` + `createRestoreFromJson` (what those build on) is
 // public for frameworks that own their own JSON envelope. The remaining
-// primitives (stringifyJson / prepareForJsonSafe / the compact + unknown-keys
-// wire helpers) stay internal.
+// value-level primitives (prepareForJsonSafe / stringifyJson / the compact +
+// unknown-keys wire helpers) have no dedicated factory but are recoverable via
+// `getRTFunction` + an `InjectTypeFnArgs` marker; their fn-type aliases are
+// exported below so a wrapper can type the recovered closures.
 export {
   // createValidate / createGetValidationErrors are overloaded: a value-first `RunType`
   // schema as the first arg (the value a `define` builder returns) is a distinct
@@ -135,6 +145,10 @@ export {
   type PrepareForJsonFn,
   createRestoreFromJson,
   type RestoreFromJsonFn,
+  // Shape of the `'sj'` (direct / stringifyJson) primitive — value → JSON string —
+  // recovered via getRTFunction; the other value-level primitives (pjs / cj / cjr /
+  // ukuw) share the PrepareForJsonFn / RestoreFromJsonFn `(value) => value` shape.
+  type StringifyJsonFn,
 } from './createRTFunctions.ts';
 
 // Binary I/O re-exported from a dedicated module so bundlers can drop the

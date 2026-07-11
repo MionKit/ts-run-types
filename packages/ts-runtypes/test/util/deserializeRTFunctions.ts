@@ -35,14 +35,13 @@ import {
   type StripUnknownKeysFn,
   type UnknownKeyErrorsFn,
   type UnknownKeysToUndefinedFn,
+  // The JSON value-level primitive fn shapes are public again (recoverable via
+  // getRTFunction), so the deserialize twins that exercise the per-primitive
+  // `entry.code` round-trip type against the published aliases.
+  type PrepareForJsonFn,
+  type RestoreFromJsonFn,
+  type StringifyJsonFn,
 } from '@ts-runtypes/core';
-// PrepareForJsonFn / RestoreFromJsonFn / StringifyJsonFn live in
-// createRTFunctions.ts but are no longer re-exported from index.ts
-// (the underlying primitives are internal to the createJsonEncoder /
-// createJsonDecoder pair). Test helpers still need them to type the
-// deserialize twins that exercise the per-primitive `entry.code`
-// round-trip.
-import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createRTFunctions.ts';
 import {getRTUtils, isRunTypeSchema, buildFactoryFromCode, entryCode} from '../../src/runtypes/rtUtils.ts';
 import {
   entryTupleKey,
