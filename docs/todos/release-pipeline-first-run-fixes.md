@@ -27,7 +27,22 @@ bugs, one per gate job. `build` (packs + validates the packages) and `smoke`
    `pnpm rtx bench` (the default verb).
 4. **verdaccio 413 (host-npx e2e)** — the per-platform `ts-runtypes-binary-*`
    tarballs exceed verdaccio's 10mb default, 413-ing the local publish on
-   mac/win. Set `max_body_size: 100mb` in `.github/verdaccio.yaml`.
+   mac/win. Set `max_body_size: 100mb` in `.github/verdaccio.yaml`. (Verified:
+   e2e darwin-arm64 passed in run #5.)
+7. **`publish-npm` setup-node fails on pnpm** — this job is deliberately
+   pnpm-free (runs `node scripts/rt.mjs`), but `actions/setup-node@v5` defaults
+   `package-manager-cache: true`, auto-detects the `packageManager` field
+   (pnpm), and fails (`Unable to locate executable file: pnpm`), skipping the
+   whole stage-publish. Set `package-manager-cache: false` on the step.
+
+## Remaining `publish-npm` risks (maintainer / npm-side, not yet exercised)
+
+- **OIDC Trusted Publishing** — `stage-publish` uses OIDC with no token; each
+  `@ts-runtypes/*` package (incl. the platform-binary packages) must have this
+  repo+workflow registered as a trusted publisher on npm, or the publish 401/403s.
+- **Tag push (`v0.9.1`)** — the tag step `git push origin v0.9.1` may 403 under
+  the tag-protection ruleset (a plain tag push already 403'd for the app token).
+  It runs AFTER stage-publish, so staging can succeed even if tagging fails.
 
 ## Deferred — needs a maintainer (local podman + GHCR)
 

@@ -66,6 +66,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 26
+          # This job is deliberately pnpm-free (it runs `node scripts/rt.mjs`, a
+          # zero-dep dispatcher). setup-node@v5 defaults package-manager-cache to
+          # true, auto-detects the `packageManager` field (pnpm), and fails with
+          # "Unable to locate executable file: pnpm" since pnpm isn't installed
+          # here. Disable it.
+          package-manager-cache: false
       # Staged publishing needs npm >= 11.15.0 (Trusted Publishing/OIDC needs
       # >= 11.5.1). Node 26's bundled npm may predate that — upgrade to be safe.
       - name: Ensure npm supports staged publishing (>= 11.15.0)
