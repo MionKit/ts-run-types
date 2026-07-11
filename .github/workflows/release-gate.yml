@@ -200,7 +200,7 @@ jobs:
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       - name: Run the benchmark (build + run, in the container)
-        run: pnpm rtx bench bench
+        run: pnpm rtx bench
       - name: Type-checking cost (TS type instantiations)
         run: pnpm rtx bench typecost
 
