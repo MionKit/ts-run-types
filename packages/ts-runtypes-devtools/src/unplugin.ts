@@ -379,12 +379,26 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // `registerPureFnFactory` is checked separately because the marker
       // package's OWN sources call it via relative imports (no package-name
       // string in the file).
-      if (!siteFiles.has(siteKey(rel))) {
+      const inSiteSet = siteFiles.has(siteKey(rel));
+      if (!inSiteSet) {
         const importsMarkerModule = code.includes(`'${MARKER_MODULE}`) || code.includes(`"${MARKER_MODULE}`);
         if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
       }
 
-      return transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(rel, {ctx: this, code});
+      try {
+        // `await` keeps the rejection inside this try — `return promise` would let it escape.
+        return await (transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(rel, {ctx: this, code}));
+      } catch (error) {
+        // A textual-fallback candidate can be a FALSE POSITIVE: a host-project file
+        // that merely contains one of the probed names (e.g. its own function named
+        // `registerPureFnFactory`) while living OUTSIDE the resolver's program — the
+        // resolver rejects it with "source file not in program". Such a file was never
+        // scanned, so it cannot carry injectable sites: skip it instead of failing the
+        // host build. Files in the SITE SET keep failing loud — there a program miss
+        // means real marker sites would silently lose their injection.
+        if (!inSiteSet && error instanceof Error && error.message.includes('source file not in program')) return null;
+        throw error;
+      }
     },
 
     vite: {
