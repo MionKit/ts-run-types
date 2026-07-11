@@ -35,14 +35,25 @@ bugs, one per gate job. `build` (packs + validates the packages) and `smoke`
    (pnpm), and fails (`Unable to locate executable file: pnpm`), skipping the
    whole stage-publish. Set `package-manager-cache: false` on the step.
 
-## Remaining `publish-npm` risks (maintainer / npm-side, not yet exercised)
+## CONFIRMED blocker — npm auth (maintainer / npm-side)
 
-- **OIDC Trusted Publishing** — `stage-publish` uses OIDC with no token; each
-  `@ts-runtypes/*` package (incl. the platform-binary packages) must have this
-  repo+workflow registered as a trusted publisher on npm, or the publish 401/403s.
-- **Tag push (`v0.9.1`)** — the tag step `git push origin v0.9.1` may 403 under
-  the tag-protection ruleset (a plain tag push already 403'd for the app token).
-  It runs AFTER stage-publish, so staging can succeed even if tagging fails.
+8. **`stage-publish` fails `ENEEDAUTH`** (run #6, commit `428d0b3b`) — the whole
+   gate now passes and `publish-npm` reaches the real publish, but
+   `npm stage publish ... --access public` errors with `code ENEEDAUTH / need
+   auth ... You need to authorize this machine using npm login`. OIDC Trusted
+   Publishing is not authenticating. Resolve one of:
+   - **First publish?** If the `@ts-runtypes/*` + `@ts-runtypes/binary-*`
+     packages aren't on npm yet, run the token-based bootstrap first:
+     `pnpm rtx release manual-publish` (see SETUP.md → Publishing; `npm login`,
+     publishes all 10 LIVE). OIDC staging works on later releases.
+   - **Already published?** Configure **Trusted Publishing** on npmjs.com for
+     every `@ts-runtypes/*` and `@ts-runtypes/binary-*` package — register
+     `MionKit/ts-run-types` + `.github/workflows/publish.yml` as the trusted
+     publisher — then re-run the publish (re-push prod or rerun the workflow).
+
+- **Tag push (`v0.9.1`)** — not yet reached (it runs after stage-publish). May
+  403 under the tag-protection ruleset (a plain tag push already 403'd for the
+  app token); it's after staging, so staging can succeed even if tagging fails.
 
 ## Deferred — needs a maintainer (local podman + GHCR)
 
