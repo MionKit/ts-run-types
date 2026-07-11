@@ -177,6 +177,7 @@ Wraps the [`oxc-project/tsgolint`](https://github.com/oxc-project/tsgolint) shim
 
 - layers an optional overlay VFS on top of `osvfs` + `cachedvfs` + `bundled`
 - parses the supplied tsconfig via `tsoptions.GetParsedCommandLineOfConfigFile`
+- **drops tsconfig project `references`** before building the program — they are a `tsc --build` orchestration concept the bundler never honors; keeping them redirected imports landing in a referenced project to its declaration OUTPUTS (usually unbuilt in a dev loop), silently blanking the marker scan (see [docs/done/project-references-unbuilt-outputs-silent-zero-sites.md](./done/project-references-unbuilt-outputs-silent-zero-sites.md))
 - builds a `compiler.Program` and calls `BindSourceFiles()`
 
 `NewInferred` is a second constructor that skips tsconfig for one-shot queries on loose files.
