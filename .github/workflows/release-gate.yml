@@ -217,6 +217,14 @@ jobs:
       - uses: actions/checkout@v5
       # Reclaim preinstalled cruft before the image pull.
       - uses: ./.github/actions/free-disk
+      # `pnpm rtx website container-build` runs on the HOST to drive the podman
+      # build, so the host needs pnpm + node (the image itself carries the
+      # toolchain). Without this the step dies with `pnpm: command not found`.
+      # Mirrors the e2e job's setup.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
       - name: podman version
         run: podman --version
       - name: Pull the prebuilt shared image (CI never builds it)
