@@ -13,4 +13,11 @@ permissions:
 
 jobs:
   gate:
+    # A called workflow can never exceed the calling job's permissions, and the
+    # reusable gate's e2e / benchmarks / website-build jobs request
+    # `packages: read` (to pull the prebuilt GHCR image). Grant it here or the
+    # run fails at startup. Kept in sync with publish.yml's gate job.
+    permissions:
+      contents: read
+      packages: read
     uses: ./.github/workflows/release-gate.yml

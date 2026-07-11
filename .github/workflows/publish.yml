@@ -31,6 +31,15 @@ concurrency:
 
 jobs:
   gate:
+    # The reusable release gate's e2e / benchmarks / website-build jobs each
+    # request `packages: read` (to pull the prebuilt GHCR image). A called
+    # workflow can never exceed the CALLING job's permissions, and this
+    # workflow's default is `contents: read` (packages: none) — so without an
+    # explicit grant here the whole run fails at startup ("nested job 'e2e' is
+    # requesting 'packages: read', but is only allowed 'packages: none'").
+    permissions:
+      contents: read
+      packages: read
     uses: ./.github/workflows/release-gate.yml
 
   publish-npm:
