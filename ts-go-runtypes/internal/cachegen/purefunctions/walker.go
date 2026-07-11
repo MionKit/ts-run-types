@@ -246,25 +246,49 @@ func findCalls(sourceFile *ast.SourceFile, cb func(*ast.Node)) {
 // verifies the call's signature really matches `(CompTimeArgs<string>,
 // PureFunction<F> | null)`. A user's own
 // `function registerPureFnFactory()` declared elsewhere is rejected by
-// the brand check even if it passes the name filter; the real
-// `registerPureFnFactory` imported under an alias is missed, but the
-// inner call inside any typed wrapper still gets found, and the cache
-// entry that comes out is the same.
+// the brand check even if it passes the name filter. Calls under a
+// DIFFERENT callee name — a renamed import (`import {… as regPF}`) or a
+// framework wrapper whose params carry the same brands (mion's
+// `registerPureFnFactory('mionjs::x', …)` convention behind its own
+// factory) — reach the brand check through the secondary pre-filter:
+// a first argument that is a string literal shaped like a
+// "<ns>::<name>" pure-fn id (`firstArgIsPureFnIdLiteral`). Only a call
+// that matches NEITHER cheap filter (renamed callee AND a traced-const
+// id) is missed by extraction.
 //
 // Compile-time validation (CTA001 / PFN001 on bad args) is a separate
 // concern handled by `resolver.scanCall`, which walks every call
 // regardless of name and emits diagnostics from the brand alone. So
-// the name filter here only short-circuits the EXTRACTION pass — the
+// the pre-filters here only short-circuit the EXTRACTION pass — the
 // user-facing type-checking guarantees come from the brands either
 // way.
 const pureFnFactoryCalleeName = "registerPureFnFactory"
+
+// firstArgIsPureFnIdLiteral is the secondary extraction pre-filter: the
+// call's first argument is a string literal containing "::" — the
+// `<namespace>::<functionName>` pure-fn id shape. This lets renamed
+// imports and branded wrapper factories reach the (authoritative) brand
+// check without paying signature resolution on every unrelated call;
+// false positives are rejected there.
+func firstArgIsPureFnIdLiteral(callExpr *ast.CallExpression) bool {
+	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) == 0 {
+		return false
+	}
+	firstArg := callExpr.Arguments.Nodes[0]
+	if firstArg.Kind != ast.KindStringLiteral && firstArg.Kind != ast.KindNoSubstitutionTemplateLiteral {
+		return false
+	}
+	return strings.Contains(firstArg.Text(), "::")
+}
 
 // isPureFnFactoryCall reports whether call is a purefn-factory
 // registration that should be extracted. Two-layer check:
 //
 //  1. Cheap: the callee is an identifier whose text equals the
-//     well-known `registerPureFnFactory` name. Avoids signature
-//     resolution on unrelated calls.
+//     well-known `registerPureFnFactory` name, OR the first argument is
+//     a "<ns>::<name>"-shaped string literal (renamed imports and
+//     branded wrapper factories). Avoids signature resolution on
+//     unrelated calls.
 //  2. Brand verify: the resolved signature has ≥2 parameters where
 //     slot 0 carries `CompTimeArgs<string>` and slot 1 carries
 //     `PureFunction<F>`. Module-of-origin is implicit in the brand
@@ -278,7 +302,10 @@ func isPureFnFactoryCall(typeChecker *checker.Checker, markerOpts marker.Options
 		return false
 	}
 	callee := callExpr.Expression
-	if callee.Kind != ast.KindIdentifier || callee.Text() != pureFnFactoryCalleeName {
+	if callee.Kind != ast.KindIdentifier {
+		return false
+	}
+	if callee.Text() != pureFnFactoryCalleeName && !firstArgIsPureFnIdLiteral(callExpr) {
 		return false
 	}
 	signature := checker.Checker_getResolvedSignature(typeChecker, call, nil, 0)

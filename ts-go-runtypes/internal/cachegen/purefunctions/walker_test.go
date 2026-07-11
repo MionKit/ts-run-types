@@ -321,3 +321,54 @@ func hasCode(diags []Diagnostic, code string) bool {
 	}
 	return false
 }
+
+func TestExtract_RenamedImport(t *testing.T) {
+	entries, diags := extractFromOverlay(t, map[string]string{
+		"a.ts": `
+import {registerPureFnFactory as regPF} from '@ts-runtypes/core';
+export const cpf = regPF('mionjs::doubled', () => (n: number) => n * 2);`,
+	})
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("renamed import must still extract: expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Namespace != "mionjs" || entries[0].FunctionName != "doubled" {
+		t.Errorf("unexpected key: ns=%q fn=%q", entries[0].Namespace, entries[0].FunctionName)
+	}
+	if len(entries[0].BodyHash) != bodyHashLength {
+		t.Errorf("bodyHash should be %d chars, got %q", bodyHashLength, entries[0].BodyHash)
+	}
+}
+
+func TestExtract_BrandedWrapperCallSite(t *testing.T) {
+	// A framework factory (mion's shape) whose params carry the SAME brands as
+	// registerPureFnFactory: extraction happens at the WRAPPER's call site — the
+	// id literal + inline factory are right there — while the wrapper's inner
+	// forward (non-literal args) stays a silent pass-through.
+	entries, diags := extractFromOverlay(t, map[string]string{
+		"wrapper.ts": `
+import {registerPureFnFactory} from '@ts-runtypes/core';
+import type {CompTimeArgs, PureFunction, PureFnId} from '@ts-runtypes/core';
+type Factory = (utl: unknown) => (...args: any[]) => any;
+export function mionPureFn<F extends Factory>(pureFnId: CompTimeArgs<PureFnId>, createPureFn: PureFunction<F> | null) {
+  return registerPureFnFactory(pureFnId, createPureFn as never);
+}`,
+		"consumer.ts": `
+import {mionPureFn} from './wrapper';
+export const cpf = mionPureFn('mionjs::tripled', () => (n: number) => n * 3);`,
+	})
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("branded wrapper call site must extract: expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Namespace != "mionjs" || entries[0].FunctionName != "tripled" {
+		t.Errorf("unexpected key: ns=%q fn=%q", entries[0].Namespace, entries[0].FunctionName)
+	}
+	if len(entries[0].BodyHash) != bodyHashLength {
+		t.Errorf("bodyHash should be %d chars, got %q", bodyHashLength, entries[0].BodyHash)
+	}
+}
