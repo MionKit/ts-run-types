@@ -35,25 +35,23 @@ bugs, one per gate job. `build` (packs + validates the packages) and `smoke`
    (pnpm), and fails (`Unable to locate executable file: pnpm`), skipping the
    whole stage-publish. Set `package-manager-cache: false` on the step.
 
-## CONFIRMED blocker — npm auth (maintainer / npm-side)
+## RESOLVED — CI reverted to NPM_TOKEN auth
 
-8. **`stage-publish` fails `ENEEDAUTH`** (run #6, commit `428d0b3b`) — the whole
-   gate now passes and `publish-npm` reaches the real publish, but
-   `npm stage publish ... --access public` errors with `code ENEEDAUTH / need
-   auth ... You need to authorize this machine using npm login`. OIDC Trusted
-   Publishing is not authenticating. Resolve one of:
-   - **First publish?** If the `@ts-runtypes/*` + `@ts-runtypes/binary-*`
-     packages aren't on npm yet, run the token-based bootstrap first:
-     `pnpm rtx release manual-publish` (see SETUP.md → Publishing; `npm login`,
-     publishes all 10 LIVE). OIDC staging works on later releases.
-   - **Already published?** Configure **Trusted Publishing** on npmjs.com for
-     every `@ts-runtypes/*` and `@ts-runtypes/binary-*` package — register
-     `MionKit/ts-run-types` + `.github/workflows/publish.yml` as the trusted
-     publisher — then re-run the publish (re-push prod or rerun the workflow).
+8. **`stage-publish` failed `ENEEDAUTH`** (run #6, commit `428d0b3b`) — the gate
+   passes and `publish-npm` reached the real publish, but `npm stage publish`
+   errored `ENEEDAUTH` (`You need to authorize this machine using npm login`).
+   Cause: the OIDC switch (commit `ecebc3cf`) was unintended and Trusted
+   Publishing was never configured on npm. Per maintainer, **reverted CI to token
+   auth**: the `publish-npm` job writes `secrets.NPM_TOKEN` to `~/.npmrc` before
+   `npm stage publish` (`.github/workflows/publish.yml`). `NPM_TOKEN` must be an
+   **automation/granular** token (2FA-bypassing) so the unattended stage works;
+   0.9.0's packages already exist, so this only stages 0.9.1 for later approval.
+   Env registry (`scripts/lib/env.mjs`) + `publish-tarballs.mjs` comments updated
+   to match.
 
-- **Tag push (`v0.9.1`)** — not yet reached (it runs after stage-publish). May
-  403 under the tag-protection ruleset (a plain tag push already 403'd for the
-  app token); it's after staging, so staging can succeed even if tagging fails.
+- **Tag push (`v0.9.1`)** — not yet reached (runs after stage-publish). May 403
+  under the tag-protection ruleset (a plain tag push already 403'd for the app
+  token); it's after staging, so staging can succeed even if tagging fails.
 
 ## Deferred — needs a maintainer (local podman + GHCR)
 

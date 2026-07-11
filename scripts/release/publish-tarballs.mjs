@@ -9,9 +9,9 @@
 //     Staged publishing uploads to a stage queue and needs NO 2FA, so CI can stage
 //     unattended; a maintainer then promotes each staged version to live with a
 //     real 2FA challenge (`pnpm rtx release stage-approve`, or the npmjs.com queue).
-//     Auth is npm Trusted Publishing (OIDC) — the publish-npm job grants
-//     id-token:write, so there is NO NPM_TOKEN and provenance is attached
-//     automatically. See SETUP.md → Publishing.
+//     Auth is the NPM_TOKEN secret — the publish-npm job writes it to ~/.npmrc; it
+//     must be an automation/granular token so the unattended stage isn't
+//     2FA-blocked. See SETUP.md → Publishing.
 //   • --registry <url> (local verdaccio e2e): a plain `npm publish` into the
 //     throwaway registry — never staged (staging is a registry.npmjs.org feature).
 //     The caller sets that registry's auth; this script does not touch it.

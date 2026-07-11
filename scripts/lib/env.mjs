@@ -46,7 +46,7 @@ export function loadEnv() {
 export const REGISTRY = [
   // — secrets (credentials: .env locally, GitHub secrets in CI) —
   {name: 'GHCR_PAT', scope: 'secret', task: 'push-image', desc: 'GitHub PAT (write:packages) to push the shared image; set in .env'},
-  {name: 'NPM_TOKEN', scope: 'secret', task: 'publish-npm', desc: 'npm token for the LOCAL interactive publish (scripts/release/publish.mjs); set in .env. CI stage-publishes via Trusted Publishing/OIDC — no token'},
+  {name: 'NPM_TOKEN', scope: 'secret', task: 'publish-npm', desc: 'npm automation/granular token, used both by the LOCAL interactive publish (scripts/release/publish.mjs, via .env) AND the CI stage-publish (publish.yml, via the GitHub secret written to ~/.npmrc)'},
   {name: 'CLOUDFLARE_API_TOKEN', scope: 'secret', task: 'deploy-website', desc: 'Cloudflare Pages: Edit token; .env for a local deploy, a GitHub secret in CI'},
   {name: 'CLOUDFLARE_ACCOUNT_ID', scope: 'secret', task: 'deploy-website', desc: 'Cloudflare account id; .env for a local deploy, a GitHub secret in CI'},
 

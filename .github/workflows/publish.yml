@@ -2,11 +2,12 @@ name: prod · publish
 
 # Fires when a release PR lands on prod. Runs the IDENTICAL release gate (build +
 # 7-platform e2e + benchmarks + website build), then - only if all of it passes -
-# STAGES every package to npm via Trusted Publishing (OIDC, no NPM_TOKEN) and tags
-# the release. Staging uploads to npm's stage queue WITHOUT 2FA, so CI never holds
-# a 2FA-capable credential; a maintainer then promotes each package to live with a
-# real 2FA challenge, leaves-first (`pnpm rtx release stage-approve`). Only after
-# that approval are the packages live.
+# STAGES every package to npm (auth via the NPM_TOKEN secret) and tags the
+# release. Staging uploads to npm's stage queue WITHOUT 2FA; a maintainer then
+# promotes each package to live with a real 2FA challenge, leaves-first
+# (`pnpm rtx release stage-approve`). Only after that approval are the packages
+# live. NPM_TOKEN must be an automation/granular token so the unattended stage
+# publish isn't 2FA-blocked.
 #
 # The docs-site deploy is a SEPARATE, manually-triggered workflow
 # (website-deploy.yml): run it AFTER the stage-ids are approved. Under staging
@@ -51,7 +52,7 @@ jobs:
     environment: release
     permissions:
       contents: write # push the release tag
-      id-token: write # npm Trusted Publishing (OIDC) + automatic provenance
+      id-token: write # npm provenance attestation (only when RT_NPM_PROVENANCE=1)
     env:
       VERSION: ${{ needs.gate.outputs.version }}
       # Provenance needs a PUBLIC source repo (npm refuses it from a private one), so
@@ -92,17 +93,27 @@ jobs:
             echo "@ts-runtypes/core@${VERSION} is already on npm. Bump version.json on the release PR." >&2
             exit 1
           fi
-      # Trusted Publishing (OIDC), so NO NPM_TOKEN. `npm stage publish` uploads
-      # every package to npm's stage queue (no 2FA); a maintainer then approves
-      # each with a live 2FA challenge, leaves-first (`pnpm rtx release
-      # stage-approve`). Provenance rides RT_NPM_PROVENANCE (off by default — the
-      # repo is private; flip the repo variable to 1 once it's public).
+      # Auth is the NPM_TOKEN secret (see scripts/lib/env.mjs), written to
+      # ~/.npmrc below. `npm stage publish` uploads every package to npm's stage
+      # queue (no 2FA); a maintainer then approves each with a live 2FA challenge,
+      # leaves-first (`pnpm rtx release stage-approve`). NPM_TOKEN must be an
+      # automation/granular token so the unattended stage isn't 2FA-blocked.
+      # Provenance rides RT_NPM_PROVENANCE (off by default — repo is private).
       #
       # Routed through the rtx front door (== `pnpm rtx release tarballs`). rtx is
       # zero-dep (node: built-ins only), so `node scripts/rt.mjs` runs in this
       # deliberately pnpm-free publish job; `pnpm rtx` would need pnpm on PATH.
       - name: Stage-publish to npm (platform packages first, launcher, then FE)
-        run: node scripts/rt.mjs release tarballs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN secret is empty/unset — cannot authenticate to npm." >&2
+            exit 1
+          fi
+          # npm merges $HOME/.npmrc (this authToken) with the repo .npmrc registry.
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> "$HOME/.npmrc"
+          node scripts/rt.mjs release tarballs
       - name: Tag the release (idempotent)
         shell: bash
         run: |
