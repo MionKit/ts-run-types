@@ -96,22 +96,18 @@ export {registerFormatPattern, type FormatPattern, type StringPatternArgs} from 
 // without importing the internal module path.
 export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 
-// `getRTFunction` recovers the compiled fn for `T` from an injected
-// `InjectTypeFnArgs<T, Fn>` tuple — the generic resolver a framework wrapper
-// forwards its marker slot to. It reaches EVERY function, including the JSON
-// value-level primitives that have no dedicated factory (`'pj'` / `'pjs'` /
-// `'rj'` / `'sj'` / `'ukuw'` / `'cj'` / `'cjr'`), so a wrapper can request any
-// per-strategy prepare/restore via the marker and resolve it here.
-export {getRTFunction} from './runtypes/entryTuple.ts';
-
-// String JSON I/O is `createJsonEncoder` + `createJsonDecoder`; the VALUE-level
-// pair `createPrepareForJson` + `createRestoreFromJson` (what those build on) is
-// public for frameworks that own their own JSON envelope. The remaining
-// value-level primitives (prepareForJsonSafe / stringifyJson / the compact +
-// unknown-keys wire helpers) have no dedicated factory but are recoverable via
-// `getRTFunction` + an `InjectTypeFnArgs` marker; their fn-type aliases are
-// exported below so a wrapper can type the recovered closures.
+// String JSON I/O is `createJsonEncoder` + `createJsonDecoder`. The VALUE-level
+// transforms they build on — the per-strategy prepareForJson / restoreFromJson
+// primitives (`pj`/`pjs`/`rj`/`sj`/`ukuw`/`cj`/`cjr`) — have NO factory: a
+// framework that owns its own JSON envelope names the primitive in an
+// `InjectTypeFnArgs` marker and recovers the injected slot with `getRTFunction`,
+// keyed by the SAME fnKey (`getRTFunction<'pjs'>(fns?.[0])`). Its `RTFunctionByKey`
+// map + the fn-type aliases are exported so the return type is inferred from the
+// key.
 export {
+  getRTFunction,
+  type RTFunctionByKey,
+  type RTFunctionKey,
   // createValidate / createGetValidationErrors are overloaded: a value-first `RunType`
   // schema as the first arg (the value a `define` builder returns) is a distinct
   // overload from the type/value reflection form — both reflect `T`.
@@ -141,13 +137,14 @@ export {
   createJsonDecoder,
   type JsonDecoderFn,
   type JsonDecoderOptions,
-  createPrepareForJson,
+  // The value-level JSON primitives have NO factory — they are recovered via
+  // `getRTFunction<'pj'>(…)` / `getRTFunction<'rj'>(…)` / … . Their fn-type
+  // aliases stay public so callers can name the shapes: `pj`/`pjs`/`cj` return
+  // PrepareForJsonFn, `rj`/`cjr`/`ukuw` return RestoreFromJsonFn, `sj` returns
+  // StringifyJsonFn (value → JSON string). `RTFunctionByKey` maps each fnKey to
+  // its shape, so `getRTFunction<'pjs'>()`'s return type is inferred.
   type PrepareForJsonFn,
-  createRestoreFromJson,
   type RestoreFromJsonFn,
-  // Shape of the `'sj'` (direct / stringifyJson) primitive — value → JSON string —
-  // recovered via getRTFunction; the other value-level primitives (pjs / cj / cjr /
-  // ukuw) share the PrepareForJsonFn / RestoreFromJsonFn `(value) => value` shape.
   type StringifyJsonFn,
 } from './createRTFunctions.ts';
 

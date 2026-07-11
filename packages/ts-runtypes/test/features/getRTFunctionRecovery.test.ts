@@ -15,36 +15,33 @@
 // TestAtomic_FormEquivalence hash check).
 
 import {describe, test, expect} from 'vitest';
-import {
-  getRTFunction,
-  type InjectTypeFnArgs,
-  type PrepareForJsonFn,
-  type RestoreFromJsonFn,
-  type StringifyJsonFn,
-} from '@ts-runtypes/core';
+import {getRTFunction, type InjectTypeFnArgs} from '@ts-runtypes/core';
 
 // Test-only wrappers: declare the primitive's fnKey in a trailing
-// InjectTypeFnArgs marker and resolve the injected tuple through getRTFunction —
-// exactly the wrapper shape a framework declares. `_val` exists only so the
-// reflection call shape `recoverX(value)` can infer `T` from the value; it is
-// never read at runtime.
-function recoverClonePrepare<T>(_val?: T, id?: InjectTypeFnArgs<T, 'pjs'>): PrepareForJsonFn {
-  return getRTFunction<PrepareForJsonFn>(id);
+// InjectTypeFnArgs marker and resolve the injected tuple through getRTFunction,
+// keyed by the SAME fnKey — exactly the wrapper shape a framework declares.
+// `_val` exists only so the reflection call shape `recoverX(value)` can infer
+// `T` from the value; it is never read at runtime.
+function recoverClonePrepare<T>(_val?: T, id?: InjectTypeFnArgs<T, 'pjs'>) {
+  return getRTFunction<'pjs'>(id);
 }
-function recoverRestore<T>(_val?: T, id?: InjectTypeFnArgs<T, 'rj'>): RestoreFromJsonFn {
-  return getRTFunction<RestoreFromJsonFn>(id);
+function recoverMutatePrepare<T>(_val?: T, id?: InjectTypeFnArgs<T, 'pj'>) {
+  return getRTFunction<'pj'>(id);
 }
-function recoverCompactEncode<T>(_val?: T, id?: InjectTypeFnArgs<T, 'cj'>): PrepareForJsonFn {
-  return getRTFunction<PrepareForJsonFn>(id);
+function recoverRestore<T>(_val?: T, id?: InjectTypeFnArgs<T, 'rj'>) {
+  return getRTFunction<'rj'>(id);
 }
-function recoverCompactDecode<T>(_val?: T, id?: InjectTypeFnArgs<T, 'cjr'>): RestoreFromJsonFn {
-  return getRTFunction<RestoreFromJsonFn>(id);
+function recoverCompactEncode<T>(_val?: T, id?: InjectTypeFnArgs<T, 'cj'>) {
+  return getRTFunction<'cj'>(id);
 }
-function recoverDirectStringify<T>(_val?: T, id?: InjectTypeFnArgs<T, 'sj'>): StringifyJsonFn {
-  return getRTFunction<StringifyJsonFn>(id);
+function recoverCompactDecode<T>(_val?: T, id?: InjectTypeFnArgs<T, 'cjr'>) {
+  return getRTFunction<'cjr'>(id);
 }
-function recoverStripWire<T>(_val?: T, id?: InjectTypeFnArgs<T, 'ukuw'>): (value: unknown) => unknown {
-  return getRTFunction<(value: unknown) => unknown>(id);
+function recoverDirectStringify<T>(_val?: T, id?: InjectTypeFnArgs<T, 'sj'>) {
+  return getRTFunction<'sj'>(id);
+}
+function recoverStripWire<T>(_val?: T, id?: InjectTypeFnArgs<T, 'ukuw'>) {
+  return getRTFunction<'ukuw'>(id);
 }
 
 type Payload = {id: bigint; when: Date; name: string};
@@ -95,6 +92,35 @@ describe('getRTFunction — recover JSON value-level primitives via an InjectTyp
     const safe = prepare(value) as Record<string, unknown>;
     expect('extra' in safe).toBe(false);
     expect(safe.name).toBe('x');
+  });
+
+  test('mutate prepare (pj) round-trips with restore and preserves undeclared keys', () => {
+    const prepare = recoverMutatePrepare<Payload>();
+    const restore = recoverRestore<Payload>();
+
+    const value = {id: 4n, when: new Date('2028-08-08T08:08:08.000Z'), name: 'ivy', extra: 'kept'} as Payload & {
+      extra: string;
+    };
+    const prepared = prepare(value) as Record<string, unknown>;
+    // mutate preserves undeclared keys on the wire (unlike the clone prepare).
+    expect(prepared.extra).toBe('kept');
+    const restored = restore(JSON.parse(JSON.stringify(prepared))) as Payload;
+    expect(restored.id).toBe(4n);
+    expect(restored.when.getTime()).toBe(value.when.getTime());
+    expect(restored.name).toBe('ivy');
+  });
+
+  test('a root undefined / void is safe — prepare passes through, restore returns undefined', () => {
+    const prepareVoid = recoverClonePrepare<undefined>();
+    const restoreVoid = recoverRestore<undefined>();
+
+    // The value-level primitives never throw on a root undefined; the caller owns
+    // the envelope, so undefined inside their own array stringifies to null and
+    // restore maps any input back to undefined.
+    expect(prepareVoid(undefined)).toBeUndefined();
+    const wire = JSON.stringify([prepareVoid(undefined)]);
+    expect(wire).toBe('[null]');
+    expect(restoreVoid((JSON.parse(wire) as unknown[])[0])).toBeUndefined();
   });
 
   test('compact encode (cj) + decode (cjr) round-trip the positional wire, static form', () => {

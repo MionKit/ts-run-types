@@ -772,28 +772,6 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   );
 }
 
-/** Recovers the compiled RT function for `T` from an injected `InjectTypeFnArgs`
- *  tuple — the generic, family-agnostic counterpart of the `createX` factories.
- *  A framework wrapper that declares its OWN `InjectTypeFnArgs<T, Fn>` marker
- *  parameter (e.g. mion's `route()`) forwards the injected value here to get the
- *  callable fn without a dedicated factory per function. This is how the JSON
- *  value-level primitives that have no `createX` — `'pj'` / `'pjs'` / `'rj'` /
- *  `'sj'` / `'ukuw'` / `'cj'` / `'cjr'` — are recovered; it also resolves any
- *  createX-backed family (`'val'`, `'jsonEncoder'`, …) the same way.
- *
- *  Registers the tuple's dependency closure, then returns `entry.fn` looked up by
- *  the tuple's key (the fnHash already encodes the exact function). Degrade paths
- *  mirror `resolveEntryTupleFn`: a missing-stub tuple / key miss on a registered
- *  runtype returns `fallback` (default identity `(v) => v` — correct for every
- *  value-shaped primitive; pass `JSON.stringify` for `'sj'`), and no tuple at all
- *  (plugin inactive) throws with the actionable hint. It never applies the
- *  circular-reference guard — that stays with the encoder/validator factories;
- *  a framework owning its own envelope guards at the encoder level. **/
-export function getRTFunction<F extends AnyFn>(injected: unknown, fallback?: F): F {
-  const identityFallback = (fallback ?? ((value: unknown) => value)) as F;
-  return resolveEntryTupleFn('getRTFunction', identityFallback, undefined, injected);
-}
-
 // =============================================================================
 // Circular-reference guard
 // =============================================================================

@@ -1,16 +1,18 @@
-import {getRTFunction, type InjectTypeFnArgs, type PrepareForJsonFn, type RestoreFromJsonFn} from '@ts-runtypes/core';
+import {getRTFunction, type InjectTypeFnArgs} from '@ts-runtypes/core';
 
 // Some functions the generated code is built from, like the per-strategy
 // prepareForJson and restoreFromJson, have no createX factory of their own. You
 // still reach them from a marker: name the primitive and recover the injected
 // handle with getRTFunction, which turns it into the callable function for T.
+// You pass the same key you named in the marker, so getRTFunction knows the
+// function's type.
 //
 // 'pjs' is the clone prepare (a fresh JSON-safe value with undeclared keys
 // dropped) and 'rj' is the matching restore. A framework that owns its own JSON
 // envelope uses this pair to transform values without a string round-trip.
 function jsonValueCodec<T>(fns?: InjectTypeFnArgs<T, 'pjs', 'rj'>) {
-  const prepare = getRTFunction<PrepareForJsonFn>(fns?.[0]);
-  const restore = getRTFunction<RestoreFromJsonFn>(fns?.[1]);
+  const prepare = getRTFunction<'pjs'>(fns?.[0]);
+  const restore = getRTFunction<'rj'>(fns?.[1]);
   return {prepare, restore};
 }
 
