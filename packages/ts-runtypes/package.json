@@ -10,23 +10,47 @@
   "exports": {
     ".": {
       "source": "./src/index.ts",
-      "import": {"types": "./dist/index.d.ts", "default": "./dist/index.js"},
-      "require": {"types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js"}
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     },
     "./formats": {
       "source": "./src/formats/index.ts",
-      "import": {"types": "./dist/formats/index.d.ts", "default": "./dist/formats/index.js"},
-      "require": {"types": "./dist/cjs/formats/index.d.ts", "default": "./dist/cjs/formats/index.js"}
+      "import": {
+        "types": "./dist/formats/index.d.ts",
+        "default": "./dist/formats/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/formats/index.d.ts",
+        "default": "./dist/cjs/formats/index.js"
+      }
     },
     "./formats/temporal": {
       "source": "./src/formats/datetime/temporalFormats.ts",
-      "import": {"types": "./dist/formats/datetime/temporalFormats.d.ts", "default": "./dist/formats/datetime/temporalFormats.js"},
-      "require": {"types": "./dist/cjs/formats/datetime/temporalFormats.d.ts", "default": "./dist/cjs/formats/datetime/temporalFormats.js"}
+      "import": {
+        "types": "./dist/formats/datetime/temporalFormats.d.ts",
+        "default": "./dist/formats/datetime/temporalFormats.js"
+      },
+      "require": {
+        "types": "./dist/cjs/formats/datetime/temporalFormats.d.ts",
+        "default": "./dist/cjs/formats/datetime/temporalFormats.js"
+      }
     },
     "./schema": {
       "source": "./src/schema/index.ts",
-      "import": {"types": "./dist/schema/index.d.ts", "default": "./dist/schema/index.js"},
-      "require": {"types": "./dist/cjs/schema/index.d.ts", "default": "./dist/cjs/schema/index.js"}
+      "import": {
+        "types": "./dist/schema/index.d.ts",
+        "default": "./dist/schema/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/schema/index.d.ts",
+        "default": "./dist/cjs/schema/index.js"
+      }
     }
   },
   "bin": {
@@ -34,6 +58,9 @@
   },
   "files": [
     "dist",
+    "src",
+    "!src/**/*.spec.ts",
+    "!src/**/*.test.ts",
     "bin",
     "skills",
     "README.md"

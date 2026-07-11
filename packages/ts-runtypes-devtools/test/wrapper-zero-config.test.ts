@@ -151,4 +151,27 @@ describe('zero-config wrapper-framework transform gating', () => {
       }
     }
   });
+
+  // A host project can declare its OWN function named `registerPureFnFactory`
+  // (mion's @mionjs/core does — the real-world case that surfaced this). Such a
+  // file textually matches the fallback probe while living OUTSIDE the
+  // resolver's program: it was never scanned, cannot carry injectable sites,
+  // and must be SKIPPED — a hard "source file not in program" error here fails
+  // the whole host build. Files in the SITE SET keep failing loud.
+  register('a foreign file matching the textual fallback by name only is skipped, not an error', async () => {
+    const plugin = makePlugin();
+    try {
+      await callHook(plugin.buildStart, ctx);
+      const foreignId = path.join(path.dirname(FIXTURE_DIR), 'tmp-wrapper-zero-config-foreign', 'pureFn.ts');
+      const foreignSrc = `export function registerPureFnFactory(namespace: string) {\n  return namespace;\n}\n`;
+      const foreignResult = await callHook(plugin.transform, ctx, foreignSrc, foreignId);
+      expect(foreignResult, 'textual-fallback false positive outside the program must be skipped').toBeNull();
+    } finally {
+      try {
+        await callHook(plugin.buildEnd, ctx);
+      } catch {
+        // best-effort teardown
+      }
+    }
+  });
 });
