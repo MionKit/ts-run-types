@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync"
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
@@ -183,6 +184,21 @@ type Session struct {
 	// `null` (the body lives only in the cfn module) — emitted as per-file
 	// Replacements scoped to the requested files, like pure-fn factory nullings.
 	overrideArgSpansByFile map[string][]overrideArgSpan
+	// unresolvedSpecifiersByFile memoizes, per source file, the module
+	// specifiers whose import bindings fail alias resolution. Computed
+	// LAZILY — only when a marker site's type argument resolved to `any`
+	// (the silent-degradation signature, see MKR007). Mutex-guarded: the
+	// parallel scan path can hit it from several checker groups. Dies with
+	// the Program.
+	unresolvedSpecifiersByFile map[string][]string
+	unresolvedSpecifiersMutex  sync.Mutex
+	// programScanDiagnostics accumulates the marker diagnostics
+	// (MKR/CTA/TMP/PFN…) produced by scanAllProgramFiles — the eager
+	// whole-program scan OpGenerate/OpDump run. Those responses surface it;
+	// without this the eager pass (the only scan most files ever get) would
+	// silently drop every marker diagnostic. Files are never re-scanned, so
+	// each diagnostic is recorded once. Dies with the Program.
+	programScanDiagnostics []diagnostics.Diagnostic
 }
 
 // markerVerdict is one memoized marker.DetectAny result. typeArg is the
@@ -333,6 +349,10 @@ func (sess *Session) SetProgram(prog *program.Program) error {
 	sess.overrideEntries = nil
 	sess.overrideDiagnostics = nil
 	sess.overrideArgSpansByFile = nil
+	sess.unresolvedSpecifiersMutex.Lock()
+	sess.unresolvedSpecifiersByFile = nil
+	sess.unresolvedSpecifiersMutex.Unlock()
+	sess.programScanDiagnostics = nil
 	return nil
 }
 

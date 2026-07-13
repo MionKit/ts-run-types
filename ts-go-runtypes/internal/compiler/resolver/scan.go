@@ -72,8 +72,14 @@ func (sess *Session) scanAllProgramFiles() {
 		return
 	}
 	// Errors are non-fatal — keep scanning other files. The dump still
-	// returns whatever was reachable from successful scans.
-	_, _, _ = sess.dispatchScanFiles(files)
+	// returns whatever was reachable from successful scans. The scan's
+	// marker diagnostics (MKR/CTA/TMP/PFN…) are PERSISTED on the session:
+	// this eager whole-program pass is the only scan most files ever get
+	// (per-file scans dedupe against scannedFiles), so dropping them here
+	// would hide every marker diagnostic from the OpGenerate/OpDump
+	// responses buildStart consumes.
+	_, scanDiagnostics, _ := sess.dispatchScanFiles(files)
+	sess.programScanDiagnostics = append(sess.programScanDiagnostics, scanDiagnostics...)
 }
 
 // dispatchScanFiles walks every CallExpression in each requested file and
@@ -443,6 +449,11 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	// for the injection call regardless of what the type argument resolved
 	// to (it inspects the written syntax, not the resolved type).
 	diags = append(diags, detectTemporalNotLoaded(state.scanChecker, file, call)...)
+	// Sibling guard: T resolved to `any` because an import in this file
+	// failed to resolve in the scan program (MKR007, Error) — the injection
+	// still proceeds (noop tuples), so behavior without failOnError is
+	// unchanged; the diagnostic is what fails strict builds.
+	diags = append(diags, state.detectAnyFromUnresolvedImport(file, call, injectionTypeArgument)...)
 	typeArgument := injectionTypeArgument
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body with the id slot EMPTY — `T` is the
@@ -621,6 +632,9 @@ func (state scanState) analyzeMultiSlotInjection(file string, call *ast.Node, in
 	pos := call.End() - 1
 	var pendings []pendingCall
 	for _, m := range injecting {
+		// Silent-any guard per slot (MKR007) — a wrapper slot whose T checked
+		// as `any` because this file has an unresolved import.
+		diags = append(diags, state.detectAnyFromUnresolvedImport(file, call, m.typeArg)...)
 		if marker.IsFreeTypeParameter(m.typeArg) {
 			// A marker slot whose `T` is the enclosing wrapper's own free type
 			// parameter — no concrete id until the wrapper is instantiated.
