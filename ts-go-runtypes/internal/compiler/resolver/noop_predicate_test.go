@@ -60,6 +60,10 @@ type WithNever = {name: string; bad: never};
 type WithLeakNative = {a: ArrayBuffer};
 type WithLeakPromise = {p: Promise<number>; b: number};
 type AllStrippedUnion = ArrayBuffer | SharedArrayBuffer;
+type WithNonEnum = {a: string; /** @nonEnumerable */ hidden: string};
+class ErrSub extends Error {code: number = 0}
+getRunTypeId<WithNonEnum>();
+getRunTypeId<ErrSub>();
 getRunTypeId<WithLeakNative>();
 getRunTypeId<WithLeakPromise>();
 getRunTypeId<AllStrippedUnion>();

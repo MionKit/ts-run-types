@@ -603,14 +603,24 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 			if innerRT.Code != "" {
 				body = innerRT.Code + ";" + setMask
 			}
-			guarded := "if (" + accessor + " !== undefined) {" + body + "}"
+			// Presence test that drives the bit: a non-enumerable-guarded
+			// member (lib-global-inherited / `@nonEnumerable`) sets its bit only
+			// when the value carries it as an OWN-ENUMERABLE property
+			// (`JSON.stringify` semantics); an ordinary optional member sets it
+			// when defined. The decoder (fb) reads the same bit, so this is the
+			// only side that needs to change.
+			presentCond := accessor + " !== undefined"
+			if isEnumerabilityGuarded(resolved) {
+				presentCond = propertyIsEnumerableGuard(v, resolved.Name)
+			}
+			stmt := "if (" + presentCond + ") {" + body + "}"
 			// Every 8 optional props we bump the bitmap byte index so
 			// the next 8 bits land in a fresh byte.
 			modIndex := i + 1
 			if modIndex%8 == 0 && modIndex < len(optional) {
-				guarded += ";" + bitmapVar + "++"
+				stmt += ";" + bitmapVar + "++"
 			}
-			optParts = append(optParts, guarded)
+			optParts = append(optParts, stmt)
 		}
 		parts = append(parts, bitmapInit)
 		parts = append(parts, optParts...)

@@ -1,5 +1,14 @@
 # Error-subclass projections include inherited name/message/stack (stack leaks to the wire) — DONE
 
+> **SUPERSEDED (2026-07-13)** by
+> [runtime-enumerability-checks-for-global-props.md](runtime-enumerability-checks-for-global-props.md):
+> the hard `stack`-only exclusion below was replaced by a general runtime
+> own-enumerability guard over ALL lib-global-inherited members (`name`/`message`/`stack`)
+> plus `@nonEnumerable`-tagged user props. `stack` is no longer excluded from the
+> projection — it is a guarded member, dropped at runtime unless made enumerable. The
+> "`name`/`message` deliberately stay projected" decision recorded here was reversed by
+> the uniform rule.
+
 ## Original finding (mion migration, 2026-07-12)
 
 User classes extending Error (`class RpcError<T, D> extends TypedError<T>`) serialized

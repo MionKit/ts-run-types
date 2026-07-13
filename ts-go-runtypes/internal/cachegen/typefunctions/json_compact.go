@@ -187,10 +187,11 @@ func (CompactForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 // compactDeclaredSlot is one declared object property that occupies a positional
 // slot in the compact wire (in canonical child order).
 type compactDeclaredSlot struct {
-	name       string
-	isSafeName bool
-	optional   bool
-	childRef   *protocol.RunType // the property's value-type ref (.Child)
+	name          string
+	isSafeName    bool
+	optional      bool
+	nonEnumerable bool              // guarded: null-placeholder driven by own-enumerability
+	childRef      *protocol.RunType // the property's value-type ref (.Child)
 }
 
 // objectHasIndexSignature reports whether the object carries any index
@@ -248,10 +249,11 @@ func collectCompactDeclaredSlots(rt *protocol.RunType, ctx *EmitContext) []compa
 			continue
 		}
 		slots = append(slots, compactDeclaredSlot{
-			name:       resolved.Name,
-			isSafeName: resolved.IsSafeName,
-			optional:   resolved.Optional,
-			childRef:   resolved.Child,
+			name:          resolved.Name,
+			isSafeName:    resolved.IsSafeName,
+			optional:      resolved.Optional,
+			nonEnumerable: isEnumerabilityGuarded(resolved),
+			childRef:      resolved.Child,
 		})
 	}
 	return slots
@@ -289,7 +291,14 @@ func emitObjectCompactForJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 			// remaining positions stay in lockstep.
 			continue
 		}
-		if slot.optional {
+		if slot.nonEnumerable {
+			// A guarded (lib-global-inherited / `@nonEnumerable`) property holds
+			// its value only when it is an OWN-ENUMERABLE property of v
+			// (`JSON.stringify` semantics); otherwise the null placeholder, which
+			// the decoder maps back to absent — same positional alignment as an
+			// absent optional.
+			expr = "(!" + propertyIsEnumerableGuard(v, slot.name) + " ? null : " + expr + ")"
+		} else if slot.optional {
 			// Absent optional → null placeholder so later positions stay aligned;
 			// the decoder maps null back to absent (compactFromJson).
 			expr = "(" + accessor + " === undefined ? null : " + expr + ")"
