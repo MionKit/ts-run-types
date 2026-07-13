@@ -802,6 +802,9 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		rtOpts := sess.rtRenderOpts(&rtDiagnostics, sess.buildProvenanceSites())
 		rtOpts.PureFnDepSink = &rtPureFnDeps
 		pureFnGraph, pureFnsDiagnostics := sess.collectProgramPureFns(metrics)
+		// Marker diagnostics from the eager whole-program scan — same
+		// surfacing as OpGenerate (batchcompile consumes this response).
+		response.Diagnostics = append(response.Diagnostics, sess.programScanDiagnostics...)
 		response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
 		modules, modulesErr := sess.collectEntryModules(fullDump, rtOpts, pureFnGraph, metrics)
 		if modulesErr != nil {
@@ -844,6 +847,10 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			return protocol.Response{Error: genErr.Error()}
 		}
 		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites)}
+		// Marker diagnostics from the eager whole-program scan (MKR/CTA/TMP…)
+		// — persisted by scanAllProgramFiles; without this, buildStart (which
+		// consumes THIS response) never sees them.
+		genResponse.Diagnostics = append(genResponse.Diagnostics, sess.programScanDiagnostics...)
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genPureFnsDiagnostics...)
 		genResponse.Diagnostics = append(genResponse.Diagnostics, genDiagnostics...)
 		// PFE9012: same dangling-dep guard on the disk-generation path.

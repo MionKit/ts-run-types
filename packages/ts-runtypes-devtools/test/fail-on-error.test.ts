@@ -58,6 +58,14 @@ interface WithHandler {
 export const isWithHandler = createValidate<WithHandler>();
 `;
 
+// An import the scan program can't resolve degrades the marker's T to \`any\`
+// (the silent always-true-validator trap) — MKR007, SeverityError, so the
+// strict default halts the build naming the unresolved specifier.
+const UNRESOLVED_IMPORT_SRC = `import {User} from './missing-module';
+import {createValidate} from '@ts-runtypes/core';
+export const isUser = createValidate<User>();
+`;
+
 type Hook = ((...args: unknown[]) => unknown) | {handler: (...args: unknown[]) => unknown};
 const callHook = (hook: Hook, thisArg: unknown, ...args: unknown[]): unknown =>
   typeof hook === 'function' ? hook.apply(thisArg, args) : hook.handler.apply(thisArg, args);
@@ -95,6 +103,7 @@ function writeFixture(dir: string, entrySrc: string): void {
 
 const ERROR_DIR = path.join(FIXTURE_DIR, 'error-program');
 const WARNING_DIR = path.join(FIXTURE_DIR, 'warning-program');
+const UNRESOLVED_DIR = path.join(FIXTURE_DIR, 'unresolved-import-program');
 
 describe('failOnError — Error-severity diagnostics fail the build in every lane', () => {
   const register = hasBinary() ? it : it.skip;
@@ -103,6 +112,7 @@ describe('failOnError — Error-severity diagnostics fail the build in every lan
     fs.rmSync(FIXTURE_DIR, {recursive: true, force: true});
     writeFixture(ERROR_DIR, ERROR_ENTRY_SRC);
     writeFixture(WARNING_DIR, WARNING_ENTRY_SRC);
+    writeFixture(UNRESOLVED_DIR, UNRESOLVED_IMPORT_SRC);
   });
   afterAll(() => fs.rmSync(FIXTURE_DIR, {recursive: true, force: true}));
 
@@ -134,6 +144,20 @@ describe('failOnError — Error-severity diagnostics fail the build in every lan
       } | null;
       expect(transformed).toBeTruthy();
       expect(transformed!.code).toContain('getRunTypeId');
+    } finally {
+      await callHook(plugin.buildEnd, ctx);
+    }
+  });
+
+  register('default (strict): an unresolved import degrading T to `any` halts, naming the specifier (MKR007)', async () => {
+    const plugin = makePlugin(UNRESOLVED_DIR);
+    const ctx = makeCtx();
+    try {
+      await expect(callHook(plugin.buildStart, ctx) as Promise<void>).rejects.toThrow(/unsupported-type error/);
+      const all = ctx.warnings.join('\n');
+      expect(all).toContain('error MKR007');
+      expect(all).toContain('./missing-module');
+      expect(all).toContain('entry.ts');
     } finally {
       await callHook(plugin.buildEnd, ctx);
     }

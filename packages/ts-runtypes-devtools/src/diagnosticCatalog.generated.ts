@@ -249,6 +249,12 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     detail:
       "An `InjectTypeFnArgs<T, …>` marker names each function family it needs for\n`T` once, in declaration order; the build injects one entry-module tuple\nper name and the wrapper forwards each to its factory. Naming a family\ntwice would inject a redundant identical tuple with no consumer, so it is\nalmost always a copy-paste slip and the build stops.\n\nFix — name each family at most once:\n-  id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'verr'>;\n+  id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>;",
   },
+  MKR007: {
+    headline:
+      'Marker type resolved to `any` because this file has an unresolved import (`{0}`) — the generated functions would silently accept anything.',
+    detail:
+      "TypeScript could not resolve the import, so the type it should have\nprovided checked as `any` at this marker call. A validator over `any` is\nthe always-true identity, a mock over `any` is `undefined`, and encoders\npass values through untouched — with no runtime signal that anything is\nwrong. This usually means the build tool and the type scanner resolve\nmodules differently (e.g. an extensionless relative import under\n`moduleResolution: NodeNext`, a missing dependency, or a `paths` alias the\nscan tsconfig doesn't declare).\n\nFix — make the import resolve for the type scanner:\n-  import {User} from './user.runtype';\n+  import {User} from './user.runtype.ts';\n\nOr align the tsconfig the plugin scans with the one your bundler uses.\nIf the `any` is genuinely intentional, write the marker over an alias\ndeclared in resolving code (e.g. `type Loose = any`) in a file with no\nfailing imports.",
+  },
   OVR001: {
     headline: 'Duplicate override for `{0}` — there can be exactly one override per (type, function).',
     detail:
