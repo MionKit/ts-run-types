@@ -18,6 +18,14 @@ Generics are erased at runtime: every instantiation of `RpcError<…>` is the SA
 object, so ONE `registerClassSerializer(RpcError, …)` (the API already takes the class
 object itself) now covers every instantiation the program uses.
 
+**Encouraged form (review follow-up): no type argument at all** —
+`registerClassSerializer(RpcError, {deserialize: …})`. The instantiation the compiler
+infers for a bare generic registration is incidental by design (verified: its injected
+id is not even `RpcError<string>`'s — coverage comes from the name lane, never the
+registration-site id). The explicit `registerClassSerializer<RpcError<string>>(…)` form
+was only ever needed under the old id-keyed registry and now adds nothing; JSDoc and
+the tests encourage the bare form.
+
 - **Emitters** ([ts-go-runtypes/internal/cachegen/typefunctions/class_serializer.go] +
   the flat-union class-identity dispatch in union_flat_layout.go) now bake TWO build-time
   literals into every lookup: `utl.getClassSerializer('<rt.ID>', '<rt.TypeName>')` — the
