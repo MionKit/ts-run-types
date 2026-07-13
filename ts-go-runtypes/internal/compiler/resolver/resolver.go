@@ -115,6 +115,13 @@ type Options struct {
 	SizeItems       int
 	SizeStringBytes int
 	SizeMaxBytes    int
+	// AllowUncheckedPatterns silences the fail-closed FMT004 build error
+	// for format patterns whose mockSamples RE2 can't verify (JS-only regex
+	// features). Setting it asserts that the ts-runtypes JS linter — which
+	// evaluates the real RegExp — owns that check. Build-lane only: the lint
+	// lane always validates regardless. Not a disk-fingerprint input (it
+	// changes only which diagnostics surface, never the emitted artifacts).
+	AllowUncheckedPatterns bool
 }
 
 // Session owns a Program and answers type queries against it. The serializer

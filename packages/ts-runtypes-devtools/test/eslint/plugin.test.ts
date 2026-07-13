@@ -95,6 +95,21 @@ const PLAIN_TS = `// ${TODO_TAG}: hand-written file, not enrichment
 export const answer = 42;
 `;
 
+// A format pattern that uses a JS-only lookbehind (RE2 can't compile it) and
+// carries a mockSample that does NOT match the real regex. The build lane
+// would fail closed with FMT004; the lint lane instead runs the real
+// RegExp.test and reports the failing sample as FMT001. The local TypeFormat
+// brand is recognised structurally, same as the Go resolver tests.
+const UNCHECKED_PATTERN_TS = `import {createValidate} from '@ts-runtypes/core';
+
+type TypeFormat<Base, Name extends string, Params> = Base & {
+  readonly __rtFormatName?: Name;
+  readonly __rtFormatParams?: Params;
+};
+
+export const isCode = createValidate<TypeFormat<string, 'stringFormat', {pattern: {source: '(?<=x)y'; flags: ''; mockSamples: ['nope']}}>>();
+`;
+
 // locate returns the report-shaped (1-based line, 0-based column) position of
 // needle in text, so expectations derive from the fixture instead of
 // hand-counted numbers.
@@ -123,6 +138,7 @@ describe.runIf(hasBinary())(
       'mirror-clean.ts': MIRROR_CLEAN_TS,
       'mirror-drift.ts': MIRROR_DRIFT_TS,
       'plain.ts': PLAIN_TS,
+      'unchecked-pattern.ts': UNCHECKED_PATTERN_TS,
     };
 
     beforeAll(() => {
@@ -190,6 +206,17 @@ describe.runIf(hasBinary())(
         expect(reports[0]!.message).toContain('[VL011]');
         expect(reports[0]!.message).toContain('onClick');
         expect(reports[0]!.line).toBe(locate(WIDGET_TS, 'createValidate<Widget>()').line);
+      });
+
+      it('validates RE2-unchecked pattern samples in JS, reporting a failing sample as FMT001 at the definition site', () => {
+        const reports = reportsFor('error', 'unchecked-pattern.ts');
+        expect(reports).toHaveLength(1);
+        expect(reports[0]!.message).toContain('[FMT001]');
+        // The lint lane ran the real regex — the sample 'nope' fails the JS-only
+        // lookbehind, so it (not an FMT004 "cannot verify") is reported.
+        expect(reports[0]!.message).toContain('nope');
+        expect(reports[0]!.message).not.toContain('[FMT004]');
+        expect(reports[0]!.line).toBe(locate(UNCHECKED_PATTERN_TS, 'createValidate<TypeFormat').line);
       });
     });
 

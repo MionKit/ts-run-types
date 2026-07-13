@@ -33,7 +33,12 @@ func (sess *Session) rtRenderOpts(sink *[]diagnostics.Diagnostic, provenance map
 		ProvenanceSites: provenance,
 		EmitMode:        sess.opts.EmitMode,
 		InlineMode:      sess.opts.InlineMode,
-		RefTable:        sess.fullRefTable(),
+		// Build-lane fail-closed switch for RE2-unchecked format patterns
+		// (FMT004). The OpScanFiles lint lane additionally sets
+		// UncheckedPatternSink, which suppresses FMT004 in favour of shipping
+		// the patterns for the JS linter to check.
+		AllowUncheckedPatterns: sess.opts.AllowUncheckedPatterns,
+		RefTable:               sess.fullRefTable(),
 		SizeEstimate: typefunctions.SizeEstimateConfig{
 			Bias:        sess.opts.SizeBias,
 			Items:       sess.opts.SizeItems,

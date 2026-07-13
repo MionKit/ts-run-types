@@ -109,6 +109,11 @@ type tsRuntypesPlugin struct {
 	SingleThreaded *bool `json:"singleThreaded"`
 	ParallelScan   *bool `json:"parallelScan"`
 	ParallelRender *bool `json:"parallelRender"`
+	// AllowUncheckedPatterns silences the fail-closed FMT004 build error for
+	// format patterns whose mockSamples RE2 can't verify (JS-only regex
+	// features), asserting the ts-runtypes JS linter owns that check. A pointer
+	// so an absent key falls through to the false default. Build-lane only.
+	AllowUncheckedPatterns *bool `json:"allowUncheckedPatterns"`
 	// RunTypesGenDir is where `--compile` writes the generated cache modules
 	// (the emitted .js import them by relative path). Distinct from CacheDir (the
 	// incremental artifact cache under node_modules/.cache). A pointer so an
