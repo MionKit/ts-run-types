@@ -49,6 +49,10 @@ describe('rollup build / ts-runtypes-devtools/rollup entry', () => {
         // tsconfig.test.json is incremental:false → RT disk cache off.
         tsconfig: 'tsconfig.test.json',
         outDir: OUT_DIR,
+        // The marker package's test program deliberately contains
+        // Error-severity types (alwaysThrow suites) — same opt-out as its own
+        // vitest config; see fail-on-error.test.ts for the strict default.
+        failOnError: false,
       }) as any;
       expect(plugin.name).toBe('@ts-runtypes/devtools');
 
