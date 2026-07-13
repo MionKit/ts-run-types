@@ -389,28 +389,23 @@ func FormatAnnotationStructuralKey(annotation *protocol.FormatAnnotation) string
 	return builder.String()
 }
 
-// structuralKeyIgnoredParams are format-param keys excluded from the
-// structural id at every nesting depth. They carry mock/diagnostic
-// metadata, not validation behaviour — so two formats that validate
-// identically but differ only in samples or error message must still
-// dedup to one cache entry (and the surviving entry's samples are valid
-// for all of them, since they share the same validation structure).
-// Mirrors the `defaultIgnoreFormatProps` rule.
-var structuralKeyIgnoredParams = map[string]bool{
-	"mockSamples": true,
-	"message":     true,
-}
+// EVERY format param is id-relevant, `mockSamples` and `message` included.
+// They used to be excluded as "mock/diagnostic metadata, not validation
+// behaviour" — but cache entries are shared singletons and for
+// `createMockData` the samples ARE behaviour: two same-shape formats
+// differing only in samples collapsed onto one entry, and whichever call
+// site interned first supplied the mock samples for BOTH (first-intern
+// nondeterminism — the same failure mode as tuple labels; see
+// docs/done/format-pattern-samples-dedup-and-length-soundness.md). Folding
+// them in also lets emitters surface a pattern's custom `message` as the
+// error val without cache-identity risk. Formats sharing every param still
+// dedup exactly as before.
 
 // canonicalLiteralMap serialises a literal-value map with sorted keys at
 // every nesting depth so equivalent maps hash to the same string.
-// Metadata-only keys (structuralKeyIgnoredParams) are skipped so they
-// don't fragment the cache.
 func canonicalLiteralMap(values map[string]any) string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
-		if structuralKeyIgnoredParams[key] {
-			continue
-		}
 		keys = append(keys, key)
 	}
 	if len(keys) == 0 {
