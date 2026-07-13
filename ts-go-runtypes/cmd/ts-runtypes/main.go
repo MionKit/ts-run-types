@@ -103,32 +103,33 @@ func main() {
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
 	var (
-		tsconfigPath       string
-		cwdFlag            string
-		oneShot            bool
-		daemon             bool
-		socketPath         string
-		outJSON            string
-		outModulesDir      string
-		compileMode        bool
-		runTypesGenDir     string
-		hashLength         int
-		singleThreaded     bool
-		noParallelScan     bool
-		noParallelRender   bool
-		inlineSourcesStdin bool
-		inlineServer       bool
-		emitMode           string
-		inlineMode         string
-		moduleMode         string
-		sizeBias           float64
-		sizeItems          int
-		sizeStringBytes    int
-		sizeMaxBytes       int
-		pprofCPU           string
-		pprofHeap          string
-		help               bool
-		version            bool
+		tsconfigPath           string
+		cwdFlag                string
+		oneShot                bool
+		daemon                 bool
+		socketPath             string
+		outJSON                string
+		outModulesDir          string
+		compileMode            bool
+		runTypesGenDir         string
+		hashLength             int
+		singleThreaded         bool
+		noParallelScan         bool
+		noParallelRender       bool
+		inlineSourcesStdin     bool
+		inlineServer           bool
+		emitMode               string
+		inlineMode             string
+		moduleMode             string
+		allowUncheckedPatterns bool
+		sizeBias               float64
+		sizeItems              int
+		sizeStringBytes        int
+		sizeMaxBytes           int
+		pprofCPU               string
+		pprofHeap              string
+		help                   bool
+		version                bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
 	flag.StringVar(&cwdFlag, "cwd", "", "working directory")
@@ -162,6 +163,9 @@ func main() {
 		"virtual-module grouping: default (runtype bundle + per-entry fn modules), "+
 			"allSingle (per-family bundle modules — fewest modules), or "+
 			"allModules (per-node runtype modules too — the pre-bundle layout)")
+	flag.BoolVar(&allowUncheckedPatterns, "allow-unchecked-patterns", false,
+		"silence the fail-closed FMT004 build error for format patterns whose mockSamples "+
+			"RE2 can't verify (JS-only regex features); asserts the ts-runtypes JS linter owns the check")
 	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,
 		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest (more grows), 1 = most generous (default 0.8)")
 	flag.IntVar(&sizeItems, "size-items", constants.DefaultSizeItems,
@@ -252,19 +256,20 @@ func main() {
 		}
 	}
 	merged := mergeBuildOptions(buildFlags{
-		set:              setFlags,
-		hashLength:       hashLength,
-		singleThreaded:   singleThreaded,
-		noParallelScan:   noParallelScan,
-		noParallelRender: noParallelRender,
-		runTypesGenDir:   runTypesGenDir,
-		emitMode:         emitMode,
-		inlineMode:       inlineMode,
-		moduleMode:       moduleMode,
-		sizeBias:         sizeBias,
-		sizeItems:        sizeItems,
-		sizeStringBytes:  sizeStringBytes,
-		sizeMaxBytes:     sizeMaxBytes,
+		set:                    setFlags,
+		hashLength:             hashLength,
+		singleThreaded:         singleThreaded,
+		noParallelScan:         noParallelScan,
+		noParallelRender:       noParallelRender,
+		runTypesGenDir:         runTypesGenDir,
+		emitMode:               emitMode,
+		inlineMode:             inlineMode,
+		moduleMode:             moduleMode,
+		allowUncheckedPatterns: allowUncheckedPatterns,
+		sizeBias:               sizeBias,
+		sizeItems:              sizeItems,
+		sizeStringBytes:        sizeStringBytes,
+		sizeMaxBytes:           sizeMaxBytes,
 	}, plugin, absCwd)
 
 	// Stdio decoder/encoder is built up front because in inline-sources mode
@@ -314,6 +319,7 @@ func main() {
 		EmitMode:                constants.EmitMode(merged.emitMode),
 		InlineMode:              constants.InlineMode(merged.inlineMode),
 		ModuleMode:              merged.moduleMode,
+		AllowUncheckedPatterns:  merged.allowUncheckedPatterns,
 		SizeBias:                merged.sizeBias,
 		SizeItems:               merged.sizeItems,
 		SizeStringBytes:         merged.sizeStringBytes,

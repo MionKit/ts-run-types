@@ -111,6 +111,17 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
   FMT002: {
     headline: 'Invalid type-format params — {0}',
   },
+  FMT003: {
+    headline: 'TypeFormat mockSample violates a sibling constraint — {0}',
+    detail:
+      "A mockSample is meant to be a canonical VALID value for the format, so it\nmust satisfy the format's own statically checkable siblings (length /\nminLength / maxLength, and the plain-string allowedChars / disallowedChars /\ndisallowedValues ops). A sample that its siblings reject means\n`createMockData` would either produce an invalid value or filter every\nsample out and throw at mock time.\n\nLengths are counted in UTF-16 code units, exactly as the emitted validator's\n`.length` check counts them.\n\nFix — adjust the offending sample(s), or relax the constraint:\n  -  String<{minLength: 5; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>\n+  String<{minLength: 1; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>",
+  },
+  FMT004: {
+    headline:
+      "TypeFormat pattern /{0}/ carries mockSamples but uses JS-only regex features RE2 can't compile ({1}) — samples can't be verified at build time.",
+    detail:
+      "The build-time sample check compiles the pattern with Go's RE2 engine, which\ndoesn't support JS-only features (lookarounds, backreferences). The build\nfails closed rather than ship samples it can't verify.\n\nFix — set `allowUncheckedPatterns` (plugin option / tsconfig plugin key)\nto assert that the JS linter owns the check, then wire the ts-runtypes lint\nplugin into your editor + CI: it evaluates the real `RegExp.test(sample)` and\nreports any mismatch (as FMT001) at the definition site.\n\nFix — or rewrite the pattern using RE2-compatible syntax so the fast\nbuild-time check can run (no lookarounds / backreferences).",
+  },
   FT002: {
     headline: 'Unknown field `{0}` — the type does not declare it, so this FriendlyText entry is dead.',
     detail:

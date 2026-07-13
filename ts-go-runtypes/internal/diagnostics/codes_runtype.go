@@ -148,6 +148,29 @@ const (
 	// build-time `validateParams` throw (run JS-side at JIT compile; we
 	// run it AOT in Go and surface it as a diagnostic).
 	CodeFMTInvalidParams = "FMT002"
+
+	// CodeFMTSampleBounds — a declared mockSample violates a statically
+	// checkable sibling constraint (length / minLength / maxLength, or one
+	// of the plain-string char/value ops allowedChars / disallowedChars /
+	// disallowedValues). Error severity, same doctrine as FMT001: a sample
+	// is a canonical valid value, so one that its own siblings reject is a
+	// type-definition bug (it would feed createMockData an invalid value,
+	// or be filtered out at mock time). Args: [comma-joined offending
+	// samples, constraint name, bound/description]. One diagnostic per
+	// violated constraint — the pipeline dedups per code per walk, so every
+	// offender for a constraint rides one message.
+	CodeFMTSampleBounds = "FMT003"
+
+	// CodeFMTUncheckedPattern — a pattern carries mockSamples but uses
+	// JS-only regex features (lookarounds, backreferences) that RE2 cannot
+	// compile, so the build-time sample-vs-pattern check can't run. Error
+	// severity, fail-closed by default: the build refuses what it can't
+	// verify. Silenced by the `allowUncheckedPatterns` option, which
+	// delegates the check to the JS linter (it evaluates the real
+	// `RegExp.test` and reports mismatches as FMT001). Args: [pattern
+	// source, RE2 compile error]. Emitted only in the build lane; the lint
+	// lane records the pattern for real validation instead.
+	CodeFMTUncheckedPattern = "FMT004"
 )
 
 // Unknown-keys family — no root throws today; only child drops.
@@ -229,6 +252,8 @@ func init() {
 	// type-definition bug; surface it as an error.
 	register(Definition{Code: CodeFMTSampleMismatch, Family: FamilyRunType, Severity: SeverityError, Title: "format mockSample does not match pattern"})
 	register(Definition{Code: CodeFMTInvalidParams, Family: FamilyRunType, Severity: SeverityError, Title: "invalid type-format params"})
+	register(Definition{Code: CodeFMTSampleBounds, Family: FamilyRunType, Severity: SeverityError, Title: "format mockSample violates a sibling constraint"})
+	register(Definition{Code: CodeFMTUncheckedPattern, Family: FamilyRunType, Severity: SeverityError, Title: "format pattern samples cannot be verified at build time"})
 
 	// Class-serializer family — a named plain user class is serialized
 	// structurally because no custom serializer is registered. Advisory,

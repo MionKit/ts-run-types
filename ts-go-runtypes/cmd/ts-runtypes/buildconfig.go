@@ -15,35 +15,37 @@ import (
 // tell an explicit `--single-threaded=false` from an absent flag, so tsconfig
 // only fills the gaps the command line left.
 type buildFlags struct {
-	set              map[string]bool
-	hashLength       int
-	singleThreaded   bool
-	noParallelScan   bool
-	noParallelRender bool
-	runTypesGenDir   string
-	emitMode         string
-	inlineMode       string
-	moduleMode       string
-	sizeBias         float64
-	sizeItems        int
-	sizeStringBytes  int
-	sizeMaxBytes     int
+	set                    map[string]bool
+	hashLength             int
+	singleThreaded         bool
+	noParallelScan         bool
+	noParallelRender       bool
+	runTypesGenDir         string
+	emitMode               string
+	inlineMode             string
+	moduleMode             string
+	allowUncheckedPatterns bool
+	sizeBias               float64
+	sizeItems              int
+	sizeStringBytes        int
+	sizeMaxBytes           int
 }
 
 // buildOptions is the merged build configuration the resolver consumes.
 type buildOptions struct {
-	hashLength            int
-	singleThreaded        bool
-	disableParallelScan   bool
-	disableParallelRender bool
-	runTypesGenDir        string
-	emitMode              string
-	inlineMode            string
-	moduleMode            string
-	sizeBias              float64
-	sizeItems             int
-	sizeStringBytes       int
-	sizeMaxBytes          int
+	hashLength             int
+	singleThreaded         bool
+	disableParallelScan    bool
+	disableParallelRender  bool
+	runTypesGenDir         string
+	emitMode               string
+	inlineMode             string
+	moduleMode             string
+	allowUncheckedPatterns bool
+	sizeBias               float64
+	sizeItems              int
+	sizeStringBytes        int
+	sizeMaxBytes           int
 }
 
 // mergeBuildOptions resolves the effective build configuration from the CLI
@@ -58,15 +60,16 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 	// as their flag default, so an unset flag already holds the default; a
 	// present tsconfig value overrides only when the flag was not passed.
 	out := buildOptions{
-		hashLength:      flags.hashLength,
-		singleThreaded:  flags.singleThreaded,
-		emitMode:        flags.emitMode,
-		inlineMode:      flags.inlineMode,
-		moduleMode:      flags.moduleMode,
-		sizeBias:        flags.sizeBias,
-		sizeItems:       flags.sizeItems,
-		sizeStringBytes: flags.sizeStringBytes,
-		sizeMaxBytes:    flags.sizeMaxBytes,
+		hashLength:             flags.hashLength,
+		singleThreaded:         flags.singleThreaded,
+		emitMode:               flags.emitMode,
+		inlineMode:             flags.inlineMode,
+		moduleMode:             flags.moduleMode,
+		allowUncheckedPatterns: flags.allowUncheckedPatterns,
+		sizeBias:               flags.sizeBias,
+		sizeItems:              flags.sizeItems,
+		sizeStringBytes:        flags.sizeStringBytes,
+		sizeMaxBytes:           flags.sizeMaxBytes,
 	}
 
 	if !flags.set["emit-mode"] && strings.TrimSpace(plugin.EmitMode) != "" {
@@ -83,6 +86,9 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 	}
 	if !flags.set["single-threaded"] && plugin.SingleThreaded != nil {
 		out.singleThreaded = *plugin.SingleThreaded
+	}
+	if !flags.set["allow-unchecked-patterns"] && plugin.AllowUncheckedPatterns != nil {
+		out.allowUncheckedPatterns = *plugin.AllowUncheckedPatterns
 	}
 
 	// Size-estimate knobs: a tsconfig value fills in only when the flag was not

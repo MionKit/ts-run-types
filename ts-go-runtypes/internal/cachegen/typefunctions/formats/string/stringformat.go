@@ -66,6 +66,10 @@ func (stringFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotati
 // sub-checks (each name/tld/localPart part is validated as a sub-format
 // over its own variable).
 func stringConditions(ctx formats.EmitContext, params map[string]any, vλl string) []string {
+	// Build-time mockSample validation against the statically checkable
+	// sibling bounds (length + char/value ops); independent of whether a
+	// pattern is present.
+	validateSampleBounds(ctx, params)
 	conditions := lengthConditions(params, vλl)
 	// `pattern` adds a regex test (and triggers build-time mockSample
 	// validation). Backs FormatAlpha / FormatNumeric and any user

@@ -136,6 +136,14 @@ export interface PluginOptions {
   // proceeding would break the build anyway. HMR updates never hard-fail
   // mid-edit either way; the halt re-applies on the next build/test run.
   failOnError?: boolean;
+  // Silence the fail-closed FMT004 build error for format patterns whose
+  // mockSamples RE2 can't verify at build time (JS-only regex features:
+  // lookarounds, backreferences). Default false — the build refuses what it
+  // can't verify. Setting it asserts that the ts-runtypes lint plugin (which
+  // evaluates the real RegExp) owns the check for those patterns, so wire the
+  // linter into your editor + CI when you enable it. Build-lane only: the lint
+  // plugin validates those samples regardless of this option.
+  allowUncheckedPatterns?: boolean;
 }
 
 // MARKER_MODULE backs the transform's textual FALLBACK pre-filter. The primary
@@ -230,6 +238,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
+      ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
     });
   }
 
