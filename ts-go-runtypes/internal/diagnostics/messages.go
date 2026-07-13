@@ -333,7 +333,7 @@ var messagesByCode = map[string]message{
 		Detail:   "`unknownKeysToUndefinedWire` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
 	},
 	"JCP001": {
-		Headline: "Internal error: JSON composite `{0}` references primitive entry `{1}` which was never rendered — please file an issue.",
+		Headline: "Internal error: JSON composite `{0}` references primitive entry `{1}` (type `{2}`) which was never rendered — please file an issue.",
 	},
 	"CLS001": {
 		Headline: "class `{0}` is serialized structurally; register it via `registerClassSerializer({0}, { deserialize })` to round-trip a real instance.",

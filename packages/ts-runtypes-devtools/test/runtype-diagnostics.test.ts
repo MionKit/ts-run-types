@@ -323,6 +323,66 @@ export const _b = createBinaryEncoder<[number, symbol]>();
     });
   });
 
+  // JCP001 regression — the `compact` JSON strategy (encoder cj / decoder cjr)
+  // used to SILENTLY SKIP its primitive entry when a walk hit an unserialisable
+  // leaf at a propagating position, because the compact emitters implemented
+  // neither diagnostic interface. The composite then bound a never-rendered
+  // primitive (`utl.getRT(cj_<id>).fn` on a module that never registered),
+  // surfacing the internal JCP001 "never rendered — please file an issue" error.
+  // The fix delegates cj → prepareForJsonSafe (PJS*) and cjr → restoreFromJson
+  // (RJ*), so compact now alwaysThrows with the SAME per-family code as its
+  // siblings and never trips JCP001. See docs/done/jcp001-*.
+  register('compact strategy alwaysThrows (PJS003 / RJ003) with NO JCP001 for a function tuple slot', async () => {
+    const sources = {
+      'compact-fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+export const _e = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'compact'});
+export const _d = createJsonDecoder<[number, () => void]>(undefined, {strategy: 'compact'});
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeEntryModules: true,
+      });
+      const diags = response.diagnostics ?? [];
+      // The internal breach must be gone entirely.
+      expect(
+        diags.filter((d) => d.code === 'JCP001'),
+        JSON.stringify(diags, null, 2)
+      ).toHaveLength(0);
+      const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
+      // Compact encode (cj) mirrors clone (pjs); compact decode (cjr) mirrors
+      // preserve (rj) — same function-root code the sibling strategies emit.
+      expect(codes, [...codes].join(',')).toContain('PJS003');
+      expect(codes).toContain('RJ003');
+      // The compact composite entry must wire the tuple as an alwaysThrow, so
+      // calling it throws at first lookup rather than crashing on an undefined fn.
+      const allModules = Object.values(response.entryModules ?? {}).join('\n');
+      expect(allModules).toMatch(/'\[PJS003\] Cannot encode `Function` to JSON\./);
+    });
+  });
+
+  register('compact strategy alwaysThrows (PJS005 / RJ005) with NO JCP001 for a symbol tuple slot', async () => {
+    const sources = {
+      'compact-sym-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+export const _e = createJsonEncoder<[number, symbol]>(undefined, {strategy: 'compact'});
+export const _d = createJsonDecoder<[number, symbol]>(undefined, {strategy: 'compact'});
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeEntryModules: true,
+      });
+      const diags = response.diagnostics ?? [];
+      expect(
+        diags.filter((d) => d.code === 'JCP001'),
+        JSON.stringify(diags, null, 2)
+      ).toHaveLength(0);
+      const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
+      expect(codes, [...codes].join(',')).toContain('PJS005');
+      expect(codes).toContain('RJ005');
+    });
+  });
+
   register('emits a …015 WARNING (not a root error) for a directly-stripped property value (F3)', async () => {
     // `{a: symbol}` / `{a: Promise<number>}` — the property VALUE is directly
     // non-data, so the property is DROPPED and the object still serializes:

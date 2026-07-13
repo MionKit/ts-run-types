@@ -102,18 +102,45 @@ func TestAssertCompositeSoftDeps_MissingPrimitiveFails(t *testing.T) {
 		ArgsText: "'jd1_obj1'", SoftDeps: []string{rjKey},
 	})
 	var sink []diagnostics.Diagnostic
-	AssertCompositeSoftDeps(graph, &sink)
+	AssertCompositeSoftDeps(graph, nil, &sink)
 	if len(sink) != 1 || sink[0].Code != diagnostics.CodeCompositeMissingPrimitive {
 		t.Fatalf("expected one %s diagnostic, got %+v", diagnostics.CodeCompositeMissingPrimitive, sink)
 	}
 	if sink[0].Severity != diagnostics.SeverityError {
 		t.Fatalf("invariant breach must be Error severity, got %v", sink[0].Severity)
 	}
+	// The offending type id (`obj1`, split off the composite key) rides as the
+	// third arg so a breach names the type even without a resolvable site.
+	if len(sink[0].Args) != 3 || sink[0].Args[2] != "obj1" {
+		t.Fatalf("expected type-id arg `obj1`, got args %v", sink[0].Args)
+	}
+	if sink[0].Site.FilePath != "" {
+		t.Fatalf("nil provenance must yield a file-less diagnostic, got site %+v", sink[0].Site)
+	}
+
+	// With provenance, the breach fans out one diagnostic per demanding call
+	// site — anchored at the user's createJsonDecoder so it's reproducible.
+	provenance := map[string][]diagnostics.Site{
+		"obj1": {
+			{FilePath: "a.ts", StartLine: 3, StartCol: 11},
+			{FilePath: "b.ts", StartLine: 7, StartCol: 5},
+		},
+	}
+	sink = nil
+	AssertCompositeSoftDeps(graph, provenance, &sink)
+	if len(sink) != 2 {
+		t.Fatalf("expected one diagnostic per demanding site (2), got %d: %+v", len(sink), sink)
+	}
+	for _, d := range sink {
+		if d.Site.FilePath == "" || d.Site.StartLine == 0 {
+			t.Errorf("provenance site must populate file:line, got %+v", d.Site)
+		}
+	}
 
 	// Present primitive (even a noop short-form entry) satisfies the assert.
 	graph.Add(&virtualmodules.Entry{Key: rjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'"})
 	sink = nil
-	AssertCompositeSoftDeps(graph, &sink)
+	AssertCompositeSoftDeps(graph, nil, &sink)
 	if len(sink) != 0 {
 		t.Fatalf("present primitive must not diag, got %+v", sink)
 	}
@@ -126,7 +153,7 @@ func TestAssertCompositeSoftDeps_MissingPrimitiveFails(t *testing.T) {
 	})
 	graph2.Add(&virtualmodules.Entry{Key: "stub1", Kind: virtualmodules.KindMissing})
 	sink = nil
-	AssertCompositeSoftDeps(graph2, &sink)
+	AssertCompositeSoftDeps(graph2, nil, &sink)
 	if len(sink) != 1 {
 		t.Fatalf("KindMissing stub dep must diag, got %+v", sink)
 	}

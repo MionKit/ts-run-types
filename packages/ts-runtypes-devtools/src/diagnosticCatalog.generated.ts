@@ -195,7 +195,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
   },
   JCP001: {
     headline:
-      'Internal error: JSON composite `{0}` references primitive entry `{1}` which was never rendered — please file an issue.',
+      'Internal error: JSON composite `{0}` references primitive entry `{1}` (type `{2}`) which was never rendered — please file an issue.',
   },
   MD001: {
     headline: 'Unknown field `{0}` — the type does not declare it, so this MockData entry is dead.',

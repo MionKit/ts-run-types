@@ -139,6 +139,35 @@ func (RestoreFromJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 	return restoreFromJsonRootCodes.codeFor(leaf)
 }
 
+// The `compact` strategy's encode/decode walks REUSE prepareForJsonSafe /
+// restoreFromJson arm-by-arm (only the object arm diverges to a positional
+// array — see json_compact.go / json_compact_restore.go), so they DELEGATE
+// their diagnostic codes the same way: cj → pjs, cjr → rj. Without these the
+// compact emitters implement neither DiagCodeProvider nor LeafDiagCodeProvider,
+// and an unserializable leaf (function / symbol / …) at a PROPAGATING position
+// (tuple slot, array element, record value, callable object) would SILENTLY
+// SKIP the primitive entry (empty argsText) instead of rendering an alwaysThrow
+// like every sibling strategy — leaving the compact composite binding a
+// never-rendered primitive (JCP001). The unserializable-leaf reason is
+// wire-shape-independent ("Cannot encode `Function` to JSON" holds for compact
+// too), so the shared PJS*/RJ* wording is exactly right — compact now matches
+// clone (PJS003) and preserve/strip (RJ003) byte-for-byte.
+func (CompactForJsonEmitter) DiagCodeFor(slot DiagSlot) string {
+	return prepareForJsonSafeCodes[slot]
+}
+
+func (CompactForJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return prepareForJsonSafeRootCodes.codeFor(leaf)
+}
+
+func (CompactFromJsonEmitter) DiagCodeFor(slot DiagSlot) string {
+	return restoreFromJsonCodes[slot]
+}
+
+func (CompactFromJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return restoreFromJsonRootCodes.codeFor(leaf)
+}
+
 var stringifyJsonCodes = map[DiagSlot]string{
 	SlotNeverRoot:                  diagnostics.CodeSJNeverRoot,
 	SlotNonSerializableRoot:        diagnostics.CodeSJNonSerializableRoot,
