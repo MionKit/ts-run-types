@@ -1,0 +1,100 @@
+// Mock soundness: `validate(createMockData<T>()())` must hold — or fail
+// loudly. Pins the fixes from
+// docs/done/mocking-gaps-format-transforms-and-domain-allowedvalues.md and
+// docs/done/format-pattern-samples-dedup-and-length-soundness.md:
+//   1. format case-transforms apply to mocks (the fmt cache lookup used a
+//      dead 'fmt_'-prefixed key; now resolved via familyTag scan);
+//   2. domain formats restricted by allowedValues mock FROM the allowed set;
+//   3. same-shape formats differing only in mockSamples are distinct entries
+//      mocking from their OWN samples (samples are id-relevant now);
+//   4. length-incompatible pattern samples never silently produce an invalid
+//      mock — the mock throws a pointed error instead;
+//   5. a FormatPattern's `message` is surfaced as the validation error `val`.
+//
+// (Marker coverage rule: both getRunTypeId call shapes on the sample-distinct
+// formats, with a per-form convergence assert.)
+
+import {describe, expect, it} from 'vitest';
+import {
+  createValidate,
+  createGetValidationErrors,
+  createMockData,
+  createFormatTransform,
+  getRunTypeId,
+  type TypeFormat,
+} from '@ts-runtypes/core';
+// Side-effect import FIRST: the formats module registers the per-kind mock
+// fns at load (mockStringFormat). The named import below is erased by the
+// transpiler when its bindings are only used as TYPES — without this value
+// import the registry stays empty and every format mocks as a plain random
+// string (the exact trap mion's CLAUDE.md warns about).
+import '@ts-runtypes/core/formats';
+import {Lowercase, String as StringFormat} from '@ts-runtypes/core/formats';
+
+describe('mock soundness — validate(mock()) holds or fails loudly', () => {
+  it('applies the declared case transform to mocks (fmt entry resolved by familyTag)', () => {
+    type LoweredTag = Lowercase<{mockSamples: ['MiXeD', 'UPPERCASE', 'already']}>;
+    // The fmt family is demand-driven: this call site is what compiles the
+    // transform entry the mock generator must find.
+    const toCanonical = createFormatTransform<LoweredTag>();
+    expect(toCanonical('ABC')).toBe('abc');
+    const mock = createMockData<LoweredTag>();
+    for (let i = 0; i < 8; i++) {
+      const value = mock() as string;
+      expect(value).toBe(value.toLowerCase());
+    }
+  });
+
+  it('domain formats restricted by allowedValues mock from the allowed set', () => {
+    type PinnedDomain = TypeFormat<string, 'domain', {allowedValues: {val: ['alpha.example', 'beta.example']}}>;
+    const isPinnedDomain = createValidate<PinnedDomain>();
+    const mock = createMockData<PinnedDomain>();
+    for (let i = 0; i < 8; i++) {
+      const value = mock() as string;
+      expect(['alpha.example', 'beta.example']).toContain(value);
+      expect(isPinnedDomain(value)).toBe(true);
+    }
+  });
+
+  it('same-shape formats differing only in mockSamples are distinct entries with their own samples', () => {
+    type FormatA = StringFormat<{maxLength: 10; mockSamples: ['aaa', 'aa']}>;
+    type FormatB = StringFormat<{maxLength: 10; mockSamples: ['zzz', 'zz']}>;
+    const idA = getRunTypeId<FormatA>();
+    const idB = getRunTypeId<FormatB>();
+    expect(idA).not.toBe(idB);
+    // reflect form converges per format (marker coverage rule)
+    const sampleA: FormatA = 'aaa';
+    expect(getRunTypeId(sampleA)).toBe(idA);
+
+    const mockA = createMockData<FormatA>();
+    const mockB = createMockData<FormatB>();
+    for (let i = 0; i < 8; i++) {
+      expect(['aaa', 'aa']).toContain(mockA());
+      expect(['zzz', 'zz']).toContain(mockB());
+    }
+  });
+
+  it('length-compatible samples survive the bound filter; incompatible-only samples throw', () => {
+    type Mixed = StringFormat<{minLength: 5; pattern: {source: '^a+$'; flags: ''; mockSamples: ['aa', 'aaaaaa']}}>;
+    const isMixed = createValidate<Mixed>();
+    const mockMixed = createMockData<Mixed>();
+    for (let i = 0; i < 8; i++) {
+      const value = mockMixed() as string;
+      expect(value).toBe('aaaaaa'); // the only sample satisfying minLength
+      expect(isMixed(value)).toBe(true);
+    }
+
+    type Impossible = StringFormat<{minLength: 5; pattern: {source: '^b+$'; flags: ''; mockSamples: ['b', 'bb']}}>;
+    const mockImpossible = createMockData<Impossible>();
+    expect(() => mockImpossible()).toThrow(/`mockSamples` compatible with the length bounds/);
+  });
+
+  it("surfaces a pattern's `message` as the validation error format val", () => {
+    type Slugish = StringFormat<{pattern: {source: '^[a-z-]+$'; flags: ''; mockSamples: ['my-slug']; message: 'must be a slug'}}>;
+    const getErrors = createGetValidationErrors<Slugish>();
+    const errors = getErrors('NOT A SLUG!') as Array<{format?: {name?: string; val?: unknown}}>;
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].format?.val).toBe('must be a slug');
+    expect(getErrors('my-slug')).toEqual([]);
+  });
+});

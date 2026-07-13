@@ -2105,7 +2105,7 @@ export const STRING_FORMAT = {
     validateNotes: [
       'Lowercase slug strings pass (`my-slug`, `a-b-c`).',
       'Rejected: capitals (`Has Capitals`, `UPPER`), an embedded space (`has space`), and the empty string.',
-      'Although the pattern registers a custom message (`must be a slug`), validate surfaces the static default `val` `Invalid pattern` (the `message` field is excluded from cache identity).',
+      'The pattern registers a custom message (`must be a slug`) and getValidationErrors surfaces it as the format `val` (message is id-relevant, so no cache-identity risk).',
     ],
     validate: () => createValidate<Slug>(),
     standardSchema: () => createStandardSchema<Slug>(),
@@ -2152,14 +2152,16 @@ export const STRING_FORMAT = {
       ),
     mockType: () => createMockData<Slug>(),
     getSamples: () => ({valid: ['my-slug', 'a-b-c'], invalid: ['Has Capitals', 'UPPER', 'has space', '']}),
-    // `pattern`'s custom message lives under the key-excluded `message`
-    // field, so the emitter uses the static default 'Invalid pattern'
-    // (shared.go messageLiteral special-cases pattern for cache identity).
+    // The pattern's custom `message` IS the error val now: every format param
+    // is id-relevant (mockSamples/message included — typeid/formats.go), so
+    // shared.go messageLiteral surfaces it without cache-identity risk. This
+    // was registerFormatPattern's documented behavior all along; it used to
+    // fall back to the static 'Invalid pattern' default.
     expectedFormatErrors: () => [
-      {name: 'stringFormat', val: 'Invalid pattern'},
-      {name: 'stringFormat', val: 'Invalid pattern'},
-      {name: 'stringFormat', val: 'Invalid pattern'},
-      {name: 'stringFormat', val: 'Invalid pattern'},
+      {name: 'stringFormat', val: 'must be a slug'},
+      {name: 'stringFormat', val: 'must be a slug'},
+      {name: 'stringFormat', val: 'must be a slug'},
+      {name: 'stringFormat', val: 'must be a slug'},
     ],
   },
   pattern_hex: {

@@ -56,16 +56,19 @@ export function mockRunType(runType: RunType, options: RunTypeMockOptions, stack
   }
 }
 
-// FORMAT_TRANSFORM_PREFIX is the cache-key prefix the formatTransform RT
-// family registers under — mirrors the Go CacheModule tag "fmt"
-// (internal/constants/constants.go). The compiled transform for a type
-// is `getRT('fmt_' + id)`.
-const FORMAT_TRANSFORM_PREFIX = 'fmt_';
+// FORMAT_TRANSFORM_FAMILY is the formatTransform family tag ("fmt", mirrors
+// the Go CacheModule tag in internal/constants/constants.go). Compiled
+// entries register under `<fmtFnHash>_<typeId>` where the 3-char fnHash folds
+// the binary version — the runtime can't reconstruct it, so the lookup goes
+// through findRTForType (suffix + familyTag scan) instead of a literal
+// prefix. (The old `'fmt_' + id` key never matched anything — mocks silently
+// skipped declared case transforms.)
+const FORMAT_TRANSFORM_FAMILY = 'fmt';
 
 /** Resolve the compiled formatTransform fn for a type id, or undefined
  *  when the format declares no transform (noop) or no entry exists. **/
 function lookupFormatTransform(id: string): ((value: unknown) => unknown) | undefined {
-  const entry = getRTUtils().getRT(FORMAT_TRANSFORM_PREFIX + id);
+  const entry = getRTUtils().findRTForType(FORMAT_TRANSFORM_FAMILY, id);
   if (!entry || entry.isNoop || !entry.fn) return undefined;
   return entry.fn as (value: unknown) => unknown;
 }

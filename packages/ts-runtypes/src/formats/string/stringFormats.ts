@@ -223,6 +223,10 @@ export interface DomainParams {
   mockSamples?: readonly string[];
   names?: DomainPartParams;
   tld?: DomainPartParams;
+  // Enum-like restriction: only these exact domains validate (the build
+  // already accepted it — same param family as plain string formats). Mocks
+  // draw from it FIRST: a synthesized domain would fail its own validator.
+  allowedValues?: AllowedValuesParam;
 }
 
 export type Domain = TypeFormat<string, 'domain', {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5}, never>;

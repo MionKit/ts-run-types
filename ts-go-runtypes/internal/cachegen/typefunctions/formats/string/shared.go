@@ -48,19 +48,21 @@ var defaultFormatMessages = map[string]string{
 }
 
 // messageLiteral resolves the error `val` for a complex param as a
-// quoted JS string literal: the param's custom `errorMessage` when set,
-// else the per-param default. `errorMessage` is part of the
-// structural key (typeid.structuralKeyIgnoredParams excludes only
-// mockSamples/message), so a custom message yields a distinct cache
-// entry — never a collision. `pattern` is special-cased: its custom
-// message lives under the key-excluded `message` field, so we emit only
-// the static default to keep cache identity correct.
+// quoted JS string literal: the param's custom message when set, else the
+// per-param default. Every format param is part of the structural key now
+// (mockSamples/message included — see typeid/formats.go), so a custom
+// message always yields a distinct cache entry — never a collision. Most
+// params carry it under `errorMessage`; a FormatPattern carries it under
+// `message` (registerFormatPattern's documented "surfaced in errors" field,
+// previously unreachable because it was key-excluded).
 func messageLiteral(params map[string]any, name string) string {
-	if name != "pattern" {
-		if obj, ok := params[name].(map[string]any); ok {
-			if msg, ok := obj["errorMessage"].(string); ok && msg != "" {
-				return jsquote.Double(msg)
-			}
+	messageKey := "errorMessage"
+	if name == "pattern" {
+		messageKey = "message"
+	}
+	if obj, ok := params[name].(map[string]any); ok {
+		if msg, ok := obj[messageKey].(string); ok && msg != "" {
+			return jsquote.Double(msg)
 		}
 	}
 	return jsquote.Double(defaultFormatMessages[name])

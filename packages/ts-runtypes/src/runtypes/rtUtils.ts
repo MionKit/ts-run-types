@@ -59,6 +59,22 @@ const rtUtils = {
     materializeRTFn(entry);
     return entry;
   },
+  // Find a family's compiled entry for a TYPE id without knowing the family's
+  // opaque fnHash prefix (cache keys are `<fnHash>_<typeId>`; the 3-char hash
+  // folds the binary version, so the runtime can never hardcode it). Linear
+  // scan gated on the key suffix + the entry's familyTag — used by cold paths
+  // only (mock generation); hot paths receive full keys from injected markers.
+  findRTForType(familyTag: string, typeId: string): InitializedTypeFn | undefined {
+    const suffix = '_' + typeId;
+    for (const key of Object.keys(rtFnsCache)) {
+      if (!key.endsWith(suffix)) continue;
+      const entry = rtFnsCache[key];
+      if (!entry || entry.familyTag !== familyTag) continue;
+      materializeRTFn(entry);
+      return entry;
+    }
+    return undefined;
+  },
   getRTFn(rtFnHash: string): (...args: any[]) => any {
     const entry = rtFnsCache[rtFnHash];
     if (!entry) throw new Error(`RT function not found for rtFnHash ${rtFnHash}`);
