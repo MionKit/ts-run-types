@@ -81,12 +81,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cachegen/diskcache/format.go). Bumped to 12
-    // when the noop verdict became predicate-decided: every family's IsNoopType
-    // over the type graph decides the short/full form (the compiled body's
-    // shape survives only as a protective tripwire), so v11 payloads' IsNoop
-    // bits could disagree and must miss.
-    expect(parsed.version).toBe(12);
+    // Mirrors disk.FormatVersion (internal/cachegen/diskcache/format.go). Bumped to 13
+    // when the class-serializer lookup gained the class-name fallback arg
+    // (`utl.getClassSerializer('<id>', '<className>')`): v12 payloads bake the
+    // old single-arg lookup, so they must miss rather than serve bytes that
+    // depend on cache temperature.
+    expect(parsed.version).toBe(13);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');
