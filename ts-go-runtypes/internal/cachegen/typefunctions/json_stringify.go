@@ -513,6 +513,13 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 	if skipCommas {
 		sepCode = "''"
 	}
+	if isEnumerabilityGuarded(rt) {
+		// A guarded (lib-global-inherited / `@nonEnumerable`) property is
+		// written only when it is an OWN-ENUMERABLE property of v —
+		// `JSON.stringify` semantics — so a value carrying it non-enumerably
+		// (a vanilla error's name/message/stack) omits the key.
+		return RTCode{Code: "(!" + propertyIsEnumerableGuard(v, rt.Name) + " ? '' : " + propPrefix + "+" + childRT.Code + "+" + sepCode + ")", Type: CodeE}
+	}
 	if rt.Optional {
 		// `accessor === undefined ? '' : propPrefix + childCode + sep`
 		return RTCode{Code: "(" + accessor + " === undefined ? '' : " + propPrefix + "+" + childRT.Code + "+" + sepCode + ")", Type: CodeE}

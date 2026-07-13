@@ -142,6 +142,23 @@ type RunType struct {
 	Optional bool `json:"optional,omitempty"`
 	Readonly bool `json:"readonly,omitempty"`
 
+	// NonEnumerable marks a declared property whose by-name write must be
+	// gated by a runtime own-enumerability check
+	// (`Object.prototype.propertyIsEnumerable.call(v, 'k')`, i.e.
+	// `JSON.stringify` semantics) in the serializer families that build output
+	// by name (prepareForJsonSafe / stringifyJson / the JSON composites / tb).
+	// Set for two id-relevant cases (typeid.IsNonEnumerable, shared by the
+	// projection and the structural id so they can't drift): (1) a property
+	// inherited from a default-lib GLOBAL interface/class (Error's
+	// name/message/stack, …) whose runtime descriptor is non-enumerable, and
+	// (2) a user property tagged `@nonEnumerable` in JSDoc — the type-aware
+	// bridge for a descriptor TS can't express (it models only readonly/`?`).
+	// A guarded property is also marked Optional (the wire shape is
+	// enumerability-driven, so validators and the presence path must treat it
+	// as possibly-absent); NonEnumerable additionally tells the emitters to
+	// gate the write on enumerability rather than `!== undefined`.
+	NonEnumerable bool `json:"nonEnumerable,omitempty"`
+
 	// TypeProperty / TypeMethod. Both flags use `is`-prefixed names so the
 	// emitted JS mirror lands on plain identifiers (not reserved words),
 	// which lets the cache-module factory bind them without aliasing.

@@ -1194,16 +1194,13 @@ func (cache *Cache) projectMembersInto(
 		if asClass && propertySymbol != nil && propertySymbol.Name == "prototype" {
 			continue
 		}
-		// `stack` inherited from the default-lib Error interface never reaches
-		// a class projection: emitters materialize declared props by name, so
-		// the inherited member would put server stack traces on the wire for
-		// every user error class (`class MyError extends Error {…}`). A user
-		// REDECLARING `stack` keeps it (the check requires every declaration
-		// to come from the lib Error interface). `name`/`message` stay: real
-		// wire data. Mirrored in typeid.memberIDs so id and projection agree.
-		if asClass && typeid.IsLibErrorStack(propertySymbol) {
-			continue
-		}
+		// Members inherited from a default-lib global type (Error's
+		// name/message/stack, …) are NOT excluded — they are projected as
+		// NON-ENUMERABLE-GUARDED members (appendProperty → applyMemberModifiers
+		// sets NonEnumerable via typeid.IsNonEnumerable). Emitters gate the
+		// by-name write on a runtime enumerability check, so a vanilla error
+		// instance skips them (native `JSON.stringify` behavior — no stack
+		// leak) while a value that makes one enumerable serializes it.
 		cache.appendProperty(node, propertySymbol, asClass, i)
 	}
 	for i, indexInfo := range cache.typeChecker.GetIndexInfosOfType(tsType) {
@@ -1256,9 +1253,17 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 
 	memberName := stableMemberName(symbol.Name)
 	member := &protocol.RunType{Name: memberName}
-	if symbol.Flags&ast.SymbolFlagsOptional != 0 {
+	// A non-enumerable-guarded member (lib-global-inherited or `@nonEnumerable`)
+	// is projected as OPTIONAL — the wire may omit it — so validators and the
+	// presence path accept its absence. Mirrors typeid.memberID
+	// (optional = declared || guarded); both read the SAME symbol via the shared
+	// typeid.IsNonEnumerable, so id and projection can't drift. NonEnumerable
+	// additionally tells the emitters to gate the write on enumerability.
+	guarded := typeid.IsNonEnumerable(symbol)
+	if symbol.Flags&ast.SymbolFlagsOptional != 0 || guarded {
 		member.Optional = true
 	}
+	member.NonEnumerable = guarded
 	member.IsSafeName = isSafeName(memberName)
 	applyMemberModifiers(member, symbol, asClass)
 

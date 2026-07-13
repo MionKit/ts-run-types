@@ -23,6 +23,25 @@ func propertyAccessor(parent, name string, safe bool) string {
 	return parent + "[" + quoteJS(name) + "]"
 }
 
+// isEnumerabilityGuarded reports whether a property member's by-name write
+// must be gated by a runtime own-enumerability check — the single source of
+// truth read by BOTH the serializer emitters and the noop predicates (per the
+// noop-soundness anti-drift rule). Set on lib-global-inherited members and
+// `@nonEnumerable`-tagged ones (see protocol.RunType.NonEnumerable /
+// typeid.IsNonEnumerable).
+func isEnumerabilityGuarded(rt *protocol.RunType) bool {
+	return rt != nil && rt.NonEnumerable
+}
+
+// propertyIsEnumerableGuard builds the JS own-enumerability test for a guarded
+// property: `Object.prototype.propertyIsEnumerable.call(<v>, "<name>")`. This
+// is exactly `JSON.stringify`'s own-enumerable semantics, so a value that
+// carries the property non-enumerably (a vanilla error's name/message/stack)
+// skips it, and one that defines it enumerably serializes it.
+func propertyIsEnumerableGuard(v, name string) string {
+	return "Object.prototype.propertyIsEnumerable.call(" + v + ", " + quoteJS(name) + ")"
+}
+
 // quoteJSDouble produces a double-quoted JS string literal — shorthand
 // for the shared jsquote.Double (regex sources are dense with
 // backslashes; double quotes keep them readable).

@@ -106,6 +106,7 @@ const RUN_TYPE_FIELD_KEYS = [
   'enumVal',
   'values',
   'notSupported',
+  'nonEnumerable',
 ] as const;
 
 /** Named view of one runtype ROW inside the data bundle: RunType's scalar
