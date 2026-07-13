@@ -231,11 +231,12 @@ func TestFormatAnnotation_StructuralKey_Canonicalises(t *testing.T) {
 	}
 }
 
-// TestFormatAnnotation_SamplesExcludedFromKey pins that mockSamples and
-// message — mock/diagnostic metadata, not validation behaviour — are
-// excluded from the structural key, so validation-equivalent formats
-// dedup to one cache entry (the defaultIgnoreFormatProps rule).
-func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
+// TestFormatAnnotation_SamplesFoldIntoKey pins that mockSamples and message
+// ARE id-relevant: cache entries are shared singletons and for createMockData
+// the samples are behaviour — two same-shape formats differing only in
+// samples/message must NOT collapse onto one entry (first-intern
+// nondeterminism; see docs/done/format-pattern-samples-dedup-and-length-soundness.md).
+func TestFormatAnnotation_SamplesFoldIntoKey(t *testing.T) {
 	withSamples := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
 		Name:   "stringFormat",
 		Params: map[string]any{"maxLength": 10.0, "mockSamples": []any{"a", "b"}, "message": "too long"},
@@ -244,10 +245,10 @@ func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
 		Name:   "stringFormat",
 		Params: map[string]any{"maxLength": 10.0},
 	})
-	if withSamples != bare {
-		t.Fatalf("mockSamples/message must not affect the key: %q vs %q", withSamples, bare)
+	if withSamples == bare {
+		t.Fatalf("mockSamples/message must affect the key; both gave %q", bare)
 	}
-	// Excluded at nested depth too (FormatPattern form nests them in `pattern`).
+	// Id-relevant at nested depth too (FormatPattern nests them in `pattern`).
 	nested := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
 		Name:   "stringFormat",
 		Params: map[string]any{"pattern": map[string]any{"source": "^x$", "flags": "", "mockSamples": []any{"x"}}},
@@ -256,8 +257,15 @@ func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
 		Name:   "stringFormat",
 		Params: map[string]any{"pattern": map[string]any{"source": "^x$", "flags": ""}},
 	})
-	if nested != nestedNoSamples {
-		t.Fatalf("nested mockSamples must not affect the key: %q vs %q", nested, nestedNoSamples)
+	if nested == nestedNoSamples {
+		t.Fatalf("nested mockSamples must affect the key; both gave %q", nested)
+	}
+	// Identical params (samples included) still converge on one key.
+	if again := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+		Name:   "stringFormat",
+		Params: map[string]any{"maxLength": 10.0, "mockSamples": []any{"a", "b"}, "message": "too long"},
+	}); again != withSamples {
+		t.Fatalf("identical params must share a key: %q vs %q", again, withSamples)
 	}
 	// Sanity: a real validation param (maxLength) still differentiates.
 	if bare == nestedNoSamples {
@@ -265,9 +273,11 @@ func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
 	}
 }
 
-// TestFormatAnnotation_SamplesDedupEndToEnd confirms the exclusion holds
-// through the full scan → structural id (not just the key fn).
-func TestFormatAnnotation_SamplesDedupEndToEnd(t *testing.T) {
+// TestFormatAnnotation_SamplesDistinctEndToEnd confirms sample id-relevance
+// holds through the full scan → structural id (not just the key fn): formats
+// differing only in mockSamples intern as DIFFERENT entries, each mocking
+// from its own samples.
+func TestFormatAnnotation_SamplesDistinctEndToEnd(t *testing.T) {
 	a := runFormatScan(t, `
 import {getRunTypeId} from '@ts-runtypes/core';
 import type {TypeFormat} from '@ts-runtypes/core';
@@ -280,7 +290,7 @@ import type {TypeFormat} from '@ts-runtypes/core';
 type T = TypeFormat<string, 'stringFormat', {maxLength: 10; mockSamples: ['x', 'y', 'z']}>;
 getRunTypeId<T>();
 `)
-	if a.ID != b.ID {
-		t.Fatalf("formats differing only in mockSamples must share one id; got %q vs %q", a.ID, b.ID)
+	if a.ID == b.ID {
+		t.Fatalf("formats differing only in mockSamples must NOT share one id; both gave %q", a.ID)
 	}
 }

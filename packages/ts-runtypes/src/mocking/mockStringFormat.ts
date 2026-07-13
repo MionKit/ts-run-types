@@ -76,7 +76,10 @@ function mockStringParams(params: StringParams): string {
   const charSet = params.allowedChars?.val ?? asCharString(params.disallowedChars?.mockSamples);
   if (charSet) return randomStringFrom(charSet, Math.max(1, pickMockLength(params)));
   if (params.pattern !== undefined) {
-    throw new Error('StringFormat: a `pattern` requires `mockSamples` to mock — none provided.');
+    throw new Error(
+      'StringFormat: a `pattern` requires `mockSamples` compatible with the length bounds to mock — ' +
+        'none provided, or every sample violates length/minLength/maxLength.'
+    );
   }
   return randomString(pickMockLength(params));
 }
@@ -91,18 +94,20 @@ function patternSampleList(pattern: PatternParam | undefined): readonly string[]
 
 // filterSamplesByLength drops samples that violate the length bounds
 // (length / minLength / maxLength). Returns the original list when no
-// bound applies, and falls back to the unfiltered list if filtering
-// would leave nothing to pick from.
+// bound applies. When EVERY sample violates the bounds the result is
+// EMPTY — never the unfiltered list: an out-of-bounds sample would fail
+// the format's own validator (`validate(mock())` must hold), so the
+// caller falls through to its bounded synthesizers or throws a clear
+// error instead of silently emitting an invalid mock.
 function filterSamplesByLength(samples: readonly string[] | undefined, params: StringParams): readonly string[] | undefined {
   if (!samples || samples.length === 0) return samples;
   if (params.length === undefined && params.minLength === undefined && params.maxLength === undefined) return samples;
-  const kept = samples.filter((sample) => {
+  return samples.filter((sample) => {
     if (params.length !== undefined && sample.length !== params.length) return false;
     if (params.minLength !== undefined && sample.length < params.minLength) return false;
     if (params.maxLength !== undefined && sample.length > params.maxLength) return false;
     return true;
   });
-  return kept.length > 0 ? kept : samples;
 }
 
 // pickSample returns a random entry from a non-empty list, else undefined.
@@ -221,6 +226,13 @@ function randomPort(): number {
 // ─────────────────────────── Domain / Email ─────────────────────────
 
 function mockDomain(params: DomainParams): string {
+  // allowedValues wins outright: the emitted validator only accepts these
+  // exact domains, so any synthesized value would fail its own validate.
+  // Mirrors the plain string-format path (mockStringParams).
+  if (params.allowedValues) {
+    const allowed = pickSample(params.allowedValues.val);
+    if (allowed !== undefined) return allowed;
+  }
   // names/tld decomposition (DomainStrict): draw a label + tld from
   // their sub-pattern samples (we use the names/tld char-sets). The
   // samples live under `<part>.pattern.mockSamples` (or a bare mockSamples).
