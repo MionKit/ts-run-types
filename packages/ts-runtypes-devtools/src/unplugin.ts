@@ -125,6 +125,17 @@ export interface PluginOptions {
   // so this trims the heaviest single wire item at no cost to debuggability in
   // a normal build. No effect in 'edits' mode (the FE generates its own map).
   sourcesContent?: boolean;
+  // Whether Error-severity build diagnostics (FMT002 param contradictions,
+  // root-position non-serializable types, …) FAIL the build/transform in every
+  // lane — `vite build`, vitest, dev serve — matching the documented contract
+  // ("Error = will throw at runtime, build must fail"). Default true. Set
+  // false for programs that deliberately contain error-case types (e.g. a
+  // test suite pinning the runtime alwaysThrow behavior): diagnostics then
+  // surface as bundler warnings only. Pure-fn extraction errors always halt
+  // regardless — files-mode has no fallback for a failed generation, so
+  // proceeding would break the build anyway. HMR updates never hard-fail
+  // mid-edit either way; the halt re-applies on the next build/test run.
+  failOnError?: boolean;
 }
 
 // MARKER_MODULE backs the transform's textual FALLBACK pre-filter. The primary
@@ -151,6 +162,9 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // wins the bundler dev loop); 'go' is the full-transform fallback. Validated
   // at the host boundary so a config typo fails loudly.
   const transformMode: 'go' | 'edits' = options.transformMode ?? 'edits';
+  // Error-severity diagnostics fail the build/transform in every lane unless
+  // explicitly opted out (see PluginOptions.failOnError).
+  const failOnError: boolean = options.failOnError !== false;
   if (transformMode !== 'go' && transformMode !== 'edits') {
     throw new Error(
       `[ts-runtypes-devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
@@ -255,7 +269,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // resolver's view and so silently clobbers an upstream enforce:'pre' plugin's
   // edit, but the returned sourceHash lets us at least DETECT and warn. It is
   // omitted on the 'edits'-mode fallback path (the drift is already known there).
-  async function transformViaGo(rel: string, driftCheck?: {ctx: any; code: string}) {
+  async function transformViaGo(ctx: any, rel: string, driftCheck?: {code: string}) {
     // Default keeps self-contained maps; an explicit `sourcesContent: false`
     // trims the embedded original source from the map.
     const goOpts = options.sourcesContent === false ? {omitSourcesContent: true} : undefined;
@@ -264,11 +278,15 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // regenerate so the modules its injected imports point at exist on disk
     // before the bundler resolves them. (write-only-on-change keeps it cheap.)
     if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+    // A file the buildStart scan couldn't have seen can introduce NEW
+    // Error-severity diagnostics — surface them here so the transform fails
+    // per the failOnError contract (warnings already surfaced program-wide).
+    surfaceDiagnostics(ctx, result.diagnostics ?? [], (d) => d.severity === Severity.Error, {halt: failOnError});
     if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
     const fileResult = result.transformed[rel];
     if (!fileResult || typeof fileResult.code !== 'string') return null;
     if (driftCheck && fileResult.sourceHash !== undefined && fileResult.sourceHash !== sourceHash(driftCheck.code)) {
-      driftCheck.ctx.warn?.(
+      ctx.warn?.(
         `ts-runtypes-devtools: transform 'go' source drift on ${rel} — the rewrite was applied to the resolver's copy, not the source another plugin handed us. ` +
           `Order ts-runtypes-devtools first among enforce:'pre' plugins so it sees pristine source.`
       );
@@ -289,6 +307,9 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     const incomingHash = sourceHash(code);
     let result = await resolver!.transform([rel], outDirAbs, {emitEdits: true});
     if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+    // New Error-severity diagnostics from a file the buildStart scan couldn't
+    // have seen — fail the transform per the failOnError contract.
+    surfaceDiagnostics(ctx, result.diagnostics ?? [], (d) => d.severity === Severity.Error, {halt: failOnError});
     if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
     let fileResult = result.transformed[rel];
     if (!fileResult) return null;
@@ -305,11 +326,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
         fileResult = result.transformed[rel];
       } catch {
-        return transformViaGo(rel);
+        return transformViaGo(ctx, rel);
       }
       // Still divergent after a fresh upload — bail to 'go' mode for correctness.
       if (!fileResult || (fileResult.sourceHash !== undefined && fileResult.sourceHash !== incomingHash)) {
-        return transformViaGo(rel);
+        return transformViaGo(ctx, rel);
       }
     }
 
@@ -319,7 +340,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     } catch (error) {
       // A malformed edit set (should be impossible) must not break the build.
       ctx.warn?.(`ts-runtypes-devtools: 'edits' apply failed on ${rel} (${String(error)}) — falling back to 'go' mode.`);
-      return transformViaGo(rel);
+      return transformViaGo(ctx, rel);
     }
   }
 
@@ -351,10 +372,13 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // rebuilds drop files whose sites are gone.
       siteFiles = new Set(gen.siteFiles.map(siteKey));
       ensureOutputDirs();
-      // Pure-fn extraction errors halt the build (files-mode has no virtual
-      // fallback, so a generation error is fatal); RT-render diagnostics flow
-      // through the per-file transform path.
+      // Pure-fn extraction errors ALWAYS halt the build (files-mode has no
+      // virtual fallback, so a generation error is fatal). Every other family
+      // (the RT render diagnostics — FMT002 param contradictions, root-position
+      // non-serializable types, …) surfaces here too and halts per the
+      // failOnError contract, so dev/test lanes fail as loudly as `vite build`.
       surfaceDiagnostics(this, gen.diagnostics ?? [], (d) => d.family === Family.PureFn, {halt: true});
+      surfaceDiagnostics(this, gen.diagnostics ?? [], (d) => d.family !== Family.PureFn, {halt: failOnError});
     },
 
     buildEnd() {
@@ -387,7 +411,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
 
       try {
         // `await` keeps the rejection inside this try — `return promise` would let it escape.
-        return await (transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(rel, {ctx: this, code}));
+        return await (transformMode === 'edits' ? transformViaEdits(this, rel, code) : transformViaGo(this, rel, {code}));
       } catch (error) {
         // A textual-fallback candidate can be a FALSE POSITIVE: a host-project file
         // that merely contains one of the probed names (e.g. its own function named
