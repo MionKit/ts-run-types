@@ -38,26 +38,34 @@ New FMT-series Error (FMT003?), emitted from the same ValidateParams pass:
 - Applies across format families that carry samples + bounds (string, and the
   numeric/datetime equivalents where samples exist).
 
-## Part 2 — JS-engine pattern check for RE2-skipped regexes
+## Part 2 — RE2-skipped regexes: fail closed, flag to delegate to the JS linter
 
-Direction from review: move the un-checkable-in-Go validation to JS. Refinement: the
-LINTER and the VITE PLUGIN are both JS hosts with the real regex engine, so both
-should consume ONE deferred-validation payload rather than making this lint-only:
+DECIDED (review ruling, 2026-07-13): the compiler refuses what it cannot verify.
 
-- The resolver, on RE2 compilation failure, emits a "deferred pattern validation"
-  entry on the scan/generate response: `{source, flags, samples, site}` (instead of
-  skipping silently).
-- The lint plugin (already a transport over the resolver's scan flags) evaluates
-  `new RegExp(source, flags).test(sample)` and reports failures at the definition
-  site — editor + lint-CI coverage.
-- The vite plugin does the same at buildStart and routes failures through the normal
-  diagnostic surfacing, so failOnError halts builds — full lane coverage, not just
-  lint runs.
-- RE2-validated patterns keep the existing Go-side FMT001 fast path; deferred entries
-  are only the skipped ones, so nothing is validated twice.
+- When a pattern CARRIES mockSamples but RE2 cannot compile it (JS-only features:
+  lookarounds, backreferences), the resolver emits a new FMT-series **Error** (today
+  it silently skips): "this pattern's samples cannot be verified at build time". The
+  message names the RE2 compile failure, the flag below, and the linter path. With
+  failOnError this halts every lane — fail-closed by default.
+- A **flag** (plugin option + binary flag + tsconfig plugin key, naming open — e.g.
+  `allowUncheckedPatterns`) disables that error. Setting it is an explicit assertion
+  that a JS-side validator owns the check.
+- **The JS linter runs the real validation for those patterns**: the resolver ships
+  the skipped patterns' `{source, flags, samples, site}` on the lint-lane scan
+  response, and the lint plugin evaluates `new RegExp(source, flags).test(sample)`,
+  reporting per-sample failures at the definition site (editor + lint CI). The
+  documented setup for JS-only patterns is therefore: enable the flag, use the
+  linter.
+- Patterns WITHOUT samples don't trigger the new error (nothing to verify; the
+  samples-required rules live elsewhere). RE2-compatible patterns keep the existing
+  Go-side FMT001 fast path unchanged — nothing is validated twice.
+- Note: the flag is a project-level assertion (plugin/tsconfig options are shared
+  config), so enabling it relies on the linter actually being wired into CI — worth
+  a docs callout in the configuration guide when implemented.
 - Rejected alternatives: embedding regexp2 in the resolver (.NET-ish semantics, still
   not JS, new dependency); reverse-RPC from Go to the Node host mid-scan (protocol
-  complexity, no coverage gain over the plugin check).
+  complexity); unconditional both-hosts deferred validation (superseded by the
+  fail-closed default + explicit delegation).
 
 ## Acceptance sketch
 
@@ -65,6 +73,8 @@ should consume ONE deferred-validation payload rather than making this lint-only
   the BUILD naming both offending samples (today: builds fine, throws at mock time).
 - A sample containing astral characters validates by UTF-16 length, matching the
   emitted validator's verdict.
-- An inline pattern with a lookbehind and a non-matching sample fails the build (via
-  the plugin's JS-engine check) and shows in the linter — today it passes silently.
+- An inline pattern with a lookbehind + samples fails the BUILD with the new
+  cannot-verify Error (today it passes silently). With the flag enabled, the build
+  passes and the LINTER reports any sample that fails the real JS regex at the
+  definition site.
 - `registerFormatPattern`'s module-load throw keeps working unchanged (backstop).
