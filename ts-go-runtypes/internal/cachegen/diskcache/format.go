@@ -100,7 +100,14 @@ package diskcache
 // tripwire). Verdicts can differ from v11's Finalize-shape decisions in
 // conservative corners, so v11 payloads' IsNoop bits and short/full forms
 // must miss rather than serve cache-temperature-dependent bytes.
-const FormatVersion = 12
+//
+// v13 adds the class-name fallback key to the class-serializer lookup:
+// class arms now emit `utl.getClassSerializer('<id>', '<className>')` so a
+// single registration covers every generic instantiation of the class. v12
+// payloads bake the old single-arg lookup — functionally they'd still hit
+// on the exact id, but the name fallback would silently not apply and
+// emitted bytes would depend on cache temperature — must miss.
+const FormatVersion = 13
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can

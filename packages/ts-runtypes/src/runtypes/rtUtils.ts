@@ -142,13 +142,15 @@ const rtUtils = {
       throw new Error(message);
     };
   },
-  // Custom user-class (de)serializer lookup, keyed by the class's structural
-  // type id. Emitted factory bodies for plain user classes (KindClass +
-  // SubKindNone) call this with the class node's `rt.ID`; a registered entry
-  // routes (de)serialization through it, otherwise the factory uses its
+  // Custom user-class (de)serializer lookup. Emitted factory bodies for plain
+  // user classes (KindClass + SubKindNone) call this with the class node's
+  // `rt.ID` plus its build-time class name; exact instantiation ids match
+  // first, then the class-name fallback lane (one registration covers every
+  // generic instantiation — generics are erased at runtime). A registered
+  // entry routes (de)serialization through it, otherwise the factory uses its
   // structural fallback. See classSerializerRegistry.ts.
-  getClassSerializer(typeId: string): ClassSerializerEntry | undefined {
-    return getClassSerializerImpl(typeId);
+  getClassSerializer(typeId: string, className?: string): ClassSerializerEntry | undefined {
+    return getClassSerializerImpl(typeId, className);
   },
   // Registry epoch — emitted bodies cache their getClassSerializer(<id>) result
   // in the closure and re-look-up only when this moves (register/unregister/clear
