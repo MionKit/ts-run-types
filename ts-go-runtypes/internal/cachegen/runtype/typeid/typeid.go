@@ -403,13 +403,6 @@ func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string
 	properties := computer.typeChecker.GetPropertiesOfType(tsType)
 	out := make([]string, 0, len(properties))
 	for _, propertySymbol := range properties {
-		// `stack` inherited from the default-lib Error interface is excluded
-		// from class projections (serialize.go projectMembersInto) — server
-		// stack traces must not ride the wire by default — so it must be
-		// excluded from the structural id too or id and projection drift.
-		if asClass && IsLibErrorStack(propertySymbol) {
-			continue
-		}
 		out = append(out, computer.memberID(propertySymbol, asClass))
 	}
 	for _, indexInfo := range computer.typeChecker.GetIndexInfosOfType(tsType) {
@@ -424,7 +417,14 @@ func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string
 func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	propertyType := computer.typeChecker.GetTypeOfSymbol(symbol)
 	memberName := stableMemberName(symbol.Name)
-	optional := symbol.Flags&ast.SymbolFlagsOptional != 0
+	// A non-enumerable-guarded member (lib-global-inherited or `@nonEnumerable`)
+	// is treated as optional in the projected shape — the wire may omit it — so
+	// its `optional` id bit folds the guard in, matching the projection
+	// (serialize.go appendProperty). The separate `#ne` bit below keeps a
+	// guarded-optional member distinct from a plain declared-optional one (they
+	// emit different presence checks: enumerability vs `!== undefined`).
+	guarded := IsNonEnumerable(symbol)
+	optional := symbol.Flags&ast.SymbolFlagsOptional != 0 || guarded
 	// Readonly must be part of the structural id — `{a: string}` and
 	// `{readonly a: string}` are different shapes and must not share
 	// a cache slot. Mirrors the resolution rule in
@@ -462,7 +462,7 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 			if asClass {
 				kind = protocol.KindMethod
 			}
-			return computer.signatureID(signatures[0], kind, memberName) + optBit(optional) + readonlyBit(readonly)
+			return computer.signatureID(signatures[0], kind, memberName) + optBit(optional) + readonlyBit(readonly) + guardedBit(guarded)
 		}
 	}
 
@@ -484,7 +484,7 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	if optional {
 		child = computer.optionalChildID(propertyType)
 	}
-	return memberID(int(kind), memberName, optional, child) + readonlyBit(readonly)
+	return memberID(int(kind), memberName, optional, child) + readonlyBit(readonly) + guardedBit(guarded)
 }
 
 // stableMemberName strips the checker-instance symbol id off a late-bound
@@ -512,6 +512,18 @@ func stableMemberName(name string) string {
 func readonlyBit(readonly bool) string {
 	if readonly {
 		return "#ro"
+	}
+	return ""
+}
+
+// guardedBit folds the non-enumerable-guard flag (IsNonEnumerable) into the
+// structural id so a guarded member gets a distinct id from an unguarded twin
+// — the runtime serialization differs (enumerability-gated write) and the
+// per-ID noop memo keys on this id. Appended after readonlyBit; `#` never
+// appears in a member name, so the suffix can't collide.
+func guardedBit(guarded bool) string {
+	if guarded {
+		return "#ne"
 	}
 	return ""
 }
@@ -627,31 +639,56 @@ func tupleElementLabel(info checker.TupleElementInfo) string {
 	return nameNode.Text()
 }
 
-// IsLibErrorStack reports whether a class member symbol is the `stack`
-// property INHERITED from the default-lib `Error` interface. Emitters
-// materialize declared props by name (`v.stack`), so without this exclusion
-// every user error class (`class MyError extends Error {…}`) would put server
-// stack traces — absolute paths and call frames — on the wire by default.
-// The check requires EVERY declaration to sit inside `interface Error` in a
-// default lib file, so a user redeclaring `stack` (own data prop, or an
-// interface of their own named Error outside the lib) keeps the member.
-// `name` and `message` stay projected: they're real wire data (error
-// envelopes rely on them) with no leak potential. Exported because the
-// projection (serialize.go projectMembersInto) and the structural id
-// (memberIDs above) MUST apply the same exclusion or id and projection drift.
-func IsLibErrorStack(symbol *ast.Symbol) bool {
-	if symbol == nil || symbol.Name != "stack" {
+// nonEnumerableTagName is the JSDoc tag (`@nonEnumerable`) a user writes to
+// mark a property whose runtime own-descriptor is non-enumerable — the
+// type-aware bridge for a descriptor TS can't express (it models only
+// readonly / `?`).
+const nonEnumerableTagName = "nonEnumerable"
+
+// IsNonEnumerable reports whether a class/interface member symbol must have
+// its by-name serialization gated by a runtime own-enumerability check
+// (`Object.prototype.propertyIsEnumerable.call(v, 'k')`). Two id-relevant
+// cases:
+//
+//  1. the member is INHERITED from a default-lib GLOBAL type — every
+//     declaration sits inside an `interface`/`class` in a `lib.*.d.ts` file.
+//     Its runtime descriptor is non-enumerable (Error's name/message/stack,
+//     other engine-set members), so materializing it by name (`v.stack`) puts
+//     data on the wire that native `JSON.stringify` omits — for a user error
+//     class (`class MyError extends Error {…}`) that means server stack traces
+//     (absolute paths + call frames) leak by default. A subclass that
+//     REDECLARES the member as its own data prop (a declaration OUTSIDE a lib
+//     file) owns it and is not guarded; it is the class's responsibility to
+//     redeclare or `@nonEnumerable`-tag members it wants recognised.
+//  2. the member is tagged `@nonEnumerable` in JSDoc.
+//
+// A guarded member is also treated as OPTIONAL in the projected shape (the
+// wire may omit it), so validators and the presence path accept its absence.
+// Exported because the projection (serialize.go / modifiers.go) and the
+// structural id (memberID above) MUST apply the same predicate or id and
+// projection drift.
+func IsNonEnumerable(symbol *ast.Symbol) bool {
+	if symbol == nil {
 		return false
 	}
+	return isDefaultLibGlobalMember(symbol) || hasNonEnumerableTag(symbol)
+}
+
+// isDefaultLibGlobalMember reports whether EVERY declaration of the member
+// sits inside an interface or class declaration in a default lib file — i.e.
+// the member is inherited from a global built-in type and carries that type's
+// runtime (non-enumerable) descriptor. A single declaration outside the lib
+// (a user redeclaration) disqualifies it, so the class keeps ownership.
+func isDefaultLibGlobalMember(symbol *ast.Symbol) bool {
 	if len(symbol.Declarations) == 0 {
 		return false
 	}
 	for _, declaration := range symbol.Declarations {
-		if declaration == nil || declaration.Parent == nil || declaration.Parent.Kind != ast.KindInterfaceDeclaration {
+		if declaration == nil || declaration.Parent == nil {
 			return false
 		}
-		interfaceName := declaration.Parent.Name()
-		if interfaceName == nil || interfaceName.Text() != "Error" {
+		parentKind := declaration.Parent.Kind
+		if parentKind != ast.KindInterfaceDeclaration && parentKind != ast.KindClassDeclaration {
 			return false
 		}
 		sourceFile := ast.GetSourceFileOfNode(declaration)
@@ -660,6 +697,34 @@ func IsLibErrorStack(symbol *ast.Symbol) bool {
 		}
 	}
 	return true
+}
+
+// hasNonEnumerableTag reports whether any declaration of the member carries a
+// `@nonEnumerable` JSDoc tag. Custom tags parse as JSDocUnknownTag; we match
+// on the bare tag name (no leading `@`). Mirrors the JSDoc-tag read the
+// tsgolint no_deprecated rule uses.
+func hasNonEnumerableTag(symbol *ast.Symbol) bool {
+	for _, declaration := range symbol.Declarations {
+		if declaration == nil {
+			continue
+		}
+		for _, jsdoc := range declaration.JSDoc(nil) {
+			tags := jsdoc.AsJSDoc().Tags
+			if tags == nil {
+				continue
+			}
+			for _, tag := range tags.Nodes {
+				if !ast.IsJSDocUnknownTag(tag) {
+					continue
+				}
+				tagName := tag.TagName()
+				if tagName != nil && tagName.Text() == nonEnumerableTagName {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // isDefaultLibFileName reports whether a file name is a TypeScript default lib

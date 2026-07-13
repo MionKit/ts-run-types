@@ -42,6 +42,7 @@ func renderFactoryArgs(runType *protocol.RunType) []string {
 		enumArg(runType.EnumVal),        // 17: enumVal
 		valuesArg(runType.Values),       // 18: values
 		boolArg(runType.NotSupported),   // 19: notSupported
+		boolArg(runType.NonEnumerable),  // 20: nonEnumerable
 	}
 	return trimTrailingUndefined(args)
 }

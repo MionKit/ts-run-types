@@ -75,6 +75,12 @@ export interface RunType<T = unknown> {
   literal?: unknown;
   optional?: unknown;
   readonly?: unknown;
+  /** True when this property's by-name serialization is gated by a runtime
+   *  own-enumerability check (`Object.prototype.propertyIsEnumerable`): a
+   *  member inherited from a default-lib global type (Error's
+   *  name/message/stack, …) or one tagged `@nonEnumerable` in JSDoc. Such a
+   *  member is also `optional` in the projected shape — the wire may omit it. */
+  nonEnumerable?: boolean;
   isAbstract?: unknown;
   isStatic?: unknown;
   visibility?: unknown;

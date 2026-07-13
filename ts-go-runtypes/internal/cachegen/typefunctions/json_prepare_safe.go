@@ -337,13 +337,23 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 		if resolved.Optional {
 			allRequired = false
 		}
-		props = append(props, safePropEmit{
+		prop := safePropEmit{
 			name:       resolved.Name,
 			isSafeName: resolved.IsSafeName,
 			optional:   resolved.Optional,
 			accessor:   accessor,
 			expr:       expr,
-		})
+		}
+		// A non-enumerable-guarded member (lib-global-inherited / `@nonEnumerable`)
+		// is projected Optional, so it already takes the guarded-assignment path;
+		// the presenceGuard ANDs a runtime own-enumerability check into the
+		// `!== undefined` presence test, so a value carrying the prop
+		// non-enumerably omits the key (native `JSON.stringify` semantics). Same
+		// mechanism the union stripped-candidate path uses.
+		if isEnumerabilityGuarded(resolved) {
+			prop.presenceGuard = propertyIsEnumerableGuard(v, resolved.Name)
+		}
+		props = append(props, prop)
 	}
 
 	// When there's an index signature, we must walk every key on v at
