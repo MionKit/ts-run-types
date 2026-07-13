@@ -1385,6 +1385,13 @@ export const OBJECT = {
     // `(...args) => any` branch and collapses to `never`, whereas the emitter
     // validates it as a function-with-data-props. Ids cannot converge.
     dataOnlyDivergent: true,
+    // Signature param names are id-relevant (parameters[].name must be
+    // per-site reliable — see docs/done/tuple-labels-unreliable-on-canonical-nodes.md),
+    // and TS call-signature syntax REQUIRES names, while the value-first
+    // RT.func builder brands an unnamed positional expansion — the two forms
+    // are informationally different types now. Behavior stays identical (the
+    // schema thunks still run in the behavior suites).
+    idDivergent: true,
     validate: () => createValidate<{(a: number, b: boolean): string; extra: string}>(),
     standardSchema: () => createStandardSchema<{(a: number, b: boolean): string; extra: string}>(),
     // DataOnly collapses the call signature away → never; assert skips it
@@ -2116,6 +2123,12 @@ export const OBJECT = {
       'The value validated is the ARGUMENTS array — a positional tuple, not the function. Each slot runs its parameter type check.',
       "Excess args are rejected as `expected: 'tuple'` at the root; a missing required arg fails its slot type (e.g. `[1]` → `expected: 'boolean'` at index 1), since the omitted value reads as `undefined`.",
     ],
+    // `Parameters<F>` carries the source param names as tuple LABELS, which are
+    // id-relevant (per-site reliable children[].name — the framework
+    // param-names mechanism); the value-first RT.tuple builder models the
+    // unlabeled shape, so the forms cannot converge on one id. Behavior stays
+    // identical.
+    idDivergent: true,
     validate: () => {
       type CallSig = (a: number, b: boolean) => string;
       return createValidate<Parameters<CallSig>>();
@@ -2218,6 +2231,9 @@ export const OBJECT = {
       '`Parameters<F>` tuple with a trailing optional resolving to `[number, boolean, string?]`, where the optional slot accepts undefined or a string.',
     validateNotes:
       "The trailing optional slot may be omitted (`[3, false]` passes), but if present it must satisfy its type; excess args beyond the optional are still rejected as `expected: 'tuple'`.",
+    // `Parameters<F>` labels are id-relevant; the unlabeled RT.tuple schema
+    // cannot converge (see call_signature_params above).
+    idDivergent: true,
     validate: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createValidate<Parameters<CallSig>>();
@@ -2313,6 +2329,9 @@ export const OBJECT = {
     // `Parameters<F>` is a tuple with a trailing rest; DataOnly's homomorphic
     // tuple mapping can't preserve the rest element (see Tuple.tuple_rest).
     dataOnlyDivergent: true,
+    // `Parameters<F>` labels are id-relevant; the unlabeled RT.tuple schema
+    // cannot converge (see call_signature_params above).
+    idDivergent: true,
     description:
       '`Parameters<F>` tuple ending in a rest segment resolving to `[number, boolean, ...Date[]]`, where all trailing slots must satisfy Date.',
     validateNotes:

@@ -64,6 +64,10 @@ describe.each(['edits', 'go'] as const)('vite build / composite source map [tran
             // the two programs differ (this one adds entry-map.ts), so a shared
             // dir would race-delete the fixture's modules. Cleaned with FIXTURE_DIR.
             outDir: path.join(FIXTURE_DIR, '__runtypes'),
+            // The marker package's test program deliberately contains
+            // Error-severity types (alwaysThrow suites) — same opt-out as its
+            // own vitest config.
+            failOnError: false,
           }) as never,
         ],
         build: {

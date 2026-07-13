@@ -243,16 +243,28 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 		// collide on a single cache slot, and the (nondeterministically chosen)
 		// winner gives one of them the wrong validator. Mirrors the flag
 		// handling in internal/cachegen/runtype/serialize.go:projectTuple.
+		//
+		// Element LABELS fold into the id too (`[s: string]` → `Tuple[s:5]`,
+		// unlabeled `[string]` stays `Tuple[5]`): canonical nodes are shared
+		// singletons and the projected node carries `children[].name`, so two
+		// same-shape tuples differing only in labels MUST NOT collapse — the
+		// first-interned site's labels would win for both (scan-order
+		// nondeterminism; the mion route-param-names bug). This is the
+		// canonical-node rule applied to identity: label data lives on the
+		// node, so the label is part of what the node IS. Labeled `Parameters<H>`
+		// tuples are exactly how frameworks reflect handler param names.
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 		elementInfos := tsType.TargetTupleType().ElementInfos()
 		ids := make([]string, 0, len(typeArguments))
 		for i, typeArgument := range typeArguments {
 			optional, rest, variadic := false, false, false
+			label := ""
 			if i < len(elementInfos) {
 				elementFlags := elementInfos[i].TupleElementFlags()
 				optional = elementFlags&checker.ElementFlagsOptional != 0
 				rest = elementFlags&checker.ElementFlagsRest != 0
 				variadic = elementFlags&checker.ElementFlagsVariadic != 0
+				label = tupleElementLabel(elementInfos[i])
 			}
 			// Optional tuple slots type as `T | undefined`; strip it so the slot id
 			// matches the projected node (serialize.go projectTuple does the same).
@@ -272,6 +284,9 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 			}
 			if variadic {
 				child += "#variadic"
+			}
+			if label != "" {
+				child = label + ":" + child
 			}
 			ids = append(ids, child)
 		}
@@ -498,20 +513,27 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 	params := signature.Parameters()
 	parts := make([]string, 0, len(params)+1)
 	position := 0
-	// Param NAMES are dropped (replaced by position): function / method /
-	// call-signature params are notSupported — skipped at validation, undefined at
-	// serialization — so names never affect behaviour and would only over-specify
-	// the id (a value-first builder also can't reproduce arbitrary source names).
-	// A trailing FIXED rest-tuple param (`(...args: [A, B])`, the shape a value-first
-	// `func([A, B], R)` brands) is expanded into positional element params so it
-	// matches a written `(a: A, b: B)`. (The method/property NAME — separate from
-	// param names — is preserved via the `name` argument below.)
+	// Param NAMES fold into the id alongside the position (`18{0:a|<child>,…}`):
+	// the projected parameter nodes carry `name`, and canonical nodes are shared
+	// singletons — two same-shape signatures differing only in param names must
+	// not collapse onto one node or the first-interned site's names win for both
+	// (scan-order nondeterminism — same rule as tuple labels above). Positions
+	// stay in the id so the naming is additive; params are behaviour-neutral
+	// (notSupported) but their names are graph DATA.
+	// A trailing FIXED rest-tuple param (`(...args: [a: A, b: B])`, the shape a
+	// value-first `func([a: A, b: B], R)` brands) is expanded into positional
+	// element params carrying the tuple LABELS as their names, so a labeled
+	// value-first tuple still matches the equivalent written `(a: A, b: B)`.
+	// An UNLABELED value-first tuple expands with empty names and so matches
+	// only other unlabeled forms — sound, just less dedup. (The method/property
+	// NAME — separate from param names — is preserved via the `name` argument
+	// below.)
 	for i, paramSymbol := range params {
 		paramType := computer.typeChecker.GetTypeOfSymbol(paramSymbol)
 		if i == len(params)-1 && isRestParam(paramSymbol) && checker.IsTupleType(paramType) {
-			if elementIDs, ok := computer.fixedTupleParamIDs(paramType); ok {
-				for _, elementID := range elementIDs {
-					parts = append(parts, memberID(int(protocol.KindParameter), strconv.Itoa(position), false, elementID))
+			if elements, ok := computer.fixedTupleParamElements(paramType); ok {
+				for _, element := range elements {
+					parts = append(parts, memberID(int(protocol.KindParameter), paramNameSlot(position, element.label), false, element.id))
 					position++
 				}
 				continue
@@ -529,7 +551,7 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 		if isRestParam(paramSymbol) {
 			child += "..."
 		}
-		parts = append(parts, memberID(int(protocol.KindParameter), strconv.Itoa(position), optional, child))
+		parts = append(parts, memberID(int(protocol.KindParameter), paramNameSlot(position, paramSymbol.Name), optional, child))
 		position++
 	}
 	parts = append(parts, "->"+computer.Compute(computer.typeChecker.GetReturnTypeOfSignature(signature)))
@@ -540,25 +562,62 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 	return strconv.Itoa(int(kind)) + body
 }
 
-// fixedTupleParamIDs returns the element type ids of tupleType when it is a FIXED
-// tuple (no rest / variadic element). Used to expand a trailing rest-tuple
-// parameter into positional params. Returns ok=false for a tuple carrying a
-// variadic-ish element (a genuine variadic signature), which is kept as a single
-// `...` entry instead.
-func (computer *Computer) fixedTupleParamIDs(tupleType *checker.Type) ([]string, bool) {
+// paramNameSlot renders a signature parameter's member-name slot: the position,
+// plus `:<name>` when the parameter has a declared name. Position stays first so
+// unlabeled value-first expansions keep their historical `18{0|…}` shape and
+// ordering is explicit in the id.
+func paramNameSlot(position int, name string) string {
+	if name == "" {
+		return strconv.Itoa(position)
+	}
+	return strconv.Itoa(position) + ":" + name
+}
+
+// tupleParamElement is one expanded rest-tuple parameter: the element's type id
+// plus its tuple LABEL (empty when unlabeled), which becomes the expanded
+// param's name so labeled value-first tuples match written named signatures.
+type tupleParamElement struct {
+	id    string
+	label string
+}
+
+// fixedTupleParamElements returns the element type ids + labels of tupleType
+// when it is a FIXED tuple (no rest / variadic element). Used to expand a
+// trailing rest-tuple parameter into positional params. Returns ok=false for a
+// tuple carrying a variadic-ish element (a genuine variadic signature), which
+// is kept as a single `...` entry instead.
+func (computer *Computer) fixedTupleParamElements(tupleType *checker.Type) ([]tupleParamElement, bool) {
 	typeArguments := computer.typeChecker.GetTypeArguments(tupleType)
 	elementInfos := tupleType.TargetTupleType().ElementInfos()
-	ids := make([]string, 0, len(typeArguments))
+	elements := make([]tupleParamElement, 0, len(typeArguments))
 	for i, typeArgument := range typeArguments {
+		label := ""
 		if i < len(elementInfos) {
 			flags := elementInfos[i].TupleElementFlags()
 			if flags&checker.ElementFlagsRest != 0 || flags&checker.ElementFlagsVariadic != 0 {
 				return nil, false
 			}
+			label = tupleElementLabel(elementInfos[i])
 		}
-		ids = append(ids, computer.Compute(typeArgument))
+		elements = append(elements, tupleParamElement{id: computer.Compute(typeArgument), label: label})
 	}
-	return ids, true
+	return elements, true
+}
+
+// tupleElementLabel extracts a tuple element's declared label (`[s: string]` →
+// "s"), or "" when unlabeled. The label lives on the labeled Parameter /
+// NamedTupleMember AST node's inner binding name — mirrors
+// serialize.go:projectTuple and the tsgo checker's getTupleElementLabel.
+func tupleElementLabel(info checker.TupleElementInfo) string {
+	labelDecl := info.LabeledDeclaration()
+	if labelDecl == nil {
+		return ""
+	}
+	nameNode := labelDecl.Name()
+	if nameNode == nil {
+		return ""
+	}
+	return nameNode.Text()
 }
 
 // isRestParam reports whether a parameter symbol's declaration carries `...`.

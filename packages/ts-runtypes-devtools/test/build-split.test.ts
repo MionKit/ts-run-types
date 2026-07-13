@@ -73,6 +73,10 @@ describe('vite build / per-entry code splitting', () => {
               // <PACKAGE_ROOT>/__runtypes with a different program, so a shared dir
               // would race-prune these fixtures' modules. Cleaned with FIXTURE_DIR.
               outDir: path.join(FIXTURE_DIR, '__runtypes'),
+              // The marker package's test program deliberately contains
+              // Error-severity types (alwaysThrow suites) — same opt-out as its
+              // own vitest config.
+              failOnError: false,
             }) as never,
           ],
           build: {
