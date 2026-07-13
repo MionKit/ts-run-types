@@ -348,7 +348,7 @@ func IsFreeTypeParameter(tsType *checker.Type) bool {
 // Earlier versions of this function compared the source-file path
 // against `"/" + module + "/"`. That heuristic broke for workspace
 // self-imports (the on-disk directory `packages/ts-runtypes/` does
-// not literally contain the published name `ts-runtypes`),
+// not literally contain the published name `@ts-runtypes/core`),
 // forcing tests to insert an ambient-module overlay file as a
 // workaround. The package.json walk removes that workaround and uses
 // the same identity check as the rest of the JS ecosystem.

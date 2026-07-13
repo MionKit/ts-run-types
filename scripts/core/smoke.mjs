@@ -35,7 +35,7 @@ if (!fs.existsSync(BIN)) {
   fail(`missing ${path.relative(REPO_ROOT, BIN)} - run 'pnpm run check:go-binary'`);
 }
 if (!fs.existsSync(path.join(PLUGIN_DIST, 'resolver-client.js'))) {
-  fail(`missing ${path.relative(REPO_ROOT, PLUGIN_DIST)} - run 'pnpm --filter ts-runtypes-devtools run build'`);
+  fail(`missing ${path.relative(REPO_ROOT, PLUGIN_DIST)} - run 'pnpm --filter @ts-runtypes/devtools run build'`);
 }
 
 // Minimal ambient declaration so the resolver's marker scanner recognises
