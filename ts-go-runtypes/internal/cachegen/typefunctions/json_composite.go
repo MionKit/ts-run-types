@@ -394,7 +394,16 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText s
 // primitive as real, noop short-form, or alwaysThrow — and the unguarded
 // `.fn` read would crash at runtime, so it surfaces as an Error diagnostic
 // at collect time instead. Deterministic order via sorted keys.
-func AssertCompositeSoftDeps(graph virtualmodules.Graph, diagSink *[]diagnostics.Diagnostic) {
+//
+// provenance maps a type id to the createJsonEncoder/Decoder call sites that
+// demanded it (RenderOpts.ProvenanceSites). A breach fans out one diagnostic
+// per demanding site — anchored at the user's call so a future invariant
+// breach is reproducible from their source instead of a file-less internal
+// error carrying only opaque cache keys. The offending type id rides as a
+// third message arg regardless; when no site is known (unit-test shape, or a
+// composite with no recorded provenance) a single file-less diagnostic is
+// still emitted so the tripwire never goes silent.
+func AssertCompositeSoftDeps(graph virtualmodules.Graph, provenance map[string][]diagnostics.Site, diagSink *[]diagnostics.Diagnostic) {
 	if diagSink == nil {
 		return
 	}
@@ -415,7 +424,18 @@ func AssertCompositeSoftDeps(graph virtualmodules.Graph, diagSink *[]diagnostics
 			if target, ok := graph[dep]; ok && target != nil && target.Kind != virtualmodules.KindMissing {
 				continue
 			}
-			*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeCompositeMissingPrimitive, diagnostics.Site{}, entry.Key, dep))
+			_, typeID, ok := splitNamespacedHash(entry.Key)
+			if !ok {
+				typeID = entry.Key
+			}
+			sites := provenance[typeID]
+			if len(sites) == 0 {
+				*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeCompositeMissingPrimitive, diagnostics.Site{}, entry.Key, dep, typeID))
+				continue
+			}
+			for _, site := range sites {
+				*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeCompositeMissingPrimitive, site, entry.Key, dep, typeID))
+			}
 		}
 	}
 }

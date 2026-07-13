@@ -164,8 +164,9 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	// Composite prologues bind primitives with an unguarded
 	// `utl.getRT(key).fn` — assert every referenced primitive actually
 	// rendered (post-fixpoint) so an invariant breach fails the build
-	// instead of crashing at runtime.
-	typefunctions.AssertCompositeSoftDeps(graph, rtOpts.DiagSink)
+	// instead of crashing at runtime. ProvenanceSites anchors any breach at
+	// the demanding createJsonEncoder/Decoder call site.
+	typefunctions.AssertCompositeSoftDeps(graph, rtOpts.ProvenanceSites, rtOpts.DiagSink)
 	// Same invariant for cfn redirects: every `utl.usePureFn('cfn::…')` must
 	// have its module in the graph or the build fails (OVR002) instead of
 	// throwing at runtime.
