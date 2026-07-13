@@ -200,12 +200,18 @@ export function registerClassSerializer<T>(
   id?: InjectRunTypeId<T>
 ): void;
 /** Register a custom (de)serializer for a user-defined class. Pass the class
- *  itself; the runtime gets its constructor (to instantiate) and the plugin
- *  injects the trailing `id` (the registered type's id). One registration
- *  covers EVERY instantiation of a generic class (generics are erased at
- *  runtime — same class object), via the class-name fallback lane the emitted
- *  lookups carry. Re-registering the same class (any instantiation) updates
- *  the handlers everywhere and never drops previously covered keys. */
+ *  itself — the ENCOURAGED form needs no type argument at all:
+ *
+ *    registerClassSerializer(WireError, {deserialize: (data) => new WireError(…)});
+ *
+ *  The runtime gets the constructor (to instantiate) and the plugin injects
+ *  the trailing `id` for whatever instantiation the compiler infers — which
+ *  is incidental by design: one registration covers EVERY instantiation of a
+ *  generic class (generics are erased at runtime — same class object) via the
+ *  class-name fallback lane the emitted lookups carry. An explicit
+ *  `registerClassSerializer<WireError<'x'>>(…)` still works but adds nothing.
+ *  Re-registering the same class (any instantiation) updates the handlers
+ *  everywhere and never drops previously covered keys. */
 export function registerClassSerializer<T>(cls: AnyClass<T>, handler?: ClassSerializerHandler<T>, id?: InjectRunTypeId<T>): void {
   if (typeof cls !== 'function') throw new Error('registerClassSerializer: cls must be a class constructor');
   const key = classSerializerKey(id, cls);

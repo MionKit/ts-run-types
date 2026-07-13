@@ -40,8 +40,16 @@ class WireError<Code extends string, Data = unknown> {
   }
 }
 
+// The ENCOURAGED form: no explicit type argument. T infers from the
+// constructor (instantiated to its constraint/defaults, here
+// WireError<string, unknown>), and the class-name lane makes the inferred
+// instantiation choice irrelevant — one bare registration covers every
+// instantiation. (The explicit `registerClassSerializer<WireError<'x'>>`
+// form still works — see the re-registration case below — but is only a
+// leftover from the pre-name-lane API where the instantiation id was the
+// sole key.)
 function registerWireError(): void {
-  registerClassSerializer<WireError<string>>(WireError, {
+  registerClassSerializer(WireError, {
     deserialize: (data) => new WireError(data.code, data.reason, data.data),
   });
 }
@@ -112,8 +120,31 @@ describe('classSerializer / generic classes — one registration covers every in
     expect(ok).not.toBeInstanceOf(WireError);
   });
 
+  it('bare registration (encouraged form) covers other instantiations via the name lane', () => {
+    // No type argument at all: T infers from the constructor. WHICH
+    // instantiation the compiler picks is incidental by design — coverage
+    // comes from the class-name lane, so nothing here asserts the injected
+    // exact id. This is the form the docs encourage.
+    registerClassSerializer(WireError, {
+      deserialize: (data) => new WireError(data.code, data.reason, data.data),
+    });
+    expect(isClassSerializerRegistered(WireError)).toBe(true);
+    // the name lane routes independently of any instantiation id
+    expect(getClassSerializer('nonexistent-id', 'WireError')).toBeDefined();
+    // and a concrete instantiation reconstructs end-to-end
+    const decode = createJsonDecoder<WireError<'bare', {ok: boolean}>>();
+    const encode = createJsonEncoder<WireError<'bare', {ok: boolean}>>();
+    const decoded = decode(encode(new WireError('bare', 'works', {ok: true})) as string) as WireError<'bare', {ok: boolean}>;
+    expect(decoded).toBeInstanceOf(WireError);
+    expect(decoded.data).toEqual({ok: true});
+  });
+
   it('re-registering under a SECOND instantiation keeps BOTH ids routable (no eviction) and last handlers win', () => {
-    registerWireError();
+    // EXPLICIT instantiations on purpose: this case pins the exact-id lane's
+    // multi-key behavior, so both registrations name their instantiation.
+    registerClassSerializer<WireError<string>>(WireError, {
+      deserialize: (data) => new WireError(data.code, data.reason, data.data),
+    });
     expect(isClassSerializerRegistered(WireError)).toBe(true);
     const wideId = getRunTypeId<WireError<string>>() as unknown as string;
     const narrowId = getRunTypeId<WireError<'other', {n: number}>>() as unknown as string;
