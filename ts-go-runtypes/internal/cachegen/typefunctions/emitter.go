@@ -470,6 +470,22 @@ func (ctx *EmitContext) EmitDiagnostic(code string, args ...string) {
 	ctx.walker.EmitDiagnostic(code, args...)
 }
 
+// AllowUncheckedPatterns reports the project's allowUncheckedPatterns
+// setting (build lane only) — see formats.EmitContext.
+func (ctx *EmitContext) AllowUncheckedPatterns() bool {
+	return ctx.walker != nil && ctx.walker.AllowUncheckedPatterns
+}
+
+// RecordUncheckedPattern records an RE2-incompatible pattern for the
+// lint lane's sink, returning whether it was recorded (lint lane) — see
+// formats.EmitContext.
+func (ctx *EmitContext) RecordUncheckedPattern(source, flags string, samples []string) bool {
+	if ctx.walker == nil {
+		return false
+	}
+	return ctx.walker.RecordUncheckedPattern(source, flags, samples)
+}
+
 // ArgName looks up the JS identifier the inner function uses for a
 // conceptual arg slot ("vλl", "pλth", "εrr") via the emitter's Args
 // list. Returns "" when the slot isn't declared on this emitter — eg

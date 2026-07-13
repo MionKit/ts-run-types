@@ -65,6 +65,12 @@ export interface ResolverClientOptions {
   // pool, and a light child keeps editor/CI hosts (which may run several
   // lint runtimes side by side) well under process/memory limits.
   singleThreaded?: boolean;
+  // Forwarded as --allow-unchecked-patterns: silence the fail-closed
+  // FMT004 build error for format patterns whose mockSamples RE2 can't verify
+  // (JS-only regex features). Build-lane only — asserts the ts-runtypes lint
+  // plugin, which runs the real RegExp, owns that check. Undefined leaves the
+  // binary default (off).
+  allowUncheckedPatterns?: boolean;
 }
 
 // WireStats is the cumulative byte + request tally of a connection's stdio
@@ -176,6 +182,9 @@ export interface ScanFilesResult {
   runTypes?: RunType[];
   entryModules?: Record<string, string>;
   diagnostics?: import('./protocol.ts').Diagnostic[];
+  // Lint lane only (includeRtDiagnostics): format patterns RE2 couldn't
+  // verify, for the lint plugin to validate with the real regex engine.
+  uncheckedPatterns?: import('./protocol.ts').UncheckedPattern[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
   addedValidate?: boolean;
@@ -272,6 +281,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       runTypes: resp.runTypes,
       entryModules: resp.entryModules,
       diagnostics: resp.diagnostics,
+      uncheckedPatterns: resp.uncheckedPatterns,
       addedRunTypes: resp.addedRunTypes,
       addedValidate: resp.addedValidate,
       addedValidationErrors: resp.addedValidationErrors,
@@ -401,6 +411,9 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);
   if (opts.inlineMode) args.push('--inline-mode', opts.inlineMode);
   if (opts.singleThreaded) args.push('--single-threaded');
+  // Build-lane only. The lint worker never forwards it: the lint lane always
+  // validates the samples (with the real RegExp) regardless of the flag.
+  if (opts.allowUncheckedPatterns) args.push('--allow-unchecked-patterns');
   return args;
 }
 

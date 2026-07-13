@@ -3,6 +3,7 @@ package string
 import (
 	"regexp"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
@@ -70,6 +71,7 @@ func namedPatternValidate(ctx formats.EmitContext, annotation *protocol.FormatAn
 	if annotation == nil {
 		return ""
 	}
+	validateSampleBounds(ctx, annotation.Params)
 	conditions := lengthConditions(annotation.Params, vλl)
 	if source, flags, ok := recoverPattern(annotation.Params); ok {
 		validateSamples(ctx, source, flags, recoverSamples(annotation.Params))
@@ -108,24 +110,256 @@ func emitPatternTest(ctx formats.EmitContext, source, flags, vλl string) string
 }
 
 // validateSamples compiles the pattern with Go's RE2 engine and checks
-// every mockSample against it, emitting CodeFMTSampleMismatch for any
-// that fail. When the pattern uses JS-only regex features RE2 can't
-// compile (lookarounds, backreferences) we skip validation rather than
-// false-positive — RE2 is a best-effort build-time oracle, not the
-// runtime engine.
+// every mockSample against it, emitting CodeFMTSampleMismatch naming every
+// sample that fails. When the pattern uses JS-only regex features RE2 can't
+// compile (lookarounds, backreferences) it can't run: Part 2 records the
+// pattern for the JS linter to verify (lint lane) or emits
+// CodeFMTUncheckedPattern to fail the build closed (build lane) —
+// RE2 is a best-effort build-time oracle, not the runtime engine.
 func validateSamples(ctx formats.EmitContext, source, flags string, samples []string) {
 	if len(samples) == 0 {
 		return
 	}
 	compiled, err := regexp.Compile(re2Pattern(source, flags))
 	if err != nil {
-		return // RE2 can't represent this JS regex — skip rather than mis-report.
+		reportUncheckedPattern(ctx, source, flags, samples, err)
+		return
 	}
+	var offenders []string
 	for _, sample := range samples {
 		if !compiled.MatchString(sample) {
-			ctx.EmitDiagnostic(diagnostics.CodeFMTSampleMismatch, sample, source)
+			offenders = append(offenders, sample)
 		}
 	}
+	// One diagnostic naming every mismatching sample: the walker dedups
+	// per code per walk, so per-sample diagnostics would collapse to the
+	// first offender anyway.
+	if len(offenders) > 0 {
+		ctx.EmitDiagnostic(diagnostics.CodeFMTSampleMismatch, strings.Join(offenders, ", "), source)
+	}
+}
+
+// validateSampleBounds checks that the canonical VALUE samples the mock
+// generator would draw from satisfy the format's statically checkable
+// siblings, mirroring the runtime mock's own soundness rules
+// (mocking/mockStringFormat.ts):
+//
+//   - length / minLength / maxLength are a FILTER at mock time
+//     (filterSamplesByLength): the mock keeps the length-compatible samples
+//     and picks among them, throwing only when EVERY sample is filtered out.
+//     So a length violation is a build Error only in that all-violate case —
+//     a partial list (e.g. `['aa', 'aaaaaa']` under minLength 5, where
+//     'aaaaaa' survives) is valid, not a mistake. Lengths count UTF-16 code
+//     units, matching the emitted `.length` validator (astral-safe).
+//   - allowedChars / disallowedChars / disallowedValues are NOT filtered at
+//     mock time, so the generator can pick ANY surviving sample: a single
+//     violating survivor is a latent unsound mock (validate(mock()) may
+//     fail). Those are flagged per offending sample.
+//
+// Every violation rides one CodeFMTSampleBounds diagnostic (composed
+// message) — the walker dedups per code per walk. Independent of FMT001's
+// pattern check; bounds apply even when no pattern is present.
+func validateSampleBounds(ctx formats.EmitContext, params map[string]any) {
+	pool := sampleDrawPool(params)
+	if len(pool) == 0 {
+		return
+	}
+	survivors := lengthSurvivors(params, pool)
+	if len(survivors) == 0 {
+		// Every sample fails the length bounds: the mock would throw. Name
+		// each offender against the bound it trips.
+		ctx.EmitDiagnostic(diagnostics.CodeFMTSampleBounds, strings.Join(lengthBoundViolations(params, pool), "; "))
+		return
+	}
+	// The mock draws from the length survivors — check those against the
+	// unfiltered char/value ops.
+	if violations := charValueViolations(params, survivors); len(violations) > 0 {
+		ctx.EmitDiagnostic(diagnostics.CodeFMTSampleBounds, strings.Join(violations, "; "))
+	}
+}
+
+// lengthSurvivors returns the pool members that satisfy every length bound
+// (length / minLength / maxLength), mirroring the runtime
+// filterSamplesByLength. Returns the whole pool when no length bound is set.
+func lengthSurvivors(params map[string]any, pool []string) []string {
+	length, hasLength := formats.ReadNumberParam(params, "length")
+	minLen, hasMin := formats.ReadNumberParam(params, "minLength")
+	maxLen, hasMax := formats.ReadNumberParam(params, "maxLength")
+	if !hasLength && !hasMin && !hasMax {
+		return pool
+	}
+	return filterSamples(pool, func(sample string) bool {
+		size := utf16Len(sample)
+		if hasLength && size != int(length) {
+			return false
+		}
+		if hasMin && size < int(minLen) {
+			return false
+		}
+		if hasMax && size > int(maxLen) {
+			return false
+		}
+		return true
+	})
+}
+
+// sampleDrawPool returns the canonical VALUE samples the mock generator
+// draws from for these params, mirroring mockStringParams' precedence
+// (mocking/mockStringFormat.ts): allowedValues.val wins; otherwise the
+// first present of the top-level mockSamples, the pattern's mockSamples,
+// or disallowedValues' mockSamples. The char-pool formats (allowedChars /
+// disallowedChars) build a value from a character set rather than picking
+// a declared value, so — absent a shadowing top-level mockSamples — they
+// contribute no value whose length can be checked and return nil.
+func sampleDrawPool(params map[string]any) []string {
+	if vals, _, ok := readValuesParam(params, "allowedValues"); ok {
+		return vals
+	}
+	if samples := samplesFromValue(params["mockSamples"]); len(samples) > 0 {
+		return samples
+	}
+	if pattern, ok := params["pattern"].(map[string]any); ok {
+		if samples := samplesFromValue(pattern["mockSamples"]); len(samples) > 0 {
+			return samples
+		}
+	}
+	if disallowed, ok := params["disallowedValues"].(map[string]any); ok {
+		if samples := samplesFromValue(disallowed["mockSamples"]); len(samples) > 0 {
+			return samples
+		}
+	}
+	return nil
+}
+
+// lengthBoundViolations returns one composed message per violated length
+// bound, each naming every sample that trips it. Lengths count UTF-16
+// code units so astral characters agree with the emitted `.length` check.
+func lengthBoundViolations(params map[string]any, pool []string) []string {
+	var messages []string
+	if value, ok := formats.ReadNumberParam(params, "length"); ok {
+		want := int(value)
+		if offenders := filterSamples(pool, func(sample string) bool { return utf16Len(sample) != want }); len(offenders) > 0 {
+			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" are not exactly length "+formats.FormatNumber(value))
+		}
+	}
+	if value, ok := formats.ReadNumberParam(params, "minLength"); ok {
+		min := int(value)
+		if offenders := filterSamples(pool, func(sample string) bool { return utf16Len(sample) < min }); len(offenders) > 0 {
+			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" are shorter than minLength "+formats.FormatNumber(value))
+		}
+	}
+	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok {
+		max := int(value)
+		if offenders := filterSamples(pool, func(sample string) bool { return utf16Len(sample) > max }); len(offenders) > 0 {
+			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" are longer than maxLength "+formats.FormatNumber(value))
+		}
+	}
+	return messages
+}
+
+// charValueViolations returns one composed message per violated
+// char/value sibling (allowedChars / disallowedChars / disallowedValues).
+// Only one complex param can be present (FMT002 enforces it), so at most
+// one of these applies. Uses plain Go string ops — no regex, so no RE2
+// concern.
+func charValueViolations(params map[string]any, pool []string) []string {
+	var messages []string
+	if val, _, ok := readCharParam(params, "allowedChars"); ok {
+		allowed := runeSet(val)
+		offenders := filterSamples(pool, func(sample string) bool { return !onlyRunes(sample, allowed) })
+		if len(offenders) > 0 {
+			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" contain characters outside allowedChars "+jsquote.Double(val))
+		}
+	}
+	if val, _, ok := readCharParam(params, "disallowedChars"); ok {
+		offenders := filterSamples(pool, func(sample string) bool { return strings.ContainsAny(sample, val) })
+		if len(offenders) > 0 {
+			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" contain disallowed characters from disallowedChars "+jsquote.Double(val))
+		}
+	}
+	if vals, flags, ok := readValuesParam(params, "disallowedValues"); ok {
+		ignoreCase := strings.Contains(flags, "i")
+		offenders := filterSamples(pool, func(sample string) bool { return inValueSet(sample, vals, ignoreCase) })
+		if len(offenders) > 0 {
+			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" are in the disallowedValues set")
+		}
+	}
+	return messages
+}
+
+// filterSamples returns the members of pool for which predicate is true.
+func filterSamples(pool []string, predicate func(string) bool) []string {
+	var out []string
+	for _, sample := range pool {
+		if predicate(sample) {
+			out = append(out, sample)
+		}
+	}
+	return out
+}
+
+// utf16Len counts the UTF-16 code units in s — what JS `String.length`
+// reports (an astral character is two units). Go's len() counts bytes and
+// utf8.RuneCountInString counts code points; neither matches the emitted
+// validator, so samples with astral characters would mis-validate.
+func utf16Len(s string) int {
+	return len(utf16.Encode([]rune(s)))
+}
+
+// quoteJoin renders a sample list as a comma-separated run of
+// double-quoted JS string literals for a diagnostic message.
+func quoteJoin(samples []string) string {
+	quoted := make([]string, len(samples))
+	for i, sample := range samples {
+		quoted[i] = jsquote.Double(sample)
+	}
+	return strings.Join(quoted, ", ")
+}
+
+// runeSet returns the set of runes in val (an allowedChars character set).
+func runeSet(val string) map[rune]bool {
+	set := make(map[rune]bool, len(val))
+	for _, r := range val {
+		set[r] = true
+	}
+	return set
+}
+
+// onlyRunes reports whether every rune of sample is in allowed.
+func onlyRunes(sample string, allowed map[rune]bool) bool {
+	for _, r := range sample {
+		if !allowed[r] {
+			return false
+		}
+	}
+	return true
+}
+
+// inValueSet reports whether sample equals any member of vals, honoring
+// the ignoreCase flag (case-folded compare) the emitted validator uses.
+func inValueSet(sample string, vals []string, ignoreCase bool) bool {
+	for _, value := range vals {
+		if sample == value || (ignoreCase && strings.EqualFold(sample, value)) {
+			return true
+		}
+	}
+	return false
+}
+
+// reportUncheckedPattern handles a pattern that carries mockSamples
+// but uses JS-only regex features RE2 can't compile. Lint lane (a sink is
+// present): record {source, flags, samples} so the JS linter runs the
+// real RegExp.test and reports mismatches as FMT001 — no build error.
+// Build lane: fail closed with FMT004, unless the project set
+// allowUncheckedPatterns to assert the linter owns the check.
+func reportUncheckedPattern(ctx formats.EmitContext, source, flags string, samples []string, compileErr error) {
+	if ctx.RecordUncheckedPattern(source, flags, samples) {
+		return
+	}
+	if ctx.AllowUncheckedPatterns() {
+		return
+	}
+	ctx.EmitDiagnostic(diagnostics.CodeFMTUncheckedPattern, source, compileErr.Error())
 }
 
 // re2Pattern translates a JS regex source+flags into an RE2 pattern
