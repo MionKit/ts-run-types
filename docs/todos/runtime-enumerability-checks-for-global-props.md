@@ -41,37 +41,45 @@ projection is an object-literal shape, so decoders lose class reconstruction
   Reading JSDoc tags off declarations already has precedent (`@rtType` / `@rtOrphan`
   in the enrichment scanner).
 
-## Design decisions to settle before implementing
+## Decided (review rulings, 2026-07-13)
 
-1. **Requiredness tiebreaker.** At runtime `Error.message` is own-non-enumerable and
-   `name` is prototype-resident, so a blanket guard on ALL global props would stop
-   serializing both for vanilla subclasses (constructor assignment keeps the
-   non-enumerable descriptor) — native-JSON behavior, but it empties the typed-error
-   envelope (mion's wire relies on `message`) and a missing REQUIRED prop fails the
-   type's own validator on decode. Proposed rule: **guard OPTIONAL global props
-   (`stack?`); keep REQUIRED ones (`name`, `message`) unconditional** — the type's
-   requiredness decides, so wire output always satisfies the type's own validator.
-   An explicit `@nonEnumerable` tag on a required member opts it into the guard AND
-   forces optional semantics on the wire (validators/decoders treat it as optional).
-2. **Binary lane parity.** tb/fb are positional: a conditionally-present prop must ride
-   the existing optional-prop presence encoding. "Guarded" therefore implies
-   optional-on-the-wire in every lane (JSON absent key, binary presence bit), and the
-   decode projection treats it as optional.
-3. Own-only check semantics (`propertyIsEnumerable`) match `JSON.stringify`; prototype
-   reads (`v.name` succeeding through the chain today) stop counting — covered by the
-   requiredness tiebreaker, but worth pinning in tests for a subclass that sets
-   `this.name`.
-4. Noop-predicate sync: families whose emit arms gain the guard need the matching
-   IsNoopType arm unchanged-or-updated per the soundness contract (a guarded prop is
-   never identity-preserving, so predicates must treat guarded members as live).
+1. **Uniform rule — no requiredness exception.** EVERY lib-global-inherited prop gets
+   the runtime guard, `name`/`message` included. A framework that wants them on the
+   wire makes them enumerable in its own classes (e.g. mion's TypedError/RpcError
+   define `name`/`message` as enumerable own props — class fields use define
+   semantics, or `Object.defineProperty` in the constructor). Vanilla subclasses get
+   exact native-JSON behavior.
+2. **Binary presence encoding accepted.** Guarded props ride the existing
+   optional-prop presence path in tb/fb; the emitted enumerability check itself
+   drives the presence bit. Implementation cost acknowledged and accepted.
+
+## Derived requirements
+
+- **Guarded ⇒ optional in the projected shape.** Because a guarded prop may be absent
+  from the wire even when the TS type marks it required, validators and the decode
+  projection (`DataOnly<T>`) must treat guarded props as optional — otherwise
+  `validate(decode(encode(v)))` fails for vanilla instances. The type's requiredness
+  stays a compile-time statement about the CLASS; the wire shape is
+  enumerability-driven.
+- Own-only check semantics (`propertyIsEnumerable`) match `JSON.stringify`; prototype
+  reads (`v.name` succeeding through the chain today) stop counting. Pin with a test
+  for a subclass that sets `this.name` (assignment keeps the inherited descriptor)
+  vs one that DECLARES `name` as a class field (define semantics ⇒ enumerable).
+- Noop-predicate sync: families whose emit arms gain the guard need the matching
+  IsNoopType arm updated per the soundness contract (a guarded prop is never
+  identity-preserving, so predicates must treat guarded members as live).
+- mion follow-up (on adoption): TypedError/RpcError make `name`/`message` enumerable
+  own props to keep the error envelope on the wire.
 
 ## Acceptance sketch
 
-- Vanilla `class MyError extends Error {code}`: JSON/binary write `code` +
-  `name`/`message` (required, unconditional), never `stack`; identical to the current
-  shipped behavior — no regression for mion.
-- Same class where the VALUE carries an enumerable own `stack`: stack rides the wire
-  and round-trips (JSON + binary presence path).
-- A user prop tagged `@nonEnumerable` behaves like `stack?`: skipped when
-  non-enumerable at runtime, serialized when enumerable, optional to validators.
+- Vanilla `class MyError extends Error {code}`: JSON/binary write `code` only —
+  `name`/`message`/`stack` are all non-enumerable at runtime and skip (native-JSON
+  behavior). Validators accept the decoded value (guarded props are optional).
+- A subclass declaring `name`/`message` as enumerable own props (class fields /
+  defineProperty): both ride the wire and round-trip.
+- A VALUE carrying an enumerable own `stack`: stack rides the wire and round-trips
+  (JSON + binary presence path).
+- A user prop tagged `@nonEnumerable` behaves the same: skipped when non-enumerable
+  at runtime, serialized when enumerable, optional to validators.
 - `validate(decode(encode(v)))` holds for every case above.
