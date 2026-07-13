@@ -317,7 +317,7 @@ func (layout FlatLayout) atomicEncodeDispatch(v string, ctx *EmitContext) (prolo
 			seenDecl[csVar] = true
 			epVar := csVar + "_ep"
 			ctx.SetContextItem("csvar_"+csVar, "let "+csVar+", "+epVar+" = -1")
-			decls = append(decls, "if ("+epVar+" !== utl.csEpoch()) { "+csVar+" = utl.getClassSerializer("+quoteJS(m.Resolved.ID)+"); "+epVar+" = utl.csEpoch(); }")
+			decls = append(decls, "if ("+epVar+" !== utl.csEpoch()) { "+csVar+" = utl.getClassSerializer("+quoteJS(m.Resolved.ID)+", "+quoteJS(m.ClassName)+"); "+epVar+" = utl.csEpoch(); }")
 		}
 		arms = append(arms, atomicDispatchArm{Member: m, Guard: csVar + " && " + v + " instanceof " + csVar + ".cls"})
 	}
