@@ -477,7 +477,7 @@
       "code": "JCP001",
       "subsystem": "serialization",
       "severity": "error",
-      "headline": "Internal error: JSON composite `{0}` references primitive entry `{1}` which was never rendered — please file an issue.",
+      "headline": "Internal error: JSON composite `{0}` references primitive entry `{1}` (type `{2}`) which was never rendered — please file an issue.",
       "detail": null,
       "summary": null,
       "fix": null,
