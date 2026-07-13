@@ -1,4 +1,4 @@
-// Cross-bundler proof for the ts-runtypes-devtools/rollup entry. This drives the
+// Cross-bundler proof for the @ts-runtypes/devtools/rollup entry. This drives the
 // unplugin-generated Rollup plugin's hooks exactly as Rollup invokes them
 // (buildStart, transform) and asserts the files-mode chain: buildStart writes
 // the cache modules to real files under <outDir>/types, and the marker call is
@@ -37,7 +37,7 @@ type Hook = ((...args: unknown[]) => unknown) | {handler: (...args: unknown[]) =
 const callHook = (hook: Hook, thisArg: unknown, ...args: unknown[]): unknown =>
   typeof hook === 'function' ? hook.apply(thisArg, args) : hook.handler.apply(thisArg, args);
 
-describe('rollup build / ts-runtypes-devtools/rollup entry', () => {
+describe('rollup build / @ts-runtypes/devtools/rollup entry', () => {
   const register = hasBinary() ? it : it.skip;
 
   register(

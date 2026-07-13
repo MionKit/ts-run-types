@@ -1,4 +1,4 @@
-// ts-runtypes-devtools/eslint — the RunTypes lint plugin, served from the
+// @ts-runtypes/devtools/eslint — the RunTypes lint plugin, served from the
 // package's `./eslint` subpath. One module works as BOTH an OXlint JS plugin
 // (`jsPlugins` in .oxlintrc.json — the primary target; diagnostics reach the
 // editor live through the oxc language server) and an ESLint v9 flat-config

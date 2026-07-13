@@ -177,7 +177,7 @@ function resolveWorkerURL(): URL {
   const dist = new URL('../../dist/eslint/lint-worker.js', import.meta.url);
   if (existsSync(fileURLToPath(dist))) return dist;
   throw new Error(
-    '[runtypes] lint worker not found — build ts-runtypes-devtools first (pnpm --filter ts-runtypes-devtools run build)'
+    '[runtypes] lint worker not found — build @ts-runtypes/devtools first (pnpm --filter @ts-runtypes/devtools run build)'
   );
 }
 

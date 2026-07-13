@@ -320,7 +320,7 @@ build_vite_plugin() {
     return 0
   fi
   bold "Building ts-runtypes-devtools"
-  ( cd "$REPO_DIR" && pnpm --filter ts-runtypes-devtools run build ) \
+  ( cd "$REPO_DIR" && pnpm --filter @ts-runtypes/devtools run build ) \
     || { err "ts-runtypes-devtools build failed"; FAILED=1; return 1; }
   ok "ts-runtypes-devtools dist built"
 }

@@ -4,7 +4,7 @@
 > - the `FriendlyText<T>` / `MockData<T>` DSL types (type-checked against `T`, with
 >   structural node shapes — solution A), the pure-data `createFriendlyText<T>(map)`
 >   renderer, and the `createMockData<T>({ data })` integration — all exported from
->   `ts-runtypes`;
+>   `@ts-runtypes/core`;
 > - the Go CLI trio `describe` / `check` / `gen` (`ts-go-runtypes/internal/enrichment`, a separate
 >   package), incl. **named-type-driven emission** (one `const` per named type) and
 >   the `check` diagnostics **FT002 / FT003 / FT005 / MD001**;
@@ -256,7 +256,7 @@ both legal in single-locale maps too:
   rules (deterministic, matching the default `sourceLocale`). A plain string stays
   legal on a count-bearing constraint; `rt$label` is always a plain string.
   Type-side: `TemplateLeaf = string | PluralTemplate` (plus `PluralCategory`),
-  exported from `ts-runtypes`; the TS `CountBearingKeys` union in
+  exported from `@ts-runtypes/core`; the TS `CountBearingKeys` union in
   `friendlyType.ts` mirrors Go's `CountBearing` — the second TS↔Go sync point.
 - **Type-driven `$[val]` rendering.** On the `createFriendlyTextI18n` path the
   error's format payload says what the bound IS. A number with the `isCurrency`
@@ -962,7 +962,7 @@ library provides (#2) or the user explicitly opts in (#3). Built-ins (`Date`,
 Two implications:
 
 - **Enrichment becomes part of a library's public API.** A library that wants to
-  support this adds `ts-runtypes` (for the `FriendlyText`/`MockData` types) and
+  support this adds `@ts-runtypes/core` (for the `FriendlyText`/`MockData` types) and
   exports its enrichment consts as named exports; a consumer imports them directly,
   same as any other library value — no special-casing.
 - **The opt-in tag needs an anchor.** The cleanest is a tagged local re-export,

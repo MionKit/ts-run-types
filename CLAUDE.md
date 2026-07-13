@@ -25,7 +25,7 @@ For setup, build, test, and publish workflows, see [SETUP.md](SETUP.md) — the 
 - `ts-runtypes` exposes the `InjectRunTypeId<T>` marker and `getRunTypeId` (static `getRunTypeId<T>()` + value-first `getRunTypeId(value)` forms).
 - `ts-runtypes-devtools` spawns the Go binary, applies byte-offset rewrites + import injection, serves the per-entry `virtual:rt/*` modules. Its `binary` option is OPTIONAL — when omitted it resolves the host binary via `ts-runtypes-bin`'s `getExePath()`.
 - **Binary distribution** mirrors typescript-go's esbuild-style pattern: the Go resolver is cross-compiled per platform (`CGO_ENABLED=0`, [scripts/release/build-binaries.mjs](scripts/release/build-binaries.mjs)) into `ts-runtypes-binary-<os>-<arch>` packages (os/cpu-gated, binary at `lib/`), published by [scripts/release/publish.mjs](scripts/release/publish.mjs) BEFORE the launcher so its optional deps always exist. NEVER add a postinstall downloader — `ignoreScripts: true` blocks it. The binary embeds `constants.Version` (folded into typeID hashes) + `constants.TsgoVersion` (pure metadata: `--version` + the launcher's `tsgo` field, NEVER in the hash).
-- Filter a package: `pnpm --filter ts-runtypes run <cmd>` or `pnpm --filter ts-runtypes-devtools run <cmd>`.
+- Filter a package: `pnpm --filter @ts-runtypes/core run <cmd>` or `pnpm --filter @ts-runtypes/devtools run <cmd>`.
 - All devDependencies live root-level; never per-package.
 
 ## Go side
