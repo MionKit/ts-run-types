@@ -403,6 +403,13 @@ func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string
 	properties := computer.typeChecker.GetPropertiesOfType(tsType)
 	out := make([]string, 0, len(properties))
 	for _, propertySymbol := range properties {
+		// `stack` inherited from the default-lib Error interface is excluded
+		// from class projections (serialize.go projectMembersInto) — server
+		// stack traces must not ride the wire by default — so it must be
+		// excluded from the structural id too or id and projection drift.
+		if asClass && IsLibErrorStack(propertySymbol) {
+			continue
+		}
 		out = append(out, computer.memberID(propertySymbol, asClass))
 	}
 	for _, indexInfo := range computer.typeChecker.GetIndexInfosOfType(tsType) {
@@ -618,6 +625,51 @@ func tupleElementLabel(info checker.TupleElementInfo) string {
 		return ""
 	}
 	return nameNode.Text()
+}
+
+// IsLibErrorStack reports whether a class member symbol is the `stack`
+// property INHERITED from the default-lib `Error` interface. Emitters
+// materialize declared props by name (`v.stack`), so without this exclusion
+// every user error class (`class MyError extends Error {…}`) would put server
+// stack traces — absolute paths and call frames — on the wire by default.
+// The check requires EVERY declaration to sit inside `interface Error` in a
+// default lib file, so a user redeclaring `stack` (own data prop, or an
+// interface of their own named Error outside the lib) keeps the member.
+// `name` and `message` stay projected: they're real wire data (error
+// envelopes rely on them) with no leak potential. Exported because the
+// projection (serialize.go projectMembersInto) and the structural id
+// (memberIDs above) MUST apply the same exclusion or id and projection drift.
+func IsLibErrorStack(symbol *ast.Symbol) bool {
+	if symbol == nil || symbol.Name != "stack" {
+		return false
+	}
+	if len(symbol.Declarations) == 0 {
+		return false
+	}
+	for _, declaration := range symbol.Declarations {
+		if declaration == nil || declaration.Parent == nil || declaration.Parent.Kind != ast.KindInterfaceDeclaration {
+			return false
+		}
+		interfaceName := declaration.Parent.Name()
+		if interfaceName == nil || interfaceName.Text() != "Error" {
+			return false
+		}
+		sourceFile := ast.GetSourceFileOfNode(declaration)
+		if sourceFile == nil || !isDefaultLibFileName(sourceFile.FileName()) {
+			return false
+		}
+	}
+	return true
+}
+
+// isDefaultLibFileName reports whether a file name is a TypeScript default lib
+// (`lib.es5.d.ts`, `lib.es2022.error.d.ts`, …) by its basename shape.
+func isDefaultLibFileName(fileName string) bool {
+	base := fileName
+	if i := strings.LastIndexAny(base, "/\\"); i >= 0 {
+		base = base[i+1:]
+	}
+	return strings.HasPrefix(base, "lib.") && strings.HasSuffix(base, ".d.ts")
 }
 
 // isRestParam reports whether a parameter symbol's declaration carries `...`.

@@ -1194,6 +1194,16 @@ func (cache *Cache) projectMembersInto(
 		if asClass && propertySymbol != nil && propertySymbol.Name == "prototype" {
 			continue
 		}
+		// `stack` inherited from the default-lib Error interface never reaches
+		// a class projection: emitters materialize declared props by name, so
+		// the inherited member would put server stack traces on the wire for
+		// every user error class (`class MyError extends Error {…}`). A user
+		// REDECLARING `stack` keeps it (the check requires every declaration
+		// to come from the lib Error interface). `name`/`message` stay: real
+		// wire data. Mirrored in typeid.memberIDs so id and projection agree.
+		if asClass && typeid.IsLibErrorStack(propertySymbol) {
+			continue
+		}
 		cache.appendProperty(node, propertySymbol, asClass, i)
 	}
 	for i, indexInfo := range cache.typeChecker.GetIndexInfosOfType(tsType) {
