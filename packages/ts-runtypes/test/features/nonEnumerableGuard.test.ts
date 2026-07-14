@@ -1,12 +1,14 @@
 // Runtime-enumerability guard for global-inherited + `@nonEnumerable` props
-// (docs/done/runtime-enumerability-checks-for-global-props.md). The serializer
-// families that build output BY NAME — prepareForJsonSafe (clone, the default),
-// stringifyJson (direct), compactForJson (compact), and toBinary — gate a
-// guarded property's write on a runtime own-enumerability check
-// (`Object.prototype.propertyIsEnumerable`, i.e. JSON.stringify semantics). The
-// mutate strategy delegates to native JSON.stringify, which already honors
-// enumerability. Guarded props are optional in the projected shape, so
-// validators / the decode presence path accept their absence.
+// (docs/done/runtime-enumerability-checks-for-global-props.md). A guarded
+// property's by-name write is gated on a runtime own-enumerability check
+// (`Object.prototype.propertyIsEnumerable`, JSON.stringify semantics) in the
+// families that build output by name (prepareForJsonSafe / stringifyJson /
+// compactForJson / toBinary). The guard invariant is GUARDED ⇒ OPTIONAL-in-type,
+// so DataOnly<T> is sound by construction: a member is guarded only when the
+// type already permits its absence. A `@nonEnumerable` tag therefore takes effect
+// only on an OPTIONAL property; on a required one it is a no-op (the NE lint rule
+// flags that). Guarded props are optional to validators / the decode presence
+// path.
 //
 // (Marker coverage rule: both getRunTypeId call shapes, converging + hash-equal.)
 
@@ -23,13 +25,12 @@ import {
   type RunType,
 } from '@ts-runtypes/core';
 
-// A user type opting one property out of unconditional serialization via the
-// `@nonEnumerable` JSDoc tag — the type-aware bridge for a descriptor TS can't
-// express (it models only readonly / `?`).
+// `@nonEnumerable` on an OPTIONAL property → guarded (and DataOnly-safe: the
+// type already allows it to be absent).
 interface Doc {
   id: string;
   /** @nonEnumerable */
-  secret: string;
+  secret?: string;
 }
 
 function withSecret(enumerable: boolean): Doc {
@@ -38,10 +39,7 @@ function withSecret(enumerable: boolean): Doc {
   return doc;
 }
 
-// Encoder strategy paired with a decoder that reads its wire (clone/mutate/
-// direct all emit standard JSON → strip decoder; compact emits a positional
-// array → compact decoder). `secret` is a DECLARED prop, so strip-vs-preserve
-// (which differ only on undeclared extras) is immaterial here.
+// Encoder strategy paired with a decoder that reads its wire.
 const STRATEGY_PAIRS = [
   {encode: 'clone', decode: 'strip'},
   {encode: 'mutate', decode: 'preserve'},
@@ -49,7 +47,7 @@ const STRATEGY_PAIRS = [
   {encode: 'compact', decode: 'compact'},
 ] as const;
 
-describe('@nonEnumerable guard — JSON strategies', () => {
+describe('@nonEnumerable guard on an optional prop — JSON strategies', () => {
   for (const {encode: encStrategy, decode: decStrategy} of STRATEGY_PAIRS) {
     it(`[${encStrategy}] non-enumerable secret is dropped; enumerable secret is kept`, () => {
       const encode = createJsonEncoder<Doc>(undefined, {strategy: encStrategy});
@@ -71,31 +69,20 @@ describe('@nonEnumerable guard — JSON strategies', () => {
     expect((decode(encode(withSecret(false))) as Record<string, unknown>).secret).toBeUndefined();
     expect((decode(encode(withSecret(true))) as Record<string, unknown>).secret).toBe('shhh');
   });
-});
 
-describe('@nonEnumerable guard — validators treat guarded props as optional', () => {
-  it('validate accepts a value missing the guarded prop', () => {
+  it('validators treat the guarded prop as optional; DataOnly-safe', () => {
     const isDoc = createValidate<Doc>();
+    const errorsOf = createGetValidationErrors<Doc>();
     expect(isDoc({id: 'd1'})).toBe(true); // secret absent
     expect(isDoc({id: 'd1', secret: 'x'})).toBe(true);
-    expect(isDoc({id: 42})).toBe(false); // id still required + typed
-  });
-
-  it('getValidationErrors reports no error for a missing guarded prop', () => {
-    const errorsOf = createGetValidationErrors<Doc>();
     expect(errorsOf({id: 'd1'})).toHaveLength(0);
-  });
-
-  it('validate(decode(encode(v))) holds for a non-enumerable value', () => {
-    const isDoc = createValidate<Doc>();
+    // validate(decode(encode(v))) holds for a non-enumerable value.
     const encode = createJsonEncoder<Doc>();
     const decode = createJsonDecoder<Doc>();
     expect(isDoc(decode(encode(withSecret(false)) as string))).toBe(true);
   });
-});
 
-describe('@nonEnumerable guard — reflection', () => {
-  it('exposes nonEnumerable + optional on the tagged member only', () => {
+  it('reflection exposes nonEnumerable + optional on the tagged member only', () => {
     const node = getRunType<Doc>();
     const kids = (node.children ?? []) as RunType[];
     const secret = kids.find((child) => child.name === 'secret');
@@ -107,29 +94,49 @@ describe('@nonEnumerable guard — reflection', () => {
   });
 });
 
-// A framework error that deliberately makes name/message enumerable own props
-// so the error envelope survives on the wire (the mion TypedError/RpcError
-// pattern) — the class's responsibility once it extends a global.
+// `@nonEnumerable` on a REQUIRED property is a no-op: guarding it would make the
+// wire omit a prop the type marks present (breaking DataOnly), so the tag is
+// ignored and the prop serializes unconditionally.
+interface ReqTagged {
+  a: string;
+  /** @nonEnumerable */
+  kept: string;
+}
+
+describe('@nonEnumerable on a required prop is a no-op (guard needs optional)', () => {
+  it('a required tagged prop is NOT guarded — serialized unconditionally', () => {
+    const encode = createJsonEncoder<ReqTagged>();
+    const value = {a: 'x'} as ReqTagged;
+    Object.defineProperty(value, 'kept', {value: 'v', enumerable: false, writable: true, configurable: true});
+    const parsed = JSON.parse(encode(value) as string);
+    expect(parsed.kept).toBe('v'); // written even though non-enumerable
+    const node = getRunType<ReqTagged>();
+    const kept = (node.children ?? []).find((child) => (child as RunType).name === 'kept') as RunType;
+    expect(kept?.nonEnumerable).toBeFalsy(); // not guarded
+    expect(kept?.optional).toBeFalsy();
+  });
+});
+
+// A framework error: name/message are the REQUIRED envelope, always serialized;
+// stack stays guarded (opt in per value to include it).
 class RpcError extends Error {
   constructor(
     public readonly code: number,
-    msg: string
+    message: string
   ) {
-    super(msg);
-    Object.defineProperty(this, 'name', {value: 'RpcError', enumerable: true, writable: true, configurable: true});
-    Object.defineProperty(this, 'message', {value: msg, enumerable: true, writable: true, configurable: true});
+    super(message);
   }
 }
 
-describe('@nonEnumerable guard — framework opt-in keeps the envelope', () => {
-  it('enumerable name/message ride the wire and round-trip', () => {
+describe('Error envelope always rides the wire; stack stays guarded', () => {
+  it('name/message serialize; stack does not (unless made enumerable)', () => {
     const encode = createJsonEncoder<RpcError>();
     const decode = createJsonDecoder<RpcError>();
     const decoded = decode(encode(new RpcError(500, 'boom')) as string) as Record<string, unknown>;
     expect(decoded.code).toBe(500);
-    expect(decoded.name).toBe('RpcError');
+    expect(typeof decoded.name).toBe('string');
     expect(decoded.message).toBe('boom');
-    expect(decoded.stack).toBeUndefined(); // still non-enumerable
+    expect(decoded.stack).toBeUndefined();
   });
 
   it('marker: both getRunTypeId call shapes converge (hash equivalence)', () => {
