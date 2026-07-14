@@ -61,7 +61,10 @@ function main() {
     if (registry) cmd.push('--registry', registry);
     if (staged && provenance) cmd.push('--provenance');
     console.log(`${staged ? 'staging' : 'publishing'} ${tarball}${registry ? ` -> ${registry}` : ''}`);
-    execFileSync('npm', cmd, {cwd: REPO_ROOT, stdio: 'inherit'});
+    // npm is `npm.cmd` on Windows; execFileSync can't resolve/exec it without a
+    // shell (the `spawnSync npm ENOENT` the win32 host-npx e2e hit). No-op elsewhere
+    // (incl. the Linux CI stage-publish that also runs this script).
+    execFileSync('npm', cmd, {cwd: REPO_ROOT, stdio: 'inherit', shell: process.platform === 'win32'});
   }
 
   if (staged) {
