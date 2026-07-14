@@ -83,7 +83,18 @@ are why "the website and other tasks failed". Root causes + fixes:
    bind-mounted `.output`. `cmdBuild` now mirrors `cmdGenerate` (prepare +
    `--max-old-space-size=6144` + build into an internal `.output`, copy to the
    host mount). `nuxt prepare` added to `cmdGenerate` too — the DEPLOY
-   (`nuxt generate`) had the same latent bug. Verified green locally.
+   (`nuxt generate`) had the same latent bug.
+
+   Once the tsconfig error was cleared, a SECOND CI failure surfaced (this job had
+   never built far enough to hit it): `Could not load .../ts-runtypes-dist/index.js`.
+   `container-build` prebuilds the playground on the host (`build-playground.mjs`:
+   resolver WASM + a vendored ts-runtypes dist `nuxt build` imports), which needs Go
+   + the tsgolint submodule + deps. The gate's `website-build` job checked out
+   WITHOUT submodules and never ran `bootstrap`, so the WASM `go build` failed and
+   the vendor dist was never produced. Fix: the job now does
+   `checkout submodules:recursive` + `bootstrap` + `cache-playground-wasm (plain)`
+   and builds with `RT_GARBLE=0` — mirroring `website-deploy.yml` / `ci.yml`'s
+   website jobs. Verified green locally (the whole chain from a cleared cache).
 9. **`e2e` win32-x64 (host-npx) — `spawnSync npm ENOENT`** (newly found; not in
    the original list). `npm` is `npm.cmd` on Windows and can't be exec'd without
    a shell. Every npm/npx spawn in `scripts/release/e2e.mjs` now passes
