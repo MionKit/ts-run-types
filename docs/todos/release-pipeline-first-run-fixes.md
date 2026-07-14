@@ -136,6 +136,15 @@ are why "the website and other tasks failed". Root causes + fixes:
     `resolver/scan.go`'s `analyzeCall` suppressing just CTA001/PFN001 for marker-owned
     files (full Go suite green, no self-test regression). ROOT-CAUSE fix is a separate
     PR: **docs/todos/scan-diagnostics-marker-own-source.md**.
+12. **`e2e` matrix — `build-vite` rewrite-evidence FALSE positive.** With CTA001
+    fixed the matrix finally ran its assertions, and 1 of 14 failed: the
+    `rewrite-evidence` test regex-scans the dist BYTES for residual un-rewritten
+    `createX<…>` markers, and `apps/shared/src/markers.ts`'s test DESCRIPTION string
+    literally embedded `getRunTypeId<User>()`, which survives into the bundle as a
+    string. The actual calls ARE rewritten (`getRunTypeId(void 0, __rt_…)`). Fix:
+    reword the description (+ a note) so no fixture description embeds the scanned
+    syntax. Verified: residual gone, `__rt_` wiring intact. Pre-existing; only
+    surfaced now the container matrix can complete.
 
 Also: `release-gate.yml` gains a `workflow_dispatch` trigger, so the whole gate
 (build + e2e + smoke + benchmarks + website-build) can run on demand on any
