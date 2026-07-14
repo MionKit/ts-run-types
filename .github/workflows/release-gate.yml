@@ -227,18 +227,25 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v5
-      # Reclaim preinstalled cruft before the image pull.
-      - uses: ./.github/actions/free-disk
-      # `pnpm rtx website container-build` runs on the HOST to drive the podman
-      # build, so the host needs pnpm + node (the image itself carries the
-      # toolchain). Without this the step dies with `pnpm: command not found`.
-      # Mirrors the e2e job's setup.
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v5
         with:
-          node-version: 26
+          submodules: recursive # tsgolint submodule - the playground WASM Go build needs it
+      # Reclaim preinstalled cruft before the image pull + Go build-cache restore.
+      - uses: ./.github/actions/free-disk
+      # `container-build` runs on the HOST to drive the podman build AND to prebuild
+      # the playground assets (build-playground.mjs: the resolver WASM + the vendored
+      # ts-runtypes dist that nuxt build imports). bootstrap gives the host Go +
+      # garble + Node + pnpm + deps + the tsgolint patches all of that needs; without
+      # it the WASM `go build` fails and nuxt build dies on the missing vendor dist.
+      - uses: ./.github/actions/bootstrap
       - name: podman version
         run: podman --version
+      # Build the playground WASM PLAIN (obfuscation is irrelevant to a build check
+      # and plain is faster on a cache miss - mirrors ci.yml's website smoke). Cache
+      # it so a UI-only change skips the multi-minute rebuild.
+      - name: Cache the playground wasm
+        uses: ./.github/actions/cache-playground-wasm
+        with:
+          mode: plain
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
         with:
@@ -246,8 +253,10 @@ jobs:
           # to GITHUB_TOKEN when absent (fork PRs) - tsrt-website is readable either way.
           password: ${{ secrets.GHCR_PAT }}
       # The container-only prod build (not the full data pipeline) - produces
-      # container/website/.output.
+      # container/website/.output. RT_GARBLE=0 matches the plain WASM cache above.
       - name: Production build inside the container
+        env:
+          RT_GARBLE: '0'
         run: pnpm rtx website container-build
       - name: Upload build output
         uses: actions/upload-artifact@v7
