@@ -9,12 +9,6 @@ name: prod · pre-publish checks
 on:
   pull_request:
     branches: [prod]
-  # TEMPORARY (docs/todos/release-pipeline-first-run-fixes.md): run the WHOLE gate
-  # (build + e2e + smoke + benchmarks + website-build, NO publish) on every push to
-  # the fix branch, to confirm it is green in real CI before merging. REVERT this
-  # `push:` block once the gate is confirmed green.
-  push:
-    branches: [fix/release-pipeline-first-run]
 
 permissions:
   contents: read
