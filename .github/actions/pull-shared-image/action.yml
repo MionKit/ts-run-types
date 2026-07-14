@@ -8,12 +8,14 @@ description: >
   Defaults pull the website+benchmark image; the release gate's e2e lane overrides
   `remote`/`local-tag` to pull the separate tsrt-e2e image.
 
-  Auth: pass `password: ${{ secrets.GHCR_PAT }}` (a PAT with read:packages) to pull
-  PRIVATE images the repo's GITHUB_TOKEN can't read - the tsrt-e2e package is private
-  and NOT granted to the repo, so GITHUB_TOKEN is denied it (tsrt-website is
-  accessible, tsrt-e2e is not). Falls back to the workflow GITHUB_TOKEN when the PAT
-  is empty (e.g. fork PRs, which get no secrets) - fine for the GITHUB_TOKEN-readable
-  images, but the private tsrt-e2e pull then fails, as before.
+  Auth: pass the repo GHCR_PAT secret (a PAT with read:packages) as the `password`
+  input to pull PRIVATE images the repo GITHUB_TOKEN can't read - the tsrt-e2e
+  package is private and NOT granted to the repo, so GITHUB_TOKEN is denied it
+  (tsrt-website is accessible, tsrt-e2e is not). Falls back to the workflow
+  GITHUB_TOKEN when the PAT is empty (e.g. fork PRs, which get no secrets) - fine
+  for the GITHUB_TOKEN-readable images, but the private tsrt-e2e pull then fails, as
+  before. (Do NOT write a secrets expression in this description - a composite action
+  cannot reference the secrets context, and GitHub evaluates it even here.)
 
 inputs:
   remote:
