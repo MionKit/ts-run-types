@@ -296,6 +296,10 @@ export function startRegistry(opts = {}) {
       'run', '-d', '--init', '--name', container,
       '-v', `${opts.tarballsDir}:/tarballs:ro${cfg.mountOpts}`,
       '-v', `${opts.e2eSrcDir}:/e2e-src:ro${cfg.mountOpts}`,
+      // Use the repo's verdaccio config (mounted under /e2e-src) instead of the one
+      // BAKED into the pulled image - so the '@ts-runtypes/*' local-only rule applies
+      // without republishing the image. e2e-serve.sh honors RT_E2E_VERDACCIO_CONFIG.
+      '-e', 'RT_E2E_VERDACCIO_CONFIG=/e2e-src/registry/verdaccio.yaml',
       '-p', `127.0.0.1:${port}:4873`,
       ...net,
       '--health-cmd', 'test -f /tmp/registry-ready',

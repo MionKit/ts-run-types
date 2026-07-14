@@ -147,7 +147,7 @@ export const REGISTRY = [
   // — internal / protocol vars: set by the scripts (container paths, plumbing). DO NOT set in .env —
   {name: 'RT_E2E_VERSION', scope: 'internal', task: '-', desc: '@ts-runtypes/* version the e2e matrix installs (passed into the registry container via -e by scripts/release/e2e.mjs)'},
   {name: 'RT_E2E_REGISTRY', scope: 'internal', task: '-', desc: 'Registry the e2e matrix installs @ts-runtypes/* from (in-container verdaccio for pre-publish; registry.npmjs.org for the post-publish npm backend; passed into the container via -e by scripts/release/e2e.mjs)'},
-  {name: 'RT_E2E_VERDACCIO_CONFIG', scope: 'internal', task: '-', desc: 'verdaccio config path inside the e2e registry container (default /etc/verdaccio/config.yaml; read by e2e-serve.sh)'},
+  {name: 'RT_E2E_VERDACCIO_CONFIG', scope: 'internal', task: '-', desc: "verdaccio config path inside the e2e registry container, read by e2e-serve.sh (default /etc/verdaccio/config.yaml). scripts/container/image.mjs sets it to /e2e-src/registry/verdaccio.yaml so the repo's config (with the '@ts-runtypes/*' local-only rule) overrides the one baked into the pulled image without a republish"},
   {name: 'RT_AUDIT_ALIGNMENT', scope: 'internal', task: '-', desc: 'Bench mode flag: emit alignment records instead of timing (set by rt bench audit)'},
   {name: 'RT_REPO_ROOT', scope: 'internal', task: '-', desc: 'In-container repo-context mount point (passed via -e)'},
   {name: 'RT_DOCDATA', scope: 'internal', task: '-', desc: 'In-container docdata mount point (passed via -e)'},
