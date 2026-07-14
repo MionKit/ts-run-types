@@ -484,6 +484,16 @@
       "example": null
     },
     {
+      "code": "NE001",
+      "subsystem": "serialization",
+      "severity": "error",
+      "headline": "Property `{0}` is tagged @nonEnumerable but is required — the guard only applies to optional properties, so the tag has no effect. Make it optional (`{0}?`) or remove the tag.",
+      "detail": "The runtime enumerability guard (which lets a value omit a property from\nthe wire when it isn't an enumerable own property) is applied ONLY to\noptional properties. That keeps the decoder's `DataOnly<T>` return type\nhonest: a guarded property is always one the type already allows to be\nabsent. A `@nonEnumerable` tag on a REQUIRED property is therefore ignored\n— the property still serializes unconditionally.\n\nFix — make the property optional:\n-  /** @nonEnumerable */ token: string;\n+  /** @nonEnumerable */ token?: string;",
+      "summary": null,
+      "fix": null,
+      "example": null
+    },
+    {
       "code": "PJ001",
       "subsystem": "serialization",
       "severity": "error",

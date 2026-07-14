@@ -119,10 +119,37 @@ func (sess *Session) dispatchScanFiles(files []string) ([]protocol.Site, []diagn
 	// fold the `overrideX<T>(pureFn)` suffix, and the map is whole-program (an
 	// override anywhere shifts ids everywhere). One-time per Program.
 	sess.ensureOverrides()
+	var sites []protocol.Site
+	var diags []diagnostics.Diagnostic
+	var err error
 	if sess.parallelScanEnabled() && len(files) > 1 {
-		return sess.dispatchScanFilesParallel(files)
+		sites, diags, err = sess.dispatchScanFilesParallel(files)
+	} else {
+		sites, diags, err = sess.dispatchScanFilesSerial(files)
 	}
-	return sess.dispatchScanFilesSerial(files)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Syntactic lint pass (NE001): `@nonEnumerable` on a required property. Runs
+	// once per file here, so it covers both the serial and parallel scan paths
+	// and never re-fires per call site. Purely syntactic — no checker needed.
+	diags = append(diags, sess.nonEnumerableRequiredDiagnostics(files)...)
+	return sites, diags, err
+}
+
+// nonEnumerableRequiredDiagnostics runs the NE001 syntactic walk over each
+// requested file. A file that can't be resolved to a source is skipped (the
+// scan above already surfaced any hard error).
+func (sess *Session) nonEnumerableRequiredDiagnostics(files []string) []diagnostics.Diagnostic {
+	var out []diagnostics.Diagnostic
+	for _, file := range files {
+		sourceFile, err := sess.sourceFile(file)
+		if err != nil {
+			continue
+		}
+		out = append(out, detectNonEnumerableRequired(file, sourceFile)...)
+	}
+	return out
 }
 
 // parallelScanEnabled reports whether this resolver may take the parallel

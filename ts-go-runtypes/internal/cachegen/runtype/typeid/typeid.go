@@ -639,11 +639,12 @@ func tupleElementLabel(info checker.TupleElementInfo) string {
 	return nameNode.Text()
 }
 
-// nonEnumerableTagName is the JSDoc tag (`@nonEnumerable`) a user writes to
+// NonEnumerableTagName is the JSDoc tag (`@nonEnumerable`) a user writes to
 // mark a property whose runtime own-descriptor is non-enumerable — the
 // type-aware bridge for a descriptor TS can't express (it models only
-// readonly / `?`).
-const nonEnumerableTagName = "nonEnumerable"
+// readonly / `?`). Exported so the resolver's syntactic NE001 lint walk matches
+// the exact tag this predicate reads.
+const NonEnumerableTagName = "nonEnumerable"
 
 // IsNonEnumerable reports whether a class/interface member symbol must have
 // its by-name serialization gated by a runtime own-enumerability check
@@ -742,7 +743,7 @@ func hasNonEnumerableTag(symbol *ast.Symbol) bool {
 					continue
 				}
 				tagName := tag.TagName()
-				if tagName != nil && tagName.Text() == nonEnumerableTagName {
+				if tagName != nil && tagName.Text() == NonEnumerableTagName {
 					return true
 				}
 			}
