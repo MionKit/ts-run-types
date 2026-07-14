@@ -350,6 +350,15 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 	// function must be checked too.
 	var diags []diagnostics.Diagnostic
 	var markers []injectMarker
+	// The marker package's OWN source can be pulled into a consumer program via its
+	// `source` export condition (it ships src/); its internal generic definitions
+	// (e.g. registerPureFnFactory's `CompTimeArgs<PureFnId>` param, used non-literally
+	// in the library's own code) are NOT consumer call sites, so suppress just the
+	// literal-argument diagnostics (CTA001 / PFN001) there. Marker collection +
+	// everything else is unchanged. Mirrors the PFE9012 built-in exemption and the
+	// build-all.mjs bundler-external of @ts-runtypes/core. (Root cause — why deps
+	// resolve to `source` at all — is a separate PR: docs/todos/scan-diagnostics-marker-own-source.md.)
+	fileInMarker := marker.FileInModule(file, state.sess.markerModule(), state.sess.marker.FS)
 	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
 		paramSymbol := parameters[paramIndex]
 		if paramSymbol == nil {
@@ -394,7 +403,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 			if argumentNode == nil {
 				continue
 			}
-			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok {
+			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok && !fileInMarker {
 				diags = append(diags, diagnostic)
 			}
 		case marker.KindPureFunction:
@@ -405,7 +414,9 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 			if argumentNode == nil {
 				continue
 			}
-			diags = append(diags, state.checkPureFunction(file, argumentNode)...)
+			if !fileInMarker {
+				diags = append(diags, state.checkPureFunction(file, argumentNode)...)
+			}
 		}
 	}
 	if len(markers) == 0 {
