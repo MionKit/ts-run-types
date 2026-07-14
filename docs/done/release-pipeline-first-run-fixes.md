@@ -174,7 +174,9 @@ pass, no publish. The temporary `push:` trigger has been removed.
 - [x] Removed the TEMPORARY `push:` trigger from `pre-publish.yml`.
 - [x] Renamed the `exec-smoke` gate job → `binary-exec` (name overlap with the e2e
       host-smoke step).
-- [ ] Merge to main; verify a subsequent `prod` publish gates on all again.
+- [x] PR #223 opened (`fix/release-pipeline-first-run` → `main`). The next
+      `main → prod` release PR re-runs the whole gate (`pre-publish.yml`) — expected
+      green, and a `prod` push then gates on all jobs again.
 - [ ] Push the branch; confirm the gate (e2e all 3 OS + website-build) is GREEN.
 - [ ] Revert the TEMPORARY `push:` trigger in `pre-publish.yml`.
 - [ ] Merge to main; verify a subsequent `prod` publish gates on both again.
