@@ -160,21 +160,40 @@ function cmdDevAgent(cfg, margs, pargs, nargs, eargs) {
   note(`started detached as '${cname}'. Logs: ${cfg.engine} logs -f ${cname}   Stop early: ${cfg.engine} stop ${cname}`);
 }
 
+// `nuxt build`/`nuxt generate` transform first-party .ts through Vite's esbuild,
+// whose tsconfck resolves the bind-mounted tsconfig.json -> `extends:
+// ./.nuxt/tsconfig.json`. On a FRESH .nuxt volume (every CI run) that file doesn't
+// exist yet, so the build dies with `TSConfckParseError: failed to resolve
+// "extends":"./.nuxt/tsconfig.json"`. `nuxt prepare` writes the .nuxt scaffolding
+// (tsconfig.json included) up front, so the extends target exists before the build.
+// The standard Nuxt `postinstall: nuxt prepare` never runs here (deps are baked into
+// the image, first-party config is bind-mounted at run time); locally it's masked
+// because the persistent .nuxt named volume was populated by an earlier `nuxt dev`.
+const PREPARE = 'pnpm exec nuxt prepare --extends docus';
+
+// nitro rmdir's /app/.output while finalizing (both `build` and `generate`);
+// bind-mounting .output directly makes it a mount point, so that rmdir fails with
+// EBUSY. Build/generate into the container's own /app/.output (freely removable),
+// then mirror onto the host bind mount (/app/.output-host). The `.output` mem bump
+// (--max-old-space-size, see cmd*) keeps the client build off the ~2GB default heap
+// ceiling. Both scripts run inside the container, so they stay shell.
+const BUILD_SCRIPT = `${PREPARE} \\
+      && pnpm exec nuxt build --extends docus \\
+      && find /app/.output-host -mindepth 1 -delete \\
+      && cp -a /app/.output/. /app/.output-host/`;
+
 function cmdBuild(cfg) {
   ensureImage();
   note('production build -> container/website/.output');
   const margs = mountArgs(cfg);
   const nargs = netArgs(cfg);
   const eargs = envArgs();
-  const code = run(cfg.engine, ['run', '--rm', '--init', '--name', `${cfg.containerBase}-build`, ...nargs, ...margs, ...eargs, '-v', `${join(WEBSITE_DIR, '.output')}:/app/.output${cfg.mountOpts}`, '-e', 'NODE_ENV=production', '-w', '/app', cfg.image, 'pnpm', 'exec', 'nuxt', 'build', '--extends', 'docus']);
+  const code = run(cfg.engine, ['run', '--rm', '--init', '--name', `${cfg.containerBase}-build`, ...nargs, ...margs, ...eargs, '-v', `${join(WEBSITE_DIR, '.output')}:/app/.output-host${cfg.mountOpts}`, '-e', 'NODE_ENV=production', '-e', 'NODE_OPTIONS=--max-old-space-size=6144', '-w', '/app', cfg.image, 'sh', '-c', BUILD_SCRIPT]);
   if (code !== 0) die('', code);
 }
 
-// nitro's generate rmdir's /app/.output while finalizing; bind-mounting .output
-// directly makes it a mount point, so that rmdir fails with EBUSY. Generate into the
-// container's own /app/.output (freely removable), then mirror onto the host bind
-// mount (/app/.output-host). Runs inside the container, so it stays shell.
-const GENERATE_SCRIPT = `pnpm exec nuxt generate --extends docus \\
+const GENERATE_SCRIPT = `${PREPARE} \\
+      && pnpm exec nuxt generate --extends docus \\
       && node scripts/embed-panel-highlights.mjs /app/.output/public \\
       && find /app/.output-host -mindepth 1 -delete \\
       && cp -a /app/.output/. /app/.output-host/`;

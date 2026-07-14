@@ -48,6 +48,12 @@ const TARBALLS = join(REPO_ROOT, 'tarballs');
 const VERDACCIO_INTERNAL = 'http://127.0.0.1:4873';
 const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org';
 
+// npm (and npx) are `npm.cmd`/`npx.cmd` on Windows; Node's spawnSync/execFileSync
+// won't resolve the .cmd extension and can't exec a .cmd without a shell, so every
+// npm/npx spawn passes `shell: onWindows` - the `spawnSync npm ENOENT` the win32
+// host-npx e2e lane hit. A no-op off Windows (shell: false = unchanged behaviour).
+const onWindows = process.platform === 'win32';
+
 function readVersion() {
   return JSON.parse(readFileSync(join(REPO_ROOT, 'version.json'), 'utf8')).version;
 }
@@ -119,8 +125,8 @@ function runHostSmoke(version, registry) {
   const env = {...process.env, npm_config_registry: registry};
   // npm install of the two packages also pulls the fixture's pinned vite/vitest
   // (proxied through verdaccio), exactly like a real consumer install.
-  runOrThrow('npm', ['install', `@ts-runtypes/core@${version}`, `@ts-runtypes/devtools@${version}`, '--registry', registry, '--no-save', '--no-package-lock'], {cwd: HOST_SMOKE_DIR, env, failMessage: 'e2e: host-smoke install failed'});
-  const code = run('npm', ['test'], {cwd: HOST_SMOKE_DIR, env});
+  runOrThrow('npm', ['install', `@ts-runtypes/core@${version}`, `@ts-runtypes/devtools@${version}`, '--registry', registry, '--no-save', '--no-package-lock'], {cwd: HOST_SMOKE_DIR, env, shell: onWindows, failMessage: 'e2e: host-smoke install failed'});
+  const code = run('npm', ['test'], {cwd: HOST_SMOKE_DIR, env, shell: onWindows});
   if (code !== 0) die('e2e: the host-native smoke failed', code);
 }
 
@@ -153,7 +159,6 @@ async function runHostNpxBackend(version, port, opts) {
   }
   noteErr('e2e: CI host-npx fallback - running verdaccio on the runner (ephemeral VM, not a dev host)');
   const registry = `http://127.0.0.1:${port}`;
-  const onWindows = process.platform === 'win32';
   const verdaccio = spawn('npx', ['--yes', 'verdaccio@6.7.2', '--config', '.github/verdaccio.yaml', '--listen', `0.0.0.0:${port}`], {
     cwd: REPO_ROOT,
     stdio: 'ignore',
@@ -171,7 +176,7 @@ async function runHostNpxBackend(version, port, opts) {
   };
   try {
     await waitPing(registry);
-    execFileSync('npm', ['config', 'set', `//127.0.0.1:${port}/:_authToken`, 'e2e-local-verdaccio'], {stdio: 'inherit'});
+    execFileSync('npm', ['config', 'set', `//127.0.0.1:${port}/:_authToken`, 'e2e-local-verdaccio'], {stdio: 'inherit', shell: onWindows});
     execFileSync('node', ['scripts/release/publish-tarballs.mjs', '--registry', registry], {cwd: REPO_ROOT, stdio: 'inherit'});
     // The bundler matrix does NOT repeat per-OS (it's OS-agnostic; the ubuntu
     // container lane covers it) - the mac/win lanes are the per-OS binary axis only.
@@ -214,7 +219,7 @@ async function waitForNpmVersion(registry, version, timeoutS = 300) {
   note(`waiting for ${pkg} to be live on ${registry}`);
   const deadline = Date.now() + timeoutS * 1000;
   while (Date.now() < deadline) {
-    const {status, stdout} = capture('npm', ['view', pkg, 'version', '--registry', registry]);
+    const {status, stdout} = capture('npm', ['view', pkg, 'version', '--registry', registry], {shell: onWindows});
     if (status === 0 && stdout.trim() === version) {
       note(`${pkg} is live`);
       return;
