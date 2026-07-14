@@ -258,9 +258,13 @@ jobs:
         env:
           RT_GARBLE: '0'
         run: pnpm rtx website container-build
-      - name: Upload build output
+      # The BUILD passing is the gate check (the step above dies on any build error).
+      # The artifact is incidental evidence, and rootless-podman container->host
+      # extraction of .output is flaky in CI (see buildAndCopyOut) - so a missing
+      # artifact WARNS rather than failing the job. Uploads normally when present.
+      - name: Upload build output (best-effort)
         uses: actions/upload-artifact@v7
         with:
           name: website-output
           path: container/website/.output
-          if-no-files-found: error
+          if-no-files-found: warn

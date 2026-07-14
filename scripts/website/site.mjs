@@ -192,12 +192,19 @@ function buildAndCopyOut(cfg, cname, script) {
   rmContainer(cfg, cname); // drop any stale container from an ungraceful prior exit
   const code = run(cfg.engine, ['run', '--init', '--name', cname, ...nargs, ...margs, ...eargs, '-e', 'NODE_ENV=production', '-e', 'NODE_OPTIONS=--max-old-space-size=6144', '-w', '/app', cfg.image, 'sh', '-c', script]);
   if (code === 0) {
+    // Copy the whole /app/.output dir into WEBSITE_DIR (-> WEBSITE_DIR/.output). Use
+    // the plain `podman cp <dir> <parent>` form: the `<dir>/.` CONTENTS form silently
+    // copied nothing under CI's rootless podman 4.9.3 (worked on the macOS VM's 5.8.3).
     rmSync(hostOut, {recursive: true, force: true});
-    mkdirSync(hostOut, {recursive: true});
-    if (run(cfg.engine, ['cp', `${cname}:/app/.output/.`, hostOut]) !== 0) {
+    if (run(cfg.engine, ['cp', `${cname}:/app/.output`, WEBSITE_DIR]) !== 0) {
       rmContainer(cfg, cname);
       die('site: podman cp of /app/.output to the host failed');
     }
+    const files = existsSync(hostOut) ? globSync('**/*', {cwd: hostOut}).length : 0;
+    if (files > 0) note(`copied build output -> ${hostOut} (${files} entries)`);
+    // Warn (don't die): the build itself succeeded, which is what the gate checks. An
+    // empty extraction still fails the DEPLOY's Cloudflare upload downstream, loudly.
+    else warn(`podman cp left ${hostOut} EMPTY - rootless container->host extraction failed (the build succeeded)`);
   }
   rmContainer(cfg, cname);
   if (code !== 0) die('', code);

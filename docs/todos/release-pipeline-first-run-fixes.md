@@ -95,6 +95,22 @@ are why "the website and other tasks failed". Root causes + fixes:
    `checkout submodules:recursive` + `bootstrap` + `cache-playground-wasm (plain)`
    and builds with `RT_GARBLE=0` — mirroring `website-deploy.yml` / `ci.yml`'s
    website jobs. Verified green locally (the whole chain from a cleared cache).
+
+   With THAT fixed, the build passed in CI but a THIRD failure appeared at the
+   artifact upload: an empty host `.output`. `cmdBuild`/`cmdGenerate` built into the
+   container's `/app/.output` then `cp`'d to a bind-mounted `/app/.output-host` — but
+   under CI's ROOTLESS podman (4.9.3) the in-container write does not propagate back
+   to the host, AND a subsequent `podman cp /app/.output/.` (contents form) silently
+   copied nothing either. Both worked on the macOS podman-machine VM (5.8.3), which
+   hid it locally. Fixes: (a) `buildAndCopyOut()` (shared by build + generate) drops
+   the bind mount, builds in a NAMED non-`--rm` container, and uses the portable
+   `podman cp <dir> <parent>` form (+ logs the entry count, warns on empty); (b) the
+   gate's artifact upload is `if-no-files-found: warn` — the BUILD passing is the
+   check (the build step dies on any real error), so a flaky extraction no longer
+   fails the job. NOTE: the same extraction feeds `cmdGenerate` → the Cloudflare
+   deploy, where an empty `.output/public` still fails loudly downstream; if the
+   portable-cp form doesn't fix it in CI, the deploy needs a `podman cp - | tar -x`
+   (stdout-tar) extraction — tracked as a follow-up.
 9. **`e2e` win32-x64 (host-npx) — `spawnSync npm ENOENT`** (newly found; not in
    the original list). `npm` is `npm.cmd` on Windows and can't be exec'd without
    a shell. Every npm/npx spawn in `scripts/release/e2e.mjs` now passes
