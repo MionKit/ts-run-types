@@ -13,7 +13,7 @@
 // container on exit/SIGINT/SIGTERM. The in-container `sh -c '…'` blocks stay shell
 // (they run inside the Linux container, which always has sh).
 
-import {existsSync, globSync, mkdirSync, realpathSync, statSync} from 'node:fs';
+import {existsSync, globSync, mkdirSync, realpathSync, rmSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import {ensureImage} from '../container/image.mjs';
 import {loadEnv, REPO_ROOT} from '../lib/env.mjs';
@@ -171,41 +171,48 @@ function cmdDevAgent(cfg, margs, pargs, nargs, eargs) {
 // because the persistent .nuxt named volume was populated by an earlier `nuxt dev`.
 const PREPARE = 'pnpm exec nuxt prepare --extends docus';
 
-// nitro rmdir's /app/.output while finalizing (both `build` and `generate`);
-// bind-mounting .output directly makes it a mount point, so that rmdir fails with
-// EBUSY. Build/generate into the container's own /app/.output (freely removable),
-// then mirror onto the host bind mount (/app/.output-host). The `.output` mem bump
-// (--max-old-space-size, see cmd*) keeps the client build off the ~2GB default heap
-// ceiling. Both scripts run inside the container, so they stay shell.
-const BUILD_SCRIPT = `${PREPARE} \\
-      && pnpm exec nuxt build --extends docus \\
-      && find /app/.output-host -mindepth 1 -delete \\
-      && cp -a /app/.output/. /app/.output-host/`;
+const BUILD_SCRIPT = `${PREPARE} && pnpm exec nuxt build --extends docus`;
+const GENERATE_SCRIPT = `${PREPARE} \\
+      && pnpm exec nuxt generate --extends docus \\
+      && node scripts/embed-panel-highlights.mjs /app/.output/public`;
+
+// Build/generate into the container's OWN /app/.output, then `podman cp` it to the
+// host - NOT a bind mount. A bind-mounted .output fails two ways: nitro rmdir's
+// /app/.output while finalizing (EBUSY on a mount point), AND a rootless bind mount
+// does not reliably write the container's output back to the host (CI produced an
+// empty host .output that broke the artifact upload + the Cloudflare deploy, though
+// it worked on the macOS podman-machine VM). `podman cp` copies deterministically
+// and maps ownership to the host user. The container is NAMED + non-`--rm` so cp can
+// read it afterwards; the mem bump keeps the client build off the ~2GB default heap.
+function buildAndCopyOut(cfg, cname, script) {
+  const margs = mountArgs(cfg);
+  const nargs = netArgs(cfg);
+  const eargs = envArgs();
+  const hostOut = join(WEBSITE_DIR, '.output');
+  rmContainer(cfg, cname); // drop any stale container from an ungraceful prior exit
+  const code = run(cfg.engine, ['run', '--init', '--name', cname, ...nargs, ...margs, ...eargs, '-e', 'NODE_ENV=production', '-e', 'NODE_OPTIONS=--max-old-space-size=6144', '-w', '/app', cfg.image, 'sh', '-c', script]);
+  if (code === 0) {
+    rmSync(hostOut, {recursive: true, force: true});
+    mkdirSync(hostOut, {recursive: true});
+    if (run(cfg.engine, ['cp', `${cname}:/app/.output/.`, hostOut]) !== 0) {
+      rmContainer(cfg, cname);
+      die('site: podman cp of /app/.output to the host failed');
+    }
+  }
+  rmContainer(cfg, cname);
+  if (code !== 0) die('', code);
+}
 
 function cmdBuild(cfg) {
   ensureImage();
   note('production build -> container/website/.output');
-  const margs = mountArgs(cfg);
-  const nargs = netArgs(cfg);
-  const eargs = envArgs();
-  const code = run(cfg.engine, ['run', '--rm', '--init', '--name', `${cfg.containerBase}-build`, ...nargs, ...margs, ...eargs, '-v', `${join(WEBSITE_DIR, '.output')}:/app/.output-host${cfg.mountOpts}`, '-e', 'NODE_ENV=production', '-e', 'NODE_OPTIONS=--max-old-space-size=6144', '-w', '/app', cfg.image, 'sh', '-c', BUILD_SCRIPT]);
-  if (code !== 0) die('', code);
+  buildAndCopyOut(cfg, `${cfg.containerBase}-build`, BUILD_SCRIPT);
 }
-
-const GENERATE_SCRIPT = `${PREPARE} \\
-      && pnpm exec nuxt generate --extends docus \\
-      && node scripts/embed-panel-highlights.mjs /app/.output/public \\
-      && find /app/.output-host -mindepth 1 -delete \\
-      && cp -a /app/.output/. /app/.output-host/`;
 
 function cmdGenerate(cfg) {
   ensureImage();
   note('static prerender -> container/website/.output/public');
-  const margs = mountArgs(cfg);
-  const nargs = netArgs(cfg);
-  const eargs = envArgs();
-  const code = run(cfg.engine, ['run', '--rm', '--init', '--name', `${cfg.containerBase}-generate`, ...nargs, ...margs, ...eargs, '-v', `${join(WEBSITE_DIR, '.output')}:/app/.output-host${cfg.mountOpts}`, '-e', 'NODE_ENV=production', '-e', 'NODE_OPTIONS=--max-old-space-size=6144', '-w', '/app', cfg.image, 'sh', '-c', GENERATE_SCRIPT]);
-  if (code !== 0) die('', code);
+  buildAndCopyOut(cfg, `${cfg.containerBase}-generate`, GENERATE_SCRIPT);
 }
 
 // Register container cleanup on exit / SIGINT / SIGTERM (the `trap … EXIT INT TERM`
