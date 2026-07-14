@@ -13,6 +13,22 @@
  *  `createGetValidationErrors<T>()` validate, and the natural return shape for data-bound
  *  APIs (JSON / binary decode).
  *
+ *  **Caveat — non-enumerable / guarded properties.** `DataOnly<T>` is a pure
+ *  compile-time type; it cannot observe runtime enumerability or the
+ *  `@nonEnumerable` JSDoc tag. A GUARDED property (one inherited from a global
+ *  type like `Error`, or tagged `@nonEnumerable`) is written to the wire only
+ *  when the value carries it as an ENUMERABLE own property. So when such a
+ *  property is REQUIRED in `T`, the decoder's `DataOnly<T>` return type reports
+ *  it present even though a given value may omit it at runtime: `DataOnly<Error>`
+ *  claims `message: string`, yet a vanilla `Error` (whose `message`/`name`/`stack`
+ *  are non-enumerable) round-trips to `{}`. A guarded property that is already
+ *  OPTIONAL in `T` (`Error['stack']` is `stack?`) stays consistent. The runtime
+ *  is still sound (validators treat guarded props as optional); only the static
+ *  return type over-promises. To realign the type with the wire, make the
+ *  property enumerable (a class field or `Object.defineProperty` in the
+ *  constructor) or declare it optional. See
+ *  docs/done/runtime-enumerability-checks-for-global-props.md.
+ *
  *  This lives in its own module because it is load-bearing and exhaustively
  *  tested: every branch has a correctness + instantiation-budget case in
  *  `test/types/dataonly.compile.test.ts`, which slices the `#region
