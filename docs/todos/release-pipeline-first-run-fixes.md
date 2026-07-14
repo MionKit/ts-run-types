@@ -116,6 +116,26 @@ are why "the website and other tasks failed". Root causes + fixes:
    a shell. Every npm/npx spawn in `scripts/release/e2e.mjs` now passes
    `shell: onWindows` (a no-op elsewhere). Can't be verified on a non-Windows
    host — CI confirms.
+10. **`e2e` matrix — "cannot publish over 0.9.1" (verdaccio proxied real npm).**
+    Once the image-pull + win32 were sorted, ALL three e2e jobs died at the
+    publish-to-verdaccio step: `version.json` is 0.9.1, which is now LIVE on npm, and
+    both verdaccio configs proxied `@*/*` (incl. `@ts-runtypes/*`) to real npm, so
+    republishing 0.9.1 locally 409'd. Fix: give `@ts-runtypes/*` a no-proxy
+    LOCAL-ONLY rule in both `.github/verdaccio.yaml` and the baked
+    `container/pre-publish-e2e/registry/verdaccio.yaml` (the packages under test are
+    served from the packed tarballs, never real npm). For the container backend the
+    baked config is overridden at run time via `RT_E2E_VERDACCIO_CONFIG` (image.mjs's
+    `startRegistry`) — no image republish. Verified locally (verdaccio healthy, matrix
+    installs 0.9.1). (Version hygiene: main's `version.json` should also be bumped
+    past the published 0.9.1 — a separate maintainer task, not required for the gate.)
+11. **`e2e` matrix — CTA001 false positive on the marker package's OWN source.**
+    With publish fixed, the matrix build then halted: the resolver scanned
+    `@ts-runtypes/core`'s own `src/` (pulled in via its `source` export condition) and
+    false-positive-flagged the library's own `registerPureFnFactory` `CompTimeArgs`
+    param. SURGICAL fix (this branch): `marker.FileInModule` + a guard in
+    `resolver/scan.go`'s `analyzeCall` suppressing just CTA001/PFN001 for marker-owned
+    files (full Go suite green, no self-test regression). ROOT-CAUSE fix is a separate
+    PR: **docs/todos/scan-diagnostics-marker-own-source.md**.
 
 Also: `release-gate.yml` gains a `workflow_dispatch` trigger, so the whole gate
 (build + e2e + smoke + benchmarks + website-build) can run on demand on any
