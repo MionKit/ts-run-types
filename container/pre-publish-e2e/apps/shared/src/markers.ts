@@ -59,7 +59,11 @@ export function checkMarkers(): CheckResult[] {
     // an enclosing marker and silently drop BOTH injections (getRunTypeId then
     // threw "no id injected" at runtime). Both must inject and resolve equal.
     // docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md
-    eq('markers: two getRunTypeId<User>() as generic-fn args in one statement both inject', getRunTypeId<User>(), getRunTypeId<User>()),
+    // NB: keep the literal `getRunTypeId<...>()` call syntax OUT of this description
+    // string - test/rewrite-evidence.test.mjs regex-scans the dist BYTES for residual
+    // un-rewritten markers, and a description embedding that syntax survives into the
+    // bundle as a string and trips the check (the calls below ARE rewritten).
+    eq('markers: two getRunTypeId reflections of User as generic-fn args in one statement both inject', getRunTypeId<User>(), getRunTypeId<User>()),
     // Forwarding to getRunType returns the real traversable node for T.
     ok(
       'markers: wrapper forwarded to getRunType returns the User object node',
