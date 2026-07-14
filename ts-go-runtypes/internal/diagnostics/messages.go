@@ -32,6 +32,10 @@ var messagesByCode = map[string]message{
 	"FMT002": {
 		Headline: "Invalid type-format params — {0}",
 	},
+	"NE001": {
+		Headline: "Property `{0}` is tagged @nonEnumerable but is required — the guard only applies to optional properties, so the tag has no effect. Make it optional (`{0}?`) or remove the tag.",
+		Detail:   "The runtime enumerability guard (which lets a value omit a property from\nthe wire when it isn't an enumerable own property) is applied ONLY to\noptional properties. That keeps the decoder's `DataOnly<T>` return type\nhonest: a guarded property is always one the type already allows to be\nabsent. A `@nonEnumerable` tag on a REQUIRED property is therefore ignored\n— the property still serializes unconditionally.\n\nFix — make the property optional:\n-  /** @nonEnumerable */ token: string;\n+  /** @nonEnumerable */ token?: string;",
+	},
 	"MKR001": {
 		Headline: "`{0}()` is being called at runtime just so the marker can read its return type — side effects, throws, or async work run for nothing.",
 		Detail:   "Reflect-form markers (`createValidate(value)`, `getRunTypeId(value)`)\ninvoke their argument expression at runtime; the value is then discarded —\nonly its inferred type is used.\n\nFix — use the static form with `ReturnType<>`:\n  -  const isUser = createValidate({0}());\n+  const isUser = createValidate<ReturnType<typeof {0}>>();\n\nFix — pass an existing value of the desired type:\n  const existingUser: User = ...;\n  const isUser = getRunTypeId(existingUser);",
