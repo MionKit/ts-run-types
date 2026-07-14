@@ -67,9 +67,20 @@ already allows the omission. `name`/`message` (required) are always serialized i
 Net: no `DataOnly` divergence, no separate error base class needed.
 
 A `@nonEnumerable` tag on a REQUIRED property is therefore a no-op (the property is not
-guarded and serializes unconditionally); the `NE` lint rule tells the user to make it
-optional for the tag to take effect. (Lint rule tracked as a follow-up; the resolver
-behavior — required-tagged is a harmless no-op — is already correct.)
+guarded and serializes unconditionally); the **`NE001`** lint rule (Error severity) tells
+the user to make it optional for the tag to take effect.
+
+## NE001 lint rule
+
+`NE001` is a purely SYNTACTIC diagnostic (JSDoc `@nonEnumerable` tag on a property with no
+`?`), so it needs no type checker — the same shape as the `TMP001` temporal guard. It is
+emitted once per file from the resolver scan (`detectNonEnumerableRequired` in
+[nonenumerable_lint.go], hooked in `dispatchScanFiles` so it covers the serial and
+parallel scan paths), behind a cheap text pre-filter. It rides the normal diagnostic
+channel: the ts-runtypes-devtools lint plugin is pure transport, so `runtypes/error`
+routes it to oxlint / ESLint / the `$tsc` problem matcher with no plugin change. The
+resolver-side tag string is shared via the exported `typeid.NonEnumerableTagName` so the
+syntactic walk and the projection predicate can't drift.
 
 ## Binary presence encoding accepted (2026-07-13 ruling)
 
@@ -97,6 +108,9 @@ enumerability, but the tests pin the real semantics for `stack`.)
   optional; reflection flags; a required `@nonEnumerable` prop is a no-op (serialized
   unconditionally). Both suites cover both `getRunTypeId` call shapes with a
   hash-equivalence assertion (marker rule).
+- New `packages/ts-runtypes-devtools/test/nonenumerable-lint.test.ts`: drives the binary
+  and asserts `NE001` fires (with the property name as arg) for a required `@nonEnumerable`
+  interface/class property and stays silent for an optional one.
 - Full Go suite + full JS suite green.
 
 ## mion follow-up (documented, not in this repo)

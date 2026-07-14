@@ -46,7 +46,7 @@ const SUBSYSTEMS = [
     key: 'serialization',
     label: 'Serialization',
     description: 'From the JSON and binary families, plus how classes are handled.',
-    prefixes: ['PJ', 'PJS', 'RJ', 'SJ', 'TB', 'FB', 'CLS', 'JCP'],
+    prefixes: ['PJ', 'PJS', 'RJ', 'SJ', 'TB', 'FB', 'CLS', 'JCP', 'NE'],
   },
   {
     key: 'unknown-keys',
