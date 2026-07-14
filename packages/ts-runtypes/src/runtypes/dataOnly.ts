@@ -13,20 +13,20 @@
  *  `createGetValidationErrors<T>()` validate, and the natural return shape for data-bound
  *  APIs (JSON / binary decode).
  *
- *  **Caveat — non-enumerable / guarded properties.** `DataOnly<T>` is a pure
- *  compile-time type; it cannot observe runtime enumerability or the
- *  `@nonEnumerable` JSDoc tag. A GUARDED property (one inherited from a global
- *  type like `Error`, or tagged `@nonEnumerable`) is written to the wire only
- *  when the value carries it as an ENUMERABLE own property. So when such a
- *  property is REQUIRED in `T`, the decoder's `DataOnly<T>` return type reports
- *  it present even though a given value may omit it at runtime: `DataOnly<Error>`
- *  claims `message: string`, yet a vanilla `Error` (whose `message`/`name`/`stack`
- *  are non-enumerable) round-trips to `{}`. A guarded property that is already
- *  OPTIONAL in `T` (`Error['stack']` is `stack?`) stays consistent. The runtime
- *  is still sound (validators treat guarded props as optional); only the static
- *  return type over-promises. To realign the type with the wire, make the
- *  property enumerable (a class field or `Object.defineProperty` in the
- *  constructor) or declare it optional. See
+ *  **Non-enumerable / guarded properties — consistent by construction.**
+ *  `DataOnly<T>` is a pure compile-time type; it cannot observe runtime
+ *  enumerability or the `@nonEnumerable` JSDoc tag. To keep it accurate, the
+ *  serializer's runtime enumerability guard (which may omit a property from the
+ *  wire when a value carries it non-enumerably) is applied ONLY to properties
+ *  that are already OPTIONAL in `T`: a member inherited from a global like
+ *  `Error` is guarded only when it is `?` (`Error['stack']` / `Error['cause']`),
+ *  and the `@nonEnumerable` tag takes effect only on an optional member. So a
+ *  guarded property is always one the type already permits to be absent, and
+ *  `DataOnly<T>` never over-promises it. The REQUIRED error envelope
+ *  (`name` / `message`) is not guarded — it is always serialized, and
+ *  `DataOnly<Error>` correctly lists it. (A `@nonEnumerable` tag on a REQUIRED
+ *  property is a no-op — the property serializes unconditionally — and the `NE`
+ *  lint rule flags it; make it optional for the tag to take effect.) See
  *  docs/done/runtime-enumerability-checks-for-global-props.md.
  *
  *  This lives in its own module because it is load-bearing and exhaustively

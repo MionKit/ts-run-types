@@ -650,28 +650,52 @@ const nonEnumerableTagName = "nonEnumerable"
 // (`Object.prototype.propertyIsEnumerable.call(v, 'k')`). Two id-relevant
 // cases:
 //
-//  1. the member is INHERITED from a default-lib GLOBAL type — every
-//     declaration sits inside an `interface`/`class` in a `lib.*.d.ts` file.
-//     Its runtime descriptor is non-enumerable (Error's name/message/stack,
-//     other engine-set members), so materializing it by name (`v.stack`) puts
-//     data on the wire that native `JSON.stringify` omits — for a user error
-//     class (`class MyError extends Error {…}`) that means server stack traces
-//     (absolute paths + call frames) leak by default. A subclass that
-//     REDECLARES the member as its own data prop (a declaration OUTSIDE a lib
-//     file) owns it and is not guarded; it is the class's responsibility to
-//     redeclare or `@nonEnumerable`-tag members it wants recognised.
-//  2. the member is tagged `@nonEnumerable` in JSDoc.
+//  1. the member is INHERITED from a default-lib GLOBAL type AND is OPTIONAL in
+//     its declared type — every declaration sits inside an `interface`/`class`
+//     in a `lib.*.d.ts` file, and it carries `?`. Its runtime descriptor is
+//     non-enumerable (Error's `stack?` / `cause?`), so materializing it by name
+//     (`v.stack`) would put data on the wire that native `JSON.stringify` omits
+//     — for a user error class that means server stack traces (absolute paths +
+//     call frames) leak by default. A subclass that REDECLARES the member as its
+//     own data prop (a declaration OUTSIDE a lib file) owns it and is not
+//     guarded.
 //
-// A guarded member is also treated as OPTIONAL in the projected shape (the
-// wire may omit it), so validators and the presence path accept its absence.
-// Exported because the projection (serialize.go / modifiers.go) and the
-// structural id (memberID above) MUST apply the same predicate or id and
-// projection drift.
+//     The OPTIONAL requirement is deliberate: guarding is DataOnly-safe only
+//     when the type already permits the member's absence. A REQUIRED
+//     global-inherited member (Error's `name` / `message`) is therefore NOT
+//     guarded — it is always serialized, keeping the error envelope on the wire
+//     and keeping `DataOnly<T>` accurate (a guarded-but-required member would
+//     make the decoder's return type over-promise a prop the wire can omit).
+//
+//  2. the member is tagged `@nonEnumerable` in JSDoc AND is optional. A required
+//     tagged member is NOT guarded (the tag is ignored, the member serializes
+//     unconditionally) and the `NE001` lint rule tells the user to make it
+//     optional — a required guard would break DataOnly the same way.
+//
+// The OPTIONAL requirement applies to BOTH arms, so the invariant holds:
+// GUARDED ⇒ OPTIONAL-in-type. That makes `DataOnly<T>` sound by construction —
+// a guarded member is always something the type already permits to be absent,
+// so the decoder's return type never over-promises. A guarded member is also
+// marked OPTIONAL in the projected shape (already true here), so validators and
+// the presence path accept its absence. Exported because the projection
+// (serialize.go / modifiers.go) and the structural id (memberID above) MUST
+// apply the same predicate or id and projection drift.
 func IsNonEnumerable(symbol *ast.Symbol) bool {
 	if symbol == nil {
 		return false
 	}
+	if !isOptionalSymbol(symbol) {
+		return false
+	}
 	return isDefaultLibGlobalMember(symbol) || hasNonEnumerableTag(symbol)
+}
+
+// isOptionalSymbol reports whether a property symbol is optional (`?`) in its
+// declared type — the same flag serialize.go / memberID read for the `optional`
+// bit. Guarding a global-inherited member is gated on this so the guard never
+// makes a REQUIRED prop absent from the wire (which would break DataOnly<T>).
+func isOptionalSymbol(symbol *ast.Symbol) bool {
+	return symbol.Flags&ast.SymbolFlagsOptional != 0
 }
 
 // isDefaultLibGlobalMember reports whether EVERY declaration of the member
