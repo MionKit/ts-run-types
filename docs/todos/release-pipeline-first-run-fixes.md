@@ -1,7 +1,8 @@
 # Release pipeline: first-run fixes + temporary e2e relaxation
 
-**Status:** partially done — 0.9.1 staging unblocked; `tsrt-e2e` image + gate
-restoration still owed.
+**Status:** the 3 red gate jobs (website-build, e2e-container, e2e-win32) are
+FIXED on `fix/release-pipeline-first-run`; removing the `continue-on-error`
+relaxations is gated on one green `workflow_dispatch` gate run.
 
 ## Context
 
@@ -53,34 +54,64 @@ bugs, one per gate job. `build` (packs + validates the packages) and `smoke`
   under the tag-protection ruleset (a plain tag push already 403'd for the app
   token); it's after staging, so staging can succeed even if tagging fails.
 
-## Deferred — needs a maintainer (local podman + GHCR)
+## Fixed on `fix/release-pipeline-first-run` (2026-07-14)
 
-5. **`ghcr.io/mionkit/tsrt-e2e:latest` is missing / private** — the container
-   e2e backend (linux-x64) fails to pull it (`denied`), while `tsrt-website`
-   pulls fine. Push it and/or make the GHCR package public:
-   `pnpm rtx container push e2e` (see SETUP.md → Publishing the image via
-   GHCR; needs a classic PAT with `write:packages` SSO-authorized for the org).
-6. **`website-build` containerized Nuxt build fails** — after the pnpm fix (#2)
-   the docs build runs but errors with `TSConfckParseError: failed to resolve
-   "extends":"./.nuxt/tsconfig.json"` — `.nuxt/tsconfig.json` isn't generated
-   before the build (a missing `nuxi prepare` in the container-build flow, or a
-   stale baked `/app/.nuxt`). Docs-build only, orthogonal to the npm packages.
+The 2026-07-11 prod publish (run #6, success overall) staged npm but left THREE
+gate jobs red — all `continue-on-error`, so they never blocked staging, but they
+are why "the website and other tasks failed". Root causes + fixes:
 
-## Temporary relaxation (REVERT once #5 / #6 + verification are done)
+5. **`e2e` linux-x64 (container) — GHCR `denied`, NOT a missing image.** The
+   `ghcr.io/mionkit/tsrt-e2e:latest` package EXISTS (pushed 2026-07-09) but is
+   PRIVATE and not granted to the repo, so the CI `GITHUB_TOKEN` is denied it —
+   while `tsrt-website` (same private, `repository:null` state) is readable
+   (a per-package Actions-access difference the package API doesn't expose). Fix:
+   authenticate the GHCR pulls with the **`GHCR_PAT`** repo secret
+   (read:packages) instead of `GITHUB_TOKEN`. `pull-shared-image` takes a
+   `password` input (falls back to `GITHUB_TOKEN` when empty, e.g. fork PRs); the
+   release gate / post-publish / website-deploy pass `secrets.GHCR_PAT`, and the
+   two gate callers gain `secrets: inherit`. No image re-push needed — verified
+   the PAT pulls tsrt-e2e. `scripts/lib/env.mjs` documents the CI-pull role.
+6. **`website-build` (Nuxt) — missing `nuxt prepare` on a fresh `.nuxt` volume.**
+   `nuxt build`/`generate` transform first-party `.ts` through Vite's esbuild,
+   whose tsconfck resolves `tsconfig.json` → `extends: ./.nuxt/tsconfig.json`. On
+   a fresh `.nuxt` volume (every CI run) that file doesn't exist yet →
+   `TSConfckParseError`. Fix: run `nuxt prepare` first (the standard Nuxt
+   `postinstall`, which never ran here — deps are baked, config bind-mounted;
+   locally it was masked by the persistent `.nuxt` volume a prior `nuxt dev`
+   populated). Fixing that exposed two more latent `cmdBuild` bugs `cmdGenerate`
+   already handled: OOM on the ~2GB default heap, and `EBUSY` rmdir'ing the
+   bind-mounted `.output`. `cmdBuild` now mirrors `cmdGenerate` (prepare +
+   `--max-old-space-size=6144` + build into an internal `.output`, copy to the
+   host mount). `nuxt prepare` added to `cmdGenerate` too — the DEPLOY
+   (`nuxt generate`) had the same latent bug. Verified green locally.
+9. **`e2e` win32-x64 (host-npx) — `spawnSync npm ENOENT`** (newly found; not in
+   the original list). `npm` is `npm.cmd` on Windows and can't be exec'd without
+   a shell. Every npm/npx spawn in `scripts/release/e2e.mjs` now passes
+   `shell: onWindows` (a no-op elsewhere). Can't be verified on a non-Windows
+   host — CI confirms.
 
-To stage 0.9.1 now (packages validated by `build` + `smoke`; staging is
-2FA-gated before going live), **`e2e` and `website-build`** are marked
-`continue-on-error: true` in `release-gate.yml` — both have infra/tooling
-dependencies orthogonal to the packages (#5 the `tsrt-e2e` image; #6 the Nuxt
-`.nuxt` build). `benchmarks` was fixed (#3) and **verified green** in run #4, so
-it stays **blocking**.
+Also: `release-gate.yml` gains a `workflow_dispatch` trigger, so the whole gate
+(build + e2e + smoke + benchmarks + website-build) can run on demand on any
+branch with no publish — `gh workflow run release-gate.yml --ref <branch>`. That
+is the "run the full workflow except the publish task" path.
 
-**Restore checklist** (flip `e2e` + `website-build` back to blocking):
-- [ ] Push `tsrt-e2e` to GHCR (#5); confirm the container e2e pulls it.
-- [ ] Fix the Nuxt `.nuxt/tsconfig.json` build (#6); confirm `website-build`
-      passes on its own.
-- [ ] Re-run the gate; confirm `e2e` (all 3 OS, incl. the verdaccio fix) and
-      `website-build` pass on their own.
-- [ ] Remove the two `continue-on-error: true` lines (+ their TEMPORARY
-      comments) from `release-gate.yml`.
-- [ ] Verify a subsequent `prod` publish gates on both again.
+`ci.yml`'s website smoke still pulls `tsrt-website` with `GITHUB_TOKEN` (works
+today; runs on fork PRs where secrets are unavailable) — left as-is on purpose.
+
+## Verification — gate now fully blocking; confirm green, then drop the temp trigger
+
+The `continue-on-error` relaxations on `e2e` + `website-build` are REMOVED — the
+gate is fully blocking again (the intended state). To confirm it green in real CI
+BEFORE merging, `pre-publish.yml` carries a TEMPORARY `push:` trigger on
+`fix/release-pipeline-first-run`, so every push runs the whole gate (build + e2e +
+smoke + benchmarks + website-build, NO publish). `benchmarks` was fixed (#3) and
+verified green in run #4.
+
+**Checklist:**
+- [x] `tsrt-e2e` reachable by CI (#5) — via `GHCR_PAT` auth (image already on GHCR).
+- [x] Nuxt `.nuxt/tsconfig.json` build fixed (#6) — verified green locally.
+- [x] win32 host-npx npm spawn fixed (#9) — code fix (CI-verified only).
+- [x] Removed the two `continue-on-error: true` lines from `release-gate.yml`.
+- [ ] Push the branch; confirm the gate (e2e all 3 OS + website-build) is GREEN.
+- [ ] Revert the TEMPORARY `push:` trigger in `pre-publish.yml`.
+- [ ] Merge to main; verify a subsequent `prod` publish gates on both again.

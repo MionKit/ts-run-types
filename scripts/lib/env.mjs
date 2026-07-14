@@ -45,7 +45,7 @@ export function loadEnv() {
 // CLOUDFLARE_*, CI) keep their conventional spelling so the tools that read them work.
 export const REGISTRY = [
   // — secrets (credentials: .env locally, GitHub secrets in CI) —
-  {name: 'GHCR_PAT', scope: 'secret', task: 'push-image', desc: 'GitHub PAT (write:packages) to push the shared image; set in .env'},
+  {name: 'GHCR_PAT', scope: 'secret', task: 'push-image', desc: 'GitHub PAT for the shared images: write:packages to PUSH from local (pnpm rtx container push, via .env) AND read:packages to PULL the private images in CI - the release gate / post-publish / website-deploy pass the GitHub secret to the pull-shared-image action, because tsrt-e2e is a private package the repo GITHUB_TOKEN is denied'},
   {name: 'NPM_TOKEN', scope: 'secret', task: 'publish-npm', desc: 'npm automation/granular token, used both by the LOCAL interactive publish (scripts/release/publish.mjs, via .env) AND the CI stage-publish (publish.yml, via the GitHub secret written to ~/.npmrc)'},
   {name: 'CLOUDFLARE_API_TOKEN', scope: 'secret', task: 'deploy-website', desc: 'Cloudflare Pages: Edit token; .env for a local deploy, a GitHub secret in CI'},
   {name: 'CLOUDFLARE_ACCOUNT_ID', scope: 'secret', task: 'deploy-website', desc: 'Cloudflare account id; .env for a local deploy, a GitHub secret in CI'},
