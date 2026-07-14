@@ -55,6 +55,10 @@ jobs:
       # benchmarks + static site against it.
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
+        with:
+          # Authenticate the GHCR pull with the PAT (read:packages) rather than the
+          # job's GITHUB_TOKEN, matching the release gate.
+          password: ${{ secrets.GHCR_PAT }}
       # Reuse the playground wasm across deploys when the Go inputs are unchanged.
       # `garble` — this ships the real (obfuscated) artifact, so no RT_GARBLE=0.
       - name: Cache the playground wasm

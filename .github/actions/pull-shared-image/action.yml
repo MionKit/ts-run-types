@@ -8,6 +8,13 @@ description: >
   Defaults pull the website+benchmark image; the release gate's e2e lane overrides
   `remote`/`local-tag` to pull the separate tsrt-e2e image.
 
+  Auth: pass `password: ${{ secrets.GHCR_PAT }}` (a PAT with read:packages) to pull
+  PRIVATE images the repo's GITHUB_TOKEN can't read - the tsrt-e2e package is private
+  and NOT granted to the repo, so GITHUB_TOKEN is denied it (tsrt-website is
+  accessible, tsrt-e2e is not). Falls back to the workflow GITHUB_TOKEN when the PAT
+  is empty (e.g. fork PRs, which get no secrets) - fine for the GITHUB_TOKEN-readable
+  images, but the private tsrt-e2e pull then fails, as before.
+
 inputs:
   remote:
     description: Full GHCR ref to pull
@@ -17,6 +24,14 @@ inputs:
     description: Local tag to apply to the pulled image
     required: false
     default: tsrt-website:dev
+  username:
+    description: GHCR login user (defaults to the workflow actor)
+    required: false
+    default: ${{ github.actor }}
+  password:
+    description: GHCR credential; pass secrets.GHCR_PAT for private images. Empty -> GITHUB_TOKEN.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -26,10 +41,16 @@ runs:
       env:
         REMOTE: ${{ inputs.remote }}
         LOCAL_TAG: ${{ inputs.local-tag }}
+        GHCR_USER: ${{ inputs.username }}
+        GHCR_PASSWORD: ${{ inputs.password }}
+        GITHUB_TOKEN_FALLBACK: ${{ github.token }}
       run: |
-        echo "${{ github.token }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+        # Prefer the passed PAT (read:packages on the private packages); fall back to
+        # the job's GITHUB_TOKEN when no secret was provided (fork PRs have none).
+        password="${GHCR_PASSWORD:-$GITHUB_TOKEN_FALLBACK}"
+        echo "$password" | podman login ghcr.io -u "$GHCR_USER" --password-stdin
         if ! podman pull "$REMOTE"; then
-          echo "::error::Could not pull $REMOTE. CI does not build the images - rebuild it and run 'pnpm rtx container push' from local, then retry." >&2
+          echo "::error::Could not pull $REMOTE. CI does not build the images - rebuild it and run 'pnpm rtx container push' from local, then retry. For a private image, ensure secrets.GHCR_PAT (read:packages) is passed to this action." >&2
           exit 1
         fi
         podman tag "$REMOTE" "$LOCAL_TAG"

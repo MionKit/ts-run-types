@@ -30,6 +30,11 @@ on:
       version:
         description: 'Release version read from version.json by the build job'
         value: ${{ jobs.build.outputs.version }}
+  # On-demand runs of the WHOLE gate (build + e2e + smoke + benchmarks +
+  # website-build) on any branch, with NO publish - the "run the full workflow
+  # except the publish task" path. `gh workflow run release-gate.yml --ref <branch>`.
+  # Uses the repo's secrets directly (GHCR_PAT), so the private-image pulls work.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -106,11 +111,6 @@ jobs:
   e2e:
     name: e2e ${{ matrix.pkg }}
     needs: build
-    # TEMPORARY — see docs/todos/release-pipeline-first-run-fixes.md. e2e is
-    # non-blocking until the tsrt-e2e GHCR image is pushed (container backend)
-    # and the verdaccio body-size fix is verified (host-npx). build + smoke
-    # validate the packages; restore this to blocking once e2e infra is green.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -151,6 +151,9 @@ jobs:
         with:
           remote: ghcr.io/mionkit/tsrt-e2e:latest
           local-tag: tsrt-e2e:dev
+          # tsrt-e2e is a PRIVATE package the repo's GITHUB_TOKEN can't read; the
+          # PAT (read:packages) can. Passed via `secrets: inherit` on the gate call.
+          password: ${{ secrets.GHCR_PAT }}
       # The ONE front door — same script locally and on every lane, so they can't
       # drift. tarballs/ is the downloaded artifact, so e2e.mjs skips the build.
       - name: Pre-publish e2e (${{ matrix.backend }})
@@ -204,6 +207,10 @@ jobs:
         run: pnpm rtx bench prep
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
+        with:
+          # Auth all GHCR pulls with the PAT (via `secrets: inherit`); it falls back
+          # to GITHUB_TOKEN when absent (fork PRs) - tsrt-website is readable either way.
+          password: ${{ secrets.GHCR_PAT }}
       - name: Run the benchmark (build + run, in the container)
         run: pnpm rtx bench
       - name: Type-checking cost (TS type instantiations)
@@ -212,10 +219,6 @@ jobs:
   website-build:
     name: static docs site build (podman)
     runs-on: ubuntu-latest
-    # TEMPORARY — see docs/todos/release-pipeline-first-run-fixes.md. Non-blocking:
-    # the containerized Nuxt docs build fails on a `.nuxt/tsconfig.json` prepare
-    # issue, orthogonal to the npm packages. Restore to blocking once fixed.
-    continue-on-error: true
     # Prove the static site builds. CI never builds the image; it pulls the
     # prebuilt one. This is a build check only - the real bench-data-baked deploy
     # happens in publish.yml.
@@ -238,6 +241,10 @@ jobs:
         run: podman --version
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
+        with:
+          # Auth all GHCR pulls with the PAT (via `secrets: inherit`); it falls back
+          # to GITHUB_TOKEN when absent (fork PRs) - tsrt-website is readable either way.
+          password: ${{ secrets.GHCR_PAT }}
       # The container-only prod build (not the full data pipeline) - produces
       # container/website/.output.
       - name: Production build inside the container
