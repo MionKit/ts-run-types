@@ -7,7 +7,7 @@ name: prod · release gate
 #                   7-platform binary matrix and pack the tarballs.
 #   e2e           - install the PUBLISHED packages from a local verdaccio and run
 #                   the consumer suite, one full run per OS, plus a cheap
-#                   exec-smoke for the Linux side-arches.
+#                   binary-exec sanity check for the Linux side-arches.
 #   benchmarks    - the validation + type-cost benchmarks in the shared podman
 #                   image (locally built, no GHCR auth needed).
 #   website-build - the static docs site builds in the shared podman image.
@@ -17,7 +17,7 @@ name: prod · release gate
 # the real per-platform risk is OS plumbing (launcher .exe/long-path resolution,
 # path handling, process spawn, CRLF) - which is per-OS, not per-arch. So:
 #   - full e2e on one runner per OS: linux-x64, darwin-arm64, win32-x64
-#   - exec-smoke (QEMU) on linux-arm64 + linux-arm
+#   - binary-exec (QEMU) on linux-arm64 + linux-arm
 #   - darwin-x64 + win32-arm64 are built + published but not exercised here
 #     (no common runner; Go cross-compile is trusted for the binary itself).
 #
@@ -30,7 +30,7 @@ on:
       version:
         description: 'Release version read from version.json by the build job'
         value: ${{ jobs.build.outputs.version }}
-  # On-demand runs of the WHOLE gate (build + e2e + smoke + benchmarks +
+  # On-demand runs of the WHOLE gate (build + e2e + binary-exec + benchmarks +
   # website-build) on any branch, with NO publish - the "run the full workflow
   # except the publish task" path. `gh workflow run release-gate.yml --ref <branch>`.
   # Uses the repo's secrets directly (GHCR_PAT), so the private-image pulls work.
@@ -159,8 +159,13 @@ jobs:
       - name: Pre-publish e2e (${{ matrix.backend }})
         run: pnpm rtx release e2e --backend ${{ matrix.backend }}
 
-  smoke:
-    name: exec-smoke linux/${{ matrix.pkg }}
+  # Cross-arch binary sanity: exec the cross-compiled binary (`--version`) under QEMU
+  # on the Linux side-arches. NOT a full e2e (those are the `e2e` jobs; their
+  # "host-native smoke" is a STEP inside them) - named `binary-exec` to avoid that
+  # "smoke" overlap. The Go resolver is CGO-free + deterministic, so the arch axis is
+  # trusted and a bare exec check is enough here.
+  binary-exec:
+    name: binary-exec linux/${{ matrix.pkg }}
     needs: build
     runs-on: ubuntu-latest
     strategy:

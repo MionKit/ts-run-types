@@ -1,8 +1,12 @@
 # Release pipeline: first-run fixes + temporary e2e relaxation
 
-**Status:** the 3 red gate jobs (website-build, e2e-container, e2e-win32) are
-FIXED on `fix/release-pipeline-first-run`; removing the `continue-on-error`
-relaxations is gated on one green `workflow_dispatch` gate run.
+**Status:** DONE. The whole release gate is GREEN on `fix/release-pipeline-first-run`
+(CI run 29373662410 — build + e2e ×3 + binary-exec ×2 + benchmarks + website-build,
+all pass, no publish). `continue-on-error` relaxations removed; the temporary `push:`
+trigger removed; the `exec-smoke` job renamed to `binary-exec`. Ready to merge to
+main. Remaining follow-ups are separately tracked: the scan root-cause
+(docs/todos/scan-diagnostics-marker-own-source.md), and the `version.json` bump past
+the published 0.9.1 (maintainer task).
 
 ## Context
 
@@ -147,27 +151,30 @@ are why "the website and other tasks failed". Root causes + fixes:
     surfaced now the container matrix can complete.
 
 Also: `release-gate.yml` gains a `workflow_dispatch` trigger, so the whole gate
-(build + e2e + smoke + benchmarks + website-build) can run on demand on any
+(build + e2e + binary-exec + benchmarks + website-build) can run on demand on any
 branch with no publish — `gh workflow run release-gate.yml --ref <branch>`. That
 is the "run the full workflow except the publish task" path.
 
 `ci.yml`'s website smoke still pulls `tsrt-website` with `GITHUB_TOKEN` (works
 today; runs on fork PRs where secrets are unavailable) — left as-is on purpose.
 
-## Verification — gate now fully blocking; confirm green, then drop the temp trigger
+## Verification — DONE (gate fully blocking + GREEN)
 
 The `continue-on-error` relaxations on `e2e` + `website-build` are REMOVED — the
-gate is fully blocking again (the intended state). To confirm it green in real CI
-BEFORE merging, `pre-publish.yml` carries a TEMPORARY `push:` trigger on
-`fix/release-pipeline-first-run`, so every push runs the whole gate (build + e2e +
-smoke + benchmarks + website-build, NO publish). `benchmarks` was fixed (#3) and
-verified green in run #4.
+gate is fully blocking again (the intended state) and confirmed GREEN in real CI
+(run 29373662410): build + e2e ×3 + binary-exec ×2 + benchmarks + website-build all
+pass, no publish. The temporary `push:` trigger has been removed.
 
 **Checklist:**
 - [x] `tsrt-e2e` reachable by CI (#5) — via `GHCR_PAT` auth (image already on GHCR).
-- [x] Nuxt `.nuxt/tsconfig.json` build fixed (#6) — verified green locally.
-- [x] win32 host-npx npm spawn fixed (#9) — code fix (CI-verified only).
+- [x] Nuxt `.nuxt/tsconfig.json` build fixed (#6) — CI green.
+- [x] win32 host-npx npm spawn fixed (#9, + publish-tarballs.mjs) — CI green.
 - [x] Removed the two `continue-on-error: true` lines from `release-gate.yml`.
+- [x] Confirmed the whole gate GREEN in CI (run 29373662410).
+- [x] Removed the TEMPORARY `push:` trigger from `pre-publish.yml`.
+- [x] Renamed the `exec-smoke` gate job → `binary-exec` (name overlap with the e2e
+      host-smoke step).
+- [ ] Merge to main; verify a subsequent `prod` publish gates on all again.
 - [ ] Push the branch; confirm the gate (e2e all 3 OS + website-build) is GREEN.
 - [ ] Revert the TEMPORARY `push:` trigger in `pre-publish.yml`.
 - [ ] Merge to main; verify a subsequent `prod` publish gates on both again.
