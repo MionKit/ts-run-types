@@ -65,7 +65,15 @@ func TestCanonicalDistinguishesOptionSets(t *testing.T) {
 	}
 }
 
-func TestFnHashVersionSensitive(t *testing.T) {
+// TestFnHash_StableAcrossVersions pins the version-INDEPENDENCE contract: an
+// fnHash is a pure function of its canonical key, never of constants.Version.
+// This is the inverse of the old TestFnHashVersionSensitive — the version now
+// lives ONLY in the typeId half of every `<fnHash>_<typeId>` key (see
+// runtype/version_test.go for the typeId side, and
+// runtype.TestCompositeKey_DiffersAcrossVersions for the composite key that
+// still moves across versions through that half). Keeping fn-hashes stable is
+// what lets a consumer pin `family → prefix` once and never re-pin on a bump.
+func TestFnHash_StableAcrossVersions(t *testing.T) {
 	original := constants.Version
 	defer func() { constants.Version = original }()
 
@@ -73,8 +81,8 @@ func TestFnHashVersionSensitive(t *testing.T) {
 	one := FnHash("validate|")
 	constants.Version = "v2.test"
 	two := FnHash("validate|")
-	if one == two {
-		t.Fatalf("FnHash not version-sensitive: %q == %q across versions", one, two)
+	if one != two {
+		t.Fatalf("FnHash must be version-independent: %q != %q across versions", one, two)
 	}
 }
 
