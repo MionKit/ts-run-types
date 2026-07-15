@@ -203,6 +203,12 @@ async function loadSuiteWithPlugin() {
         binary: BIN,
         cwd: PACKAGE_ROOT,
         tsconfig: 'tsconfig.test.json',
+        // This is a data-export pass, not a build-correctness gate. buildStart scans the
+        // whole tsconfig.test.json test tree, which INTENTIONALLY contains unsupported-type
+        // negative fixtures (VE002 `Cannot validate Unsupported`, the JSON/binary family
+        // errors, …) — the suite documents them on purpose. failOnError defaults to true,
+        // which would halt the whole build on those EXPECTED diagnostics; opt out here.
+        failOnError: false,
       }),
     ],
   });
