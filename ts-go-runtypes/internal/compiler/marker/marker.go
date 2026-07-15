@@ -375,23 +375,6 @@ func DeclaredInModule(symbol *ast.Symbol, module string, fs vfspkg.FS) bool {
 	return false
 }
 
-// FileInModule reports whether filePath belongs to the given package — its nearest
-// enclosing package.json `"name"` equals module. Used to recognise the marker
-// package's OWN source (default "@ts-runtypes/core") when it is pulled into a
-// consumer program via its `source` export condition (it ships src/): the library's
-// own generic definitions are not consumer call sites, so the scanner suppresses the
-// literal-argument diagnostics (CTA001/PFN001) there. Empty module -> false.
-func FileInModule(filePath string, module string, fs vfspkg.FS) bool {
-	// A relative / synthetic scan path (test fixtures, overlays) can't be a real
-	// node_modules dependency file, and the package.json walk would panic reading a
-	// non-absolute "package.json" through the vfs - so fail closed (not the marker
-	// package). Real dependency files (the case this guards) are always rooted.
-	if module == "" || !tspath.IsRootedDiskPath(filePath) {
-		return false
-	}
-	return packageNameForFile(filePath, fs) == module
-}
-
 // packageNameCache memoises directory→package-name results for the on-disk
 // (os.ReadFile) walk across the life of a resolver process. The on-disk
 // package.json for any given directory doesn't change mid-run, so caching is
