@@ -206,6 +206,10 @@ async function loadSuiteWithPlugin() {
         binary: BIN,
         cwd: PACKAGE_ROOT,
         tsconfig: 'tsconfig.test.json',
+        // Data-export pass, not a build gate: buildStart scans the whole tsconfig.test.json
+        // test tree, which INTENTIONALLY contains unsupported-type negative fixtures. Don't
+        // let failOnError (default true) halt the build on those EXPECTED diagnostics.
+        failOnError: false,
       }),
     ],
   });
