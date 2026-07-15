@@ -379,7 +379,7 @@ pnpm rtx release stage-approve --dry-run  # print the approval order without app
 
 If the queue can't be read automatically (not logged in, npm too old), the helper prints the exact leaves-first commands to run by hand (`npm stage list`, then `npm stage approve <stage-id>` in order).
 
-**Deploy the docs site (manual).** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate, manually-triggered workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`). After the stage-ids are approved, run it from **Actions → prod · deploy website → Run workflow**. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only.
+**Deploy the docs site (manual).** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate, manually-triggered workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`). After the stage-ids are approved, run it from **Actions → prod · deploy website → Run workflow**, selecting the **`prod`** ref. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only. A pre-build guard ([`rtx release verify-live`](scripts/release/verify-live.mjs)) aborts the deploy unless the checked-out tree matches the **live** npm release (all `@ts-runtypes/*` packages, in lockstep) — so a deploy dispatched from `main`, or from `prod` before the stage-ids are approved, fails fast instead of shipping docs for a version nobody can install yet.
 
 **First-publish bootstrap (one-time, in order).** Trusted Publishing **cannot create a package that does not exist yet** — npm only lets you register a trusted publisher for a package that already has at least one published version. So the very first version of every `@ts-runtypes/*` package must be published manually, and only then can CI take over:
 
@@ -395,7 +395,7 @@ CI runs Node 26; staged publishing needs npm **≥ 11.15.0** (OIDC needs ≥ 11.
 2. Open a PR into `prod` ([`pre-publish.yml`](.github/workflows/pre-publish.yml) runs the full gate). The bumped `version.json` MUST be in this PR — [`publish.yml`](.github/workflows/publish.yml)'s preflight refuses to re-publish an existing version.
 3. Merge. `publish.yml` runs the gate again, then **stages** every package to npm (OIDC) and tags the release.
 4. Approve the staged packages with 2FA, leaves-first: `pnpm rtx release stage-approve`.
-5. Deploy the docs: **Actions → prod · deploy website → Run workflow**.
+5. Deploy the docs: **Actions → prod · deploy website → Run workflow**, against the **`prod`** ref (the `verify-live` guard aborts if `prod`'s version isn't live on npm yet — i.e. if step 4 hasn't completed).
 
 ### Pre-publish e2e — `pnpm rtx release e2e`
 
