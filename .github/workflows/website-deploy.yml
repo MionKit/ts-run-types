@@ -34,7 +34,14 @@ concurrency:
 jobs:
   deploy-website:
     name: build + deploy docs to Cloudflare Pages
-    runs-on: ubuntu-latest
+    # Dedicated 4-core/16 GB ARM64 larger runner (Team plan). GitHub's Linux ARM64 hosted
+    # runners are Cobalt 100 (Neoverse N2) — a modern core, not the old x64 silicon the
+    # standard runners share. The PUBLISHED benchmark numbers are generated in this job
+    # (pnpm rtx website build -> website-bench): a dedicated VM cuts benchmark VARIANCE vs
+    # the shared 2-core runner, and arm64 matches the Apple-Silicon dev machines +
+    # Graviton/Cobalt prod most consumers actually run on. The pipeline is node/Go with a
+    # multi-arch image (linux/amd64,linux/arm64), so it runs natively on arm64.
+    runs-on: linux-arm64
     environment: production
     # contents:read (checkout) + packages:read (pull the prebuilt shared image).
     permissions:
