@@ -134,7 +134,60 @@ func (sess *Session) dispatchScanFiles(files []string) ([]protocol.Site, []diagn
 	// once per file here, so it covers both the serial and parallel scan paths
 	// and never re-fires per call site. Purely syntactic — no checker needed.
 	diags = append(diags, sess.nonEnumerableRequiredDiagnostics(files)...)
+	// FIRST-PARTY DIAGNOSTIC SCOPING. Scan diagnostics are consumer feedback —
+	// "you wrote this call wrong" — so they must surface only for FIRST-PARTY
+	// files, never for a dependency's own source. A dependency normally resolves
+	// to its `.d.ts` (no call expressions, already scan-inert), but when it
+	// resolves to its `.ts` SOURCE — its package.json `source` export condition,
+	// or a consumer's `customConditions:["source"]` (e.g. @ts-runtypes/core ships
+	// src/) — the whole-program scan walks it like consumer code and would
+	// false-positive on the library's own internal generic definitions
+	// (registerPureFnFactory's `CompTimeArgs<PureFnId>` used non-literally, …).
+	// The general form of the old marker-only exemption: drop every diagnostic
+	// anchored in an external-library file. Sites/collection are untouched; only
+	// diagnostics are scoped. See docs/done/scan-diagnostics-marker-own-source.md.
+	diags = sess.dropExternalLibraryDiagnostics(diags)
 	return sites, diags, err
+}
+
+// dropExternalLibraryDiagnostics removes every diagnostic anchored in a source
+// file TypeScript resolved by SEARCHING node_modules — a dependency whose
+// internal source is never a consumer call site. It reads TypeScript's own
+// resolution provenance (Program.IsSourceFileFromExternalLibrary), NOT a
+// path-contains-node_modules heuristic, so it stays correct through workspace
+// symlinks (first-party code physically under node_modules) AND leaves the
+// marker package's OWN self-import first-party: that resolves through the
+// package's `source` export (not a node_modules search), so the RT suite still
+// lints the marker package's own source and real bugs in it are never hidden.
+// Sites/collection are unaffected — only the diagnostic list is filtered.
+// Per-file verdicts are memoised because many diagnostics share a file.
+func (sess *Session) dropExternalLibraryDiagnostics(diags []diagnostics.Diagnostic) []diagnostics.Diagnostic {
+	if len(diags) == 0 || sess.Program == nil || sess.Program.TS == nil {
+		return diags
+	}
+	externalByFile := make(map[string]bool)
+	isExternal := func(filePath string) bool {
+		if filePath == "" {
+			return false
+		}
+		if verdict, seen := externalByFile[filePath]; seen {
+			return verdict
+		}
+		verdict := false
+		if sourceFile, err := sess.sourceFile(filePath); err == nil && sourceFile != nil {
+			verdict = sess.Program.TS.IsSourceFileFromExternalLibrary(sourceFile)
+		}
+		externalByFile[filePath] = verdict
+		return verdict
+	}
+	filtered := diags[:0]
+	for _, diagnostic := range diags {
+		if isExternal(diagnostic.Site.FilePath) {
+			continue
+		}
+		filtered = append(filtered, diagnostic)
+	}
+	return filtered
 }
 
 // nonEnumerableRequiredDiagnostics runs the NE001 syntactic walk over each
@@ -350,15 +403,11 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 	// function must be checked too.
 	var diags []diagnostics.Diagnostic
 	var markers []injectMarker
-	// The marker package's OWN source can be pulled into a consumer program via its
-	// `source` export condition (it ships src/); its internal generic definitions
-	// (e.g. registerPureFnFactory's `CompTimeArgs<PureFnId>` param, used non-literally
-	// in the library's own code) are NOT consumer call sites, so suppress just the
-	// literal-argument diagnostics (CTA001 / PFN001) there. Marker collection +
-	// everything else is unchanged. Mirrors the PFE9012 built-in exemption and the
-	// build-all.mjs bundler-external of @ts-runtypes/core. (Root cause — why deps
-	// resolve to `source` at all — is a separate PR: docs/todos/scan-diagnostics-marker-own-source.md.)
-	fileInMarker := marker.FileInModule(file, state.sess.markerModule(), state.sess.marker.FS)
+	// NOTE: consumer-oriented scan diagnostics (CTA0xx / PFN0xx / … emitted below)
+	// that land in a dependency's own source are filtered out downstream in
+	// dispatchScanFiles (dropExternalLibraryDiagnostics) — the general form of the
+	// old marker-package-only exemption. analyzeCall stays diagnosis-complete;
+	// scoping to first-party files is a single chokepoint on the aggregated list.
 	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
 		paramSymbol := parameters[paramIndex]
 		if paramSymbol == nil {
@@ -403,7 +452,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 			if argumentNode == nil {
 				continue
 			}
-			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok && !fileInMarker {
+			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok {
 				diags = append(diags, diagnostic)
 			}
 		case marker.KindPureFunction:
@@ -414,9 +463,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 			if argumentNode == nil {
 				continue
 			}
-			if !fileInMarker {
-				diags = append(diags, state.checkPureFunction(file, argumentNode)...)
-			}
+			diags = append(diags, state.checkPureFunction(file, argumentNode)...)
 		}
 	}
 	if len(markers) == 0 {
