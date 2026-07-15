@@ -13,7 +13,7 @@ import {fileURLToPath} from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APPS = path.join(HERE, '..', 'apps');
-const ALL = ['build-vite', 'smoke-esbuild', 'smoke-rollup', 'smoke-rolldown', 'smoke-webpack', 'smoke-rspack'];
+const ALL = ['build-vite', 'smoke-esbuild', 'smoke-rollup', 'smoke-rolldown', 'smoke-webpack', 'smoke-rspack', 'smoke-source'];
 
 // An un-rewritten generic marker call still carries its `<…>` type argument.
 // After a successful transform + TS strip, no `markerName<` pattern remains.
