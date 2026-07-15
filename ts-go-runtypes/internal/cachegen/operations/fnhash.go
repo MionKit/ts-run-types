@@ -13,12 +13,21 @@ import (
 const FnHashLen = 3
 
 // fnHashSalt namespaces operation hashes away from structural type-id hashes so
-// the two never share a value by accident, and folds in the binary Version the
-// same way type ids do (serialize.go) — so an fnHash is version-isolated exactly
-// like a type id, and any on-disk cache keyed by it is auto-invalidated across
-// binary versions.
+// the two never share a value by accident. The `op|` infix is the ONLY thing
+// keeping fn-hashes disjoint from structural type-id hashes — NOT the version.
+//
+// Deliberately version-INDEPENDENT: unlike a type id (serialize.go folds
+// constants.Version into every structural hash), an fnHash carries no version.
+// Cross-version cache invalidation still holds because every emitted key is the
+// composite `<fnHash>_<typeId>` and the typeId half already re-hashes across
+// versions (and the on-disk cache lives under a version-folded typeID
+// directory). Folding the version in here too would be redundant AND costly for
+// consumers: it would make the per-family fn-hash PREFIXES move on every release,
+// forcing any consumer that maps `family → prefix` (mion's JIT_FUNCTION_IDS) to
+// re-pin those constants on every ts-runtypes bump. Keeping the salt version-free
+// makes the prefixes stable, so a consumer pins once and never refreshes again.
 func fnHashSalt(canonicalKey string) string {
-	return constants.Version + "|op|" + canonicalKey
+	return "op|" + canonicalKey
 }
 
 // Canonical returns the deterministic, property-order-independent hash input for

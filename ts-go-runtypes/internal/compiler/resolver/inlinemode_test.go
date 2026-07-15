@@ -133,7 +133,7 @@ export const enc = createBinaryEncoder<{u: {a: {n: number}} | {a: {s: string}}}>
 		t.Fatalf("missing toBinary parent entry; modules: %v", moduleNames(resp))
 	}
 	// The body rides inside a single-quoted JS string, so the getRT quotes
-	// are escaped (`getRT(\'CiE_x\')`) in the module source.
+	// are escaped (`getRT(\'nPZ_x\')`) in the module source.
 	sawMemberLookup := false
 	for _, key := range valKeys {
 		if strings.Contains(tbParent, `utl.getRT(\'`+key+`\')`) {
