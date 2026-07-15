@@ -15,7 +15,7 @@ const APPS = path.join(HERE, '..', 'apps');
 // build-vite runs the full matrix (13 families); each light smoke runs the lean
 // minimal subset.
 const HEAVY = 'build-vite';
-const SMOKES = ['smoke-esbuild', 'smoke-rollup', 'smoke-rolldown', 'smoke-webpack', 'smoke-rspack'];
+const SMOKES = ['smoke-esbuild', 'smoke-rollup', 'smoke-rolldown', 'smoke-webpack', 'smoke-rspack', 'smoke-source'];
 
 async function loadEntry(app) {
   const dist = path.join(APPS, app, 'dist/entry.js');
