@@ -68,7 +68,11 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/go/bin/garble
-        key: ${{ runner.os }}-garble-v0.16.0
+        # runner.arch MUST be in the key: garble is a NATIVE executable, and runner.os is
+        # "Linux" for BOTH x64 and arm64 runners. Without the arch, a Linux/arm64 job
+        # restores the x64 garble an x64 job cached under the same key, skips the install,
+        # and exec-format-crashes running it (`sh: Syntax error: ")" unexpected`).
+        key: ${{ runner.os }}-${{ runner.arch }}-garble-v0.16.0
     - name: Install garble (only on a cache miss)
       if: steps.garble-cache.outputs.cache-hit != 'true'
       shell: bash
