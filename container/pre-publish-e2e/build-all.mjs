@@ -60,6 +60,11 @@ const APP_LIST = [
   {name: 'smoke-rolldown', adapter: 'rolldown'},
   {name: 'smoke-webpack', adapter: 'webpack'},
   {name: 'smoke-rspack', adapter: 'rspack'},
+  // Source-first consumer: customConditions:["source"] makes @ts-runtypes/core
+  // resolve to its published src/, so the plugin's scan walks the library's own
+  // internals. Guards the first-party diagnostic scoping — without it the build
+  // halts on the library's own CTA001/CTA003 (docs/done/scan-diagnostics-marker-own-source.md).
+  {name: 'smoke-source', adapter: 'esbuild'},
 ];
 
 async function buildVite(app) {
