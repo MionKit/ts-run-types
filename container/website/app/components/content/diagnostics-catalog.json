@@ -1,5 +1,5 @@
 {
-  "$generated": "by scripts/core/gen-diagnostics-catalog.mjs from internal/diagnostics. Do not edit; run `pnpm run gen:diag-catalog`.",
+  "$generated": "by scripts/core/gen-diagnostics-catalog.mjs from internal/diagnostics. Do not edit; run `pnpm rtx core codegen diag`.",
   "subsystems": [
     {
       "key": "markers",

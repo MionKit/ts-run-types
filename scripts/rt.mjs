@@ -10,9 +10,11 @@
 // CliError on failure (never process.exit); this file catches it, prints, and sets
 // process.exitCode. See docs/done/scripts-shell-to-mjs-migration.md.
 import {spawnSync} from 'node:child_process';
+import {writeFileSync} from 'node:fs';
+import {join} from 'node:path';
 import {main as coreBuild} from './core/build.mjs';
-import {loadEnv} from './lib/env.mjs';
-import {CliError, reportCliError} from './lib/proc.mjs';
+import {loadEnv, REPO_ROOT} from './lib/env.mjs';
+import {CliError, capture, reportCliError} from './lib/proc.mjs';
 
 // ── spawn helpers ──────────────────────────────────────────────────────────
 // Run one command to completion (stdio inherited); return its exit code.
@@ -62,14 +64,36 @@ const FUZZ = {
   race: {patterns: ['enrichRace'], env: {RT_FUZZ_RACE: '1'}, soak: {RT_FUZZ_RACE_ITERATIONS: '25', RT_FUZZ_RACE_FANOUT: '8'}},
   all: {patterns: ['fuzz.integration', 'typeFuzz.integration', 'binaryEncoderResize']},
 };
-// Go→TS mirror -> pnpm gen script + committed outputs + which need oxfmt afterwards
-// (the Go generators emit unformatted TS; diag self-formats via prettier).
+// Go→TS mirrors. rtx runs each generator DIRECTLY — the whole point is that
+// adding a mirror is ONE entry here, with no companion `gen:*` package.json
+// script and no CI edit. `run` is the argv; `stdoutTo` captures the generator's
+// stdout into that file (it prints the module), otherwise the generator writes
+// its own outputs. `fmt` files get oxfmt --write afterwards (the Go generators
+// emit unformatted TS; diag self-formats via prettier). `--check` regenerates +
+// formats then git-diffs `outputs`; CI runs `pnpm rtx core codegen all --check`,
+// so the drift gate and this registry can never disagree.
+const GO_RUN = ['go', '-C', 'ts-go-runtypes', 'run'];
 const CODEGEN = {
-  constants: {script: 'gen:ts-constants', outputs: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts']},
-  kind: {script: 'gen:run-type-kind', outputs: ['packages/ts-runtypes/src/runTypeKind.ts'], fmt: ['packages/ts-runtypes/src/runTypeKind.ts']},
-  fnhashes: {script: 'gen:fn-hashes', outputs: ['packages/ts-runtypes/src/fnHashes.generated.ts'], fmt: ['packages/ts-runtypes/src/fnHashes.generated.ts']},
-  diag: {script: 'gen:diag-catalog', outputs: ['packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts', 'container/website/app/components/content/diagnostics-catalog.json'], fmt: []},
+  constants: {run: [...GO_RUN, './cmd/gen-ts-constants'], outputs: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts']},
+  kind: {run: [...GO_RUN, './cmd/gen-run-type-kind'], stdoutTo: 'packages/ts-runtypes/src/runTypeKind.ts', outputs: ['packages/ts-runtypes/src/runTypeKind.ts'], fmt: ['packages/ts-runtypes/src/runTypeKind.ts']},
+  fnhashes: {run: [...GO_RUN, './cmd/gen-fn-hashes'], stdoutTo: 'packages/ts-runtypes/src/fnHashes.generated.ts', outputs: ['packages/ts-runtypes/src/fnHashes.generated.ts'], fmt: ['packages/ts-runtypes/src/fnHashes.generated.ts']},
+  diag: {run: ['node', 'scripts/core/gen-diagnostics-catalog.mjs'], outputs: ['packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts', 'container/website/app/components/content/diagnostics-catalog.json'], fmt: []},
 };
+
+// Run one generator: either it writes its own outputs (proxy, stdio inherited),
+// or it prints the module to stdout and we capture it into `stdoutTo`.
+function runGen(name) {
+  const [cmd, ...args] = CODEGEN[name].run;
+  const {stdoutTo} = CODEGEN[name];
+  if (!stdoutTo) return proxy(cmd, args);
+  const {status, stdout, stderr, error} = capture(cmd, args);
+  if (error) die(`codegen '${name}': failed to launch ${cmd}: ${error.message}`);
+  if (status !== 0) {
+    if (stderr) process.stderr.write(stderr);
+    die(`codegen '${name}': ${cmd} exited ${status}`, status ?? 1);
+  }
+  writeFileSync(join(REPO_ROOT, stdoutTo), stdout);
+}
 
 function runCodegen(args) {
   const check = hasFlag(args, '--check');
@@ -77,7 +101,7 @@ function runCodegen(args) {
   const names = which === 'all' ? Object.keys(CODEGEN) : [which];
   for (const name of names) if (!CODEGEN[name]) die(`unknown codegen target '${name}'. Try: all | ${Object.keys(CODEGEN).join(' | ')} [--check]`);
   for (const name of names) {
-    proxy('pnpm', ['run', CODEGEN[name].script]);
+    runGen(name);
     if (CODEGEN[name].fmt.length) proxy('pnpm', ['exec', 'oxfmt', '--write', ...CODEGEN[name].fmt]);
   }
   if (!check) return;
@@ -225,7 +249,7 @@ core     the engine (Go resolver + TS marker/plugin)
   rtx core build [targets…]        build the binary + dev dists if stale
   rtx core smoke                   end-to-end smoke of the resolver + devtools
   rtx core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
-  rtx core codegen [all|constants|kind|diag] [--check]   regenerate Go→TS mirrors
+  rtx core codegen [all|constants|kind|fnhashes|diag] [--check]   regenerate Go→TS mirrors
   rtx core bump-tsgolint [<rev>] [--skip-tests]   move the tsgolint/typescript-go pin (default: latest release), re-patch, rebuild + test
   rtx core ensure-tsgolint [--check]   check the submodule out to tsgolint.pin.json + re-apply patches (--check verifies only)
 
