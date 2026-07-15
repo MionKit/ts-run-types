@@ -138,7 +138,7 @@ Go emits transformed **TypeScript**, not JS. The user's existing toolchain perfo
 | **2. Cache emission → disk** | Emit data bundle / facades / function entries as real files into `cacheDir`; write-only-on-content-change; inject computed-relative specifiers. |
 | **3. Standalone transform / CLI** | A `ts-runtypes` subcommand (and/or programmatic API) under [`ts-go-runtypes/cmd/ts-runtypes/`](../ts-go-runtypes/cmd/ts-runtypes/) that runs the TS → TS transform over a file set for the plugin-free path. |
 | **4. Thin Vite wrapper** | Rewrite `@ts-runtypes/devtools` to call the `Transform` request + dev HMR only; remove `rewrite.ts` / `edit-buffer.ts`. |
-| **5. Config** | `cacheDir`, `importStyle: relative \| subpath`; preserve existing `emitMode`, `moduleMode`, `inlineMode`. Regenerate the TS constants mirror via `gen:ts-constants` if constants change. |
+| **5. Config** | `cacheDir`, `importStyle: relative \| subpath`; preserve existing `emitMode`, `moduleMode`, `inlineMode`. Regenerate the TS constants mirror via `rtx core codegen constants` if constants change. |
 | **6. Cleanup** | Remove dead JS, update tests + docs ([ARCHITECTURE.md](./ARCHITECTURE.md), [SETUP.md](../SETUP.md)), preserve the marker test-coverage rule (both `getRunTypeId` call shapes). |
 
 ## Configuration options

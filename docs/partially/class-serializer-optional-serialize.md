@@ -554,7 +554,7 @@ not need bumping (it should not) and re-run the cache tests to be sure.
   the JSON-union-discriminant wire tag, encode-reads-classID, binary-uses-index, the
   positional-vs-union split.
 - **CLS001 message** — [`messages.go`](../../ts-go-runtypes/internal/diagnostics/messages.go) as above.
-  Regenerate the mirror: `pnpm run gen:diag-catalog` (updates
+  Regenerate the mirror: `pnpm rtx core codegen diag` (updates
   `packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts`).
 - **[`docs/ROADMAP.md`](../../docs/ROADMAP.md)** — record Phase 2 (open-world polymorphic
   class dispatch) as known future scope.
