@@ -124,23 +124,9 @@ jobs:
         run: pnpm run check:builds
       # The committed Go→TS mirrors have no other CI drift gate and can silently
       # rot (scripts audit §3.3): regenerate + format them and fail on any diff.
-      # Equivalent to `pnpm rtx core codegen all --check`.
+      # rtx owns the generator list, so a new mirror is picked up here for free.
       - name: Codegen drift (Go→TS mirrors must be in sync)
-        run: |
-          pnpm run gen:ts-constants
-          pnpm run gen:run-type-kind
-          pnpm run gen:fn-hashes
-          pnpm exec oxfmt --write \
-            packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts \
-            packages/ts-runtypes/src/runTypeKind.ts \
-            packages/ts-runtypes/src/fnHashes.generated.ts
-          pnpm run gen:diag-catalog
-          git diff --exit-code -- \
-            packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts \
-            packages/ts-runtypes/src/runTypeKind.ts \
-            packages/ts-runtypes/src/fnHashes.generated.ts \
-            packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts \
-            container/website/app/components/content/diagnostics-catalog.json
+        run: pnpm rtx core codegen all --check
       - name: Lint + typecheck
         run: pnpm run lint
       - name: JS suite (everything except test/fuzz — 151 files)
