@@ -3,9 +3,8 @@ import {getFnHash, getRunTypeId} from '@ts-runtypes/core';
 // Every generated function is stored under a key with two parts: a short id for
 // the FUNCTION (which family it belongs to, plus any compile-time options) and
 // the id for the TYPE it works on, joined as `functionId_typeId`. A framework
-// that already holds a type's id can rebuild that key itself with getFnHash,
-// instead of hard-coding a table of function ids that would need refreshing on
-// every release. The ids getFnHash returns are stable across releases.
+// that already holds a type's id can rebuild that key itself with getFnHash. The
+// ids getFnHash returns are stable across releases.
 
 // The function id for the default validator.
 const validateId = getFnHash('val');
