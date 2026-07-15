@@ -81,12 +81,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cachegen/diskcache/format.go). Bumped to 13
-    // when the class-serializer lookup gained the class-name fallback arg
-    // (`utl.getClassSerializer('<id>', '<className>')`): v12 payloads bake the
-    // old single-arg lookup, so they must miss rather than serve bytes that
-    // depend on cache temperature.
-    expect(parsed.version).toBe(13);
+    // Mirrors disk.FormatVersion (internal/cachegen/diskcache/format.go). Bumped to 14
+    // when constants.Version was dropped from the fnHash salt (operations/fnhash.go):
+    // the fnHash prefix baked into every cached key slot changes without the
+    // version-folded typeID directory moving, so a same-version rebuild must miss
+    // v13 payloads rather than serve entries keyed by the old fnHash prefix.
+    expect(parsed.version).toBe(14);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');

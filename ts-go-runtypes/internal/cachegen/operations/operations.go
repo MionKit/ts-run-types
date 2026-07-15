@@ -161,6 +161,16 @@ func init() {
 	mustBeCollisionFree()
 }
 
+// All returns a copy of the full operation registry, in declaration order. Used
+// by cmd/gen-fn-hashes to enumerate every operation + variant when emitting the
+// TS fnHash table (the version-independent `fnKey → variant → fnHash` mirror the
+// ts-runtypes runtime's getFnHash resolves against).
+func All() []Operation {
+	out := make([]Operation, len(registry))
+	copy(out, registry)
+	return out
+}
+
 // ByName returns the operation with the given canonical name.
 func ByName(name string) (Operation, bool) {
 	op, ok := byName[name]

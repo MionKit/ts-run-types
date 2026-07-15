@@ -187,7 +187,7 @@ func dumpFor(types map[string]*protocol.RunType) protocol.Dump {
 // TestDispatchGate_CircularIdentityCollapses renders the user-reported shape
 // (`{a: string; d?: Self[]}`, circular, fully JSON-compatible): pre-gate this
 // emitted a self-recursive traversal that walked the whole value doing
-// nothing (`for (…) {v.d[i0] = GkO(v.d[i0])} return v`, isNoop=false). The
+// nothing (`for (…) {v.d[i0] = X13(v.d[i0])} return v`, isNoop=false). The
 // dispatch gate proves the cycle re-entry noop, the loop folds away, and the
 // whole entry collapses to the short-form identity tuple.
 func TestDispatchGate_CircularIdentityCollapses(t *testing.T) {

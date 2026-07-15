@@ -56,6 +56,15 @@ export {
   type FriendlyI18nOptions,
 } from './enrich/createFriendlyText.ts';
 
+// getFnHash derives the version-independent fnHash for a function family (+ its
+// compile-time options) — the fnHash half of the `<fnHash>_<typeId>` runtime
+// cache key. A framework holding a type's injected typeId can rebuild the key
+// itself (`getFnHash('val') + '_' + typeId`) instead of hand-pinning a
+// family→prefix map. The hashes ride a Go-generated table (single source of
+// truth = operations.FnHashFor); stable across releases, so consumers derive
+// once and never re-pin on a version bump.
+export {getFnHash, type FnHashKey, type FnHashOptions} from './fnHash.ts';
+
 // Run-type registration is per-entry now: each marker call site imports its
 // type's virtual entry module and registers it (plus transitive children) on
 // first use — there is no monolithic cache module to populate up front.

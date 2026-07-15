@@ -1,7 +1,43 @@
 # Make fn-hash family prefixes version-independent (drop `constants.Version` from the fnHash salt)
 
-**Status:** todo
+**Status:** DONE — Phase 1 shipped + a generic consumer-facing derivation (`getFnHash`) added. Phase 2 (readable tags) deliberately NOT done (it was optional; see below).
 **Created:** 2026-07-15
+
+## What shipped
+
+**Phase 1 — version-independent fnHash salt (the core fix):**
+
+- `operations.fnHashSalt` changed from `constants.Version + "|op|" + canonicalKey` to
+  `"op|" + canonicalKey` ([`operations/fnhash.go`](../../ts-go-runtypes/internal/cachegen/operations/fnhash.go)) —
+  fnHashes are now stable across versions; cross-version invalidation rides the `typeId` half only.
+- **`diskcache.FormatVersion` bumped 13 → 14** (this todo missed it): the fnHash is baked into
+  every cached `ArgsText` key slot, so within a single `Version` (dev / test / a mid-version
+  rebuild) the old prefix would be served from a v13 payload while the resolver keys the new one —
+  a silent runtime miss. Same failure mode / fix as the v2→v3 fnHash naming flip. The disk
+  fingerprint stays version-free (correct — this is a payload-shape bump, not an options change).
+- Tests: `TestFnHashVersionSensitive` **inverted** to `TestFnHash_StableAcrossVersions`; new
+  `runtype.TestCompositeKey_DiffersAcrossVersions` proves `<fnHash>_<typeId>` still moves across
+  versions through its typeId half; the JS `cache-disk.test.ts` version literal + two stale fnHash
+  example comments re-pinned.
+
+**Beyond the todo — generic derivation `getFnHash(fnKey, options?)`:** rather than leave consumers
+to pin a `family → prefix` map (which only captures each family's *default* variant), a public
+`getFnHash` is exported from `ts-runtypes`. It resolves the same `fnKey (+ compile-time options) →
+fnHash` the plugin injects, so it correctly handles the option axes a flat map can't — the
+`ValidateOptions` variants (`noLiterals`/`noIsArrayCheck` → `NL`/`NA`/`NLA`) and JSON strategies
+(`clone`/`mutate`/`direct`/`compact`, `strip`/`preserve`/`compact`). It is **table-backed, not a
+JS hash port**: a Go generator ([`cmd/gen-fn-hashes`](../../ts-go-runtypes/cmd/gen-fn-hashes/)) emits
+[`packages/ts-runtypes/src/fnHashes.generated.ts`](../../packages/ts-runtypes/src/fnHashes.generated.ts)
+from the authoritative `operations.FnHashFor` (single source of truth, zero JS↔Go divergence — the
+`hashid.go` header explicitly disclaims byte-for-byte JS equivalence), wired into the codegen
+drift gate (`rtx core codegen`, both CI workflows). A framework rebuilds the full key from a type's
+injected typeId alone: `getFnHash('val') + '_' + typeId`.
+
+Scope note on "other compiler options": only **compile-time** options refine the fnHash
+(validate options + JSON strategy). Plugin *build* options — `emitMode`, `inlineMode`, `hashLength`,
+`moduleMode`, size-estimate — do NOT touch the fnHash (`hashLength` moves the `typeId`; the others
+move the emitted body / disk-cache dir). And the `typeId` is always injected (it needs the
+type-checker), so `getFnHash` takes only the compile-time options, never the plugin config.
 
 ## Problem
 

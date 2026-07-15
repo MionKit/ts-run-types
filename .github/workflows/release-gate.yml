@@ -72,13 +72,16 @@ jobs:
         run: |
           pnpm run gen:ts-constants
           pnpm run gen:run-type-kind
+          pnpm run gen:fn-hashes
           pnpm exec oxfmt --write \
             packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts \
-            packages/ts-runtypes/src/runTypeKind.ts
+            packages/ts-runtypes/src/runTypeKind.ts \
+            packages/ts-runtypes/src/fnHashes.generated.ts
           pnpm run gen:diag-catalog
           git diff --exit-code -- \
             packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts \
             packages/ts-runtypes/src/runTypeKind.ts \
+            packages/ts-runtypes/src/fnHashes.generated.ts \
             packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts \
             container/website/app/components/content/diagnostics-catalog.json
       - name: Full JS suite (builds the resolver + dists via pretest; runs fuzz)
