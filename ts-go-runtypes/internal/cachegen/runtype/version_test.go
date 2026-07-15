@@ -3,6 +3,7 @@ package runtype
 import (
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -29,6 +30,34 @@ func TestVersionEmbedded_HashesDifferAcrossVersions(t *testing.T) {
 	}
 	if idA == idB {
 		t.Errorf("typeID stable across versions: both %q (version embedding broken)", idA)
+	}
+}
+
+// TestCompositeKey_DiffersAcrossVersions — the emitted runtime cache key is the
+// composite `<fnHash>_<typeId>`. Since operations.FnHashFor is now
+// version-INDEPENDENT (operations.TestFnHash_StableAcrossVersions), the fnHash
+// half is identical across versions; cross-version invalidation must therefore
+// ride entirely on the typeId half. This asserts exactly that: the fnHash is
+// stable while the composite key still moves across versions through its typeId.
+func TestCompositeKey_DiffersAcrossVersions(t *testing.T) {
+	originalVersion := constants.Version
+	t.Cleanup(func() { constants.Version = originalVersion })
+
+	constants.Version = "v-composite-A"
+	fnHashA := operations.PlainHash("validate")
+	cacheA := NewCache(nil, Options{})
+	keyA := fnHashA + "_" + cacheA.SerializeAtomicKind(protocol.KindString)
+
+	constants.Version = "v-composite-B"
+	fnHashB := operations.PlainHash("validate")
+	cacheB := NewCache(nil, Options{})
+	keyB := fnHashB + "_" + cacheB.SerializeAtomicKind(protocol.KindString)
+
+	if fnHashA != fnHashB {
+		t.Errorf("fnHash half leaked the version: %q != %q (fnHash must be version-independent)", fnHashA, fnHashB)
+	}
+	if keyA == keyB {
+		t.Errorf("composite key stable across versions: both %q (typeId half not invalidating)", keyA)
 	}
 }
 

@@ -67,6 +67,7 @@ const FUZZ = {
 const CODEGEN = {
   constants: {script: 'gen:ts-constants', outputs: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts']},
   kind: {script: 'gen:run-type-kind', outputs: ['packages/ts-runtypes/src/runTypeKind.ts'], fmt: ['packages/ts-runtypes/src/runTypeKind.ts']},
+  fnhashes: {script: 'gen:fn-hashes', outputs: ['packages/ts-runtypes/src/fnHashes.generated.ts'], fmt: ['packages/ts-runtypes/src/fnHashes.generated.ts']},
   diag: {script: 'gen:diag-catalog', outputs: ['packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts', 'container/website/app/components/content/diagnostics-catalog.json'], fmt: []},
 };
 

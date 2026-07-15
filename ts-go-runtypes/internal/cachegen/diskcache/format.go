@@ -107,7 +107,18 @@ package diskcache
 // payloads bake the old single-arg lookup — functionally they'd still hit
 // on the exact id, but the name fallback would silently not apply and
 // emitted bytes would depend on cache temperature — must miss.
-const FormatVersion = 13
+//
+// v14 drops constants.Version from the fnHash salt (operations/fnhash.go): the
+// per-family fnHash prefix baked into every cached ArgsText's key slot changes
+// one final time, WITHOUT the version-folded typeID directory moving. Across
+// released versions the typeID dir already segregates caches, but a same-version
+// rebuild (dev / test / a mid-version binary swap) would otherwise read a v13
+// entry whose ArgsText key slot carries the OLD fnHash prefix while the resolver
+// keys the entry by the NEW one — a silent runtime miss. Same failure mode as
+// the v2→v3 fnHash naming flip: v13 payloads bake the old keys, so they must
+// miss. (The disk-cache FINGERPRINT is unchanged — the version was never in it,
+// by design; this is a payload-shape bump, which is what FormatVersion guards.)
+const FormatVersion = 14
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
