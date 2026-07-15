@@ -1,6 +1,6 @@
 {
   "name": "ts-runtypes-monorepo",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Compile-time runtime-type resolver on TypeScript 7 / typescript-go (tsgo).",
   "private": true,
   "type": "module",
