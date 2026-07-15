@@ -185,6 +185,7 @@ function runRelease(args) {
     pack: ['node', ['scripts/release/pack.mjs']],
     tarballs: ['node', ['scripts/release/publish-tarballs.mjs']],
     'stage-approve': ['node', ['scripts/release/stage-approve.mjs']],
+    'verify-live': ['node', ['scripts/release/verify-live.mjs']],
     e2e: ['node', ['scripts/release/e2e.mjs']],
   };
   if (map[sub]) return proxy(map[sub][0], [...map[sub][1], ...rest]);
@@ -244,6 +245,7 @@ release   npm publish + site build (CI stages to npm; a maintainer approves with
   rtx release [--preflight-only] [--no-website] [--dry-run]
   rtx release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
   rtx release stage-approve [--dry-run]   approve this version's staged packages (2FA, leaves-first)
+  rtx release verify-live                 deploy guard: fail unless the tree's version is LIVE on npm (all packages, lockstep)
   rtx release manual-publish [--skip-build|--dry-run|--yes]   first-publish bootstrap: build + npm login + publish all 10 LIVE (resumable)
   rtx release e2e [--backend container|host-npx] [--pack]   pre-publish e2e (containerized verdaccio + feature matrix + host smoke)
   rtx release e2e --backend npm [--registry URL] [--version V] [--no-matrix]   post-publish e2e (install the LIVE @ts-runtypes/* from npm + run the same suite)
