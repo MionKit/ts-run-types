@@ -54,9 +54,9 @@ const TOOLKIT_PKG_JSON = JSON.stringify({
 
 // The framework surface: barrel re-export + a branded wrapper over the anonymous
 // lane. Only this file names '@ts-runtypes/core', and it lives in node_modules.
-const TOOLKIT_DTS = `import type {PureFunction, InjectPureFnHash, RTUtils} from '@ts-runtypes/core';
+const TOOLKIT_DTS = `import type {PureFunction, InjectPureFnHash} from '@ts-runtypes/core';
 export {registerAnonymousPureFn} from '@ts-runtypes/core';
-export declare function registerAcmePureFn<F extends (utl: RTUtils) => (...args: any[]) => any>(
+export declare function registerAcmePureFn<F extends (...args: any[]) => any>(
   fn: PureFunction<F>,
   hash?: InjectPureFnHash<F>,
 ): unknown;
@@ -72,21 +72,15 @@ export function registerAcmePureFn(fn, hash) {
 // they must inject two DISTINCT content hashes.
 const CONSUMER_SRC = `import {registerAnonymousPureFn as regAPF, registerAcmePureFn} from '@acme/toolkit';
 
-export const doubled = regAPF(function () {
-  return function _double(n: number): number { return n * 2; };
-});
-export const tripled = registerAcmePureFn(function () {
-  return function _triple(n: number): number { return n * 3; };
-});
+export const doubled = regAPF(function _double(n: number): number { return n * 2; });
+export const tripled = registerAcmePureFn(function _triple(n: number): number { return n * 3; });
 `;
 
 // Consumer B: ONLY the wrapper. Names neither '@ts-runtypes/core' nor the
 // primitive textually — the transform gate can only find it via siteFiles.
 const WRAPPER_ONLY_SRC = `import {registerAcmePureFn} from '@acme/toolkit';
 
-export const quadrupled = registerAcmePureFn(function () {
-  return function _quad(n: number): number { return n * 4; };
-});
+export const quadrupled = registerAcmePureFn(function _quad(n: number): number { return n * 4; });
 `;
 
 const ctx = {

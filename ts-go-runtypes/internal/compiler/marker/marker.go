@@ -62,6 +62,14 @@ const (
 	// shape by this brand and splices the hash in; the resolver's marker walk
 	// does not inject for it (no createX id/fnId), so it carries no scanCall case.
 	KindInjectPureFnHash
+	// KindPureFunctionFactory brands a function argument as a FACTORY
+	// `(utl) => fn` (the registerPureFnFactory / registerAnonymousPureFnFactory
+	// lanes). Same inline + purity rules as KindPureFunction, but it tells the
+	// extractor to emit the factory AS-IS. The plain KindPureFunction is the
+	// DIRECT form — the argument is the pure fn itself, wrapped into `() => fn`.
+	// The marker on the pure-fn parameter is what carries the factory-vs-direct
+	// intent through a wrapper.
+	KindPureFunctionFactory
 )
 
 // DefaultName is the symbol name the resolver looks for for the
@@ -80,8 +88,13 @@ const DefaultCompTimeArgsName = "CompTimeArgs"
 // the fn-selecting variant of CompTimeArgs used by the createX factories.
 const DefaultCompTimeFnArgsName = "CompTimeFnArgs"
 
-// DefaultPureFunctionName is the symbol name for the PureFunction brand.
+// DefaultPureFunctionName is the symbol name for the PureFunction brand (the
+// DIRECT form — the argument is the pure fn itself).
 const DefaultPureFunctionName = "PureFunction"
+
+// DefaultPureFunctionFactoryName is the symbol name for the PureFunctionFactory
+// brand (the FACTORY form — the argument is a `(utl) => fn` factory).
+const DefaultPureFunctionFactoryName = "PureFunctionFactory"
 
 // DefaultInjectPureFnHashName is the symbol name for the anonymous pure-fn
 // injection marker (InjectPureFnHash<F>).
@@ -114,12 +127,13 @@ type Spec struct {
 // public TypeScript declarations in
 // packages/ts-runtypes/src/markers.ts.
 const (
-	BrandInjectRunTypeId  = "__rtInjectRunTypeIdBrand"
-	BrandCompTimeArgs     = "__rtCompTimeArgsBrand"
-	BrandCompTimeFnArgs   = "__rtCompTimeFnArgsBrand"
-	BrandPureFunction     = "__rtPureFunctionBrand"
-	BrandInjectTypeFnArgs = "__rtInjectTypeFnArgsBrand"
-	BrandInjectPureFnHash = "__rtInjectPureFnHashBrand"
+	BrandInjectRunTypeId     = "__rtInjectRunTypeIdBrand"
+	BrandCompTimeArgs        = "__rtCompTimeArgsBrand"
+	BrandCompTimeFnArgs      = "__rtCompTimeFnArgsBrand"
+	BrandPureFunction        = "__rtPureFunctionBrand"
+	BrandPureFunctionFactory = "__rtPureFunctionFactoryBrand"
+	BrandInjectTypeFnArgs    = "__rtInjectTypeFnArgsBrand"
+	BrandInjectPureFnHash    = "__rtInjectPureFnHashBrand"
 )
 
 // DefaultSpecs returns the canonical marker set: one spec per supported
@@ -130,6 +144,7 @@ func DefaultSpecs() []Spec {
 		{Name: DefaultCompTimeArgsName, Module: DefaultModule, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
 		{Name: DefaultCompTimeFnArgsName, Module: DefaultModule, Kind: KindCompTimeFnArgs, BrandProperty: BrandCompTimeFnArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
+		{Name: DefaultPureFunctionFactoryName, Module: DefaultModule, Kind: KindPureFunctionFactory, BrandProperty: BrandPureFunctionFactory},
 		{Name: DefaultInjectTypeFnArgsName, Module: DefaultModule, Kind: KindInjectTypeFnArgs, BrandProperty: BrandInjectTypeFnArgs},
 		{Name: DefaultInjectPureFnHashName, Module: DefaultModule, Kind: KindInjectPureFnHash, BrandProperty: BrandInjectPureFnHash},
 	}

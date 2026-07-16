@@ -455,7 +455,10 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok {
 				diags = append(diags, diagnostic)
 			}
-		case marker.KindPureFunction:
+		case marker.KindPureFunction, marker.KindPureFunctionFactory:
+			// Both pure-fn form markers enforce the same inline + purity rules
+			// (PFN001 / PFE9006-9011) — the direct/factory distinction is a
+			// build-time wrap concern, not a validation one.
 			if paramIndex >= argsCount {
 				continue
 			}

@@ -24,6 +24,7 @@ const runtypesDTSWithPureFn = `declare module '@ts-runtypes/core' {
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean; rejectCircularRefs?: boolean}
   export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+  export type PureFunctionFactory<F> = F & {readonly __rtPureFunctionFactoryBrand?: never};
   export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
@@ -31,7 +32,7 @@ const runtypesDTSWithPureFn = `declare module '@ts-runtypes/core' {
   }
   export function registerPureFnFactory(
     pureFnId: CompTimeArgs<PureFnId>,
-    factory: PureFunction<(utl: RTUtils) => any> | null
+    createPureFn: PureFunctionFactory<(utl: RTUtils) => any> | null
   ): any;
 }
 `

@@ -74,9 +74,7 @@ describe('@ts-runtypes/devtools / anonymous pure-fn lane', () => {
   register('rewrites the factory and splices the injected rt::<hash> id', async () => {
     const sources = {
       'anon.ts': `import {registerAnonymousPureFn} from '@ts-runtypes/core';
-export const cpf = registerAnonymousPureFn(function () {
-  return function _double(n: number): number { return n * 2; };
-});
+export const cpf = registerAnonymousPureFn(function _double(n: number): number { return n * 2; });
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -90,7 +88,11 @@ export const cpf = registerAnonymousPureFn(function () {
       // Content-addressed: `rt::<14-char body hash>`.
       expect(key).toMatch(/^rt::[A-Za-z0-9_-]{14}$/);
       const entry = pureFns[key];
+      // Direct form: the compiler wraps the pure fn into `() => fn`, so the
+      // emitted factory code is `return <fn>;` — the whole fn returned, with TS
+      // annotations stripped.
       expect(entry.code).not.toContain(': number');
+      expect(entry.code).toContain('return function _double');
       expect(entry.code).toContain('return n * 2');
       expect(typeof entry.createPureFn).toBe('function');
 
@@ -111,14 +113,10 @@ export const cpf = registerAnonymousPureFn(function () {
   register('collapses structurally-identical bodies to one content-addressed entry', async () => {
     const sources = {
       'a.ts': `import {registerAnonymousPureFn} from '@ts-runtypes/core';
-export const first = registerAnonymousPureFn(function () {
-  return function _id(n: number): number { return n; };
-});
+export const first = registerAnonymousPureFn(function _id(n: number): number { return n; });
 `,
       'b.ts': `import {registerAnonymousPureFn} from '@ts-runtypes/core';
-export const second = registerAnonymousPureFn(function () {
-  return function _id(n: number): number { return n; };
-});
+export const second = registerAnonymousPureFn(function _id(n: number): number { return n; });
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -133,12 +131,8 @@ export const second = registerAnonymousPureFn(function () {
   register('gives different bodies different ids', async () => {
     const sources = {
       'ops.ts': `import {registerAnonymousPureFn} from '@ts-runtypes/core';
-export const dbl = registerAnonymousPureFn(function () {
-  return function _double(n: number): number { return n * 2; };
-});
-export const trp = registerAnonymousPureFn(function () {
-  return function _triple(n: number): number { return n * 3; };
-});
+export const dbl = registerAnonymousPureFn(function _double(n: number): number { return n * 2; });
+export const trp = registerAnonymousPureFn(function _triple(n: number): number { return n * 3; });
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -152,9 +146,7 @@ export const trp = registerAnonymousPureFn(function () {
     // Extract the id a DIRECT call to a given body injects.
     const directSources = {
       'direct.ts': `import {registerAnonymousPureFn} from '@ts-runtypes/core';
-export const cpf = registerAnonymousPureFn(function () {
-  return function _slug(s: string): string { return s.toLowerCase(); };
-});
+export const cpf = registerAnonymousPureFn(function _slug(s: string): string { return s.toLowerCase(); });
 `,
     };
     let directKey = '';
@@ -175,9 +167,7 @@ export function registerAcmePureFn<F extends (utl: RTUtils) => any>(fn: PureFunc
 }
 `,
       'consumer.ts': `import {registerAcmePureFn} from './toolkit.ts';
-export const cpf = registerAcmePureFn(function () {
-  return function _slug(s: string): string { return s.toLowerCase(); };
-});
+export const cpf = registerAcmePureFn(function _slug(s: string): string { return s.toLowerCase(); });
 `,
     };
     await withInlineSources(wrapperSources, async ({client}) => {

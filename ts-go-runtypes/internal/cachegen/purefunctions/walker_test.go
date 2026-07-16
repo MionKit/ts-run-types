@@ -19,6 +19,7 @@ const runtypesDts = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+  export type PureFunctionFactory<F> = F & {readonly __rtPureFunctionFactoryBrand?: never};
   export type InjectPureFnHash<F> = string & {readonly __rtInjectPureFnHashBrand?: F};
   export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export interface RTUtils {
@@ -32,10 +33,18 @@ const runtypesDts = `declare module '@ts-runtypes/core' {
   }
   export function registerPureFnFactory(
     pureFnId: CompTimeArgs<PureFnId>,
-    factory: PureFunction<(utl: RTUtils) => any> | null
+    createPureFn: PureFunctionFactory<(utl: RTUtils) => any> | null
   ): any;
-  export function registerAnonymousPureFn<F extends (utl: RTUtils) => any>(
+  export function registerPureFn(
+    pureFnId: CompTimeArgs<PureFnId>,
+    fn: PureFunction<(...args: any[]) => any> | null
+  ): any;
+  export function registerAnonymousPureFn<F extends (...args: any[]) => any>(
     fn: PureFunction<F> | null,
+    hash?: InjectPureFnHash<F>
+  ): any;
+  export function registerAnonymousPureFnFactory<F extends (utl: RTUtils) => any>(
+    createPureFn: PureFunctionFactory<F> | null,
     hash?: InjectPureFnHash<F>
   ): any;
 }
@@ -357,9 +366,9 @@ func TestExtract_BrandedWrapperCallSite(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"wrapper.ts": `
 import {registerPureFnFactory} from '@ts-runtypes/core';
-import type {CompTimeArgs, PureFunction, PureFnId} from '@ts-runtypes/core';
+import type {CompTimeArgs, PureFunctionFactory, PureFnId} from '@ts-runtypes/core';
 type Factory = (utl: unknown) => (...args: any[]) => any;
-export function mionPureFn<F extends Factory>(pureFnId: CompTimeArgs<PureFnId>, createPureFn: PureFunction<F> | null) {
+export function mionPureFn<F extends Factory>(pureFnId: CompTimeArgs<PureFnId>, createPureFn: PureFunctionFactory<F> | null) {
   return registerPureFnFactory(pureFnId, createPureFn as never);
 }`,
 		"consumer.ts": `
