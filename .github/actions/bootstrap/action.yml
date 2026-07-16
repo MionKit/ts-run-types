@@ -58,6 +58,16 @@ runs:
         go-version: '1.26'
         cache: false
 
+    # garble embeds the exact Go version it was built with and REFUSES to run under
+    # a different toolchain — even a patch bump (a garble built with go1.26.4 dies
+    # on a runner whose Go has rolled to go1.26.5). setup-go resolves `1.26` to
+    # whatever patch the runner currently ships, so capture the resolved version and
+    # fold it into the garble cache key below.
+    - name: Resolve the active Go version (for the garble cache key)
+      id: goversion
+      shell: bash
+      run: echo "v=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
+
     # garble obfuscates the PUBLISHED Go binaries + playground wasm (see
     # scripts/lib/garble.mjs). Cache the built binary keyed on its pinned version so
     # it installs ONCE per version bump and restores instantly after: the gocache
@@ -72,7 +82,12 @@ runs:
         # "Linux" for BOTH x64 and arm64 runners. Without the arch, a Linux/arm64 job
         # restores the x64 garble an x64 job cached under the same key, skips the install,
         # and exec-format-crashes running it (`sh: Syntax error: ")" unexpected`).
-        key: ${{ runner.os }}-${{ runner.arch }}-garble-v0.16.0
+        #
+        # steps.goversion MUST be in the key too: garble refuses to run under a Go
+        # toolchain other than the one it was built with, so a garble cached under an
+        # older patch goes stale the moment setup-go rolls forward. Keying on the
+        # resolved Go version misses the cache on a bump and rebuilds garble against it.
+        key: ${{ runner.os }}-${{ runner.arch }}-garble-v0.16.0-${{ steps.goversion.outputs.v }}
     - name: Install garble (only on a cache miss)
       if: steps.garble-cache.outputs.cache-hit != 'true'
       shell: bash
