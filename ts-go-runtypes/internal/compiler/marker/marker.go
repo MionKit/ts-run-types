@@ -54,6 +54,14 @@ const (
 	// KindCompTimeArgs, but it ALSO tells the scanner which parameter to read
 	// when computing the injected fnHash.
 	KindCompTimeFnArgs
+	// KindInjectPureFnHash is the anonymous pure-fn injection marker
+	// (InjectPureFnHash<F>). Like KindInjectRunTypeId it rides the callee
+	// signature so it propagates through wrappers, but the injected value is a
+	// content hash of the sibling PureFunction<F> factory BODY — `"rt::<fnHash>"`.
+	// The purefunctions extractor recognises the registerAnonymousPureFn call
+	// shape by this brand and splices the hash in; the resolver's marker walk
+	// does not inject for it (no createX id/fnId), so it carries no scanCall case.
+	KindInjectPureFnHash
 )
 
 // DefaultName is the symbol name the resolver looks for for the
@@ -74,6 +82,10 @@ const DefaultCompTimeFnArgsName = "CompTimeFnArgs"
 
 // DefaultPureFunctionName is the symbol name for the PureFunction brand.
 const DefaultPureFunctionName = "PureFunction"
+
+// DefaultInjectPureFnHashName is the symbol name for the anonymous pure-fn
+// injection marker (InjectPureFnHash<F>).
+const DefaultInjectPureFnHashName = "InjectPureFnHash"
 
 // DefaultModule is the package the marker types must be declared in.
 const DefaultModule = "@ts-runtypes/core"
@@ -107,6 +119,7 @@ const (
 	BrandCompTimeFnArgs   = "__rtCompTimeFnArgsBrand"
 	BrandPureFunction     = "__rtPureFunctionBrand"
 	BrandInjectTypeFnArgs = "__rtInjectTypeFnArgsBrand"
+	BrandInjectPureFnHash = "__rtInjectPureFnHashBrand"
 )
 
 // DefaultSpecs returns the canonical marker set: one spec per supported
@@ -118,6 +131,7 @@ func DefaultSpecs() []Spec {
 		{Name: DefaultCompTimeFnArgsName, Module: DefaultModule, Kind: KindCompTimeFnArgs, BrandProperty: BrandCompTimeFnArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
 		{Name: DefaultInjectTypeFnArgsName, Module: DefaultModule, Kind: KindInjectTypeFnArgs, BrandProperty: BrandInjectTypeFnArgs},
+		{Name: DefaultInjectPureFnHashName, Module: DefaultModule, Kind: KindInjectPureFnHash, BrandProperty: BrandInjectPureFnHash},
 	}
 }
 

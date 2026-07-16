@@ -2,6 +2,7 @@
 export {
   type InjectRunTypeId,
   type InjectTypeFnArgs,
+  type InjectPureFnHash,
   type CompTimeArgs,
   type CompTimeFnArgs,
   type PureFunction,
@@ -71,7 +72,7 @@ export {getFnHash, type FnHashKey, type FnHashOptions} from './fnHash.ts';
 
 // `pureFn.ts` MUST evaluate before any cache factory that references pure-fn
 // helpers (e.g. validationErrors needs `rt::newRunTypeErr`).
-export {registerPureFnFactory, type PureFnId} from './runtypes/pureFn.ts';
+export {registerPureFnFactory, registerAnonymousPureFn, type PureFnId} from './runtypes/pureFn.ts';
 // Side-effect import: the `rt::` built-in pure fns (newRunTypeErr,
 // getUnknownKeysFromArray, …) register at their own registerPureFnFactory
 // call sites now — there is no monolithic pureFnsCache module delivering

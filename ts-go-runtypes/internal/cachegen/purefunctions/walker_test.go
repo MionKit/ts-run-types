@@ -19,6 +19,7 @@ const runtypesDts = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+  export type InjectPureFnHash<F> = string & {readonly __rtInjectPureFnHashBrand?: F};
   export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
@@ -26,10 +27,16 @@ const runtypesDts = `declare module '@ts-runtypes/core' {
     getCompiledPureFn(key: CompTimeArgs<string>): any;
     hasPureFn(key: CompTimeArgs<string>): boolean;
     findCompiledPureFn(fnName: CompTimeArgs<string>): any;
+    getPureFnByKey(key: string): any;
+    hasPureFnByKey(key: string): boolean;
   }
   export function registerPureFnFactory(
     pureFnId: CompTimeArgs<PureFnId>,
     factory: PureFunction<(utl: RTUtils) => any> | null
+  ): any;
+  export function registerAnonymousPureFn<F extends (utl: RTUtils) => any>(
+    fn: PureFunction<F> | null,
+    hash?: InjectPureFnHash<F>
   ): any;
 }
 `

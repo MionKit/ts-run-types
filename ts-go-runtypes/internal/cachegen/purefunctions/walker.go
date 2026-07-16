@@ -9,6 +9,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
+	"github.com/mionkit/ts-runtypes/internal/jsquote"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
@@ -35,14 +36,23 @@ type Entry struct {
 	// FactoryArgStart / FactoryArgEnd are the byte offsets of the user's
 	// factory argument expression in the `registerPureFnFactory(pureFnId,
 	// factory)` call. Used by the Vite plugin to replace that span with
-	// `null` so the canonical fn body lives only in the emitted pureFns
-	// cache module.
+	// the pure fn's entry-module import binding so the canonical fn body
+	// lives only in the emitted pureFns cache module.
 	FactoryArgStart int
 	FactoryArgEnd   int
 	// FilePath is the absolute source path the entry was extracted from.
 	// Stable across requests for one Program. Used by the emitter when
 	// the wire `Replacement.File` field needs to be populated.
 	FilePath string
+	// HashInjectPos / HashInjectText drive the anonymous-lane hash injection:
+	// registerAnonymousPureFn(fn, hash?) leaves the trailing `hash?` slot empty
+	// at author time, so the plugin splices `"rt::<bodyHash>"` in. HashInjectPos
+	// is the byte offset of the call's closing `)` (the point insertion), and
+	// HashInjectText is the literal to splice (with a leading `, ` unless the
+	// call already ends with a trailing comma). Empty HashInjectText marks the
+	// named lane, which injects nothing.
+	HashInjectPos  int
+	HashInjectText string
 
 	sourceFile *ast.SourceFile
 	callPos    int
@@ -181,6 +191,34 @@ func ExtractFromProgramCached(typeChecker *checker.Checker, markerOpts marker.Op
 		return a.StartCol < b.StartCol
 	})
 	return entries, diags
+}
+
+// RawEntries returns EVERY extracted entry across `files` WITHOUT the cross-file
+// idempotent dedup ExtractFromProgramCached applies — one entry per call site,
+// duplicates included. It is the source for per-file REWRITES: every
+// registration call site must be rewritten (its factory swapped for the entry
+// binding, and for the anonymous lane the injected `"rt::<hash>"` spliced), even
+// two same-file calls that share a body. Dedup is correct for the emitted MODULE
+// (one row per key — the graph collapses duplicate keys) and for PFE9004
+// collisions, but a deduped list drops the loser's byte offsets, so the anonymous
+// lane's un-rewritten duplicate would lose its injected hash and throw at runtime.
+// Uses the same per-Program FileCache, so it never re-walks a file
+// ExtractFromProgramCached already cached.
+func RawEntries(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string, cache *FileCache) []Entry {
+	var all []Entry
+	for _, filePath := range files {
+		fileEntries, fileDiags, cached := cache.get(filePath)
+		if !cached {
+			sourceFile := lookup.SourceFile(filePath)
+			if sourceFile == nil {
+				continue
+			}
+			fileEntries, fileDiags = extractFromSourceFile(typeChecker, markerOpts, sourceFile)
+			cache.put(filePath, fileEntries, fileDiags)
+		}
+		all = append(all, fileEntries...)
+	}
+	return all
 }
 
 // extractFromFile walks a single source file resolved from lookup and
@@ -337,11 +375,11 @@ func paramHasMarker(typeChecker *checker.Checker, markerOpts marker.Options, par
 	return want == marker.KindCompTimeArgs && comptimeargs.IsCompTimeArgsParamNode(typeChecker, paramSymbol, markerOpts)
 }
 
-// extractOne processes a single CallExpression. Returns (nil, nil)
-// when the call isn't a `registerPureFnFactory(...)` invocation (the
-// callee name + brand shape both have to match — see
-// `isPureFnFactoryCall`), or when either arg can't be resolved to its
-// literal form.
+// extractOne processes a single CallExpression, dispatching to the named lane
+// (`registerPureFnFactory('<ns>::<name>', factory)`) or the anonymous lane
+// (`registerAnonymousPureFn(factory, hash?)`), both recognised by the marker
+// brands on their resolved signature. Returns (nil, nil) when the call is
+// neither, or when an argument can't be resolved to its literal form.
 //
 // Marker-shape validation (non-literal id / factory) is emitted as
 // CTA001 / PFN001 by `resolver.scanCall` — this function does NOT
@@ -356,9 +394,20 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 	if callExpr == nil {
 		return nil, nil
 	}
-	if !isPureFnFactoryCall(typeChecker, markerOpts, call) {
-		return nil, nil
+	if isPureFnFactoryCall(typeChecker, markerOpts, call) {
+		return extractNamed(typeChecker, markerOpts, sourceFile, call, callExpr)
 	}
+	if isAnonymousPureFnCall(typeChecker, markerOpts, call) {
+		return extractAnonymous(typeChecker, markerOpts, sourceFile, call, callExpr)
+	}
+	return nil, nil
+}
+
+// extractNamed handles the developer-named lane:
+// `registerPureFnFactory('<namespace>::<functionName>', factory)`. The id is a
+// comptime-literal string; the factory (slot 1) is rewritten to the pure fn's
+// entry-module tuple.
+func extractNamed(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node, callExpr *ast.CallExpression) (*Entry, []diagnostics.Diagnostic) {
 	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) < 2 {
 		return nil, nil
 	}
@@ -371,7 +420,6 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 	if args[1].Kind == ast.KindNullKeyword {
 		return nil, nil
 	}
-	var diags []diagnostics.Diagnostic
 
 	idLit, idResult := comptimeargs.ResolveLiteralString(typeChecker, args[0])
 	factoryFn, factoryResult := comptimeargs.CheckLiteralFunction(typeChecker, args[1])
@@ -395,11 +443,93 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 		functionName = pureFnId[sep+2:]
 	}
 
-	// Param-name extraction + destructuring guard.
+	code, ok := stripFactoryCode(sourceFile, factoryFn)
+	if !ok {
+		return nil, nil
+	}
+	return buildFactoryEntry(typeChecker, markerOpts, sourceFile, call, factoryFn, args[1], namespace, functionName, code)
+}
+
+// extractAnonymous handles the content-addressed lane:
+// `registerAnonymousPureFn(factory, hash?)`. The factory (slot 0) is rewritten to
+// the pure fn's entry-module tuple, and the empty trailing `hash?` slot is spliced
+// with `"rt::<bodyHash>"` — the same content hash the entry is keyed under, so a
+// library wrapper injects an identity that matches a direct call byte-for-byte.
+func extractAnonymous(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node, callExpr *ast.CallExpression) (*Entry, []diagnostics.Diagnostic) {
+	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) < 1 {
+		return nil, nil
+	}
+	args := callExpr.Arguments.Nodes
+
+	factoryFn, factoryResult := comptimeargs.CheckLiteralFunction(typeChecker, args[0])
+	// Non-inline factory (a forwarded wrapper param, or a re-scanned rewritten
+	// `__rt_pf…` binding): PFN001 is the resolver's job — bail quietly, so the
+	// rewrite is idempotent and wrapper bodies forwarding `fn` don't extract.
+	if !factoryResult.Ok {
+		return nil, nil
+	}
+
+	code, ok := stripFactoryCode(sourceFile, factoryFn)
+	if !ok {
+		return nil, nil
+	}
+	// Identity is the code-only content hash, so equal bodies collapse to one
+	// `rt::<hash>` entry (content-addressed dedup) and different bodies never
+	// collide — regardless of signature.
+	hash := CodeHash(code)
+	entry, diags := buildFactoryEntry(typeChecker, markerOpts, sourceFile, call, factoryFn, args[0], AnonymousNamespace, hash, code)
+	if entry == nil {
+		return nil, diags
+	}
+	// Inject the hash only when the trailing slot is genuinely empty. A caller
+	// that already wrote it (an explicitly forwarded handle, or re-scanned
+	// rewritten source) is a pass-through — a second splice would duplicate it.
+	if len(args) < 2 {
+		entry.HashInjectPos = call.End() - 1
+		entry.HashInjectText = anonymousHashArgText(entry.Key(), callExpr.Arguments.HasTrailingComma())
+	}
+	return entry, diags
+}
+
+// anonymousHashArgText renders the spliced trailing argument for the anonymous
+// lane — the quoted `"rt::<hash>"` id preceded by `, ` unless the call already
+// ends with a trailing comma (in which case the position sits right after a
+// separator and a leading comma would produce an empty `f(a,, …)` argument).
+func anonymousHashArgText(key string, trailingComma bool) string {
+	quoted := jsquote.Single(key)
+	if trailingComma {
+		return quoted
+	}
+	return ", " + quoted
+}
+
+// stripFactoryCode returns the type-stripped source of a factory's body (a block
+// or a concise-body expression). ok is false when the factory has no body.
+func stripFactoryCode(sourceFile *ast.SourceFile, factoryFn *ast.Node) (string, bool) {
+	body := factoryFn.Body()
+	if body == nil {
+		return "", false
+	}
+	if body.Kind == ast.KindBlock {
+		return stripTypesFromBlock(sourceFile, body), true
+	}
+	return stripTypesFromExpr(sourceFile, body), true
+}
+
+// buildFactoryEntry is the shared post-recognition extraction both lanes run
+// against a resolved factory node: param-name extraction (+ PFE9005 destructuring
+// guard), purity validation (PFE9006-9011), static pure-fn dep extraction
+// (PFE9013), and assembly of the base Entry keyed `<namespace>::<functionName>`.
+// `code` is the already-stripped factory body (the caller strips it — the
+// anonymous lane needs it before this call to derive the key). `factoryArg` is
+// the argument node whose byte span the plugin rewrites to the entry-module tuple.
+func buildFactoryEntry(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node, factoryFn *ast.Node, factoryArg *ast.Node, namespace, functionName, code string) (*Entry, []diagnostics.Diagnostic) {
+	var diags []diagnostics.Diagnostic
 	fnLike := factoryFn.FunctionLikeData()
 	if fnLike == nil || fnLike.Parameters == nil {
 		return nil, diags
 	}
+	// Param-name extraction + destructuring guard.
 	paramNames := make([]string, 0, len(fnLike.Parameters.Nodes))
 	for _, paramNode := range fnLike.Parameters.Nodes {
 		paramDecl := paramNode.AsParameterDeclaration()
@@ -413,11 +543,6 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 			return nil, diags
 		}
 		paramNames = append(paramNames, nameNode.Text())
-	}
-
-	body := factoryFn.Body()
-	if body == nil {
-		return nil, diags
 	}
 
 	// Purity validation — port of the reference eslint rules'
@@ -444,13 +569,6 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 	pureFnDependencies, depDiags := extractDeps(typeChecker, markerOpts, sourceFile, factoryFn, utlName)
 	diags = append(diags, depDiags...)
 
-	var code string
-	if body.Kind == ast.KindBlock {
-		code = stripTypesFromBlock(sourceFile, body)
-	} else {
-		code = stripTypesFromExpr(sourceFile, body)
-	}
-
 	entry := &Entry{
 		Namespace:          namespace,
 		FunctionName:       functionName,
@@ -458,8 +576,8 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 		Code:               code,
 		BodyHash:           BodyHash(namespace, functionName, code),
 		PureFnDependencies: pureFnDependencies,
-		FactoryArgStart:    args[1].Pos(),
-		FactoryArgEnd:      args[1].End(),
+		FactoryArgStart:    factoryArg.Pos(),
+		FactoryArgEnd:      factoryArg.End(),
 		FilePath:           sourceFile.FileName(),
 		sourceFile:         sourceFile,
 		callPos:            call.Pos(),

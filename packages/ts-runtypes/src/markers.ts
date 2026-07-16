@@ -217,3 +217,23 @@ export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
  * violations → `PFN001`; purity violations → `PFE9006`–`PFE9011`.
  */
 export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+
+/**
+ * Anonymous pure-fn injection marker — the content-addressed twin of the named
+ * `registerPureFnFactory('<ns>::<name>', …)` lane. Like `InjectRunTypeId<T>` it
+ * is a pure INJECTION marker (no literal double-duty): absent at author time,
+ * the plugin fills the trailing `hash?` parameter with `"rt::<fnHash>"` where
+ * `fnHash` is a content hash of the NORMALIZED function BODY (not of `<F>`, so
+ * same-signature/different-body pure fns never collide). Because the marker
+ * lives in the callee signature it propagates through wrappers — a library can
+ * offer its own `registerXPureFn<F>(fn: PureFunction<F>, hash?: InjectPureFnHash<F>)`
+ * and the plugin injects at ITS call sites with zero scanner diagnostics.
+ *
+ * `F` is a phantom type parameter used only to link the marker to the sibling
+ * `PureFunction<F>` argument; the runtime value is the injected string. Mirrors
+ * `InjectRunTypeId`'s `string & {brand}` shape so the Go marker scanner resolves
+ * the alias identically.
+ */
+export type InjectPureFnHash<F> = string & {
+  readonly __rtInjectPureFnHashBrand?: F;
+};
