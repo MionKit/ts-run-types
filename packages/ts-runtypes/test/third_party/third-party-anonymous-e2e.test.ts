@@ -54,9 +54,9 @@ const TOOLKIT_PKG_JSON = JSON.stringify({
 
 // The framework surface: barrel re-export + a branded wrapper that forwards to
 // the anonymous lane (so calling the wrapper genuinely registers the fn).
-const TOOLKIT_DTS = `import type {PureFunction, InjectPureFnHash, RTUtils} from '@ts-runtypes/core';
+const TOOLKIT_DTS = `import type {PureFunction, InjectPureFnHash} from '@ts-runtypes/core';
 export {registerAnonymousPureFn} from '@ts-runtypes/core';
-export declare function registerAcmePureFn<F extends (utl: RTUtils) => (...args: any[]) => any>(
+export declare function registerAcmePureFn<F extends (...args: any[]) => any>(
   fn: PureFunction<F>,
   hash?: InjectPureFnHash<F>,
 ): {namespace: string; fnName: string};
@@ -74,9 +74,7 @@ export function registerAcmePureFn(fn, hash) {
 const CONSUMER_SRC = `import {registerAcmePureFn} from '@acme/toolkit';
 import {getRTUtils} from '@ts-runtypes/core';
 
-const compiled = registerAcmePureFn(function () {
-  return function _double(n) { return n * 2; };
-});
+const compiled = registerAcmePureFn(function _double(n) { return n * 2; });
 
 const key = compiled.namespace + '::' + compiled.fnName;
 process.stdout.write(

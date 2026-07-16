@@ -409,15 +409,18 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // subpaths) — a bare `includes(...)` also fires on path mentions in
       // comments (e.g. `packages/ts-runtypes/…`), which would force the
       // resolver to scan files that never import the markers.
-      // `registerPureFnFactory` / `registerAnonymousPureFn` are checked
-      // separately because the marker package's OWN sources call them via
-      // relative imports (no package-name string in the file). Both pure-fn
-      // lanes emit Replacements, not Sites, so a file created mid-session (before
-      // its first HMR scan lands it in siteFiles) needs this textual catch.
+      // The pure-fn registrars are checked separately because the marker
+      // package's OWN sources call them via relative imports (no package-name
+      // string in the file). `registerPureFn` catches both named registrars
+      // (`registerPureFn` + `registerPureFnFactory`) and `registerAnonymousPureFn`
+      // catches both anonymous ones (`registerAnonymousPureFn` +
+      // `registerAnonymousPureFnFactory`) — a substring probe over all four. Both
+      // pure-fn lanes emit Replacements, not Sites, so a file created mid-session
+      // (before its first HMR scan lands it in siteFiles) needs this textual catch.
       const inSiteSet = siteFiles.has(siteKey(rel));
       if (!inSiteSet) {
         const importsMarkerModule = code.includes(`'${MARKER_MODULE}`) || code.includes(`"${MARKER_MODULE}`);
-        const callsPureFnRegistrar = code.includes('registerPureFnFactory') || code.includes('registerAnonymousPureFn');
+        const callsPureFnRegistrar = code.includes('registerPureFn') || code.includes('registerAnonymousPureFn');
         if (!importsMarkerModule && !callsPureFnRegistrar) return null;
       }
 

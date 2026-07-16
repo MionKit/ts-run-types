@@ -10,12 +10,13 @@ import (
 
 // anonPureFnDTS declares BOTH pure-fn lanes so the resolver's scan + extraction
 // recognises them by brand: the named `registerPureFnFactory` (comptime id +
-// PureFunction factory) and the anonymous `registerAnonymousPureFn`
-// (PureFunction factory + injected InjectPureFnHash). It also carries a user
+// PureFunctionFactory) and the anonymous `registerAnonymousPureFn` (direct
+// PureFunction + injected InjectPureFnHash). It also carries a user
 // wrapper-shaped helper so tests can forward the markers through a library API.
 const anonPureFnDTS = `declare module '@ts-runtypes/core' {
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+  export type PureFunctionFactory<F> = F & {readonly __rtPureFunctionFactoryBrand?: never};
   export type InjectPureFnHash<F> = string & {readonly __rtInjectPureFnHashBrand?: F};
   export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
   export interface RTUtils {
@@ -26,8 +27,8 @@ const anonPureFnDTS = `declare module '@ts-runtypes/core' {
     getPureFnByKey(key: string): any;
     hasPureFnByKey(key: string): boolean;
   }
-  export function registerPureFnFactory(pureFnId: CompTimeArgs<PureFnId>, factory: PureFunction<(utl: RTUtils) => any> | null): any;
-  export function registerAnonymousPureFn<F extends (utl: RTUtils) => any>(fn: PureFunction<F> | null, hash?: InjectPureFnHash<F>): any;
+  export function registerPureFnFactory(pureFnId: CompTimeArgs<PureFnId>, createPureFn: PureFunctionFactory<(utl: RTUtils) => any> | null): any;
+  export function registerAnonymousPureFn<F extends (...args: any[]) => any>(fn: PureFunction<F> | null, hash?: InjectPureFnHash<F>): any;
 }
 `
 
@@ -65,9 +66,7 @@ func TestAnonymousPureFn_DirectCall_ZeroDiagnostics(t *testing.T) {
 	r := setupInline(t, map[string]string{
 		"runtypes.d.ts": anonPureFnDTS,
 		"a.ts": `import {registerAnonymousPureFn} from '@ts-runtypes/core';
-export const cpf = registerAnonymousPureFn(function () {
-  return function _double(n: number): number { return n * 2; };
-});
+export const cpf = registerAnonymousPureFn((n: number): number => n * 2);
 `,
 	})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}, IncludeEntryModules: true})
@@ -99,16 +98,14 @@ func TestAnonymousPureFn_LibraryWrapper_ZeroDiagnostics(t *testing.T) {
 		// The wrapper — a library's own ergonomic register API. It forwards the
 		// PureFunction + InjectPureFnHash markers, so injection happens at ITS
 		// call sites (the mion `registerMionPureFn` shape from the spec).
-		"toolkit.ts": `import {type PureFunction, type InjectPureFnHash, type RTUtils} from '@ts-runtypes/core';
-export function registerAcmePureFn<F extends (utl: RTUtils) => any>(fn: PureFunction<F>, hash?: InjectPureFnHash<F>) {
+		"toolkit.ts": `import {type PureFunction, type InjectPureFnHash} from '@ts-runtypes/core';
+export function registerAcmePureFn<F extends (...args: any[]) => any>(fn: PureFunction<F>, hash?: InjectPureFnHash<F>) {
   if (!hash) throw new Error('ts-runtypes plugin did not run');
   return {hash, fn};
 }
 `,
 		"consumer.ts": `import {registerAcmePureFn} from './toolkit.ts';
-export const cpf = registerAcmePureFn(function () {
-  return function _slug(s: string): string { return s.toLowerCase(); };
-});
+export const cpf = registerAcmePureFn((s: string): string => s.toLowerCase());
 `,
 	})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"consumer.ts", "toolkit.ts"}, IncludeEntryModules: true})
@@ -139,9 +136,7 @@ export const named = registerPureFnFactory('app::slugify', function () {
 });
 `,
 		"anon.ts": `import {registerAnonymousPureFn} from '@ts-runtypes/core';
-export const anon = registerAnonymousPureFn(function () {
-  return function _double(n: number): number { return n * 2; };
-});
+export const anon = registerAnonymousPureFn((n: number): number => n * 2);
 `,
 	})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"named.ts", "anon.ts"}, IncludeEntryModules: true})

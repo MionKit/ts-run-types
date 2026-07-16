@@ -42,6 +42,44 @@ Docs — [ARCHITECTURE.md → third marker](../ARCHITECTURE.md) + the `siteFiles
 [pure functions](../../container/website/content/2.guide/8.pure-functions.md) /
 [compiler markers](../../container/website/content/2.guide/6.compiler-markers.md) guides.
 
+## Follow-up shipped: symmetric factory/direct forms (two markers, four registrars)
+
+The first cut left an inconsistency: `registerPureFnFactory` / `registerAnonymousPureFn` had one
+declare a factory and the other a plain function, so a single-callback framework API like
+`serverMapFrom(t => t.id)` was forced to write a factory it did not need. The fix generalizes the
+surface to **two lanes × two forms** with a second form marker carrying the intent:
+
+- **`PureFunctionFactory<F>` marker** — [`markers.ts`](../../packages/ts-runtypes/src/markers.ts)
+  (`F & {__rtPureFunctionFactoryBrand?: never}`), recognized Go-side as `marker.KindPureFunctionFactory`
+  ([`marker.go`](../../ts-go-runtypes/internal/compiler/marker/marker.go)). The existing `PureFunction<F>`
+  now explicitly means the **direct** form (the argument IS the pure fn; the compiler wraps it into
+  `() => fn`, rendering the extracted code as `return <fn>;` like the override lane); `PureFunctionFactory<F>`
+  means the **factory** form (the argument IS the factory, emitted as-is). `purefunctions.pureFnFormMarker`
+  reads which one the pure-fn parameter carries and returns the `wrap` bit that steers extraction, so the
+  form propagates through a wrapper.
+- **Four registrars** — [`pureFn.ts`](../../packages/ts-runtypes/src/runtypes/pureFn.ts): named-direct
+  `registerPureFn(id, fn)` (NEW), named-factory `registerPureFnFactory(id, factory)` (marker made honest —
+  now `PureFunctionFactory<F>`), anonymous-direct `registerAnonymousPureFn(fn, hash?)` (its marker flipped
+  from factory to `PureFunction<F>`), and anonymous-factory `registerAnonymousPureFnFactory(factory, hash?)`
+  (NEW). All four share one `registerCore` + `asFactory(fn, wrap)` runtime path; `wrap` only matters on the
+  no-plugin fallback (the plugin rewrites every form to the same entry-module tuple).
+- **Extraction dispatch** — `walker.go` (`isNamedPureFnCall`) and `anonymous.go` (`isAnonymousPureFnCall`)
+  each return `(matched, wrap)`; `pureFnCode(sf, fn, wrap)` renders `return <fn>;` (direct) or the stripped
+  factory body (factory), and `buildPureFnEntry(…, wrap)` skips param + `utl`-dep extraction for the direct
+  form. Content-addressing is unchanged: the two forms hash different code, so a direct fn and a
+  setup-bearing factory never alias, while a direct fn and a trivial `() => fn` factory correctly do.
+
+Both content markers stay checked in the plugin's textual fallback via the substrings `registerPureFn`
+(covers both named registrars) + `registerAnonymousPureFn` (covers both anonymous), in
+[`unplugin.ts`](../../packages/ts-runtypes-devtools/src/unplugin.ts) and
+[`eslint/prefilter.ts`](../../packages/ts-runtypes-devtools/src/eslint/prefilter.ts).
+
+Tests extended: the Go `anonymous_test.go` covers direct + factory forms + `FormsDedupByContent`; the JS
+`anonymousPureFn.test.ts` runs a direct fn, a factory with one-time setup, and named-direct
+`registerPureFn`; the third-party suites register through a wrapper in direct form. Example files:
+`guide/custom-pure-fn-direct.ts` + `guide/anonymous-pure-fn-factory.ts` (new), the anonymous ones migrated
+to direct form.
+
 ## Consumer follow-up (mion) — still open
 
 The mion adapter changes below are a SEPARATE change in the mion repo, tracked there; the ts-runtypes
