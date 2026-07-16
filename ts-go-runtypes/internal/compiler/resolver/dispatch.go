@@ -447,22 +447,55 @@ func demandedEntryKeys(sites []protocol.Site) ([]string, map[string]string) {
 	return keys, tags
 }
 
-// uniqueSiteFiles lists the source files carrying at least one marker site,
-// sorted and deduplicated. OpGenerate returns it as Response.SiteFiles so the
-// plugin can gate its per-file transform on real scan results instead of
-// textual import sniffing — wrapper call sites (markers forwarded by another
-// package, node_modules included) are covered with zero configuration.
-func uniqueSiteFiles(sites []protocol.Site) []string {
+// uniqueSiteFiles lists the source files carrying at least one marker site OR an
+// extracted pure-fn registration (extraFiles), sorted and deduplicated.
+// OpGenerate returns it as Response.SiteFiles so the plugin can gate its per-file
+// transform on real scan results instead of textual import sniffing — wrapper
+// call sites (markers forwarded by another package, node_modules included) are
+// covered with zero configuration. A pure fn is a Replacement, not a Site, so its
+// file never appears in `sites`; extraFiles folds those in so both the named
+// (`registerPureFnFactory`) and anonymous (`registerAnonymousPureFn`) lanes —
+// including calls behind a library wrapper — are transformed.
+func uniqueSiteFiles(sites []protocol.Site, extraFiles []string) []string {
 	seen := map[string]bool{}
 	var files []string
-	for _, site := range sites {
-		if site.File == "" || seen[site.File] {
-			continue
+	add := func(file string) {
+		if file == "" || seen[file] {
+			return
 		}
-		seen[site.File] = true
-		files = append(files, site.File)
+		seen[file] = true
+		files = append(files, file)
+	}
+	for _, site := range sites {
+		add(site.File)
+	}
+	for _, file := range extraFiles {
+		add(file)
 	}
 	sort.Strings(files)
+	return files
+}
+
+// pureFnReplacementFiles returns the sorted unique source files that carry an
+// extracted pure-fn registration whose factory argument gets rewritten (both the
+// named and anonymous lanes). These files need the per-file transform even
+// though a pure fn is a Replacement and never a marker Site, so they never land
+// in the Site-derived file set — including WRAPPED registrations, whose consumer
+// files import neither the marker package by name nor call the primitive
+// textually. Folded into OpGenerate's SiteFiles so the plugin's transform gate
+// covers them with zero configuration. Extraction is memoised (pureFnFileCache),
+// so re-running it here is cheap.
+func (sess *Session) pureFnReplacementFiles(metrics *protocol.Metrics) []string {
+	entries, _, _ := sess.extractProgramPureFns(metrics)
+	seen := map[string]bool{}
+	var files []string
+	for _, entry := range entries {
+		if entry.FilePath == "" || entry.FactoryArgEnd <= entry.FactoryArgStart || seen[entry.FilePath] {
+			continue
+		}
+		seen[entry.FilePath] = true
+		files = append(files, entry.FilePath)
+	}
 	return files
 }
 
@@ -892,7 +925,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		if genErr != nil {
 			return protocol.Response{Error: genErr.Error()}
 		}
-		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites)}
+		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites, sess.pureFnReplacementFiles(metrics))}
 		// Marker diagnostics from the eager whole-program scan (MKR/CTA/TMP…)
 		// — persisted by scanAllProgramFiles; without this, buildStart (which
 		// consumes THIS response) never sees them.
@@ -1111,7 +1144,13 @@ func (sess *Session) extractPureFnsForScan(files []string) (entries []purefuncti
 			changed = true
 		}
 	}
-	replacements = purefunctions.Replacements(entries, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
+	// Replacements are per CALL SITE, not per deduped entry: every registration
+	// site is rewritten (factory → binding, plus the anonymous lane's hash
+	// splice), including two same-file calls that share a body. RawEntries keeps
+	// those duplicate sites the entry dedup drops. `entries` (deduped) still drives
+	// pureFnHashes + diagnostics above.
+	rawEntries := purefunctions.RawEntries(sess.checker, sess.marker, sess.Program, files, sess.pureFnFileCache)
+	replacements = purefunctions.Replacements(rawEntries, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
 	return entries, diagnostics, replacements, changed
 }
 

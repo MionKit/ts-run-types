@@ -82,6 +82,18 @@ func Replacements(entries []Entry, bundled bool) []protocol.Replacement {
 			replacement.ImportFrom = virtualmodules.ImportSpecifier(constants.PureFnModuleDir)
 		}
 		out = append(out, replacement)
+		// Anonymous lane: splice the injected `"rt::<hash>"` id into the empty
+		// trailing `hash?` slot (a point insertion at the call's closing `)`).
+		// No ImportFrom — the injected value is a plain string literal, not an
+		// entry binding.
+		if entry.HashInjectText != "" {
+			out = append(out, protocol.Replacement{
+				File:  entry.FilePath,
+				Start: entry.HashInjectPos,
+				End:   entry.HashInjectPos,
+				Text:  entry.HashInjectText,
+			})
+		}
 	}
 	return out
 }

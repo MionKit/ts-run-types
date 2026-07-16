@@ -125,6 +125,23 @@ const rtUtils = {
   hasPureFn(key: CompTimeArgs<string>): boolean {
     return !!pureFnsCache[key];
   },
+  // Runtime-key lookup — the UNTRACKED companion to usePureFn/getPureFn/hasPureFn.
+  // The `key` parameter is a plain `string` (NOT `CompTimeArgs<string>`), so the
+  // scanner never demand-checks it: this is the door for a framework dispatching
+  // on a pure-fn id received over the WIRE (e.g. a content hash from a request),
+  // which is inherently non-literal. NOT build-tracked — it drives no PFE9012
+  // "referenced but never registered" nor pure-fn dependency edges; use the
+  // CompTimeArgs forms when you want that tracking.
+  getPureFnByKey(key: string): PureFunction | undefined {
+    const compiled = pureFnsCache[key];
+    if (!compiled) return;
+    initPureFunction(compiled);
+    return compiled.fn;
+  },
+  // Untracked existence check keyed by a runtime string (see getPureFnByKey).
+  hasPureFnByKey(key: string): boolean {
+    return !!pureFnsCache[key];
+  },
   // CompTimeArgs ensures dependencies are tracked inside pure functions
   findCompiledPureFn(fnName: CompTimeArgs<string>): CompiledPureFunction | undefined {
     const suffix = '::' + fnName;

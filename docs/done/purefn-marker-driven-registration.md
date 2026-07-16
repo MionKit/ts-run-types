@@ -1,7 +1,51 @@
 # Anonymous content-hashed pure-fn registration (`registerAnonymousPureFn` + `InjectPureFnHash`) + a runtime-key lookup
 
-**Status:** todo
+**Status:** done
 **Created:** 2026-07-16
+**Shipped:** 2026-07-16
+
+## What shipped
+
+All three additive pieces landed, exactly as designed below; nothing about the
+named lane / `usePureFn` / the literal lookups changed.
+
+- **`InjectPureFnHash<F>` marker** — [`packages/ts-runtypes/src/markers.ts`](../../packages/ts-runtypes/src/markers.ts)
+  (`string & {__rtInjectPureFnHashBrand?: F}`, mirroring `InjectRunTypeId`), recognized Go-side as a
+  new `marker.KindInjectPureFnHash` spec ([`marker.go`](../../ts-go-runtypes/internal/compiler/marker/marker.go)).
+- **`registerAnonymousPureFn<F>(fn, hash?)`** — [`pureFn.ts`](../../packages/ts-runtypes/src/runtypes/pureFn.ts).
+  The extractor recognizes the call by brand (`PureFunction<F>` factory + `InjectPureFnHash<F>` trailing
+  slot, `purefunctions.isAnonymousPureFnCall`), reuses the named lane's purity gate + body extraction
+  keyed `rt::<CodeHash(body)>`, rewrites the factory to its entry-module tuple, and splices
+  `"rt::<hash>"` as a point-insertion `Replacement` at the closing paren (`Entry.HashInjectText`). The
+  resolver's marker walk carries NO injection case for the kind (it is a `Replacement`, not a `Site`),
+  so the only resolver-side effect is the factory's normal `PureFunction` purity check.
+- **Runtime-key accessor** — `getRTUtils().getPureFnByKey(key: string)` / `hasPureFnByKey(key: string)`
+  ([`rtUtils.ts`](../../packages/ts-runtypes/src/runtypes/rtUtils.ts)). Plain-`string` params, so they are
+  naturally exempt from `extractDeps`' `CompTimeArgs`-branded dep tracking — no scanner change was needed
+  for the exemption.
+
+Two transport fixes were required for the wrappable lane to reach real builds (a pure fn is a
+`Replacement`, never a `Site`, so it never lands in the Site-derived transform gate):
+
+- `OpGenerate`'s `SiteFiles` now folds in `sess.pureFnReplacementFiles` (every file carrying an extracted
+  pure-fn registration, named or anonymous, wrapper call sites included), and the plugin's textual
+  fallback lists `registerAnonymousPureFn` alongside `registerPureFnFactory` — so a consumer calling a
+  library wrapper is transformed with zero configuration.
+- Per-file rewrites draw from `purefunctions.RawEntries` (every call site, not the cross-file-deduped
+  set), so a same-file duplicate body's second call is rewritten too; the injected id would otherwise be
+  lost on the un-rewritten site (the named lane tolerated that via its literal id; the anonymous lane
+  cannot). The emitted MODULE still dedups by key.
+
+Tests: Go — `purefunctions/anonymous_test.go`, `resolver/anonymous_purefn_test.go`; JS —
+`ts-runtypes-devtools/test/pure-fns-anonymous.test.ts`, `ts-runtypes/test/features/anonymousPureFn.test.ts`.
+Docs — [ARCHITECTURE.md → third marker](../ARCHITECTURE.md) + the `siteFiles` note, and the website
+[pure functions](../../container/website/content/2.guide/8.pure-functions.md) /
+[compiler markers](../../container/website/content/2.guide/6.compiler-markers.md) guides.
+
+## Consumer follow-up (mion) — still open
+
+The mion adapter changes below are a SEPARATE change in the mion repo, tracked there; the ts-runtypes
+primitive + marker + accessor this spec describes are what shipped here.
 
 ## Problem
 
