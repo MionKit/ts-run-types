@@ -630,13 +630,23 @@ var circularGuardedFamilyTags = map[string]bool{
 	"jeCO": true,
 }
 
+// findCyclePureFnKey is the built-in pure fn that carries the circular-reference
+// walker. Its demand is wired by TYPE SHAPE, not a body reference: no emitted
+// body ever calls it (only the runtime guard wrapper maybeGuardCircular does), so
+// wireCircularRunTypeDeps appends it to the SoftDeps of exactly the guarded fn
+// entries whose type cycles — the same set that gets the RunType bundle. The
+// built-in table then serves it on demand (serveBuiltinPureFns), so the walker's
+// module registers precisely when a cycle-capable createX entry does.
+const findCyclePureFnKey = "rt::findCycle"
+
 // wireCircularRunTypeDeps links the reflection RunType graph into the dep
 // closure of every guarded fn entry whose type can cycle, so the runtime guard
-// (setRejectCircularRefs) can walk the value against its RunType. The graph rides as
-// a SOFT dep — imported and registered by initFromTuple, but never cascaded
-// (the fn body never references it; only the runtime wrapper does). In the
-// default / allSingle bundle modes the dep is the single data bundle; in
-// allModules mode it is the type's own per-node module (key == typeId).
+// (setRejectCircularRefs) can walk the value against its RunType, AND appends the
+// walker pure fn (rt::findCycle) to the same entries. Both ride as SOFT deps —
+// imported and registered by initFromTuple, but never cascaded (the fn body
+// references neither; only the runtime wrapper does). In the default / allSingle
+// bundle modes the RunType dep is the single data bundle; in allModules mode it
+// is the type's own per-node module (key == typeId).
 func (sess *Session) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump protocol.Dump) {
 	circular := runtype.CircularGuardTypeIDs(dump)
 	if len(circular) == 0 {
@@ -670,10 +680,15 @@ func (sess *Session) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump pr
 			}
 			dep = typeID
 		}
-		if dep == "" || dep == entry.Key || containsString(entry.SoftDeps, dep) {
-			continue
+		if dep != "" && dep != entry.Key && !containsString(entry.SoftDeps, dep) {
+			entry.SoftDeps = append(entry.SoftDeps, dep)
 		}
-		entry.SoftDeps = append(entry.SoftDeps, dep)
+		// The walker pure fn rides the SAME guarded-cyclable entries — demand by
+		// type shape (no body references it). serveBuiltinPureFns delivers it from
+		// the built-in table off this SoftDep.
+		if !containsString(entry.SoftDeps, findCyclePureFnKey) {
+			entry.SoftDeps = append(entry.SoftDeps, findCyclePureFnKey)
+		}
 	}
 }
 

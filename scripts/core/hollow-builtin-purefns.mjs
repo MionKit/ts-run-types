@@ -33,6 +33,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 // cmd/gen-builtin-purefns's builtinSourceFiles.
 const BUILTIN_FILES = [
   'runtypes/pure-fns-utils.js',
+  'runtypes/circular-pure-fns.js',
   'formats/string/string-formats-pure-fns.js',
   'formats/datetime/dateTime-pure-fns.js',
 ];

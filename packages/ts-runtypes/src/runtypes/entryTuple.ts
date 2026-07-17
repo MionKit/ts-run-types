@@ -46,7 +46,8 @@
 import {getRTUtils} from './rtUtils.ts';
 import type {RTUtils} from './rtUtils.ts';
 import type {AnyFn, CompiledFnArgs, CompiledFnData, CompiledPureFunction, CompiledTypeFn, RunType} from './types.ts';
-import {CircularReferenceError, findCycle, isRejectCircularRefsEnabled, typeGraphIsCircular} from './circular.ts';
+import {CircularReferenceError, isRejectCircularRefsEnabled, typeGraphIsCircular} from './circular.ts';
+import type {FindCycleFn} from './circular-pure-fns.ts';
 
 // Numeric slot-0 kinds (Go: constants.TupleKind*). Type-fn entries carry their
 // family tag string instead. Runtype nodes normally ride as headless ROWS of
@@ -764,7 +765,7 @@ export function resolveEntryTupleFn<F extends AnyFn>(
     // Per-call `{rejectCircularRefs}` overrides the global flag; undefined falls
     // back to it. Disarmed is the hot path — skip the RunType lookup entirely.
     const armed = rejectCircularRefs ?? isRejectCircularRefsEnabled();
-    return armed ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId)) : fn;
+    return armed ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId), utils) : fn;
   }
   if (utils.hasRunType(typeId)) return identityFn;
   throw new Error(
@@ -781,9 +782,9 @@ export function resolveEntryTupleFn<F extends AnyFn>(
 // stays total (returns false), getValidationErrors records a diagnostic, and
 // the encoders throw (matching JSON.stringify). Decoders and the
 // huk/ces/uke/fmt leaf families are absent and never wrap.
-const circularGuards: Record<string, (fn: AnyFn, rt: RunType) => AnyFn> = {
-  createValidate: (fn, rt) => (value: unknown) => (findCycle(value, rt) ? false : fn(value)),
-  createGetValidationErrors: (fn, rt) => (value: unknown, pth?: unknown, errs?: unknown) => {
+const circularGuards: Record<string, (fn: AnyFn, rt: RunType, findCycle: FindCycleFn) => AnyFn> = {
+  createValidate: (fn, rt, findCycle) => (value: unknown) => (findCycle(value, rt) ? false : fn(value)),
+  createGetValidationErrors: (fn, rt, findCycle) => (value: unknown, pth?: unknown, errs?: unknown) => {
     const cycle = findCycle(value, rt);
     // A cycle short-circuits: record it and STOP — descending into the base
     // validator would recurse forever on the same cyclic value.
@@ -800,7 +801,7 @@ const circularGuards: Record<string, (fn: AnyFn, rt: RunType) => AnyFn> = {
 
 // Shared encoder policy: a cycle throws CircularReferenceError before the base
 // encoder runs; trailing args (e.g. the binary serializer) flow through.
-function encoderCircularGuard(fn: AnyFn, rt: RunType): AnyFn {
+function encoderCircularGuard(fn: AnyFn, rt: RunType, findCycle: FindCycleFn): AnyFn {
   return (value: unknown, ...rest: unknown[]) => {
     const cycle = findCycle(value, rt);
     if (cycle) throw new CircularReferenceError(cycle);
@@ -811,10 +812,18 @@ function encoderCircularGuard(fn: AnyFn, rt: RunType): AnyFn {
 /** Wraps `fn` with its family's circular-reference guard when `rt`'s type graph
  *  can actually cycle. Callers gate on the armed flag (global or per-call) first;
  *  this returns `fn` untouched for non-guarded families, a missing RunType, or
- *  an acyclic type — all no-op for free. **/
-function maybeGuardCircular<F extends AnyFn>(fnName: string, fn: F, rt: RunType | undefined): F {
+ *  an acyclic type — all no-op for free.
+ *
+ *  The walker itself (`rt::findCycle`) is a demand-delivered built-in pure fn, not
+ *  a static import — the resolver wires it into a cyclable guarded entry's deps
+ *  (wireCircularRunTypeDeps), so it is registered whenever the gate below passes.
+ *  The `!findCycle` branch is a defensive fail-open (guard disabled), never the
+ *  normal path. **/
+function maybeGuardCircular<F extends AnyFn>(fnName: string, fn: F, rt: RunType | undefined, utils: RTUtils): F {
   if (!rt) return fn;
   const guard = circularGuards[fnName];
   if (!guard || !typeGraphIsCircular(rt)) return fn;
-  return guard(fn, rt) as F;
+  const findCycle = utils.getPureFn('rt::findCycle') as FindCycleFn | undefined;
+  if (!findCycle) return fn;
+  return guard(fn, rt, findCycle) as F;
 }
