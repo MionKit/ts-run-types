@@ -9,26 +9,10 @@ package builtinpurefns
 var builtinEntries = []builtinEntry{
 	{
 		namespace:    "rt",
-		functionName: "asJSONString",
-		bodyHash:     "HVfdSd9lhIDDUM",
-		paramNames:   nil,
-		code:         "// @ts-expect-error 2867\n  if (typeof Bun !== 'undefined') return JSON.stringify; // bun has a faster JSON.stringify\n  // eslint-disable-next-line no-control-regex\n  const STR_ESCAPE = /[\\u0000-\\u001f\\u0022\\u005c\\ud800-\\udfff]/;\n  const MAX_SCAPE_TEST_LENGTH = 1000;\n  return function _asJSONStringRegexOnly(str) {\n    if (str.length < MAX_SCAPE_TEST_LENGTH && STR_ESCAPE.test(str) === false) {\n      return '\"' + str + '\"';\n    } else {\n      return JSON.stringify(str);\n    }\n  };",
-		deps:         nil,
-	},
-	{
-		namespace:    "rt",
 		functionName: "countEnumKeys",
 		bodyHash:     "9G3IeKwgi6nAe7",
 		paramNames:   nil,
 		code:         "// Counts enumerable keys via for-in: no array allocation (beats\n  // `Object.keys(obj).length` ~1.4x on V8) and the same enumeration semantics\n  // the hasUnknownKeysFromArray scan uses. Backs the `runsAfterValidation`\n  // key-count fast path — after validation an all-required object is clean\n  // iff its key count equals the declared prop count.\n  return function _countEnumKeys(obj) {\n    let count = 0;\n    // eslint-disable-next-line @typescript-eslint/no-unused-vars\n    for (const _key in obj) count++;\n    return count;\n  };",
-		deps:         nil,
-	},
-	{
-		namespace:    "rt",
-		functionName: "formatErr",
-		bodyHash:     "SOTi38fQ8D7usv",
-		paramNames:   nil,
-		code:         "return function _formatErr(\n    pλth,\n    εrr,\n    expected,\n    fmtName,\n    paramName,\n    paramVal,\n    fmtPath,\n    accessPath,\n    fmtAccessPath\n  ) {\n    const path = accessPath?.length ? [...pλth, ...accessPath] : [...pλth];\n    const formatPath = fmtAccessPath?.length ? [...fmtPath, ...fmtAccessPath, paramName] : [...fmtPath, paramName];\n    const format = {name: fmtName, formatPath: formatPath, val: paramVal};\n    const runTypeErr = {expected, path, format};\n    εrr.push(runTypeErr);\n  };",
 		deps:         nil,
 	},
 	{
@@ -53,14 +37,6 @@ var builtinEntries = []builtinEntry{
 		bodyHash:     "CjJZ5zssDGoT-h",
 		paramNames:   nil,
 		code:         "return function _err(\n    pλth,\n    εrr,\n    expected,\n    accessPath\n  ) {\n    const path = accessPath?.length ? [...pλth, ...accessPath] : [...pλth];\n    const runTypeErr = {expected, path};\n    εrr.push(runTypeErr);\n  };",
-		deps:         nil,
-	},
-	{
-		namespace:    "rt",
-		functionName: "sanitizeCompiledFn",
-		bodyHash:     "TUgrMzeaAOpEqa",
-		paramNames:   nil,
-		code:         "const anonymousRegex = /^\\s*function\\s+anonymous\\s*\\(/;\n  return function sanitizeCompiled(fnCode) {\n    if (anonymousRegex.test(fnCode)) {\n      return fnCode.replace(anonymousRegex, 'function (');\n    }\n    return fnCode;\n  };",
 		deps:         nil,
 	},
 	{
