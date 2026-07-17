@@ -344,6 +344,10 @@ var messagesByCode = map[string]message{
 		Headline: "Method `{0}` is not copied onto the clone's own properties — methods ride the prototype.",
 		Detail:   "For a plain class instance the clone preserves the PROTOTYPE\n(`Object.create(Object.getPrototypeOf(v))`), so methods keep working via the\nprototype chain; they are simply not copied as own properties. For object\nliterals a method-typed member is omitted like any function value.",
 	},
+	"CES015": {
+		Headline: "Property `{0}` has a non-serialisable value type (symbol, Promise, or a non-serialisable built-in) — `cloneExactShape` omits it from the clone.",
+		Detail:   "The clone rebuilds the DECLARED data shape (the same DataOnly projection\n`validate` enforces): a property whose value cannot be represented as data is\nomitted, matching `DataOnly<{a: symbol}>` = `{}`. The rest of the object is\ncloned normally. Note the positional contrast: array elements and tuple slots\nof such types are kept and shared by REFERENCE (dropping them would corrupt\nthe container's length/positions).",
+	},
 	"CES012": {
 		Headline: "Static member `{0}` is not part of instance data — `cloneExactShape` skips it.",
 		Detail:   "Statics live on the class, not the instance; the clone rebuilds instance\ndata only.",
