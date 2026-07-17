@@ -1,49 +1,50 @@
-// Union cases: atomic unions dispatch per member (mutable members get an
-// instanceof/structural arm, immutable members fall through by value), and
-// object-bearing unions are unsupported by design — the factory throws at
-// creation (CES001) instead of emitting a clone that could silently keep
-// unknown keys.
+// cloning / Unions — atomic unions dispatch per member (mutable members get
+// an instanceof/structural arm; immutable members fall through by value).
+// Object-bearing unions are unsupported by design: without runtime arm
+// discrimination the emitter cannot know WHICH declared shape to rebuild,
+// and a clone that silently kept unknown keys would be a security bug — the
+// factory throws at creation (CES001) and the build surfaces the error.
 
-import {it, expect} from 'vitest';
 import {createCloneExactShape} from '@ts-runtypes/core';
+import type {CloningCase} from './types.ts';
 
-export function registerUnionCloneCases(): void {
-  it('primitive unions pass through by value', () => {
-    const clone = createCloneExactShape<string | number>();
-    expect(clone('hello')).toBe('hello');
-    expect(clone(42)).toBe(42);
-  });
+type Disjoint = {a: string} | {b: number};
 
-  it('dispatches the mutable member of Date | null', () => {
-    const clone = createCloneExactShape<{at: Date | null}>();
-    const at = new Date('2021-05-06T07:08:09.000Z');
-    const cloned = clone({at});
-    expect(cloned.at).not.toBe(at);
-    expect(cloned.at?.getTime()).toBe(at.getTime());
-    expect(clone({at: null}).at).toBe(null);
-  });
-
-  it('dispatches per member of string | Date', () => {
-    const clone = createCloneExactShape<string | Date>();
-    const at = new Date('2021-05-06T07:08:09.000Z');
-    const out = clone(at);
-    expect(out).not.toBe(at);
-    expect(out).toBeInstanceOf(Date);
-    expect((out as Date).getTime()).toBe(at.getTime());
-    expect(clone('plain')).toBe('plain');
-  });
-
-  it('dispatches an array member of string | string[]', () => {
-    const clone = createCloneExactShape<string | string[]>();
-    const arr = ['a', 'b'];
-    const out = clone(arr);
-    expect(out).not.toBe(arr);
-    expect(out).toEqual(['a', 'b']);
-    expect(clone('solo')).toBe('solo');
-  });
-
-  it('object-bearing unions throw at factory creation (CES001 build stance)', () => {
-    type Disjoint = {a: string} | {b: number};
-    expect(() => createCloneExactShape<Disjoint>()).toThrow(/CES001/);
-  });
-}
+export const UNIONS = {
+  primitiveMembers: {
+    title: 'string | number',
+    description: 'Every member is immutable — the union passes through by value.',
+    clone: () => createCloneExactShape<string | number>(),
+    getTestData: () => ({values: ['hello', 42]}),
+    passThrough: true,
+  },
+  nullableDate: {
+    title: 'Date | null',
+    description: 'The Date member gets a dispatch arm (fresh instance); `null` falls through by value.',
+    clone: () => createCloneExactShape<{at: Date | null}>(),
+    getTestData: () => ({
+      values: [{at: new Date('2021-05-06T07:08:09.000Z')}, {at: null}],
+    }),
+  },
+  stringOrDate: {
+    title: 'string | Date',
+    description: 'Mixed union at root: a Date input clones fresh, a string input passes through by value.',
+    clone: () => createCloneExactShape<string | Date>(),
+    getTestData: () => ({values: [new Date('2021-05-06T07:08:09.000Z'), 'plain']}),
+  },
+  stringOrArray: {
+    title: 'string | string[]',
+    description: 'The array member gets an `Array.isArray` arm (fresh array); the string falls through.',
+    clone: () => createCloneExactShape<string | string[]>(),
+    getTestData: () => ({values: [['a', 'b'], 'solo']}),
+  },
+  objectBearing: {
+    title: 'object-bearing union (unsupported)',
+    description: 'Unions with object members throw at factory creation — CES001, the house alwaysThrow convention.',
+    cloneNotes:
+      'Narrow to one arm before cloning (one factory per arm), or restructure into a single object with optional props.',
+    clone: () => createCloneExactShape<Disjoint>(),
+    getTestData: () => ({values: []}),
+    factoryThrows: true,
+  },
+} satisfies Record<string, CloningCase>;

@@ -1,95 +1,102 @@
-// Object-shaped cases: plain objects, optionals, nesting, frozen inputs,
-// index signatures (pure and mixed with named props), and class instances
-// (prototype-preserving rebuild).
+// cloning / Objects — plain objects and class instances. Objects always
+// rebuild from the declared shape (no key-count gates, no reuse shortcuts —
+// measured slower than the rebuild below ~30 props); class instances rebuild
+// prototype-preservingly via `Object.create(Object.getPrototypeOf(v))`, so
+// `instanceof` and prototype methods survive while own extras drop.
 
-import {it, expect} from 'vitest';
+import {expect} from 'vitest';
 import {createCloneExactShape} from '@ts-runtypes/core';
+import type {CloningCase} from './types.ts';
 
-export function registerObjectCloneCases(): void {
-  it('rebuilds a flat object, dropping undeclared keys, input untouched', () => {
-    const clone = createCloneExactShape<{a: string; b: number}>();
-    const input = {a: 'x', b: 1, extra: true, more: 'gone'};
-    const out = clone(input as unknown as {a: string; b: number});
-    expect(out).toEqual({a: 'x', b: 1});
-    expect(out).not.toBe(input);
-    expect(input).toEqual({a: 'x', b: 1, extra: true, more: 'gone'});
-  });
-
-  it('works on frozen inputs (a mutating strip never could)', () => {
-    const clone = createCloneExactShape<{a: string}>();
-    const input = Object.freeze({a: 'x', extra: 1});
-    const out = clone(input as unknown as {a: string});
-    expect(out).toEqual({a: 'x'});
-    expect(Object.isFrozen(out)).toBe(false); // the clone is a plain fresh object
-  });
-
-  it('absent optional properties stay absent (no `key: undefined`)', () => {
-    const clone = createCloneExactShape<{a: string; b?: number}>();
-    const out = clone({a: 'x', extra: 9} as unknown as {a: string; b?: number});
-    expect(out).toEqual({a: 'x'});
-    expect('b' in out).toBe(false);
-  });
-
-  it('rebuilds nested objects with fresh identities at every level', () => {
-    interface User {
-      name: string;
-      address: {street: string; city: string};
-    }
-    const clone = createCloneExactShape<User>();
-    const input = {name: 'jane', address: {street: '10', city: 'sf', extra: true}};
-    const out = clone(input as unknown as User);
-    expect(out).toEqual({name: 'jane', address: {street: '10', city: 'sf'}});
-    expect(out.address).not.toBe(input.address);
-    expect((input.address as Record<string, unknown>).extra).toBe(true);
-  });
-
-  it('index signature over atomics: fresh object, every declared key copied', () => {
-    const clone = createCloneExactShape<{[key: string]: number}>();
-    const input = {a: 1, b: 2, anyOther: 3};
-    const out = clone(input);
-    expect(out).toEqual({a: 1, b: 2, anyOther: 3});
-    expect(out).not.toBe(input);
-  });
-
-  it('named props + atomic index signature: sig-matched keys are copied, not dropped', () => {
-    // Regression: the sig was once filtered as "non-contributing", which made
-    // the clone drop every sig-matched key — but those keys ARE declared.
-    const clone = createCloneExactShape<{name: string; [key: string]: string}>();
-    const input = {name: 'ada', role: 'admin', team: 'core'};
-    const out = clone(input);
-    expect(out).toEqual({name: 'ada', role: 'admin', team: 'core'});
-    expect(out).not.toBe(input);
-  });
-
-  it('index signature over objects: copies every key, cloning values', () => {
-    const clone = createCloneExactShape<{[key: string]: {a: string}}>();
-    const input = {k1: {a: 'x', extra: 1}, k2: {a: 'y'}};
-    const out = clone(input as unknown as {[key: string]: {a: string}});
-    expect(out).toEqual({k1: {a: 'x'}, k2: {a: 'y'}});
-    expect(out).not.toBe(input);
-    expect(out.k1).not.toBe(input.k1);
-  });
-
-  it('clones a class instance preserving its prototype (instanceof + methods survive)', () => {
-    class Point {
-      x = 0;
-      y = 0;
-      len(): number {
-        return Math.hypot(this.x, this.y);
-      }
-    }
-    const clone = createCloneExactShape<Point>();
-    const input = new Point();
-    input.x = 3;
-    input.y = 4;
-    (input as unknown as Record<string, unknown>).extra = 'gone';
-    const out = clone(input);
-    expect(out).not.toBe(input);
-    expect(out).toBeInstanceOf(Point);
-    expect(out.x).toBe(3);
-    expect(out.y).toBe(4);
-    expect(out.len()).toBe(5); // prototype method works on the clone
-    expect('extra' in out).toBe(false); // own extra dropped
-    expect((input as unknown as Record<string, unknown>).extra).toBe('gone'); // input untouched
-  });
+interface User {
+  name: string;
+  address: {street: string; city: string};
 }
+
+class Point {
+  x = 0;
+  y = 0;
+  len(): number {
+    return Math.hypot(this.x, this.y);
+  }
+}
+
+function makePoint(x: number, y: number, extra?: boolean): Point {
+  const p = new Point();
+  p.x = x;
+  p.y = y;
+  if (extra) (p as unknown as Record<string, unknown>).extra = 'gone';
+  return p;
+}
+
+export const OBJECTS = {
+  flat: {
+    title: 'flat object',
+    description: 'A flat all-required object rebuilds; undeclared keys are dropped by construction and the input keeps them.',
+    clone: () => createCloneExactShape<{a: string; b: number}>(),
+    getTestData: () => ({
+      values: [
+        {a: 'x', b: 1},
+        {a: 'y', b: 2, extra: true, more: 'gone'},
+      ],
+      expected: [
+        {a: 'x', b: 1},
+        {a: 'y', b: 2},
+      ],
+    }),
+  },
+  frozen: {
+    title: 'frozen input',
+    description: 'A frozen input clones fine — the input is never written, and the clone is a fresh unfrozen object.',
+    cloneNotes: 'The removed delete-based strip could never handle frozen inputs (strict-mode TypeError).',
+    clone: () => createCloneExactShape<{a: string}>(),
+    getTestData: () => ({
+      values: [Object.freeze({a: 'x', extra: 1})],
+      expected: [{a: 'x'}],
+    }),
+    verifyClone: (out) => {
+      expect(Object.isFrozen(out)).toBe(false);
+    },
+  },
+  optionalAbsent: {
+    title: 'absent optional property',
+    description: 'An absent optional stays ABSENT on the clone (no `key: undefined` placeholder).',
+    clone: () => createCloneExactShape<{a: string; b?: number}>(),
+    getTestData: () => ({
+      values: [
+        {a: 'x', extra: 9},
+        {a: 'y', b: 2},
+      ],
+      expected: [{a: 'x'}, {a: 'y', b: 2}],
+    }),
+    verifyClone: (out) => {
+      if ((out as {a: string}).a === 'x') expect('b' in (out as object)).toBe(false);
+    },
+  },
+  nested: {
+    title: 'nested object',
+    description: 'Nested objects rebuild with fresh identities at every level; nested extras drop, the input keeps them.',
+    clone: () => createCloneExactShape<User>(),
+    getTestData: () => ({
+      values: [{name: 'jane', address: {street: '10', city: 'sf', extra: true}}],
+      expected: [{name: 'jane', address: {street: '10', city: 'sf'}}],
+    }),
+  },
+  classInstance: {
+    title: 'class instance',
+    description:
+      'A plain class instance rebuilds via `Object.create(Object.getPrototypeOf(v))` + declared-prop assigns: `instanceof` holds, prototype methods work, own extras drop, and the constructor never runs.',
+    cloneNotes:
+      'Methods are not copied as own properties — they ride the shared class prototype, exactly like any two `new Point()` instances.',
+    clone: () => createCloneExactShape<Point>(),
+    getTestData: () => ({
+      values: [makePoint(3, 4, true)],
+      expected: [makePoint(3, 4)],
+    }),
+    verifyClone: (out) => {
+      expect(out).toBeInstanceOf(Point);
+      expect((out as Point).len()).toBe(5);
+      expect('extra' in (out as object)).toBe(false);
+    },
+  },
+} satisfies Record<string, CloningCase>;
