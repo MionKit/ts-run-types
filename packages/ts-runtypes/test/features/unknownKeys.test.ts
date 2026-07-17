@@ -153,17 +153,32 @@ describe('cloneExactShape', () => {
     expect(input[0]).toEqual({a: 'x', extra: 1});
   });
 
-  it('shares arrays of atomics by reference (nothing strippable inside)', () => {
+  it('copies arrays of atomics into a fresh array (isolation guarantee)', () => {
     const clone = createCloneExactShape<{tags: string[]}>();
     const input = {tags: ['a', 'b']};
     const out = clone(input);
-    expect(out.tags).toBe(input.tags);
+    expect(out.tags).toEqual(['a', 'b']);
+    expect(out.tags).not.toBe(input.tags);
+    out.tags.push('c');
+    expect(input.tags).toEqual(['a', 'b']); // mutating the clone never touches the input
   });
 
-  it('is a passthrough when the schema is an index signature over atomics', () => {
+  it('index signature over atomics: fresh object, every declared key copied', () => {
     const clone = createCloneExactShape<{[key: string]: number}>();
     const input = {a: 1, b: 2, anyOther: 3};
-    expect(clone(input)).toBe(input);
+    const out = clone(input);
+    expect(out).toEqual({a: 1, b: 2, anyOther: 3});
+    expect(out).not.toBe(input);
+  });
+
+  it('named props + atomic index signature: sig-matched keys are copied, not dropped', () => {
+    // Regression: the sig was once filtered as "non-contributing", which made
+    // the clone drop every sig-matched key — but those keys ARE declared.
+    const clone = createCloneExactShape<{name: string; [key: string]: string}>();
+    const input = {name: 'ada', role: 'admin', team: 'core'};
+    const out = clone(input);
+    expect(out).toEqual({name: 'ada', role: 'admin', team: 'core'});
+    expect(out).not.toBe(input);
   });
 
   it('index signature over objects: copies every key, stripping inside values', () => {
@@ -174,12 +189,44 @@ describe('cloneExactShape', () => {
     expect(out).not.toBe(input);
   });
 
-  it('preserves Date instances by reference (no key-tracked positions)', () => {
+  it('re-wraps Date instances (clone(x).at !== x.at, same instant)', () => {
     const clone = createCloneExactShape<{at: Date; note: string}>();
     const at = new Date('2021-05-06T07:08:09.000Z');
     const out = clone({at, note: 'n', extra: 1} as unknown as {at: Date; note: string});
     expect(out).toEqual({at, note: 'n'});
-    expect(out.at).toBe(at);
+    expect(out.at).not.toBe(at);
+    expect(out.at.getTime()).toBe(at.getTime());
+    out.at.setTime(0);
+    expect(at.getTime()).not.toBe(0); // isolated
+  });
+
+  it('clones a root Date', () => {
+    const clone = createCloneExactShape<Date>();
+    const at = new Date('2021-05-06T07:08:09.000Z');
+    const out = clone(at);
+    expect(out).not.toBe(at);
+    expect(out).toBeInstanceOf(Date);
+    expect(out.getTime()).toBe(at.getTime());
+  });
+
+  it('clones a RegExp preserving flags and lastIndex', () => {
+    const clone = createCloneExactShape<{re: RegExp}>();
+    const re = /ab/g;
+    re.exec('abab'); // advance lastIndex to 2
+    const out = clone({re});
+    expect(out.re).not.toBe(re);
+    expect(out.re.source).toBe('ab');
+    expect(out.re.flags).toBe('g');
+    expect(out.re.lastIndex).toBe(2);
+  });
+
+  it('dispatches mutable members of an atomic union (Date | null)', () => {
+    const clone = createCloneExactShape<{at: Date | null}>();
+    const at = new Date('2021-05-06T07:08:09.000Z');
+    const cloned = clone({at});
+    expect(cloned.at).not.toBe(at);
+    expect(cloned.at?.getTime()).toBe(at.getTime());
+    expect(clone({at: null}).at).toBe(null);
   });
 
   it('rebuilds a Map with object values, stripping inside', () => {
@@ -193,10 +240,15 @@ describe('cloneExactShape', () => {
     expect(m.get('k1')).toEqual({a: 'x', extra: 'gone'});
   });
 
-  it('shares a Map of atomics by reference', () => {
+  it('copies a Map of atomics into a fresh Map', () => {
     const clone = createCloneExactShape<Map<string, number>>();
     const m = new Map([['k', 1]]);
-    expect(clone(m)).toBe(m);
+    const out = clone(m);
+    expect(out).not.toBe(m);
+    expect(out).toBeInstanceOf(Map);
+    expect([...out.entries()]).toEqual([['k', 1]]);
+    out.set('k2', 2);
+    expect(m.has('k2')).toBe(false); // isolated
   });
 
   it('clones a class instance preserving its prototype (instanceof + methods survive)', () => {

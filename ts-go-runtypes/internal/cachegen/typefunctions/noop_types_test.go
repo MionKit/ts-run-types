@@ -457,6 +457,39 @@ func TestNoopType_ToBinary(t *testing.T) {
 	}
 }
 
+// TestNoopType_CloneExactShape pins the family's dedicated isolation-aware
+// predicate: identity only for fully immutable/opaque subtrees. Any mutable
+// position — object, class, Date, RegExp, array, tuple, Map/Set, index
+// signature — forces a live clone body (sharing it would leak mutable state
+// between input and "clone").
+func TestNoopType_CloneExactShape(t *testing.T) {
+	ctx, types := noopPredicateTypes(t)
+	rows := map[string]bool{
+		"str":       true,  // immutable primitive
+		"big":       true,  // immutable primitive
+		"fn":        true,  // opaque — passthrough, overrideCloneExactShape is the escape hatch
+		"uAt":       true,  // string | number — every member immutable
+		"dat":       false, // Date is mutable (setTime) — re-wrapped
+		"mp":        false, // Map is a mutable container — always fresh
+		"arrStr":    false, // arrays are mutable containers — fresh via slice
+		"arrDat":    false,
+		"objCompat": false, // objects always rebuild (that IS the strip)
+		"objFn":     false, // declared shape {} — clone is a fresh {}
+		"recA":      false, // index-signature object — fresh copy walk
+		"uDat":      false, // string | Date — Date member needs a dispatch arm
+		"uObj":      false, // object-bearing union — CES001 alwaysThrow, never identity
+		"ncls":      false, // class instances rebuild (prototype-preserving)
+		"tupObj":    false,
+	}
+	for id, want := range rows {
+		t.Run(id, func(t *testing.T) {
+			if got := isNoopForCloneExactShape(types[id], ctx); got != want {
+				t.Errorf("isNoopForCloneExactShape(%s) = %v, want %v", id, got, want)
+			}
+		})
+	}
+}
+
 // TestNoopType_UnknownKeys pins the shared five-family arm table plus the two
 // per-family divergences: uku/ukuw no-op at tuples by design, and ukuw keeps
 // the Map/Set arm noop on the wire side.
@@ -464,7 +497,6 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 	ctx, types := noopPredicateTypes(t)
 	specs := map[string]unknownKeysNoopSpec{
 		"huk":  hasUnknownKeysNoopSpec,
-		"ces":  cloneExactShapeNoopSpec,
 		"uke":  unknownKeyErrorsNoopSpec,
 		"uku":  unknownKeysToUndefinedNoopSpec,
 		"ukuw": unknownKeysToUndefinedWireSpec,
@@ -474,7 +506,7 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 		want map[string]bool
 	}
 	same := func(want bool) map[string]bool {
-		return map[string]bool{"huk": want, "ces": want, "uke": want, "uku": want, "ukuw": want}
+		return map[string]bool{"huk": want, "uke": want, "uku": want, "ukuw": want}
 	}
 	rows := []row{
 		{"str", same(true)},
@@ -485,9 +517,9 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 		{"arrCO", same(false)}, // array of keyed objects
 		{"uAt", same(true)},    // atomic-only union — nothing to sweep
 		{"uObj", same(false)},  // merged allowlist over the object members
-		// The tuple divergence: has/clone/errors recurse into slots; uku and
+		// The tuple divergence: has/errors recurse into slots; uku and
 		// ukuw no-op at tuples by design (emitTupleUnknownKeysToUndefined).
-		{"tupObj", map[string]bool{"huk": false, "ces": false, "uke": false, "uku": true, "ukuw": true}},
+		{"tupObj", map[string]bool{"huk": false, "uke": false, "uku": true, "ukuw": true}},
 	}
 	for _, r := range rows {
 		for familyTag, spec := range specs {
