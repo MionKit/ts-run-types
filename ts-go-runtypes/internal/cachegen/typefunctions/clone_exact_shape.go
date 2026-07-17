@@ -354,6 +354,7 @@ func emitTupleCloneExactShape(rt *protocol.RunType, ctx *EmitContext, v string) 
 	var parts []string
 	restPart := ""
 	anyTransform := false
+	hasOptional := false
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil || resolved.Kind != protocol.KindTupleMember || resolved.Child == nil {
@@ -384,6 +385,9 @@ func emitTupleCloneExactShape(rt *protocol.RunType, ctx *EmitContext, v string) 
 				expr = "(" + accessor + " === undefined ? undefined : " + expr + ")"
 			}
 		}
+		if resolved.Optional {
+			hasOptional = true
+		}
 		parts = append(parts, expr)
 	}
 	if !anyTransform {
@@ -395,7 +399,17 @@ func emitTupleCloneExactShape(rt *protocol.RunType, ctx *EmitContext, v string) 
 	if len(parts) == 0 {
 		return RTCode{Code: v + ".slice()", Type: CodeE}
 	}
-	return RTCode{Code: "[" + strings.Join(parts, ",") + "]", Type: CodeE}
+	literal := "[" + strings.Join(parts, ",") + "]"
+	if hasOptional && restPart == "" {
+		// Absent TRAILING optional slots (TS forbids required-after-optional)
+		// must stay absent: the positional literal always materializes N
+		// slots, which would grow `[4n]` into `[4n, undefined]` and change
+		// `.length`. Truncate to the input's length — present-but-undefined
+		// slots inside the input keep their position, extras beyond the
+		// declared arity are still dropped (the literal caps at N).
+		return RTCode{Code: literal + ".slice(0, " + v + ".length)", Type: CodeE}
+	}
+	return RTCode{Code: literal, Type: CodeE}
 }
 
 // emitIndexSignatureCloneExactShape — a bare index signature at a non-object
