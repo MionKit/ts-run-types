@@ -25,7 +25,7 @@ import (
 // prepareForJsonSafe Approach-3 fastpath): measured on V8, checking
 // `Object.keys(x).length === N` to skip a small-object rebuild costs MORE
 // than the rebuild itself (1.6x slower for a 7+3-prop shape) — see
-// docs/todos/unknown-keys-aftervalidation-and-clone-exact-shape.md.
+// docs/done/unknown-keys-aftervalidation-and-clone-exact-shape.md.
 //
 // Intended use is stripping validated parse output:
 //
