@@ -464,7 +464,7 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 	ctx, types := noopPredicateTypes(t)
 	specs := map[string]unknownKeysNoopSpec{
 		"huk":  hasUnknownKeysNoopSpec,
-		"suk":  stripUnknownKeysNoopSpec,
+		"ces":  cloneExactShapeNoopSpec,
 		"uke":  unknownKeyErrorsNoopSpec,
 		"uku":  unknownKeysToUndefinedNoopSpec,
 		"ukuw": unknownKeysToUndefinedWireSpec,
@@ -474,7 +474,7 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 		want map[string]bool
 	}
 	same := func(want bool) map[string]bool {
-		return map[string]bool{"huk": want, "suk": want, "uke": want, "uku": want, "ukuw": want}
+		return map[string]bool{"huk": want, "ces": want, "uke": want, "uku": want, "ukuw": want}
 	}
 	rows := []row{
 		{"str", same(true)},
@@ -485,9 +485,9 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 		{"arrCO", same(false)}, // array of keyed objects
 		{"uAt", same(true)},    // atomic-only union — nothing to sweep
 		{"uObj", same(false)},  // merged allowlist over the object members
-		// The tuple divergence: has/strip/errors recurse into slots; uku and
+		// The tuple divergence: has/clone/errors recurse into slots; uku and
 		// ukuw no-op at tuples by design (emitTupleUnknownKeysToUndefined).
-		{"tupObj", map[string]bool{"huk": false, "suk": false, "uke": false, "uku": true, "ukuw": true}},
+		{"tupObj", map[string]bool{"huk": false, "ces": false, "uke": false, "uku": true, "ukuw": true}},
 	}
 	for _, r := range rows {
 		for familyTag, spec := range specs {

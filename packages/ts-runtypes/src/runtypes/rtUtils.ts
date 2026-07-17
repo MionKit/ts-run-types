@@ -34,7 +34,7 @@ export type RTUtils = typeof rtUtils;
 
 /** Runtime guard for the value-first SCHEMA overload shared by every
  *  `createXxx` factory (`createValidate(rt)`, `createJsonEncoder(rt)`,
- *  `createStripUnknownKeys(rt)`, …): a value-first RunType schema carries both
+ *  `createCloneExactShape(rt)`, …): a value-first RunType schema carries both
  *  a string `id` and a `kind`. Plain reflected values (the value/static form)
  *  don't carry `kind`, so they fall through to the plugin-injected id. **/
 export function isRunTypeSchema(val: unknown): val is RunType {

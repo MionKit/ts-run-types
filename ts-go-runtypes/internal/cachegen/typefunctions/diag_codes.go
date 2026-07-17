@@ -301,11 +301,32 @@ var hasUnknownKeysCodes = map[DiagSlot]string{
 
 func (HasUnknownKeysEmitter) DiagCodeFor(slot DiagSlot) string { return hasUnknownKeysCodes[slot] }
 
-var stripUnknownKeysCodes = map[DiagSlot]string{
-	SlotFunctionPropDropped: diagnostics.CodeSUKFunctionPropDropped,
+var cloneExactShapeCodes = map[DiagSlot]string{
+	SlotFunctionPropDropped: diagnostics.CodeCESFunctionPropDropped,
+	SlotMethodDropped:       diagnostics.CodeCESMethodDropped,
+	SlotStaticDropped:       diagnostics.CodeCESStaticDropped,
 }
 
-func (StripUnknownKeysEmitter) DiagCodeFor(slot DiagSlot) string { return stripUnknownKeysCodes[slot] }
+func (CloneExactShapeEmitter) DiagCodeFor(slot DiagSlot) string { return cloneExactShapeCodes[slot] }
+
+// DiagCodeForLeaf — root/propagating unsupported kinds. Two ces-specific
+// arms beyond the shared rootCodeMap treatment: a UNION with object members
+// (no runtime arm discrimination in v1 — a clone that silently kept unknown
+// keys would be a security bug, so the build fails instead), and callable
+// interfaces routed through the function code by callableLeafSubstitute.
+func (CloneExactShapeEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	if leaf != nil && leaf.Kind == protocol.KindUnion {
+		return diagnostics.CodeCESUnionRoot
+	}
+	return cloneExactShapeRootCodes.codeFor(leaf)
+}
+
+var cloneExactShapeRootCodes = rootCodeMap{
+	never:           "", // never is a noop arm (unknown-keys family parity)
+	nonSerializable: "", // shared by reference — nothing key-tracked to strip
+	function:        diagnostics.CodeCESFunctionRoot,
+	symbol:          "", // symbols pass through by reference
+}
 
 var unknownKeyErrorsCodes = map[DiagSlot]string{
 	SlotFunctionPropDropped: diagnostics.CodeUKEFunctionPropDropped,

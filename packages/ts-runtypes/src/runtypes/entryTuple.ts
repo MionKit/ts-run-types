@@ -492,9 +492,8 @@ const familyMeta: Record<string, FamilyMeta> = {
     defaultParamValues: () => ({vλl: undefined, θpts: {}}) as unknown as CompiledFnArgs,
     noop: noopFalse,
   },
-  suk: valueShaped('suk', noopIdentity),
+  ces: valueShaped('ces', noopIdentity),
   uke: errorShaped('uke'),
-  uku: valueShaped('uku', noopIdentity),
   ukuw: valueShaped('ukuw', noopIdentity),
   tb: {
     fnID: 'tb',
@@ -781,7 +780,7 @@ export function resolveEntryTupleFn<F extends AnyFn>(
 // four live-object families guard; each applies its own policy — validate
 // stays total (returns false), getValidationErrors records a diagnostic, and
 // the encoders throw (matching JSON.stringify). Decoders and the
-// huk/suk/uke/uku/fmt leaf families are absent and never wrap.
+// huk/ces/uke/fmt leaf families are absent and never wrap.
 const circularGuards: Record<string, (fn: AnyFn, rt: RunType) => AnyFn> = {
   createValidate: (fn, rt) => (value: unknown) => (findCycle(value, rt) ? false : fn(value)),
   createGetValidationErrors: (fn, rt) => (value: unknown, pth?: unknown, errs?: unknown) => {

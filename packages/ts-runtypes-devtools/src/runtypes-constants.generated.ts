@@ -9,6 +9,7 @@ export interface CacheModuleSettings {
 }
 
 export const CACHE_MODULES = {
+  cloneExactShape: {name: 'cloneExactShapeModule', varPrefix: 'g_ces_', tag: 'ces'},
   compactForJson: {name: 'compactForJsonModule', varPrefix: 'g_cj_', tag: 'cj'},
   compactFromJson: {name: 'compactFromJsonModule', varPrefix: 'g_cjr_', tag: 'cjr'},
   formatTransform: {name: 'formatTransformModule', varPrefix: 'g_fmt_', tag: 'fmt'},
@@ -20,15 +21,16 @@ export const CACHE_MODULES = {
   restoreFromJson: {name: 'restoreFromJsonModule', varPrefix: 'g_rj_', tag: 'rj'},
   runTypes: {name: 'runTypesModule', varPrefix: 't_', tag: 't'},
   stringifyJson: {name: 'stringifyJsonModule', varPrefix: 'g_sj_', tag: 'sj'},
-  stripUnknownKeys: {name: 'stripUnknownKeysModule', varPrefix: 'g_suk_', tag: 'suk'},
   toBinary: {name: 'toBinaryModule', varPrefix: 'g_tb_', tag: 'tb'},
   unknownKeyErrors: {name: 'unknownKeyErrorsModule', varPrefix: 'g_uke_', tag: 'uke'},
-  unknownKeysToUndefined: {name: 'unknownKeysToUndefinedModule', varPrefix: 'g_uku_', tag: 'uku'},
   unknownKeysToUndefinedWire: {name: 'unknownKeysToUndefinedWireModule', varPrefix: 'g_ukuw_', tag: 'ukuw'},
   validate: {name: 'validateModule', varPrefix: 'g_val_', tag: 'val'},
   validationErrors: {name: 'validationErrorsModule', varPrefix: 'g_verr_', tag: 'verr'},
 } as const satisfies Record<string, CacheModuleSettings>;
 
+export const CLONEEXACTSHAPE_VAR_PREFIX = 'g_ces_';
+export const CLONEEXACTSHAPE_MODULE_NAME = 'cloneExactShapeModule';
+export const CLONEEXACTSHAPE_TAG = 'ces';
 export const COMPACTFORJSON_VAR_PREFIX = 'g_cj_';
 export const COMPACTFORJSON_MODULE_NAME = 'compactForJsonModule';
 export const COMPACTFORJSON_TAG = 'cj';
@@ -62,18 +64,12 @@ export const RUNTYPES_TAG = 't';
 export const STRINGIFYJSON_VAR_PREFIX = 'g_sj_';
 export const STRINGIFYJSON_MODULE_NAME = 'stringifyJsonModule';
 export const STRINGIFYJSON_TAG = 'sj';
-export const STRIPUNKNOWNKEYS_VAR_PREFIX = 'g_suk_';
-export const STRIPUNKNOWNKEYS_MODULE_NAME = 'stripUnknownKeysModule';
-export const STRIPUNKNOWNKEYS_TAG = 'suk';
 export const TOBINARY_VAR_PREFIX = 'g_tb_';
 export const TOBINARY_MODULE_NAME = 'toBinaryModule';
 export const TOBINARY_TAG = 'tb';
 export const UNKNOWNKEYERRORS_VAR_PREFIX = 'g_uke_';
 export const UNKNOWNKEYERRORS_MODULE_NAME = 'unknownKeyErrorsModule';
 export const UNKNOWNKEYERRORS_TAG = 'uke';
-export const UNKNOWNKEYSTOUNDEFINED_VAR_PREFIX = 'g_uku_';
-export const UNKNOWNKEYSTOUNDEFINED_MODULE_NAME = 'unknownKeysToUndefinedModule';
-export const UNKNOWNKEYSTOUNDEFINED_TAG = 'uku';
 export const UNKNOWNKEYSTOUNDEFINEDWIRE_VAR_PREFIX = 'g_ukuw_';
 export const UNKNOWNKEYSTOUNDEFINEDWIRE_MODULE_NAME = 'unknownKeysToUndefinedWireModule';
 export const UNKNOWNKEYSTOUNDEFINEDWIRE_TAG = 'ukuw';

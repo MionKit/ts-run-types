@@ -529,20 +529,16 @@ type Response struct {
 	// returns a new value. Pairs with the existing RestoreFromJson decoder
 	// (wire format identical to prepareForJson + JSON.stringify).
 	AddedPrepareForJsonSafe bool `json:"addedPrepareForJsonSafe,omitempty"`
-	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
-	// / AddedUnknownKeysToUndefined mirror AddedValidate for the
-	// unknown-keys family ported from the reference implementation's
-	// emitHasUnknownKeys / emitStripUnknownKeys / emitUnknownKeyErrors /
-	// emitUnknownKeysToUndefined methods on InterfaceRunType. Set per
-	// emitter so the Vite plugin invalidates each cache module
-	// independently on user-file changes.
-	AddedHasUnknownKeys         bool `json:"addedHasUnknownKeys,omitempty"`
-	AddedStripUnknownKeys       bool `json:"addedStripUnknownKeys,omitempty"`
-	AddedUnknownKeyErrors       bool `json:"addedUnknownKeyErrors,omitempty"`
-	AddedUnknownKeysToUndefined bool `json:"addedUnknownKeysToUndefined,omitempty"`
-	// AddedUnknownKeysToUndefinedWire — sibling of AddedUnknownKeysToUndefined
-	// for the decoder-internal ukuWire family. Same Supports surface as
-	// uku (every supported runtype yields a ukuw entry too).
+	// AddedHasUnknownKeys / AddedUnknownKeyErrors / AddedCloneExactShape
+	// mirror AddedValidate for the unknown-keys family. Set per emitter so
+	// the Vite plugin invalidates each cache module independently on
+	// user-file changes. (The mutating strip/toUndefined public families
+	// were replaced by cloneExactShape; their flags went with them.)
+	AddedHasUnknownKeys   bool `json:"addedHasUnknownKeys,omitempty"`
+	AddedUnknownKeyErrors bool `json:"addedUnknownKeyErrors,omitempty"`
+	AddedCloneExactShape  bool `json:"addedCloneExactShape,omitempty"`
+	// AddedUnknownKeysToUndefinedWire — the decoder-internal ukuWire family
+	// (the `strip` decode strategy's pre-pass).
 	AddedUnknownKeysToUndefinedWire bool `json:"addedUnknownKeysToUndefinedWire,omitempty"`
 	// AddedToBinary / AddedFromBinary mirror AddedPrepareForJson for the
 	// binary serializer pair. True when at least one newly-interned
@@ -799,9 +795,8 @@ var responseAddedFlags = []struct {
 	{"addedStringifyJson", func(response *Response) bool { return response.AddedStringifyJson }},
 	{"addedPrepareForJsonSafe", func(response *Response) bool { return response.AddedPrepareForJsonSafe }},
 	{"addedHasUnknownKeys", func(response *Response) bool { return response.AddedHasUnknownKeys }},
-	{"addedStripUnknownKeys", func(response *Response) bool { return response.AddedStripUnknownKeys }},
 	{"addedUnknownKeyErrors", func(response *Response) bool { return response.AddedUnknownKeyErrors }},
-	{"addedUnknownKeysToUndefined", func(response *Response) bool { return response.AddedUnknownKeysToUndefined }},
+	{"addedCloneExactShape", func(response *Response) bool { return response.AddedCloneExactShape }},
 	{"addedUnknownKeysToUndefinedWire", func(response *Response) bool { return response.AddedUnknownKeysToUndefinedWire }},
 	{"addedToBinary", func(response *Response) bool { return response.AddedToBinary }},
 	{"addedFromBinary", func(response *Response) bool { return response.AddedFromBinary }},

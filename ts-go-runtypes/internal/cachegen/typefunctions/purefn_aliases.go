@@ -12,6 +12,7 @@ var pureFnAliases = map[string]string{
 	"newRunTypeErr":           "nRT",
 	"getUnknownKeysFromArray": "gUKFA",
 	"hasUnknownKeysFromArray": "hUKFA",
+	"countEnumKeys":           "cntEK",
 }
 
 // pureFnAlias returns the emitter-side alias for a registered pure-fn

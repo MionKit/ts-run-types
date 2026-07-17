@@ -6,11 +6,13 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// UnknownKeysToUndefinedEmitter implements the
-// `unknownKeysToUndefined` rt function — mutates the input value by
-// setting every unknown property to undefined (instead of removing it).
-// Same shape as stripUnknownKeys but with assignment in place of
-// delete.
+// UnknownKeysToUndefinedEmitter — INTERNAL-ONLY since the public
+// unknownKeysToUndefined factory/family was removed in favor of
+// cloneExactShape: this emitter now exists solely as the delegate backing
+// UnknownKeysToUndefinedWireEmitter (the JSON `strip` decode strategy's
+// pre-pass), which wraps every method below. It mutates the input value by
+// setting every unknown property to undefined (instead of removing it) —
+// the right call on a freshly-parsed, exclusively-owned wire value.
 type UnknownKeysToUndefinedEmitter struct{}
 
 func (UnknownKeysToUndefinedEmitter) Args() []ArgSpec {
@@ -92,7 +94,7 @@ func emitObjectUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RT
 	v := ctx.Vλl
 	var parentCode string
 	if !hasIndex {
-		unknownValue := callCheckUnknownPropertiesForHas(rt, ctx, true)
+		unknownValue := callCheckUnknownPropertiesForHas(rt, ctx, true, false)
 		if unknownValue != "" {
 			unknownVar := ctx.NextLocalVar("unk")
 			keyVar := ctx.NextLocalVar("ky")

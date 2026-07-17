@@ -830,8 +830,13 @@ func computeSiteFn(typeChecker *checker.Checker, fnKey string, options validateO
 		strategy = extractStrategyOption(typeChecker, call, lastIndex, argsCount)
 	case operations.AxisValidateOptions:
 		optionNames = options.Names()
+	case operations.AxisHasUnknownKeysOptions:
+		// hasUnknownKeys options are extracted here (not threaded through the
+		// shared validateOptions bag) — same in-place pattern as the JSON
+		// strategy extraction above.
+		optionNames = extractHasUnknownKeysOptions(typeChecker, call, lastIndex, argsCount).Names()
 	}
-	fnId := operations.FnHashFor(op, options.Names(), strategy)
+	fnId := operations.FnHashFor(op, optionNames, strategy)
 	demands := operations.DemandFor(fnKey, optionNames, strategy)
 	if len(demands) == 0 {
 		return fnId, nil
@@ -1077,6 +1082,57 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 			// spread-in `true`, or a later spread) disables the option. A
 			// no-op on an absent key, so the non-spread `{opt: false}` case
 			// behaves exactly as before.
+			delete(opts.enabled, name)
+		}
+	})
+	return opts
+}
+
+// hasUnknownKeysOptions mirrors validateOptions for the HasUnknownKeysOptions
+// bag (createHasUnknownKeys's compile-time options). Table-driven off
+// constants.HasUnknownKeysOptions.
+type hasUnknownKeysOptions struct {
+	enabled map[string]bool
+}
+
+// Names returns the enabled option NAMES in the canonical declaration order
+// from `constants.HasUnknownKeysOptions`. Empty when no option is set.
+func (opts hasUnknownKeysOptions) Names() []string {
+	if len(opts.enabled) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(opts.enabled))
+	for _, opt := range constants.HasUnknownKeysOptions {
+		if opts.enabled[opt.Name] {
+			names = append(names, opt.Name)
+		}
+	}
+	return names
+}
+
+// extractHasUnknownKeysOptions reads the literal `<option>: true` properties at
+// the options slot for every option declared in constants.HasUnknownKeysOptions.
+// Same literal/spread/last-write-wins semantics as extractValidateOptions.
+func extractHasUnknownKeysOptions(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int) hasUnknownKeysOptions {
+	var opts hasUnknownKeysOptions
+	eachOptionProperty(typeChecker, call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		known := false
+		for _, option := range constants.HasUnknownKeysOptions {
+			if option.Name == name {
+				known = true
+				break
+			}
+		}
+		if !known {
+			return
+		}
+		switch initializer.Kind {
+		case ast.KindTrueKeyword:
+			if opts.enabled == nil {
+				opts.enabled = make(map[string]bool, len(constants.HasUnknownKeysOptions))
+			}
+			opts.enabled[name] = true
+		case ast.KindFalseKeyword:
 			delete(opts.enabled, name)
 		}
 	})

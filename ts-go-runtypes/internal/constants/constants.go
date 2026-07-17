@@ -77,20 +77,15 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_huk_",
 		Tag:       "huk",
 	},
-	"stripUnknownKeys": {
-		Name:      "stripUnknownKeysModule",
-		VarPrefix: "g_suk_",
-		Tag:       "suk",
+	"cloneExactShape": {
+		Name:      "cloneExactShapeModule",
+		VarPrefix: "g_ces_",
+		Tag:       "ces",
 	},
 	"unknownKeyErrors": {
 		Name:      "unknownKeyErrorsModule",
 		VarPrefix: "g_uke_",
 		Tag:       "uke",
-	},
-	"unknownKeysToUndefined": {
-		Name:      "unknownKeysToUndefinedModule",
-		VarPrefix: "g_uku_",
-		Tag:       "uku",
 	},
 	"unknownKeysToUndefinedWire": {
 		Name:      "unknownKeysToUndefinedWireModule",
@@ -235,6 +230,49 @@ func ValidateVariantSuffix(names []string) string {
 	suffix := "N"
 	hit := false
 	for _, opt := range ValidateOptions {
+		if present[opt.Name] {
+			suffix += opt.Letter
+			hit = true
+		}
+	}
+	if !hit {
+		return ""
+	}
+	return suffix
+}
+
+// HasUnknownKeysOptions is the ordered registry of supported
+// `HasUnknownKeysOptions` keys — the compile-time options bag of
+// `createHasUnknownKeys<T>(val?, options?, id?)`. Same contract as
+// ValidateOptions above: declaration order is load-bearing for the variant
+// suffix, and the same scanner/emitter/gen-ts mirror steps apply when adding
+// an option (see the ValidateOptions comment).
+//
+// `runsAfterValidation` declares the caller's precondition that the value
+// already PASSED this type's validate — every required prop is present — which
+// makes the emitter's key-count fast path sound (`cnt(v) !== N` exactly
+// separates clean from dirty) and lets it drop the per-object typeof guards.
+// Calling the variant on non-validated input is undefined behavior.
+var HasUnknownKeysOptions = []ValidateOption{
+	{Name: "runsAfterValidation", Letter: "V"},
+}
+
+// HasUnknownKeysVariantSuffix returns the canonical variant suffix for a list
+// of hasUnknownKeys option NAMES (subset of `HasUnknownKeysOptions[*].Name`).
+// Mirrors ValidateVariantSuffix's shape with its own lead letter: `O`
+// ("options") + the letters of the present options in declaration order —
+// `["runsAfterValidation"]` → `"OV"`. Empty input → empty suffix (plain key).
+func HasUnknownKeysVariantSuffix(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	present := make(map[string]bool, len(names))
+	for _, name := range names {
+		present[name] = true
+	}
+	suffix := "O"
+	hit := false
+	for _, opt := range HasUnknownKeysOptions {
 		if present[opt.Name] {
 			suffix += opt.Letter
 			hit = true

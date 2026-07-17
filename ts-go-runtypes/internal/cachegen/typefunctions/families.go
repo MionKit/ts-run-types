@@ -45,13 +45,20 @@ var Families = []FamilySpec{
 	// on decode. See json_compact.go / json_compact_restore.go.
 	family("compactForJson", CompactForJsonEmitter{}),
 	family("compactFromJson", CompactFromJsonEmitter{}),
-	// The unknown-keys group: boolean probe, deleting/undefining mutators,
-	// error accumulator, and the decoder-internal wire-aware variant.
+	// The unknown-keys group: boolean probe, error accumulator, and the
+	// decoder-internal wire-aware to-undefined variant. The public deleting/
+	// undefining mutators (stripUnknownKeys / unknownKeysToUndefined) were
+	// removed in favor of cloneExactShape — measured 3–24x faster and free of
+	// the delete-induced dictionary-mode deopt; the to-undefined EMITTER stays
+	// (unknownkeys_to_undefined.go) because the wire variant delegates to it.
 	family("hasUnknownKeys", HasUnknownKeysEmitter{}),
-	family("stripUnknownKeys", StripUnknownKeysEmitter{}),
 	family("unknownKeyErrors", UnknownKeyErrorsEmitter{}),
-	family("unknownKeysToUndefined", UnknownKeysToUndefinedEmitter{}),
 	family("unknownKeysToUndefinedWire", UnknownKeysToUndefinedWireEmitter{}),
+	// cloneExactShape: non-mutating deep clone of the DECLARED shape — unknown
+	// keys dropped by construction, runtime types preserved (Date stays Date,
+	// Map/Set stay Map/Set). The clone-based replacement for the removed
+	// mutating strip family.
+	family("cloneExactShape", CloneExactShapeEmitter{}),
 	// toBinary / fromBinary: DataViewSerializer (little-endian) round-trip
 	// pair; unions emit the flat-prop wire shape (see union_flat_binary.go).
 	family("toBinary", ToBinaryEmitter{}),

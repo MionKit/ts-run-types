@@ -856,7 +856,7 @@ type unknownKeysNoopSpec struct {
 
 var (
 	hasUnknownKeysNoopSpec         = unknownKeysNoopSpec{fact: factNoopHasUnknownKeys}
-	stripUnknownKeysNoopSpec       = unknownKeysNoopSpec{fact: factNoopStripUnknownKeys}
+	cloneExactShapeNoopSpec        = unknownKeysNoopSpec{fact: factNoopCloneExactShape}
 	unknownKeyErrorsNoopSpec       = unknownKeysNoopSpec{fact: factNoopUnknownKeyErrors}
 	unknownKeysToUndefinedNoopSpec = unknownKeysNoopSpec{fact: factNoopUnknownKeysToUndefined, tupleAlwaysNoop: true}
 	unknownKeysToUndefinedWireSpec = unknownKeysNoopSpec{fact: factNoopUnknownKeysToUndefinedWire, tupleAlwaysNoop: true, mapSetAlwaysNoop: true}

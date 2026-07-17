@@ -50,6 +50,8 @@ func Canonical(op Operation, optionNames []string, strategy string) string {
 	switch op.Axis {
 	case AxisValidateOptions:
 		return op.Name + "|" + constants.ValidateVariantSuffix(optionNames)
+	case AxisHasUnknownKeysOptions:
+		return op.Name + "|" + constants.HasUnknownKeysVariantSuffix(optionNames)
 	case AxisJsonStrategy:
 		if strategy == "" {
 			strategy = op.DefaultStrategy
@@ -98,7 +100,11 @@ func allCanonicalKeys() []string {
 	for _, op := range registry {
 		switch op.Axis {
 		case AxisValidateOptions:
-			for _, subset := range validateOptionSubsets() {
+			for _, subset := range optionSubsets(constants.ValidateOptions) {
+				keys = append(keys, Canonical(op, subset, ""))
+			}
+		case AxisHasUnknownKeysOptions:
+			for _, subset := range optionSubsets(constants.HasUnknownKeysOptions) {
 				keys = append(keys, Canonical(op, subset, ""))
 			}
 		case AxisJsonStrategy:
@@ -112,11 +118,12 @@ func allCanonicalKeys() []string {
 	return keys
 }
 
-// validateOptionSubsets returns every subset of the ValidateOptions names (the power
-// set), so the collision guard covers every variant an it/te call can request.
-func validateOptionSubsets() [][]string {
-	names := make([]string, 0, len(constants.ValidateOptions))
-	for _, opt := range constants.ValidateOptions {
+// optionSubsets returns every subset of an option table's names (the power
+// set), so the collision guard covers every variant a call site can request.
+// Shared by the ValidateOptions and HasUnknownKeysOptions axes.
+func optionSubsets(table []constants.ValidateOption) [][]string {
+	names := make([]string, 0, len(table))
+	for _, opt := range table {
 		names = append(names, opt.Name)
 	}
 	subsets := make([][]string, 0, 1<<len(names))

@@ -417,9 +417,8 @@ export interface Response {
   // the reference emitHasUnknownKeys et al. Set when at least one newly-interned
   // RunType has a supported emit arm in the matching emitter.
   addedHasUnknownKeys?: boolean;
-  addedStripUnknownKeys?: boolean;
+  addedCloneExactShape?: boolean;
   addedUnknownKeyErrors?: boolean;
-  addedUnknownKeysToUndefined?: boolean;
   addedUnknownKeysToUndefinedWire?: boolean;
   // Siblings of addedValidate for the binary serializer pair. Set when at
   // least one newly-interned RunType has a supported emit arm in the

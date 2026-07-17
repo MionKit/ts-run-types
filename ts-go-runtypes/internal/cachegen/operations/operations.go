@@ -33,6 +33,9 @@ const (
 	// AxisJsonStrategy — refined by the JSON strategy token (jsonEncoder /
 	// jsonDecoder); the operation is composite (one emitted entry per strategy).
 	AxisJsonStrategy
+	// AxisHasUnknownKeysOptions — refined by the HasUnknownKeysOptions bag
+	// (hasUnknownKeys's `runsAfterValidation`).
+	AxisHasUnknownKeysOptions
 )
 
 // Operation describes one renderable RT operation.
@@ -65,7 +68,7 @@ type Operation struct {
 	Strategies []string
 }
 
-// registry is the complete operation set: 11 createX-backed operations plus the
+// registry is the complete operation set: 10 createX-backed operations plus the
 // 7 JSON value-level primitives the composites and cross-family edges reference.
 // All are Public (marker-recoverable) — the primitives via getRTFunction rather
 // than a dedicated factory. Order is not load-bearing (keyed by Name / FnKey).
@@ -74,11 +77,12 @@ var registry = []Operation{
 	{Name: "validate", FamilyTag: "val", Axis: AxisValidateOptions, Public: true, FnKey: "val"},
 	{Name: "validationErrors", FamilyTag: "verr", Axis: AxisValidateOptions, Public: true, FnKey: "verr"},
 
+	// Public — hasUnknownKeys (HasUnknownKeysOptions axis: `runsAfterValidation`).
+	{Name: "hasUnknownKeys", FamilyTag: "huk", Axis: AxisHasUnknownKeysOptions, Public: true, FnKey: "huk"},
+
 	// Public — option-less leaf families.
-	{Name: "hasUnknownKeys", FamilyTag: "huk", Axis: AxisNone, Public: true, FnKey: "huk"},
-	{Name: "stripUnknownKeys", FamilyTag: "suk", Axis: AxisNone, Public: true, FnKey: "suk"},
 	{Name: "unknownKeyErrors", FamilyTag: "uke", Axis: AxisNone, Public: true, FnKey: "uke"},
-	{Name: "unknownKeysToUndefined", FamilyTag: "uku", Axis: AxisNone, Public: true, FnKey: "uku"},
+	{Name: "cloneExactShape", FamilyTag: "ces", Axis: AxisNone, Public: true, FnKey: "ces"},
 	{Name: "formatTransform", FamilyTag: "fmt", Axis: AxisNone, Public: true, FnKey: "fmt"},
 	{Name: "toBinary", FamilyTag: "tb", Axis: AxisNone, Public: true, FnKey: "tb"},
 	{Name: "fromBinary", FamilyTag: "fb", Axis: AxisNone, Public: true, FnKey: "fb"},
