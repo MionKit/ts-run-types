@@ -12,6 +12,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/builtinpurefns"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
@@ -175,6 +176,11 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	// KindMissing stubs so the imports the plugin injected still resolve, and
 	// the runtime degrades to the family identity fn exactly as before.
 	graph.Cascade()
+	// Deliver the demanded package-owned pure-fn bodies from the built-in table,
+	// after Cascade (demand reflects only surviving entries) and before
+	// AddMissingStubs (a served built-in must be present so it never degrades to a
+	// KindMissing stub). A demanded built-in absent from the table is a PFE9012.
+	sess.serveBuiltinPureFns(graph, rtOpts.DiagSink)
 	demanded, demandTags := demandedEntryKeys(dump.Sites)
 	graph.AddMissingStubs(demanded)
 	// allSingle: a dropped demanded key must stay importable at the bundle
@@ -671,6 +677,84 @@ func (sess *Session) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump pr
 	}
 }
 
+// serveBuiltinPureFns delivers the package-owned pure-fn bodies (`rt::…` /
+// `rtFormats::…`) demanded by the surviving graph, straight from the generated
+// table (builtinpurefns) — the mechanism that lets a published consumer, whose
+// program has only a .d.ts, receive built-in bodies at all. Demand is (a) every
+// soft dep the table recognises (covers user-pure-fn → built-in edges) plus
+// (b) every `rt::`/`rtFormats::` soft dep on a TYPE-FN entry, whose bodies reach
+// only built-ins (never the anonymous `rt::<hash>` lane, so no false demand). The
+// table's transitive closure is pulled too (isDateString_YMD → isDateString).
+//
+// A (b)-demanded key the table does NOT carry is a genuine build error: once
+// delivery is build-owned there is no runtime registration lane left to cover a
+// built-in the resolver emitted a reference to but the table never generated
+// (a stale table, or a new built-in in a source file the generator does not
+// list). It surfaces as PFE9012 — the same "RT depends on missing pure-fn" code,
+// now validated against the table instead of taken on faith (the exemption flip).
+// Runs post-Cascade so demand reflects only entries that will ship, and
+// pre-AddMissingStubs so a served built-in never degrades to a KindMissing stub.
+func (sess *Session) serveBuiltinPureFns(graph virtualmodules.Graph, diagSink *[]diagnostics.Diagnostic) {
+	keys := make([]string, 0, len(graph))
+	for key := range graph {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	demandSet := make(map[string]bool)
+	var demand []string
+	addDemand := func(dep string) {
+		if !demandSet[dep] {
+			demandSet[dep] = true
+			demand = append(demand, dep)
+		}
+	}
+	for _, key := range keys {
+		entry := graph[key]
+		for _, dep := range entry.SoftDeps {
+			if builtinpurefns.Has(dep) {
+				addDemand(dep)
+				continue
+			}
+			// A `rt::`/`rtFormats::` edge on a type-fn entry that the table does
+			// not carry: demand it so Closure reports it as missing (a build
+			// error). Restricted to type-fn entries — only their bodies reach
+			// built-ins, so the anonymous `rt::<hash>` user lane (which shares the
+			// `rt` namespace but lives only on pure-fn entries) is never misread.
+			if entry.Kind == virtualmodules.KindTypeFn && isBuiltinPureFnKey(dep) {
+				addDemand(dep)
+			}
+		}
+	}
+	if len(demand) == 0 {
+		return
+	}
+	entries, missing := builtinpurefns.Closure(demand)
+	graph.Merge(purefunctions.CollectEntries(entries))
+	if diagSink == nil {
+		return
+	}
+	for _, key := range missing {
+		namespace, fnName := splitBuiltinPureFnKey(key)
+		*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeMissingPureFnDep, diagnostics.Site{}, key, namespace, fnName, ""))
+	}
+}
+
+// isBuiltinPureFnKey reports whether dep is in a package-owned pure-fn namespace
+// (`rt` / `rtFormats`). It matches the anonymous `rt::<hash>` lane too, so callers
+// gate on entry kind — type-fn bodies never reference anonymous pure fns.
+func isBuiltinPureFnKey(dep string) bool {
+	namespace, _ := splitBuiltinPureFnKey(dep)
+	return namespace == "rt" || namespace == "rtFormats"
+}
+
+// splitBuiltinPureFnKey splits a `<ns>::<fn>` key at the first `::`.
+func splitBuiltinPureFnKey(key string) (namespace, fnName string) {
+	if idx := strings.Index(key, "::"); idx >= 0 {
+		return key[:idx], key[idx+2:]
+	}
+	return key, ""
+}
+
 // typeIDFromEntryKey splits a `<fnHash>_<typeId>` fn-entry key at the first
 // underscore, returning the type-id tail (empty when the key has no underscore).
 func typeIDFromEntryKey(key string) string {
@@ -1147,7 +1231,23 @@ func (sess *Session) extractPureFnsForScan(files []string) (entries []purefuncti
 	// those duplicate sites the entry dedup drops. `entries` (deduped) still drives
 	// pureFnHashes + diagnostics above.
 	rawEntries := purefunctions.RawEntries(sess.checker, sess.marker, sess.Program, files, sess.pureFnFileCache)
-	replacements = purefunctions.Replacements(rawEntries, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
+	// Do NOT rewrite built-in (`rt::`/`rtFormats::`) registration call sites. The
+	// table (builtinpurefns) is the SOLE producer of built-in pure-fn MODULES,
+	// served on demand only when a fn body reaches one. An in-repo build resolves
+	// the package via `src/`, so the extractor sees the built-in registrations in
+	// pure-fns-utils.ts / *-pure-fns.ts; rewriting those factory args to
+	// `import 'virtual:rt/pf/rt/…'` would DANGLE whenever the module isn't demanded
+	// (e.g. a file that imports the marker but calls no createX). Leaving them as
+	// plain `registerPureFnFactory(key, factory)` calls keeps the harmless runtime
+	// fallback registration (idempotent with the table's tuple; hollowed in dist).
+	userRaw := rawEntries[:0]
+	for _, entry := range rawEntries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		userRaw = append(userRaw, entry)
+	}
+	replacements = purefunctions.Replacements(userRaw, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
 	return entries, diagnostics, replacements, changed
 }
 

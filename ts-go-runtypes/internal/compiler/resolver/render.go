@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/mionkit/ts-runtypes/internal/cachegen/builtinpurefns"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
@@ -137,13 +138,29 @@ func (sess *Session) extractProgramPureFns(metrics *protocol.Metrics) (entries [
 // diagnostics from the in-place extraction alongside.
 func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmodules.Graph, []diagnostics.Diagnostic) {
 	entries, _, diags := sess.extractProgramPureFns(metrics)
+	// Precedence: the built-in pure-fn table is the SINGLE producer of every
+	// `rt::`/`rtFormats::` body. An IN-REPO program resolves the package via `src/`
+	// (the `source` condition), so the extractor would ALSO find the built-in
+	// registrations and serve a second, clashing producer for the same key. Drop
+	// those program entries — the table wins on key clash — so there is exactly one
+	// pure-fn module per built-in key regardless of how the package resolved. (A
+	// published consumer never hits this: its program has only a .d.ts, nothing to
+	// extract.) User keys, including the anonymous lane's `rt::<hash>`, are not in
+	// the table and pass through untouched.
+	kept := entries[:0]
+	for _, entry := range entries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		kept = append(kept, entry)
+	}
 	// Override cfn entries (whole-program) join the program pure-fn graph so the
 	// type-fn redirects resolve their `cfn::` dep modules on the OpDump /
 	// OpGenerate paths too — not just OpScanFiles. Without this the plugin's
 	// generate() emits the redirect but not the cfn module it imports, and the
 	// runtime throws "Pure function not found" at the first createX call.
-	entries = append(entries, sess.overrideEntries...)
-	return purefunctions.CollectEntries(entries), diags
+	kept = append(kept, sess.overrideEntries...)
+	return purefunctions.CollectEntries(kept), diags
 }
 
 // validateProgramPureFnDeps cross-checks the pure-fn dependencies aggregated
