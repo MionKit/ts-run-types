@@ -199,6 +199,29 @@ describe('cloneExactShape', () => {
     expect(clone(m)).toBe(m);
   });
 
+  it('clones a class instance preserving its prototype (instanceof + methods survive)', () => {
+    class Point {
+      x = 0;
+      y = 0;
+      len(): number {
+        return Math.hypot(this.x, this.y);
+      }
+    }
+    const clone = createCloneExactShape<Point>();
+    const input = new Point();
+    input.x = 3;
+    input.y = 4;
+    (input as unknown as Record<string, unknown>).extra = 'gone';
+    const out = clone(input);
+    expect(out).not.toBe(input);
+    expect(out).toBeInstanceOf(Point);
+    expect(out.x).toBe(3);
+    expect(out.y).toBe(4);
+    expect(out.len()).toBe(5); // prototype method works on the clone
+    expect('extra' in out).toBe(false); // own extra dropped
+    expect((input as unknown as Record<string, unknown>).extra).toBe('gone'); // input untouched
+  });
+
   it('rebuilds a Set of objects, stripping elements', () => {
     const clone = createCloneExactShape<Set<{a: string}>>();
     const inner = {a: 'x', extra: 'gone'};
