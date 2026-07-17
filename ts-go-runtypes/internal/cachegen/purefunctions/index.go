@@ -83,9 +83,11 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 // registers itself at runtime, guaranteed present whenever the package is
 // imported:
 //
-//   - "rt"        — the core built-ins (newRunTypeErr, asJSONString,
-//     getUnknownKeysFromArray, …), registered unconditionally by the package
-//     entry's side-effect import of runtypes/pure-fns-utils.ts.
+//   - "rt"        — the core built-ins (newRunTypeErr, getUnknownKeysFromArray,
+//     hasUnknownKeysFromArray, countEnumKeys), delivered on demand from the
+//     built-in table and registered via each fn entry's deps thunk (the
+//     package entry's side-effect import of runtypes/pure-fns-utils.ts is the
+//     hollowed runtime fallback).
 //   - "rtFormats" — every format validator (isUUID, isDateString_*, …),
 //     registered when that format's runtime module loads.
 //
