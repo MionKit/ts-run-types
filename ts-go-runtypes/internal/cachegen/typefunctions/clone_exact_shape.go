@@ -14,13 +14,12 @@ import (
 // Contract (isolation guarantee): the result is a fresh value of exactly the
 // declared type shape — unknown/undeclared keys are dropped by construction
 // (the clone is built from the type, never `{...v}`), the input is never
-// mutated, and the result shares NOTHING MUTABLE with the input. Only two
-// kinds of values are shared by reference, and both are observationally
-// equivalent to a copy:
+// mutated, and `clone(x) !== x` holds for EVERY object-typed position (test
+// code relies on fresh identities). The only values passed through by
+// reference are:
 //
-//   - IMMUTABLE values: primitives, enums, literals, template-literal
-//     strings, bigints, and Temporal objects (immutable by spec) — a program
-//     cannot detect that they are shared, so cloning them is pure waste.
+//   - PRIMITIVES: strings, numbers, booleans, bigints, enums, literals —
+//     primitives compare by value, so a "fresh" primitive is meaningless.
 //   - OPAQUE values the type system gives no shape for: `any` / `unknown` /
 //     bare `object`, functions, symbols, promises, and non-serializable
 //     natives (streams, ArrayBuffers, handles). Copying a resource handle is
@@ -31,7 +30,9 @@ import (
 // (classes keep their prototype — see the object arm), arrays/tuples copy
 // (`.slice()` when the element type is immutable, `.map(clone)` otherwise),
 // Map/Set re-materialize (`new Map(v)` / per-entry clone), Dates re-wrap
-// (`new Date(v.getTime())`), RegExps re-compile (flags + lastIndex kept).
+// (`new Date(v.getTime())`), RegExps re-compile (flags + lastIndex kept),
+// Temporal objects re-materialize via their static `from()` (immutable, but
+// identity freshness wins over the saved allocation).
 //
 // Deliberately NO key-count gates and NO reuse shortcuts on the rebuild
 // paths: measured on V8, checking `Object.keys(x).length === N` to skip a
@@ -123,8 +124,15 @@ func (CloneExactShapeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			// Dates are mutable (setTime & friends) — always re-wrap.
 			return RTCode{Code: "new Date(" + v + ".getTime())", Type: CodeE}
 		}
-		// Temporal objects are immutable by spec (sharing ≡ cloning);
-		// non-serializable natives are opaque handles (copying is wrong).
+		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
+			// Temporal objects are immutable, but a clone hands back a fresh
+			// instance anyway — `clone(x).field !== x.field` must hold for
+			// every object-typed field (identity-based test assertions rely
+			// on it). Every Temporal type re-materializes via its static
+			// from().
+			return RTCode{Code: "globalThis." + info.Builtin + ".from(" + v + ")", Type: CodeE}
+		}
+		// Non-serializable natives are opaque handles (copying is wrong).
 		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindRegexp:
@@ -542,7 +550,12 @@ func cloneExactShapeNoopRecursive(rt *protocol.RunType, ctx *EmitContext, visite
 		case protocol.SubKindNone, protocol.SubKindMap, protocol.SubKindSet, protocol.SubKindDate:
 			return false
 		}
-		// Temporal (immutable) / non-serializable (opaque) subkinds.
+		if protocol.IsTemporalSubKind(rt.SubKind) {
+			// Immutable, but re-materialized anyway — object identity must
+			// be fresh on every object-typed position.
+			return false
+		}
+		// Non-serializable (opaque) subkinds pass through.
 		return true
 
 	case protocol.KindProperty, protocol.KindPropertySignature:

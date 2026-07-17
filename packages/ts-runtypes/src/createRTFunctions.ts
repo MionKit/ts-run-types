@@ -126,15 +126,17 @@ export type HasUnknownKeysFn = (value: unknown, options?: HasUnknownKeysOptions)
 /** Clone returned by `createCloneExactShape<T>()`: a PROPER deep clone of the
  *  DECLARED shape. Unknown/undeclared keys are dropped by construction (the
  *  clone is built from the type, never `{...v}`), the input is never mutated
- *  (frozen inputs work), and the result shares NOTHING MUTABLE with the
- *  input: objects rebuild, class instances rebuild keeping their prototype
- *  (`instanceof` holds), arrays/tuples/Map/Set are fresh containers, Dates
- *  re-wrap, RegExps re-compile (flags + lastIndex kept). Only two kinds of
- *  values are shared, both observationally equivalent to a copy: IMMUTABLE
- *  values (primitives, enums, literals, Temporal objects) and OPAQUE values
- *  the type gives no shape for (`any`/`unknown`/bare `object`, functions,
- *  symbols, promises, non-serializable natives — copying a resource handle
- *  would be wrong; `overrideCloneExactShape<T>()` is the escape hatch).
+ *  (frozen inputs work), and `clone(x) !== x` holds for EVERY object-typed
+ *  position: objects rebuild, class instances rebuild keeping their
+ *  prototype (`instanceof` holds), arrays/tuples/Map/Set are fresh
+ *  containers, Dates re-wrap, RegExps re-compile (flags + lastIndex kept),
+ *  Temporal instances re-materialize via their static `from()`. Only two
+ *  kinds of values pass through: PRIMITIVES (strings, numbers, bigints,
+ *  enums, literals — primitives compare by value, so a "fresh" primitive is
+ *  meaningless) and OPAQUE values the type gives no shape for
+ *  (`any`/`unknown`/bare `object`, functions, symbols, promises,
+ *  non-serializable natives — copying a resource handle would be wrong;
+ *  `overrideCloneExactShape<T>()` is the escape hatch).
  *  Replaces the removed mutating `stripUnknownKeys` /
  *  `unknownKeysToUndefined` (measured 3–24x faster, no delete-induced
  *  dictionary-mode deopt). Intended use: stripping validated parse output —
