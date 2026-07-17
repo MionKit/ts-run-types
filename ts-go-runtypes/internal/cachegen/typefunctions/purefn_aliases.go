@@ -25,3 +25,26 @@ func pureFnAlias(fnName string) string {
 	}
 	return fnName
 }
+
+// pureFnAliasFor returns the emitter-side local-variable alias for a
+// pure-fn reference in `namespace`. The `rtFormats` namespace keeps the
+// `pf_<fnName>` convention its format emitters have always used; every
+// other namespace (the `rt` core built-ins) uses the short-alias table.
+// UsePureFn hoists `const <alias> = utl.getPureFn('<ns>::<fnName>')` under
+// this alias, so pureFnAliasFor MUST reproduce the exact byte the
+// pre-migration sites emitted — the choke point is a refactor, never a
+// body-byte change (mode parity).
+func pureFnAliasFor(namespace, fnName string) string {
+	if namespace == formatsPureFnNamespace {
+		return "pf_" + fnName
+	}
+	return pureFnAlias(fnName)
+}
+
+// formatsPureFnNamespace / corePureFnNamespace name the two built-in
+// pure-fn namespaces the emitters reference. Mirrors the resolver-side
+// builtinPureFnNamespaces set (purefunctions/index.go).
+const (
+	corePureFnNamespace    = "rt"
+	formatsPureFnNamespace = "rtFormats"
+)

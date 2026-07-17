@@ -204,18 +204,10 @@ func callCheckUnknownPropertiesForHas(rt *protocol.RunType, ctx *EmitContext, re
 		}
 	}
 	if returnKeys {
-		ctx.AddPureFnDependency("rt", "getUnknownKeysFromArray", unknownKeysPureFnFilePath)
-		fnVar := pureFnAlias("getUnknownKeysFromArray")
-		if !ctx.HasContextItem(fnVar) {
-			ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('rt::getUnknownKeysFromArray')")
-		}
+		fnVar := ctx.UsePureFn(corePureFnNamespace, "getUnknownKeysFromArray", unknownKeysPureFnFilePath)
 		return fnVar + "(" + v + ", " + conditional + ")"
 	}
-	ctx.AddPureFnDependency("rt", "hasUnknownKeysFromArray", unknownKeysPureFnFilePath)
-	fnVar := pureFnAlias("hasUnknownKeysFromArray")
-	if !ctx.HasContextItem(fnVar) {
-		ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('rt::hasUnknownKeysFromArray')")
-	}
+	fnVar := ctx.UsePureFn(corePureFnNamespace, "hasUnknownKeysFromArray", unknownKeysPureFnFilePath)
 	call := fnVar + "(" + v + ", " + conditional + ")"
 	if !keepObjectCheck {
 		// runsAfterValidation: validation already proved this position is a
@@ -278,11 +270,7 @@ func countFastPathN(rt *protocol.RunType, ctx *EmitContext) (int, bool) {
 // for-in counter beats `Object.keys(v).length` ~1.4x on V8 (no array
 // allocation) and preserves the for-in enumeration semantics hUKFA had.
 func emitCountKeysCheck(ctx *EmitContext, v string, n int) string {
-	ctx.AddPureFnDependency("rt", "countEnumKeys", unknownKeysPureFnFilePath)
-	fnVar := pureFnAlias("countEnumKeys")
-	if !ctx.HasContextItem(fnVar) {
-		ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('rt::countEnumKeys')")
-	}
+	fnVar := ctx.UsePureFn(corePureFnNamespace, "countEnumKeys", unknownKeysPureFnFilePath)
 	return fnVar + "(" + v + ") !== " + strconv.Itoa(n)
 }
 

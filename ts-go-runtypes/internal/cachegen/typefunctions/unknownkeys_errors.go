@@ -92,11 +92,7 @@ func (UnknownKeyErrorsEmitter) Finalize(rawCode string) (string, bool) {
 // appends a 'never' error for an unknown key. `extra` is the key
 // variable (since the key is a runtime value, not a static name).
 func callUnknownKeyErr(ctx *EmitContext, extra string) string {
-	ctx.AddPureFnDependency("rt", "newRunTypeErr", validationErrorsPureFnFilePath)
-	key := pureFnAlias("newRunTypeErr")
-	if !ctx.HasContextItem(key) {
-		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('rt::newRunTypeErr')")
-	}
+	key := ctx.UsePureFn(corePureFnNamespace, "newRunTypeErr", validationErrorsPureFnFilePath)
 	pthArg := ctx.ArgName("pλth")
 	errArg := ctx.ArgName("εrr")
 	args := []string{pthArg, errArg, quoteJS("never")}

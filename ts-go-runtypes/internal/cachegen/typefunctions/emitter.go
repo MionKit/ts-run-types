@@ -343,6 +343,28 @@ func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) 
 	ctx.walker.AddPureFnDependency(namespace, fnName, filePath)
 }
 
+// UsePureFn is the ONE choke point for referencing a package-owned pure fn
+// from an emitted body. It does all three steps at once: (1) records the
+// dependency (so it rides the entry's SoftDeps / PFE9012 check), (2) hoists
+// the deduped `const <alias> = utl.getPureFn('<ns>::<fnName>')` prologue line,
+// and (3) returns the alias the body calls. Every emitter reference to a pure
+// fn must go through here — a raw `utl.getPureFn` string anywhere else is a
+// review smell (a missed AddPureFnDependency becomes a missing import once
+// delivery is build-owned, so recording can no longer be skipped). filePath is
+// the canonical source path the pure fn's body is registered under.
+//
+// The alias + prologue bytes are byte-identical to what the pre-migration
+// call sites emitted (see pureFnAliasFor) — this is a refactor of the
+// recording convention, never a change to emitted body bytes.
+func (ctx *EmitContext) UsePureFn(namespace, fnName, filePath string) string {
+	ctx.AddPureFnDependency(namespace, fnName, filePath)
+	alias := pureFnAliasFor(namespace, fnName)
+	if !ctx.HasContextItem(alias) {
+		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('"+namespace+"::"+fnName+"')")
+	}
+	return alias
+}
+
 // DiagSlot identifies a RT-throw / silent-skip site by its semantic
 // shape rather than its per-family code. Emitters expose a DiagCodeFor
 // map keyed by these slots so that emit code shared across multiple
