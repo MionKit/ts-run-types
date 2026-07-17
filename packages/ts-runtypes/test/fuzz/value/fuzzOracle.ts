@@ -54,7 +54,28 @@ export interface FuzzTarget {
 //                       — the JSON and binary wires must agree on the same
 //                       DataOnly value (model-free: no projection oracle needed)
 //   O14 family-agree    every serialization family agrees serialize-vs-fail
-export type OracleId = 'O1' | 'O2' | 'O3' | 'O4' | 'O5' | 'O6' | 'O7' | 'O10' | 'O12' | 'O14' | 'TR1' | 'TR2' | 'TR3' | 'TR4';
+// O15–O17 are the cloning oracles (test/fuzz/cloning/cloneOracle.ts):
+//   O15 clone-reference   clone(v) deep-equals the reference-interpreter clone
+//   O16 clone-isolation   input unmutated + no shared mutable ref + prototype kept
+//   O17 clone-consistency validate(clone v) true, clone idempotent, extras stripped
+export type OracleId =
+  | 'O1'
+  | 'O2'
+  | 'O3'
+  | 'O4'
+  | 'O5'
+  | 'O6'
+  | 'O7'
+  | 'O10'
+  | 'O12'
+  | 'O14'
+  | 'O15'
+  | 'O16'
+  | 'O17'
+  | 'TR1'
+  | 'TR2'
+  | 'TR3'
+  | 'TR4';
 
 /** A detected expectation violation — everything needed to reproduce + triage. **/
 export interface Violation {

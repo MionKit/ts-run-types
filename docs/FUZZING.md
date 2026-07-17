@@ -31,6 +31,11 @@ All under [`packages/ts-runtypes/test/fuzz/`](../packages/ts-runtypes/test/fuzz/
 | `*.unit.test.ts`               | Offline unit tests (no Go binary) over hand-built `RunType` graphs + the Phase-2 generator/value layers.                                                                                                                                        |
 | `fuzz.integration.test.ts`     | Phase-1 end-to-end sweep over REAL compiled functions (needs the plugin + binary).                                                                                                                                                              |
 | `binaryEncoderResize.test.ts`  | Pinned regression for the first finding.                                                                                                                                                                                                        |
+| `cloning/referenceClone.ts`    | The clone ORACLE MODEL — a naive reference interpreter of `createCloneExactShape<T>` over the reflected RunType graph; what the compiled clone is compared against (O15).                                                                       |
+| `cloning/extrasValue.ts`       | The extras mutator — injects undeclared `__fz_extra_<n>` keys at provably-sound plain-object positions (validate stays true, a correct clone must strip them). Same one-directional soundness contract as `invalidValue.ts`.                    |
+| `cloning/cloneOracle.ts`       | The cloning oracle layer: `CloneFuzzTarget` + the O15–O17 checks, a local Temporal-aware `deepEqual`, and the shared-mutable-reference walker (ported from `test/util/cloningAsserts.ts`).                                                     |
+| `cloning/cloneFuzzRunner.ts`   | The cloning driver: `runCloneFuzz` / `runCloneFuzzForDuration` — valid / extras / junk streams per seed.                                                                                                                                        |
+| `cloning/cloneFuzz.integration.test.ts` | The cloning end-to-end sweep over REAL compiled `createCloneExactShape` factories, plus the CES001 throw-corpus and the cyclic-value pin (needs the plugin + binary).                                                                  |
 | `typeGen.ts` _(Phase 2)_       | The THIRD giant switch — a seeded generator of random types across the WIDEST space (classes, functions, symbols, index sigs, native builtins, intersections, circular interfaces, any/unknown/never/void) + named decls + a renderer to `.ts`. |
 | `shapeValue.ts` _(Phase 2)_    | Type→value: a conforming value for the serialisable subset, a strict `valueOracleSafe` gate, and a sound one-position corruption (mirrors invalidValue.ts's contract).                                                                          |
 | `typeFuzzHarness.ts` _(Ph 2)_  | Drives generated source through the resolver (`--inline-server`) → entry modules → REAL runtime factories; records diagnostics + per-factory wire outcome.                                                                                      |
@@ -86,11 +91,46 @@ library must uphold, never from hand-written expected outputs:
 | **O5** | strong      | JSON wire is stable: `encode(decode(encode v)) === encode(v)` |
 | **O6** | strong      | binary wire is byte-stable through `decode∘encode`            |
 | **O7** | robustness  | `encode(valid)` does not throw and yields a wire value        |
+| **O15** | strong      | `clone(v)` deep-equals `referenceClone(schema, v)`           |
+| **O16** | strong      | clone never mutates its input, shares no mutable reference with it, and keeps the root prototype |
+| **O17** | consistency | `validate(clone(v))` is true, `clone∘clone` is stable, and extras-injected inputs come out `hasUnknownKeys`-clean |
 
 O5/O6 compare the **wire image** (`encode∘decode∘encode === encode`) rather than
 value equality, which sidesteps the optional-`undefined`-key vs dropped-key
 mismatch the mock produces. O4 is a cheap, powerful cross-check: the two
 validation functions disagreeing is almost always a bug.
+
+### The cloning oracles — a reference interpreter as the model
+
+`createCloneExactShape<T>()` has no wire to round-trip, so its strong oracle
+is a **model**: [`cloning/referenceClone.ts`](../packages/ts-runtypes/test/fuzz/cloning/referenceClone.ts)
+is a naive, obviously-correct interpreter of the clone contract over the same
+reflected RunType graph the mock walker reads — declared members rebuild,
+undeclared keys drop, opaque values (functions, symbols, promises,
+non-serializable handles) pass by reference, Date/RegExp/Map/Set/Temporal
+re-materialize, class instances keep their prototype. O15 asserts the
+compiled clone and the interpreter agree on every conforming value; when they
+diverge, one of them is wrong and the interpreter is short enough to eyeball.
+
+The value streams add a fourth flavour next to valid/invalid/junk: the
+**extras** stream ([`cloning/extrasValue.ts`](../packages/ts-runtypes/test/fuzz/cloning/extrasValue.ts))
+deep-copies a valid mock and injects `__fz_extra_<n>` keys at plain-object
+positions where the injection provably keeps `validate` true AND a correct
+clone must strip it — the same conservative, one-directional soundness
+contract as `mutateToInvalid` (the walker never descends unions, Map/Set
+internals, or index-signature objects). O17 then checks the clone comes out
+`hasUnknownKeys`-clean.
+
+Two contract edges ride along as pinned tests rather than fuzz streams:
+object-bearing unions are a **throw-corpus** (the factory must be a CES001
+alwaysThrow — there is no sound way to pick which declared shape to rebuild),
+and a cyclic VALUE is pinned to its accepted failure mode (RangeError stack
+overflow — values are trees by contract; there is deliberately no cycle
+detection). Circular TYPES fuzz normally with tree-shaped mock values. The
+one corpus exclusion is template-literal-keyed index signatures: the compiled
+sig arm gates keys behind the pattern regex, which the reference interpreter
+does not model yet — teaching it the same regex builder is the natural
+follow-up.
 
 ## Running
 
