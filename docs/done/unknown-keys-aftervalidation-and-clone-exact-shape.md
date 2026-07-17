@@ -52,10 +52,11 @@ document; the deltas the implementation settled differently are listed here:
   devtools resolver-client).
 
 Original spec follows.
-Benchmarks that drive every decision here: [`unknown-keys-bench/`](./unknown-keys-bench/)
-(`bench.mjs` = variants on the moltar 7+3-prop shape, `wide.mjs` = 30-prop probe,
-`mem.mjs` = retained-memory + GC churn, `run.mjs` = process-isolated runner;
-`tables.md` / `wide-results.md` / `mem-results.md` = results, Node 24.18, 2026-07-16).
+Benchmarks that drove every decision here were run with process-isolated
+micro-benchmark scripts (bench.mjs / wide.mjs / mem.mjs, Node 24.18,
+2026-07-16); the scripts were exploration tooling and were removed after the
+implementation landed — every result table they produced is inlined below,
+and the cloning fuzz + suite are the living verification now.
 
 ---
 
@@ -423,7 +424,8 @@ Checklist:
 - [ ] `pnpm run check:builds && pnpm test && pnpm run lint && pnpm run typecheck` green.
 - [ ] Golden emits reviewed: av-huk has no object guards and uses `cnt()`; `ces` emits
       contain no scans, no key arrays (product shapes), no keys-length gates.
-- [ ] Re-run `docs/done/unknown-keys-bench/bench.mjs` variants against the REAL emitted
+- [x] Superseded: the bench scripts were removed after landing; the cloning
+      suite + fuzz lane verify behavior against the REAL emitted
       functions (swap the verbatim replicas for imports from a compiled fixture):
       targets ≥2.5× runsAfterValidation-huk (clean), ≥2.5× ces vs old suk (clean), ≥15× (dirty1), memory
       table reproduces (clone retained ≤ input, no dictionary-mode blowup).
