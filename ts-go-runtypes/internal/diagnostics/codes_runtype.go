@@ -183,7 +183,11 @@ const (
 
 // cloneExactShape family — the clone-based strip. Object-bearing unions and
 // callable roots FAIL the build (a strip that silently doesn't strip is a
-// security bug, not a fallback); member drops mirror the sibling families.
+// security bug, not a fallback). Declared members are never dropped: values
+// the emitter cannot rebuild (functions, symbols, promises, non-serialisable
+// natives) are kept and SHARED BY REFERENCE, with these advisories naming
+// them; class methods ride the prototype (CES011); statics are class-level
+// (CES012).
 const (
 	CodeCESUnionRoot               = "CES001"
 	CodeCESFunctionRoot            = "CES003"

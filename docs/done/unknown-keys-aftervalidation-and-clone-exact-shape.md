@@ -19,7 +19,12 @@ document; the deltas the implementation settled differently are listed here:
   symbols, promises, non-serializable handles — copying a resource is wrong,
   `overrideCloneExactShape` is the escape hatch) pass through. Temporal
   instances, though immutable, re-materialize via their static `from()` so
-  identity-based test assertions hold.
+  identity-based test assertions hold. DECLARED members are NEVER dropped
+  (no DataOnly projection here — that is a wire concern): a declared member
+  holding an unrebuildable value is kept, shared by reference, with a build
+  advisory (CES010 functions / CES015 symbol-Promise-native; CES011 class
+  methods ride the prototype). Only UNDECLARED keys drop — the strip
+  guarantee.
   - Objects always rebuild; plain class instances rebuild prototype-
     preservingly (`Object.create(Object.getPrototypeOf(v))` + declared-prop
     assigns) so `instanceof` survives — better than both the "diagnostic"

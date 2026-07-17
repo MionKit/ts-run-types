@@ -128,15 +128,17 @@ export type HasUnknownKeysFn = (value: unknown, options?: HasUnknownKeysOptions)
  *  clone is built from the type, never `{...v}`), the input is never mutated
  *  (frozen inputs work), and `clone(x) !== x` holds for EVERY object-typed
  *  position: objects rebuild, class instances rebuild keeping their
- *  prototype (`instanceof` holds), arrays/tuples/Map/Set are fresh
- *  containers, Dates re-wrap, RegExps re-compile (flags + lastIndex kept),
- *  Temporal instances re-materialize via their static `from()`. Only two
- *  kinds of values pass through: PRIMITIVES (strings, numbers, bigints,
- *  enums, literals — primitives compare by value, so a "fresh" primitive is
- *  meaningless) and OPAQUE values the type gives no shape for
- *  (`any`/`unknown`/bare `object`, functions, symbols, promises,
- *  non-serializable natives — copying a resource handle would be wrong;
- *  `overrideCloneExactShape<T>()` is the escape hatch).
+ *  prototype (`instanceof` and methods hold), arrays/tuples/Map/Set are
+ *  fresh containers, Dates re-wrap, RegExps re-compile (flags + lastIndex
+ *  kept), Temporal instances re-materialize via their static `from()`.
+ *  DECLARED members are never dropped — only undeclared keys are. Two kinds
+ *  of values pass through by reference: PRIMITIVES (compare by value, so a
+ *  "fresh" primitive is meaningless) and OPAQUE values the emitter cannot
+ *  rebuild (`any`/`unknown`/bare `object`, functions, symbols, promises,
+ *  non-serializable natives — copying a resource handle would be wrong).
+ *  A declared member holding such a value is KEPT on the clone, shared by
+ *  reference, and the build says so (CES010/CES015);
+ *  `overrideCloneExactShape<T>()` is the escape hatch for custom copying.
  *  Replaces the removed mutating `stripUnknownKeys` /
  *  `unknownKeysToUndefined` (measured 3–24x faster, no delete-induced
  *  dictionary-mode deopt). Intended use: stripping validated parse output —
