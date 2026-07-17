@@ -260,11 +260,13 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			FamilyTag: settings.Tag,
 			ArgsText:  rendered.argsText,
 			// Same-family deps are HARD (body calls `<dep>.fn(…)`
-			// unconditionally → cascade on absence); cross-family edges are
-			// SOFT (bodies guard them with `?.fn(…) ?? true`, so a missing
-			// foreign entry degrades to a stub at runtime).
+			// unconditionally → cascade on absence); cross-family edges AND
+			// pure-fn edges are SOFT (bodies guard cross-family with
+			// `?.fn(…) ?? true`; a pure-fn module registers its own tuple via the
+			// deps thunk before the body's `utl.getPureFn(...)` runs). Both ride
+			// SoftDeps so the module imports and its deps thunk binds them.
 			Deps:     append([]string(nil), rendered.deps...),
-			SoftDeps: append([]string(nil), rendered.crossFamilyDeps...),
+			SoftDeps: append(append([]string(nil), rendered.crossFamilyDeps...), rendered.pureFnDeps...),
 			IsNoop:   rendered.isNoop,
 		})
 		return rendered.deps, true
@@ -410,6 +412,15 @@ type entryRender struct {
 	argsText        string
 	deps            []string
 	crossFamilyDeps []string
+	// pureFnDeps is the entry's pure-fn dependency KEYS (walker.PureFnDependencies
+	// projected to `<ns>::<fn>`, e.g. "rt::newRunTypeErr"). These land on the
+	// emitted module's SoftDeps so the built-in (or user) pure-fn module is
+	// imported and its tuple registered by the deps thunk before the body runs —
+	// the delivery half of demand-driven built-in pure fns. Persisted as
+	// diskcache.PureFnRefs and rebuilt on a warm hit (stable string keys, no hash
+	// translation). Populated only on the live path; noop / alwaysThrow / redirect
+	// entries reach no pure fn.
+	pureFnDeps []string
 	// isNoop mirrors the walker's Finalize verdict (the short-form tuple
 	// whose runtime fn is the family identity). Landed on
 	// virtualmodules.Entry.IsNoop so downstream consumers (the JSON composite
@@ -511,7 +522,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 				if variantSuffix == "" {
 					// alwaysThrow entries emit no dep calls — no same-family
 					// or cross-family edges to persist.
-					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, false, opts)
+					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, nil, false, opts)
 				}
 				return entryRender{argsText: argsText}
 			}
@@ -560,7 +571,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		if variantSuffix == "" {
 			// A noop body emits no dep calls, so no same-family or
 			// cross-family lookups are registered.
-			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, true, opts)
+			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, nil, true, opts)
 		}
 		return entryRender{argsText: argsText, isNoop: true}
 	}
@@ -641,11 +652,26 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			})
 		}
 	}
+	pureFnDeps := pureFnDepKeys(walker.PureFnDependencies)
 	argsText := joinArgs(args)
 	if variantSuffix == "" {
-		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, false, opts)
+		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, pureFnDeps, false, opts)
 	}
-	return entryRender{argsText: argsText, deps: deps, crossFamilyDeps: crossFamilyDeps}
+	return entryRender{argsText: argsText, deps: deps, crossFamilyDeps: crossFamilyDeps, pureFnDeps: pureFnDeps}
+}
+
+// pureFnDepKeys projects the walker's recorded PureFnDep triples down to the
+// `<ns>::<fn>` graph keys the SoftDeps / disk cache carry (FilePath is a Go-only
+// validation hint, dropped here exactly like pureFnDepsJS drops it).
+func pureFnDepKeys(deps []protocol.PureFnDep) []string {
+	if len(deps) == 0 {
+		return nil
+	}
+	keys := make([]string, len(deps))
+	for i, dep := range deps {
+		keys[i] = dep.Namespace + "::" + dep.FunctionName
+	}
+	return keys
 }
 
 // tryReadCachedEntry attempts to load a previously cached entryRender
@@ -702,7 +728,10 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 		}
 		crossFamilyDeps = append(crossFamilyDeps, ref.Prefix+currentHash)
 	}
-	return entryRender{argsText: entry.ArgsText, deps: deps, crossFamilyDeps: crossFamilyDeps, isNoop: entry.IsNoop}, true
+	// Pure-fn edges rebuild verbatim from the persisted stable keys — no hash
+	// drift to check (the delivery target is content-addressed by key, not id).
+	pureFnDeps := append([]string(nil), entry.PureFnRefs...)
+	return entryRender{argsText: entry.ArgsText, deps: deps, crossFamilyDeps: crossFamilyDeps, pureFnDeps: pureFnDeps, isNoop: entry.IsNoop}, true
 }
 
 // splitNamespacedHash splits a namespaced cache hash into its family
@@ -734,7 +763,7 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 // structural id, and store the triple as a CrossFamilyRef. As with
 // ChildRefs, an unresolvable ref aborts the write cleanly rather than
 // persisting a record the reader can't verify.
-func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, isNoop bool, opts RenderOpts) {
+func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, pureFnDeps []string, isNoop bool, opts RenderOpts) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return
 	}
@@ -785,6 +814,9 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 		IsNoop:          isNoop,
 		ChildRefs:       childRefs,
 		CrossFamilyRefs: crossFamilyRefs,
+		// Pure-fn keys are stable strings — persist verbatim, no structural-id
+		// translation (contrast ChildRefs / CrossFamilyRefs).
+		PureFnRefs: append([]string(nil), pureFnDeps...),
 	}
 	if err := opts.Store.WriteRT(runType.ID, settings.Tag, entry); err != nil {
 		// Best-effort: report once per session would be ideal, but

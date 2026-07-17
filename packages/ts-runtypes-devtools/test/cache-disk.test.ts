@@ -81,12 +81,12 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cachegen/diskcache/format.go). Bumped to 14
-    // when constants.Version was dropped from the fnHash salt (operations/fnhash.go):
-    // the fnHash prefix baked into every cached key slot changes without the
-    // version-folded typeID directory moving, so a same-version rebuild must miss
-    // v13 payloads rather than serve entries keyed by the old fnHash prefix.
-    expect(parsed.version).toBe(14);
+    // Mirrors disk.FormatVersion (internal/cachegen/diskcache/format.go). Bumped to 15
+    // when PureFnRefs was added so a warm entry rebuilds its demand-driven built-in
+    // pure-fn edges (v14 payloads lack the field and must miss). Earlier: v14 dropped
+    // constants.Version from the fnHash salt, so a same-version rebuild misses stale
+    // payloads keyed by the old fnHash prefix.
+    expect(parsed.version).toBe(15);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.argsText).toBe('string');
