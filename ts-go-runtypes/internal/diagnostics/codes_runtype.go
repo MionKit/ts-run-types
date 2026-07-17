@@ -185,11 +185,12 @@ const (
 // callable roots FAIL the build (a strip that silently doesn't strip is a
 // security bug, not a fallback); member drops mirror the sibling families.
 const (
-	CodeCESUnionRoot           = "CES001"
-	CodeCESFunctionRoot        = "CES003"
-	CodeCESFunctionPropDropped = "CES010"
-	CodeCESMethodDropped       = "CES011"
-	CodeCESStaticDropped       = "CES012"
+	CodeCESUnionRoot               = "CES001"
+	CodeCESFunctionRoot            = "CES003"
+	CodeCESFunctionPropDropped     = "CES010"
+	CodeCESMethodDropped           = "CES011"
+	CodeCESStaticDropped           = "CES012"
+	CodeCESNonSerializablePropDrop = "CES015"
 )
 
 // Class-serializer family (CLS) — advisory, Warning severity. Emitted once
@@ -249,7 +250,7 @@ func init() {
 		CodeTBFunctionPropDropped, CodeTBMethodDropped, CodeTBStaticDropped, CodeTBSymbolKeyedDropped, CodeTBUnionMemberDropped, CodeTBNonSerializablePropDrop,
 		CodeFBFunctionPropDropped, CodeFBMethodDropped, CodeFBStaticDropped, CodeFBSymbolKeyedDropped, CodeFBUnionMemberDropped, CodeFBNonSerializablePropDrop,
 		CodeHUKFunctionPropDropped, CodeUKEFunctionPropDropped, CodeUKUFunctionPropDropped, CodeUKWFunctionPropDropped,
-		CodeCESFunctionPropDropped, CodeCESMethodDropped, CodeCESStaticDropped,
+		CodeCESFunctionPropDropped, CodeCESMethodDropped, CodeCESStaticDropped, CodeCESNonSerializablePropDrop,
 	} {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityWarning, Title: "RunType child-position member dropped"})
 	}

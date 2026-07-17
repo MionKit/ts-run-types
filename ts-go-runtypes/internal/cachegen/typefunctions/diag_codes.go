@@ -302,9 +302,10 @@ var hasUnknownKeysCodes = map[DiagSlot]string{
 func (HasUnknownKeysEmitter) DiagCodeFor(slot DiagSlot) string { return hasUnknownKeysCodes[slot] }
 
 var cloneExactShapeCodes = map[DiagSlot]string{
-	SlotFunctionPropDropped: diagnostics.CodeCESFunctionPropDropped,
-	SlotMethodDropped:       diagnostics.CodeCESMethodDropped,
-	SlotStaticDropped:       diagnostics.CodeCESStaticDropped,
+	SlotFunctionPropDropped:        diagnostics.CodeCESFunctionPropDropped,
+	SlotMethodDropped:              diagnostics.CodeCESMethodDropped,
+	SlotStaticDropped:              diagnostics.CodeCESStaticDropped,
+	SlotNonSerializablePropDropped: diagnostics.CodeCESNonSerializablePropDrop,
 }
 
 func (CloneExactShapeEmitter) DiagCodeFor(slot DiagSlot) string { return cloneExactShapeCodes[slot] }

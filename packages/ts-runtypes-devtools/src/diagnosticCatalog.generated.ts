@@ -39,6 +39,12 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'Static member `{0}` is not part of instance data — `cloneExactShape` skips it.',
     detail: 'Statics live on the class, not the instance; the clone rebuilds instance\ndata only.',
   },
+  CES015: {
+    headline:
+      'Property `{0}` has a non-serialisable value type (symbol, Promise, or a non-serialisable built-in) — `cloneExactShape` omits it from the clone.',
+    detail:
+      "The clone rebuilds the DECLARED data shape (the same DataOnly projection\n`validate` enforces): a property whose value cannot be represented as data is\nomitted, matching `DataOnly<{a: symbol}>` = `{}`. The rest of the object is\ncloned normally. Note the positional contrast: array elements and tuple slots\nof such types are kept and shared by REFERENCE (dropping them would corrupt\nthe container's length/positions).",
+  },
   CLS001: {
     headline:
       'class `{0}` is serialized structurally; register it via `registerClassSerializer({0}, { deserialize })` to round-trip a real instance.',
