@@ -10,7 +10,7 @@ import (
 // (e.g. a bad program build silently extracting zero) would fail here rather
 // than surface later as a missing-import at a consumer.
 func TestTable_CoreBuiltinsPresent(t *testing.T) {
-	for _, key := range []string{"rt::newRunTypeErr", "rt::hasUnknownKeysFromArray", "rt::getUnknownKeysFromArray", "rt::countEnumKeys", "rtFormats::isUUID"} {
+	for _, key := range []string{"rt::newRunTypeErr", "rt::hasUnknownKeysFromArray", "rt::getUnknownKeysFromArray", "rt::countEnumKeys", "rtFormats::isUUID", "rt::findCycle"} {
 		if !Has(key) {
 			t.Errorf("built-in table is missing %q (regenerate: pnpm rtx core codegen builtinpurefns)", key)
 		}
