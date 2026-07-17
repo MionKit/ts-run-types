@@ -48,9 +48,11 @@ export const OTHERS = {
   non_serializable_interface: {
     title: 'Int8Array in interface',
     description:
-      'An `Int8Array`-typed member is DataOnly-stripped, so the rebuilt shape omits it — the clone of `{a: Int8Array}` is `{}` while the input keeps its member.',
+      'A declared `Int8Array`-typed member is KEPT on the clone, shared by reference — opaque handles cannot be rebuilt, and declared members are never dropped.',
+    cloneNotes:
+      'The build emits a CES015 advisory naming the shared member; writes through the shared handle are visible on both sides (overrideCloneExactShape is the escape hatch).',
     clone: () => createCloneExactShape<{a: Int8Array}>(),
-    getTestData: () => ({values: [{a: new Int8Array([1, 2, 3])}], expected: [{}]}),
+    getTestData: () => ({values: [{a: typedA}]}),
   },
   non_serializable_array: {
     title: 'Int8Array in array',

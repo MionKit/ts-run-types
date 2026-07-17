@@ -205,7 +205,26 @@ func emitObjectCloneExactShape(rt *protocol.RunType, ctx *EmitContext, v string,
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
+			if asClass {
+				// Class methods ride the SHARED PROTOTYPE — the clone keeps
+				// them working without copying own props (copying would
+				// shadow the prototype and change Object.keys). Advisory only.
+				ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
+				continue
+			}
+			// Object-literal method member: an own function-valued prop.
+			// Declared members are NEVER dropped — the clone keeps it,
+			// shared by reference (functions cannot be rebuilt), and the
+			// build says so.
+			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, memberLabel(resolved))
+			accessor := propertyAccessor(v, resolved.Name, resolved.IsSafeName)
+			props = append(props, safePropEmit{
+				name:       resolved.Name,
+				isSafeName: resolved.IsSafeName,
+				optional:   resolved.Optional,
+				accessor:   accessor,
+				expr:       accessor,
+			})
 			continue
 		}
 		if resolved.Kind == protocol.KindIndexSignature {
@@ -226,13 +245,23 @@ func emitObjectCloneExactShape(rt *protocol.RunType, ctx *EmitContext, v string,
 		if propResolved == nil {
 			continue
 		}
-		if strippedPropertyDrop(propResolved, resolved.Name, ctx) {
-			// Directly DataOnly-stripped value (symbol / function / Promise /
-			// never / non-serializable native) — drop the property so the
-			// clone omits it, matching `DataOnly<{a: symbol}>` = `{}`.
+		accessor := propertyAccessor(v, resolved.Name, resolved.IsSafeName)
+		// Declared members are NEVER dropped (only UNDECLARED keys are — that
+		// is the strip guarantee). A declared value the emitter cannot rebuild
+		// (function / symbol / Promise / non-serializable native) is kept and
+		// shared by REFERENCE, with a build advisory naming the member — the
+		// value-level analogue of the DataOnly drop the JSON families do.
+		if slot, opaque := opaqueValueSlot(propResolved); opaque {
+			ctx.EmitDiagnosticSlot(slot, memberLabel(resolved))
+			props = append(props, safePropEmit{
+				name:       resolved.Name,
+				isSafeName: resolved.IsSafeName,
+				optional:   resolved.Optional,
+				accessor:   accessor,
+				expr:       accessor,
+			})
 			continue
 		}
-		accessor := propertyAccessor(v, resolved.Name, resolved.IsSafeName)
 		expr, ok := safeChildExpr(resolved.Child, accessor, ctx)
 		if !ok {
 			if propertyChildFailed(ctx) {
@@ -278,6 +307,35 @@ func emitObjectCloneExactShape(rt *protocol.RunType, ctx *EmitContext, v string,
 		return clone
 	}
 	return RTCode{Code: "return " + clone.Code, Type: CodeRB}
+}
+
+// opaqueValueSlot classifies a resolved property-value type the clone cannot
+// rebuild: function kinds → SlotFunctionPropDropped (CES010: kept, shared by
+// reference), symbol / Promise / non-serializable natives →
+// SlotNonSerializablePropDropped (CES015, same sharing). ok=false for every
+// clonable kind — those flow through safeChildExpr as usual.
+func opaqueValueSlot(resolved *protocol.RunType) (DiagSlot, bool) {
+	if resolved == nil {
+		return "", false
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return SlotFunctionPropDropped, true
+	}
+	switch resolved.Kind {
+	case protocol.KindSymbol, protocol.KindPromise:
+		return SlotNonSerializablePropDropped, true
+	case protocol.KindClass:
+		if resolved.SubKind == protocol.SubKindNonSerializable {
+			return SlotNonSerializablePropDropped, true
+		}
+	case protocol.KindLiteral:
+		for _, flag := range resolved.Flags {
+			if flag == "symbol" {
+				return SlotNonSerializablePropDropped, true
+			}
+		}
+	}
+	return "", false
 }
 
 // buildClassCloneExactShape assembles the prototype-preserving accumulator

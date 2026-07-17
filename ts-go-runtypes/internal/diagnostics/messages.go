@@ -337,16 +337,16 @@ var messagesByCode = map[string]message{
 		Detail:   "Functions aren't data — there is no declared shape to rebuild. Function-typed\nPROPERTIES are dropped from the clone (CES010/CES011); a function at the root\nor a propagating position fails the build.",
 	},
 	"CES010": {
-		Headline: "Property `{0}` is a function — `cloneExactShape` clones data only, so this property is omitted from the clone.",
-		Detail:   "`cloneExactShape` rebuilds the DECLARED data shape; functions don't survive\nJSON and aren't part of the serialisable shape, so the clone omits them.\nThe rest of the object is cloned normally.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
+		Headline: "Property `{0}` is a function — `cloneExactShape` cannot rebuild it, so it is kept on the clone, SHARED BY REFERENCE.",
+		Detail:   "Declared members are never dropped (only UNDECLARED keys are — that is the\nstrip guarantee). Functions cannot be rebuilt from a declared shape, so the\nclone's property points at the SAME function as the input's. Class METHODS\ndiffer: they ride the shared prototype and are not copied as own props\n(CES011).",
 	},
 	"CES011": {
 		Headline: "Method `{0}` is not copied onto the clone's own properties — methods ride the prototype.",
 		Detail:   "For a plain class instance the clone preserves the PROTOTYPE\n(`Object.create(Object.getPrototypeOf(v))`), so methods keep working via the\nprototype chain; they are simply not copied as own properties. For object\nliterals a method-typed member is omitted like any function value.",
 	},
 	"CES015": {
-		Headline: "Property `{0}` has a non-serialisable value type (symbol, Promise, or a non-serialisable built-in) — `cloneExactShape` omits it from the clone.",
-		Detail:   "The clone rebuilds the DECLARED data shape (the same DataOnly projection\n`validate` enforces): a property whose value cannot be represented as data is\nomitted, matching `DataOnly<{a: symbol}>` = `{}`. The rest of the object is\ncloned normally. Note the positional contrast: array elements and tuple slots\nof such types are kept and shared by REFERENCE (dropping them would corrupt\nthe container's length/positions).",
+		Headline: "Property `{0}` has a value type `cloneExactShape` cannot rebuild (symbol, Promise, or a non-serialisable built-in) — it is kept on the clone, SHARED BY REFERENCE.",
+		Detail:   "Declared members are never dropped (only UNDECLARED keys are — that is the\nstrip guarantee). A value the emitter cannot rebuild passes through by\nreference instead: the clone's property points at the SAME handle as the\ninput's, so mutations through it are visible on both sides. Register\n`overrideCloneExactShape<T>()` if this type needs custom copying.",
 	},
 	"CES012": {
 		Headline: "Static member `{0}` is not part of instance data — `cloneExactShape` skips it.",

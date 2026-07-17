@@ -415,9 +415,9 @@ export const OBJECTS = {
   interface_with_methods: {
     title: 'Interface with methods',
     description:
-      'The function-typed `methodProp` sits outside the DataOnly projection and is dropped from the clone; only the string data field is rebuilt.',
+      'A declared function-typed property is KEPT on the clone, shared by reference — functions cannot be rebuilt, and declared members are never dropped (only undeclared keys are).',
     cloneNotes:
-      'A function-typed PROPERTY is dropped (like serialization drops it on the wire); only object-bearing unions and callable interfaces make the clone factory itself throw.',
+      'The build emits a CES010 advisory naming the shared member; serializers drop it on the wire instead. Class METHODS differ — they ride the shared prototype (CES011).',
     clone: () => {
       interface ObjectWithMethods {
         name: string;
@@ -425,10 +425,7 @@ export const OBJECTS = {
       }
       return createCloneExactShape<ObjectWithMethods>();
     },
-    getTestData: () => ({
-      values: [{name: 'John', methodProp}],
-      expected: [{name: 'John'}],
-    }),
+    getTestData: () => ({values: [{name: 'John', methodProp}]}),
   },
   registered_root_class: {
     title: 'Registered root class (Date + bigint + array)',
