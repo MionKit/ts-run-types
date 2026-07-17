@@ -410,7 +410,7 @@ Checklist:
 - [ ] `pnpm run check:builds && pnpm test && pnpm run lint && pnpm run typecheck` green.
 - [ ] Golden emits reviewed: av-huk has no object guards and uses `cnt()`; `ces` emits
       contain no scans, no key arrays (product shapes), no keys-length gates.
-- [ ] Re-run `docs/todos/unknown-keys-bench/bench.mjs` variants against the REAL emitted
+- [ ] Re-run `docs/done/unknown-keys-bench/bench.mjs` variants against the REAL emitted
       functions (swap the verbatim replicas for imports from a compiled fixture):
       targets ≥2.5× runsAfterValidation-huk (clean), ≥2.5× ces vs old suk (clean), ≥15× (dirty1), memory
       table reproduces (clone retained ≤ input, no dictionary-mode blowup).
