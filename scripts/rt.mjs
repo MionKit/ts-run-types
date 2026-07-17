@@ -78,6 +78,11 @@ const CODEGEN = {
   kind: {run: [...GO_RUN, './cmd/gen-run-type-kind'], stdoutTo: 'packages/ts-runtypes/src/runTypeKind.ts', outputs: ['packages/ts-runtypes/src/runTypeKind.ts'], fmt: ['packages/ts-runtypes/src/runTypeKind.ts']},
   fnhashes: {run: [...GO_RUN, './cmd/gen-fn-hashes'], stdoutTo: 'packages/ts-runtypes/src/fnHashes.generated.ts', outputs: ['packages/ts-runtypes/src/fnHashes.generated.ts'], fmt: ['packages/ts-runtypes/src/fnHashes.generated.ts']},
   diag: {run: ['node', 'scripts/core/gen-diagnostics-catalog.mjs'], outputs: ['packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts', 'container/website/app/components/content/diagnostics-catalog.json'], fmt: []},
+  // Built-in pure-fn body table (Go, not a Go->TS mirror): extracts the
+  // package's own `rt::`/`rtFormats::` registrations from packages/ts-runtypes/src
+  // so the resolver can deliver them to published consumers on demand. The Go
+  // generator self-formats via go/format, so no `fmt` post-step.
+  builtinpurefns: {run: [...GO_RUN, './cmd/gen-builtin-purefns'], outputs: ['ts-go-runtypes/internal/cachegen/builtinpurefns/table.generated.go'], fmt: []},
 };
 
 // Run one generator: either it writes its own outputs (proxy, stdio inherited),
@@ -249,7 +254,7 @@ core     the engine (Go resolver + TS marker/plugin)
   rtx core build [targets…]        build the binary + dev dists if stale
   rtx core smoke                   end-to-end smoke of the resolver + devtools
   rtx core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
-  rtx core codegen [all|constants|kind|fnhashes|diag] [--check]   regenerate Go→TS mirrors
+  rtx core codegen [all|constants|kind|fnhashes|diag|builtinpurefns] [--check]   regenerate Go→TS mirrors + built-in pure-fn table
   rtx core bump-tsgolint [<rev>] [--skip-tests]   move the tsgolint/typescript-go pin (default: latest release), re-patch, rebuild + test
   rtx core ensure-tsgolint [--check]   check the submodule out to tsgolint.pin.json + re-apply patches (--check verifies only)
 
