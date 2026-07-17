@@ -1,7 +1,17 @@
 # Demand-driven built-in pure functions (and the circular guard on the same rails)
 
-Status: **TODO — agreed spec** (owner discussion 2026-07-17, branch
-`claude/circular-bundle-optimization-pvwqrw`). No code has landed yet.
+Status: **DONE — shipped 2026-07-17** on branch
+`claude/demand-driven-builtin-pure-fns-1vnwip`. All phases landed: the
+`ctx.UsePureFn` choke point + recording tripwire, the generated built-in table
+(`internal/cachegen/builtinpurefns`) with a `pnpm rtx core codegen builtinpurefns
+[--check]` lane, on-demand serving via `serveBuiltinPureFns` + SoftDeps wiring,
+disk format **v15** (`PureFnRefs`), the PFE9012 flip (validated against the table
+at serve time — the check lives in the resolver because `purefunctions` can't
+import `builtinpurefns`), the hollow-dist transform + `registerCore` null lane,
+and the deletion of the three dead built-ins (`asJSONString`, `formatErr`,
+`sanitizeCompiledFn`). The follow-up circular guard (section G) shipped alongside
+— see [circular-guard-on-demand.md](./circular-guard-on-demand.md). The
+original spec text is preserved below for reference.
 
 ## Problem — code that ships to every app whether it is used or not
 
