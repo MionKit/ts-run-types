@@ -11,25 +11,31 @@ document; the deltas the implementation settled differently are listed here:
   its canonical key `hasUnknownKeys|<suffix>` (consistent with `validate|`),
   so the PLAIN huk fnHash moved `trR` → `lRN` (variant `OV` = `Omg`). A
   consumer pinning fn-hash prefixes must re-pin huk once.
-- **cloneExactShape contract refinements** (strip-guarantee, pjs-style
-  reference sharing, all pinned by tests):
-  - Date / Temporal / RegExp / non-serializable natives are shared by
-    REFERENCE (they carry no key-tracked positions — parity with the removed
-    strip's noop arms), NOT rebuilt via `new Date(...)` as the table below
-    sketched.
-  - Plain class instances ARE supported: prototype-preserving rebuild
-    (`Object.create(Object.getPrototypeOf(v))` + declared-prop assigns), so
-    `instanceof` survives and extras are dropped — better than both the
-    "diagnostic" and "plain-object rebuild" options considered below.
-  - Index signatures over ATOMIC values with no key pattern are a noop
-    (every key is "known" — the removed strip's gate); object-valued or
-    pattern-keyed sigs do the for-in copy walk.
-  - Map/Set: shared by reference when inner types have nothing strippable;
-    otherwise rebuilt as `new Map(Array.from(v, perEntryClone))` /
-    `new Set(Array.from(v, perElementClone))`.
+- **cloneExactShape contract — ISOLATION guarantee** (upgraded from the
+  strip-guarantee draft after review; all pinned by tests): the clone shares
+  NOTHING MUTABLE with the input. Only immutables (primitives, enums,
+  literals, Temporal) and opaque values (`any`/`unknown`/bare `object`,
+  functions, symbols, promises, non-serializable handles — copying a
+  resource is wrong, `overrideCloneExactShape` is the escape hatch) pass
+  through, both observationally equivalent to a copy.
+  - Objects always rebuild; plain class instances rebuild prototype-
+    preservingly (`Object.create(Object.getPrototypeOf(v))` + declared-prop
+    assigns) so `instanceof` survives — better than both the "diagnostic"
+    and "plain-object rebuild" options considered below.
+  - Arrays/tuples are always fresh: `.slice()` when the element type is
+    immutable/opaque (a slice IS a deep clone then), `.map(clone)` otherwise.
+  - Map/Set are always fresh: `new Map(v)` / `new Set(v)` when entries are
+    immutable/opaque, per-entry rebuild otherwise.
+  - Date re-wraps (`new Date(v.getTime())`); RegExp re-compiles keeping
+    flags + lastIndex.
+  - Index signatures do the fresh copy walk — including alongside named
+    props (sig-matched keys are DECLARED and are copied, never dropped).
   - Object-bearing unions: the FACTORY throws at creation (house alwaysThrow
     convention, message carries CES001) and the build surfaces the CES001
-    error diagnostic.
+    error diagnostic. Atomic unions with mutable members (`Date | null`)
+    emit per-member dispatch arms; fully-immutable unions pass through.
+  - The family has its own noop predicate (isNoopForCloneExactShape):
+    identity only for fully immutable/opaque subtrees.
 - **Emitter internals**: the count helper is the pure fn `rt::countEnumKeys`
   (alias `cntEK`), registered in pure-fns-utils.ts beside hUKFA; the walker's
   existing VariantOptions plumbing carries `runsAfterValidation` (axis

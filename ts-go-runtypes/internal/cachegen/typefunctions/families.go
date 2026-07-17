@@ -54,10 +54,10 @@ var Families = []FamilySpec{
 	family("hasUnknownKeys", HasUnknownKeysEmitter{}),
 	family("unknownKeyErrors", UnknownKeyErrorsEmitter{}),
 	family("unknownKeysToUndefinedWire", UnknownKeysToUndefinedWireEmitter{}),
-	// cloneExactShape: non-mutating deep clone of the DECLARED shape — unknown
-	// keys dropped by construction, runtime types preserved (Date stays Date,
-	// Map/Set stay Map/Set). The clone-based replacement for the removed
-	// mutating strip family.
+	// cloneExactShape: a proper deep clone of the DECLARED shape — unknown
+	// keys dropped by construction, nothing mutable shared with the input
+	// (only immutables and opaque handles pass through). The clone-based
+	// replacement for the removed mutating strip family.
 	family("cloneExactShape", CloneExactShapeEmitter{}),
 	// toBinary / fromBinary: DataViewSerializer (little-endian) round-trip
 	// pair; unions emit the flat-prop wire shape (see union_flat_binary.go).
