@@ -42,6 +42,18 @@ export type PureFnId = `${string}::${string}`;
  * below. `wrap` only matters on the no-plugin fallback path, where the argument
  * is the live function rather than a tuple.
  */
+/** The package-owned pure-fn namespaces whose bodies the dist build hollows and
+ *  the resolver delivers on demand from the built-in table. A `null` factory in
+ *  one of these is the expected hollowed lane (inert no-op); a `null` in any
+ *  other namespace is a user error (missing plugin) that still throws. Kept in
+ *  sync with the Go `builtinPureFnNamespaces` set (purefunctions/index.go). */
+function isBuiltinPureFnNamespace(key: string): boolean {
+  const sep = key.indexOf('::');
+  if (sep < 0) return false;
+  const namespace = key.slice(0, sep);
+  return namespace === 'rt' || namespace === 'rtFormats';
+}
+
 function assertValidPureFnId(caller: string, pureFnId: string): void {
   const sep = pureFnId.indexOf('::');
   if (sep < 2 || sep > pureFnId.length - 4) {
@@ -59,6 +71,27 @@ function assertValidPureFnId(caller: string, pureFnId: string): void {
 function asFactory(fn: PureFn | PureFnFactory, wrap: boolean): PureFnFactory {
   return wrap ? () => fn as PureFn : (fn as PureFnFactory);
 }
+
+/**
+ * Inert placeholder returned for a HOLLOWED built-in registration — a
+ * `registerPureFnFactory('rt::…', null)` call whose real body no longer ships in
+ * the file (the dist build strips it) but travels on demand through the pure-fn
+ * cache, registering via a fn entry's deps thunk. It is deliberately NEVER added
+ * to the registry: caching it would let this call mask the real tuple that lands
+ * through the deps thunk (whichever load order wins), silently skipping the
+ * transform. It is also never invoked — a body only references a built-in the
+ * build demanded, which is therefore served and registered before the body runs.
+ */
+const HOLLOW_PLACEHOLDER: CompiledPureFunction = {
+  namespace: '',
+  fnName: '',
+  bodyHash: '',
+  paramNames: [],
+  code: '',
+  pureFnDependencies: [],
+  createPureFn: () => () => undefined,
+  fn: undefined,
+};
 
 /**
  * Shared registration core for all four registrars. `arg` is the plugin-rewritten
@@ -96,6 +129,19 @@ function registerCore(caller: string, key: string, arg: unknown, wrap: boolean):
         fn: undefined,
       };
       return getRTUtils().addPureFn(key, compiled);
+    }
+    if (arg == null && isBuiltinPureFnNamespace(key)) {
+      // Hollowed built-in lane: the dist build strips built-in factory bodies to
+      // `null` (they ship on demand via the pure-fn cache instead), so a null/
+      // undefined factory with no cache entry yet is EXPECTED for a package-owned
+      // (`rt::`/`rtFormats::`) key, not an error. Return the inert placeholder
+      // WITHOUT caching it — the real tuple registers through a fn entry's deps
+      // thunk when a body demands the built-in. If nothing demands it, no body ever
+      // looks it up, so the placeholder is never invoked. (A later `getPureFn`
+      // returning undefined for a genuinely-undemanded built-in is benign for the
+      // same reason.) A USER key with a null factory still throws below — that is a
+      // missing-plugin signal, not a hollowed body.
+      return HOLLOW_PLACEHOLDER;
     }
     throw new Error(
       `[ts-runtypes] ${caller}: no cache entry for "${key}". ` +
