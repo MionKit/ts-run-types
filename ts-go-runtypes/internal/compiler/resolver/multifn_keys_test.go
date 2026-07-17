@@ -15,13 +15,13 @@ import (
 const multiFnDTS = `declare module '@ts-runtypes/core' {
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never, F4 extends string = never, F5 extends string = never, F6 extends string = never, F7 extends string = never, F8 extends string = never, F9 extends string = never, F10 extends string = never, F11 extends string = never, F12 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12]};
   // Four DISTINCT leaf families — proves the >3-key cap and exact ordered fnIds.
-  export function createFour<T>(val?: T, id?: InjectTypeFnArgs<T, 'verr', 'huk', 'suk', 'uke'>): unknown;
+  export function createFour<T>(val?: T, id?: InjectTypeFnArgs<T, 'verr', 'huk', 'ces', 'uke'>): unknown;
   // mion's interim route() shape: validator + JSON decoder + JSON encoder.
   export function createMion<T>(val?: T, id?: InjectTypeFnArgs<T, 'verr', 'jsonDecoder', 'jsonEncoder'>): unknown;
   // A repeated family — must be rejected with MKR006 and deduped. The duplicate
   // 'verr' is deliberately NOT the first key, so the reported family pins the
   // FIRST-REPEATED-KEY rule (a naive "report the first key" impl would say 'huk').
-  export function createDup<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk', 'verr', 'suk', 'verr'>): unknown;
+  export function createDup<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk', 'verr', 'ces', 'verr'>): unknown;
 }
 `
 
@@ -58,7 +58,7 @@ createFour<string>();
 	want := []string{
 		leafFnHash(t, "verr"),
 		leafFnHash(t, "huk"),
-		leafFnHash(t, "suk"),
+		leafFnHash(t, "ces"),
 		leafFnHash(t, "uke"),
 	}
 	if len(site.FnIds) != len(want) {
@@ -66,7 +66,7 @@ createFour<string>();
 	}
 	for i := range want {
 		if site.FnIds[i] != want[i] {
-			t.Errorf("FnIds[%d] = %q, want %q (declaration order verr, huk, suk, uke)", i, site.FnIds[i], want[i])
+			t.Errorf("FnIds[%d] = %q, want %q (declaration order verr, huk, ces, uke)", i, site.FnIds[i], want[i])
 		}
 	}
 	// Scalar FnId mirrors FnIds[0] for byte-stable single-fn consumers.
@@ -74,7 +74,7 @@ createFour<string>();
 		t.Errorf("scalar FnId = %q, want %q (mirror of FnIds[0])", site.FnId, want[0])
 	}
 	// Demand must request every named family so all four entry modules render.
-	for _, fnKey := range []string{"verr", "huk", "suk", "uke"} {
+	for _, fnKey := range []string{"verr", "huk", "ces", "uke"} {
 		op, _ := operations.ByFnKey(fnKey)
 		found := false
 		for _, demand := range site.Demand {
@@ -197,11 +197,11 @@ createDup<string>();
 	}
 
 	// Injection still proceeds with the duplicate removed, first-occurrence order
-	// preserved: huk, verr, suk (the trailing duplicate 'verr' dropped).
+	// preserved: huk, verr, ces (the trailing duplicate 'verr' dropped).
 	if len(resp.Sites) != 1 {
 		t.Fatalf("expected 1 site, got %d", len(resp.Sites))
 	}
-	want := []string{leafFnHash(t, "huk"), leafFnHash(t, "verr"), leafFnHash(t, "suk")}
+	want := []string{leafFnHash(t, "huk"), leafFnHash(t, "verr"), leafFnHash(t, "ces")}
 	site := resp.Sites[0]
 	if len(site.FnIds) != len(want) {
 		t.Fatalf("expected deduped fnIds %v, got %+v", want, site.FnIds)

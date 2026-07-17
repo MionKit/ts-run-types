@@ -112,7 +112,7 @@ func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	hasIndex := objectHasIndexSignatureChild(rt, ctx)
 	var parentCode string
 	if !hasIndex {
-		unknownValue := callCheckUnknownPropertiesForHas(rt, ctx, true)
+		unknownValue := callCheckUnknownPropertiesForHas(rt, ctx, true, false)
 		if unknownValue != "" {
 			unknownVar := ctx.NextLocalVar("unk")
 			keyVar := ctx.NextLocalVar("ky")

@@ -328,9 +328,25 @@ var messagesByCode = map[string]message{
 		Headline: "Property `{0}` is a function — `hasUnknownKeys` does not handle function values, so this property is silently not checked.",
 		Detail:   "`hasUnknownKeys` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
 	},
-	"SUK010": {
-		Headline: "Property `{0}` is a function — `stripUnknownKeys` does not handle function values, so this property is silently not stripped.",
-		Detail:   "`stripUnknownKeys` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
+	"CES001": {
+		Headline: "`cloneExactShape` does not support unions with object members — the emitter cannot know which declared shape to rebuild at runtime.",
+		Detail:   "A clone built from the declared shape needs to know WHICH union arm the\nruntime value matches; v1 has no arm discrimination, and silently keeping\nunknown keys would defeat the strip guarantee, so the build fails instead.\n\nWorkarounds: narrow the value to one arm before cloning (one\n`createCloneExactShape<Arm>()` per arm), or restructure the union into a\nsingle object with optional properties.",
+	},
+	"CES003": {
+		Headline: "`cloneExactShape` cannot clone a function-typed value.",
+		Detail:   "Functions aren't data — there is no declared shape to rebuild. Function-typed\nPROPERTIES are dropped from the clone (CES010/CES011); a function at the root\nor a propagating position fails the build.",
+	},
+	"CES010": {
+		Headline: "Property `{0}` is a function — `cloneExactShape` clones data only, so this property is omitted from the clone.",
+		Detail:   "`cloneExactShape` rebuilds the DECLARED data shape; functions don't survive\nJSON and aren't part of the serialisable shape, so the clone omits them.\nThe rest of the object is cloned normally.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md.",
+	},
+	"CES011": {
+		Headline: "Method `{0}` is not copied onto the clone's own properties — methods ride the prototype.",
+		Detail:   "For a plain class instance the clone preserves the PROTOTYPE\n(`Object.create(Object.getPrototypeOf(v))`), so methods keep working via the\nprototype chain; they are simply not copied as own properties. For object\nliterals a method-typed member is omitted like any function value.",
+	},
+	"CES012": {
+		Headline: "Static member `{0}` is not part of instance data — `cloneExactShape` skips it.",
+		Detail:   "Statics live on the class, not the instance; the clone rebuilds instance\ndata only.",
 	},
 	"UKE010": {
 		Headline: "Property `{0}` is a function — `unknownKeyErrors` does not handle function values, so this property is silently not checked.",

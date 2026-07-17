@@ -16,7 +16,7 @@
 // version bump. The values come from the Go-generated fnHashes table (the single
 // source of truth is operations.FnHashFor); nothing is hashed at runtime.
 
-import {FN_HASHES, VALIDATE_OPTION_LETTERS, type FnHashEntry} from './fnHashes.generated.ts';
+import {FN_HASHES, HAS_UNKNOWN_KEYS_OPTION_LETTERS, VALIDATE_OPTION_LETTERS, type FnHashEntry} from './fnHashes.generated.ts';
 
 /** The Fn tokens getFnHash accepts — the InjectTypeFnArgs Fn keys for every
  *  createX factory and JSON value-level primitive (`val`, `verr`, `tb`, `fb`,
@@ -32,6 +32,7 @@ export interface FnHashOptions {
   noLiterals?: boolean;
   noIsArrayCheck?: boolean;
   strategy?: string;
+  runsAfterValidation?: boolean;
 }
 
 // Mirror of Go constants.ValidateVariantSuffix: 'N' + the letters of the present
@@ -51,6 +52,21 @@ function validateVariantToken(options: FnHashOptions | undefined): string {
   return hit ? suffix : '';
 }
 
+// Mirror of Go constants.HasUnknownKeysVariantSuffix: 'O' + the letters of the
+// present options in declaration order, or '' when none is set.
+function hasUnknownKeysVariantToken(options: FnHashOptions | undefined): string {
+  if (!options) return '';
+  let suffix = 'O';
+  let hit = false;
+  for (const [name, letter] of HAS_UNKNOWN_KEYS_OPTION_LETTERS) {
+    if (options[name as 'runsAfterValidation']) {
+      suffix += letter;
+      hit = true;
+    }
+  }
+  return hit ? suffix : '';
+}
+
 /** Resolve the version-independent fnHash for a function family (+ options).
  *  Throws on an unknown fnKey or an option combination with no matching variant
  *  (e.g. an unknown JSON `strategy`). Accepts any string so a framework can pass
@@ -61,6 +77,7 @@ export function getFnHash(fnKey: FnHashKey | (string & {}), options?: FnHashOpti
   let token = '';
   if (entry.axis === 'validateOptions') token = validateVariantToken(options);
   else if (entry.axis === 'jsonStrategy') token = options?.strategy ?? entry.defaultVariant ?? '';
+  else if (entry.axis === 'hasUnknownKeysOptions') token = hasUnknownKeysVariantToken(options);
   const hash = entry.variants[token];
   if (hash === undefined) throw new Error(`getFnHash: fnKey ${JSON.stringify(fnKey)} has no ${JSON.stringify(token)} variant`);
   return hash;

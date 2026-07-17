@@ -17,9 +17,8 @@ import type {
   ValidateFn,
   GetValidationErrorsFn,
   HasUnknownKeysFn,
-  StripUnknownKeysFn,
+  CloneExactShapeFn,
   UnknownKeyErrorsFn,
-  UnknownKeysToUndefinedFn,
   PrepareForJsonFn,
   RestoreFromJsonFn,
   StringifyJsonFn,
@@ -198,10 +197,11 @@ export type InitializedTypeFn<Fn extends AnyFn = AnyFn> = CompiledTypeFn<Fn> &
 export type ValidateRTFn = CompiledTypeFn<ValidateFn>;
 export type GetValidationErrorsRTFn = CompiledTypeFn<GetValidationErrorsFn>;
 export type HasUnknownKeysRTFn = CompiledTypeFn<HasUnknownKeysFn>;
-export type StripUnknownKeysRTFn = CompiledTypeFn<StripUnknownKeysFn>;
+export type CloneExactShapeRTFn = CompiledTypeFn<CloneExactShapeFn>;
 export type UnknownKeyErrorsRTFn = CompiledTypeFn<UnknownKeyErrorsFn>;
-export type UnknownKeysToUndefinedRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
-export type UnknownKeysToUndefinedWireRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
+// ukuw is decoder-internal (the `strip` decode strategy's pre-pass); its fn
+// shape is the in-place value mutator the removed public uku family had.
+export type UnknownKeysToUndefinedWireRTFn = CompiledTypeFn<(value: unknown) => unknown>;
 export type PrepareForJsonRTFn = CompiledTypeFn<PrepareForJsonFn>;
 export type PrepareForJsonSafeRTFn = CompiledTypeFn<PrepareForJsonFn>;
 export type RestoreFromJsonRTFn = CompiledTypeFn<RestoreFromJsonFn>;

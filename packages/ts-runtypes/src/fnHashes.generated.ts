@@ -9,23 +9,25 @@
 // re-pins on a version bump. The runtime cache key is `<fnHash>_<typeId>`;
 // its typeId half (injected by the plugin) still carries the version.
 
-export type FnHashAxis = 'none' | 'validateOptions' | 'jsonStrategy';
+export type FnHashAxis = 'none' | 'validateOptions' | 'jsonStrategy' | 'hasUnknownKeysOptions';
 
 export interface FnHashEntry {
   readonly axis: FnHashAxis;
   /** jsonStrategy only: the strategy token applied when options omit `strategy`. */
   readonly defaultVariant?: string;
   /** Variant token → fnHash. Token is '' for option-less families, the validate
-   *  variant suffix ('', 'NL', 'NA', 'NLA'), or the JSON strategy name. */
+   *  variant suffix ('', 'NL', 'NA', 'NLA'), the hasUnknownKeys variant suffix
+   *  ('', 'OV'), or the JSON strategy name. */
   readonly variants: Readonly<Record<string, string>>;
 }
 
 export const FN_HASHES = {
+  ces: {axis: 'none', variants: {'': 'wsq'}},
   cj: {axis: 'none', variants: {'': 'xnN'}},
   cjr: {axis: 'none', variants: {'': 'Siw'}},
   fb: {axis: 'none', variants: {'': 'mY6'}},
   fmt: {axis: 'none', variants: {'': 'SS6'}},
-  huk: {axis: 'none', variants: {'': 'trR'}},
+  huk: {axis: 'hasUnknownKeysOptions', variants: {'': 'lRN', OV: 'Omg'}},
   jsonDecoder: {axis: 'jsonStrategy', defaultVariant: 'strip', variants: {compact: 'MCy', preserve: 'J5l', strip: 'fDV'}},
   jsonEncoder: {
     axis: 'jsonStrategy',
@@ -36,10 +38,8 @@ export const FN_HASHES = {
   pjs: {axis: 'none', variants: {'': 'oak'}},
   rj: {axis: 'none', variants: {'': 'X13'}},
   sj: {axis: 'none', variants: {'': 'qm4'}},
-  suk: {axis: 'none', variants: {'': 'rRP'}},
   tb: {axis: 'none', variants: {'': 'plZ'}},
   uke: {axis: 'none', variants: {'': 'XFJ'}},
-  uku: {axis: 'none', variants: {'': 'emC'}},
   ukuw: {axis: 'none', variants: {'': 'N3x'}},
   val: {axis: 'validateOptions', variants: {'': 'nPZ', NA: 'WeU', NL: 'N7J', NLA: 'GYK'}},
   verr: {axis: 'validateOptions', variants: {'': 'pBb', NA: 'UKg', NL: 'LD5', NLA: 'Yk4'}},
@@ -52,3 +52,10 @@ export const VALIDATE_OPTION_LETTERS = [
   ['noLiterals', 'L'],
   ['noIsArrayCheck', 'A'],
 ] as const satisfies ReadonlyArray<readonly [string, string]>;
+
+/** HasUnknownKeysOptions name → single-letter token, in Go declaration order
+ *  (constants.HasUnknownKeysOptions). The hasUnknownKeys variant suffix is 'O'
+ *  followed by the letters of the present options concatenated in THIS order. */
+export const HAS_UNKNOWN_KEYS_OPTION_LETTERS = [['runsAfterValidation', 'V']] as const satisfies ReadonlyArray<
+  readonly [string, string]
+>;

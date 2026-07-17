@@ -14,6 +14,31 @@ export interface DiagnosticEntry {
 }
 
 export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
+  CES001: {
+    headline:
+      '`cloneExactShape` does not support unions with object members — the emitter cannot know which declared shape to rebuild at runtime.',
+    detail:
+      'A clone built from the declared shape needs to know WHICH union arm the\nruntime value matches; v1 has no arm discrimination, and silently keeping\nunknown keys would defeat the strip guarantee, so the build fails instead.\n\nWorkarounds: narrow the value to one arm before cloning (one\n`createCloneExactShape<Arm>()` per arm), or restructure the union into a\nsingle object with optional properties.',
+  },
+  CES003: {
+    headline: '`cloneExactShape` cannot clone a function-typed value.',
+    detail:
+      "Functions aren't data — there is no declared shape to rebuild. Function-typed\nPROPERTIES are dropped from the clone (CES010/CES011); a function at the root\nor a propagating position fails the build.",
+  },
+  CES010: {
+    headline: 'Property `{0}` is a function — `cloneExactShape` clones data only, so this property is omitted from the clone.',
+    detail:
+      '`cloneExactShape` rebuilds the DECLARED data shape; functions don\'t survive\nJSON and aren\'t part of the serialisable shape, so the clone omits them.\nThe rest of the object is cloned normally.\n\nThis is by design — see the "validate contract — serializable data only"\nsection in CLAUDE.md.',
+  },
+  CES011: {
+    headline: "Method `{0}` is not copied onto the clone's own properties — methods ride the prototype.",
+    detail:
+      'For a plain class instance the clone preserves the PROTOTYPE\n(`Object.create(Object.getPrototypeOf(v))`), so methods keep working via the\nprototype chain; they are simply not copied as own properties. For object\nliterals a method-typed member is omitted like any function value.',
+  },
+  CES012: {
+    headline: 'Static member `{0}` is not part of instance data — `cloneExactShape` skips it.',
+    detail: 'Statics live on the class, not the instance; the clone rebuilds instance\ndata only.',
+  },
   CLS001: {
     headline:
       'class `{0}` is serialized structurally; register it via `registerClassSerializer({0}, { deserialize })` to round-trip a real instance.',
@@ -584,12 +609,6 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       'Property `{0}` has a non-serialisable value type (symbol, Promise, or a non-serialisable built-in) — `stringifyJson` drops it, so this property is silently not stringified.',
     detail:
       '`stringifyJson` works on JSON-shaped data. A property whose value is a symbol,\na Promise, or a non-serialisable built-in (typed array, ArrayBuffer, …) carries\nno JSON-shaped value, so it is dropped: `DataOnly<{ {0}: symbol }>` is `{}`.\nThe rest of the object\'s behaviour is unaffected.\n\nNote the difference from a property that is only STRUCTURALLY unserialisable —\n`{0}: symbol[]` or `{0}: Map<string, symbol>` — which CANNOT be safely\ndropped (DataOnly keeps it as `never[]`): there `stringifyJson` throws at build\ntime instead.\n\nThis is by design — see the "validate contract — serializable data only"\nsection in CLAUDE.md.',
-  },
-  SUK010: {
-    headline:
-      'Property `{0}` is a function — `stripUnknownKeys` does not handle function values, so this property is silently not stripped.',
-    detail:
-      '`stripUnknownKeys` works on JSON-shaped data; functions don\'t survive JSON, so\nthe emitter drops them. The rest of the object\'s behaviour is unaffected.\n\nThis is by design — see the "validate contract — serializable data only"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.',
   },
   TB001: {
     headline: 'Cannot serialise `{0}` to binary.',

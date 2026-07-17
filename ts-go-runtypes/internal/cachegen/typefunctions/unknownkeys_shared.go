@@ -2,6 +2,7 @@ package typefunctions
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -182,12 +183,12 @@ func objectHasIndexSignatureChild(rt *protocol.RunType, ctx *EmitContext) bool {
 // When returnKeys=true the expression returns the array of unknown
 // keys instead of a boolean — used by strip/error/undefined emitters.
 //
-// checkObject controls whether the result is wrapped in a
-// `typeof v === 'object' && v !== null && …` guard. The reference sets it from
-// `!this.isPartOfUnion()` — for our purposes, every top-level emit IS
-// safe to guard because we never compose hasUnknownKeys into a union
-// condition. The `keepObjectCheck` parameter exposes this lever.
-func callCheckUnknownPropertiesForHas(rt *protocol.RunType, ctx *EmitContext, returnKeys bool) string {
+// keepObjectCheck controls whether the boolean (has) form is wrapped in a
+// `typeof v === 'object' && v !== null && …` guard. Plain-mode emits keep it
+// (standalone hasUnknownKeys may receive garbage); the `runsAfterValidation`
+// variant drops it — validation already proved every object position. The
+// returnKeys form never guards (parity with the reference emit).
+func callCheckUnknownPropertiesForHas(rt *protocol.RunType, ctx *EmitContext, returnKeys bool, keepObjectCheck bool) string {
 	keysCtx := addObjectPropsToContext(rt, ctx)
 	if len(keysCtx.rtChildrenNames) == 0 && len(keysCtx.allChildrenNames) == 0 {
 		return ""
@@ -215,10 +216,74 @@ func callCheckUnknownPropertiesForHas(rt *protocol.RunType, ctx *EmitContext, re
 	if !ctx.HasContextItem(fnVar) {
 		ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('rt::hasUnknownKeysFromArray')")
 	}
+	call := fnVar + "(" + v + ", " + conditional + ")"
+	if !keepObjectCheck {
+		// runsAfterValidation: validation already proved this position is a
+		// non-null object; the guard is dead weight. (A for-in over
+		// undefined/null iterates zero times anyway, so even the optional-
+		// property descent stays safe.)
+		return call
+	}
 	// Object guard around the pure-fn call: the emit prepends
 	// `typeof v === 'object' && v !== null` so non-object inputs don't
 	// reach the pure-fn (which expects an object). Match that.
-	return objectGuard(v, fnVar+"("+v+", "+conditional+")")
+	return objectGuard(v, call)
+}
+
+// countFastPathN reports whether an object node is eligible for the
+// `runsAfterValidation` key-count fast path, and the declared prop count N
+// to compare against. Eligible iff:
+//
+//   - every RT child property is REQUIRED (validation then proves all N are
+//     present, so `countEnumKeys(v) !== N` exactly separates clean from
+//     dirty — see the spec's swap/missing-prop counterexamples), and
+//   - there is no index-signature child (the caller suppresses the parent
+//     check entirely for those), and
+//   - the RT children equal ALL children (non-RT props — function-typed,
+//     static — aren't validated, so their presence is unpredictable and the
+//     count is meaningless; those shapes fall back to the key-array scan).
+//
+// Unlike addObjectPropsToContext this registers NOTHING in the closure
+// prologue — the fast path needs no key arrays.
+func countFastPathN(rt *protocol.RunType, ctx *EmitContext) (int, bool) {
+	rtNames, allNames := collectObjectChildNames(rt, ctx)
+	rtChildren := dedupSortStrings(rtNames)
+	allChildren := dedupSortStrings(allNames)
+	if len(rtChildren) == 0 {
+		return 0, false
+	}
+	if !sameStringSet(rtChildren, allChildren) {
+		return 0, false
+	}
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.Kind == protocol.KindIndexSignature {
+			return 0, false
+		}
+		if resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		if resolved.Optional {
+			return 0, false
+		}
+	}
+	return len(rtChildren), true
+}
+
+// emitCountKeysCheck emits the fast-path expression `cntEK(v) !== N` and
+// registers the rt::countEnumKeys pure-fn dependency + closure alias. A
+// for-in counter beats `Object.keys(v).length` ~1.4x on V8 (no array
+// allocation) and preserves the for-in enumeration semantics hUKFA had.
+func emitCountKeysCheck(ctx *EmitContext, v string, n int) string {
+	ctx.AddPureFnDependency("rt", "countEnumKeys", unknownKeysPureFnFilePath)
+	fnVar := pureFnAlias("countEnumKeys")
+	if !ctx.HasContextItem(fnVar) {
+		ctx.SetContextItem(fnVar, "const "+fnVar+" = utl.getPureFn('rt::countEnumKeys')")
+	}
+	return fnVar + "(" + v + ") !== " + strconv.Itoa(n)
 }
 
 // collectObjectHasUnknownKeysChildren is a helper that returns the
@@ -257,6 +322,19 @@ func collectObjectHasUnknownKeysChildren(rt *protocol.RunType, ctx *EmitContext)
 		parts = append(parts, childRT.Code)
 	}
 	return parts, hasIndex
+}
+
+// joinSemicolons joins non-empty strings with `;`. Empty entries are
+// dropped. Shared by the unknown-keys statement-shaped family emitters
+// (unknownKeyErrors, unknownKeysToUndefined).
+func joinSemicolons(parts ...string) string {
+	var nonEmpty []string
+	for _, part := range parts {
+		if part != "" {
+			nonEmpty = append(nonEmpty, part)
+		}
+	}
+	return strings.Join(nonEmpty, ";")
 }
 
 // joinOr joins JS expressions with ` || `. Wraps in parens when there's

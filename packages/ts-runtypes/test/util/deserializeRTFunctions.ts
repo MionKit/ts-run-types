@@ -32,9 +32,8 @@ import {
   type ValidateFn,
   type GetValidationErrorsFn,
   type HasUnknownKeysFn,
-  type StripUnknownKeysFn,
+  type CloneExactShapeFn,
   type UnknownKeyErrorsFn,
-  type UnknownKeysToUndefinedFn,
   // The JSON value-level primitive fn shapes are public again (recoverable via
   // getRTFunction), so the deserialize twins that exercise the per-primitive
   // `entry.code` round-trip type against the published aliases.
@@ -129,20 +128,15 @@ export const deserializeHasUnknownKeys = deserializeRTFunction<HasUnknownKeysFn>
   () => false
 ) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn;
 
-export const deserializeStripUnknownKeys = deserializeRTFunction<StripUnknownKeysFn>(
-  'deserializeStripUnknownKeys',
+export const deserializeCloneExactShape = deserializeRTFunction<CloneExactShapeFn>(
+  'deserializeCloneExactShape',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn;
+) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'ces'>) => CloneExactShapeFn;
 
 export const deserializeUnknownKeyErrors = deserializeRTFunction<UnknownKeyErrorsFn>(
   'deserializeUnknownKeyErrors',
   unknownKeyErrorsIdentity
 ) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn;
-
-export const deserializeUnknownKeysToUndefined = deserializeRTFunction<UnknownKeysToUndefinedFn>(
-  'deserializeUnknownKeysToUndefined',
-  identityValueFn
-) as unknown as <T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn;
 
 export const deserializePrepareForJson = deserializeRTFunction<PrepareForJsonFn>(
   'deserializePrepareForJson',

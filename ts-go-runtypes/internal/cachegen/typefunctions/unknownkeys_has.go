@@ -138,7 +138,22 @@ func emitInterfaceHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode 
 	parts, hasIndex := collectObjectHasUnknownKeysChildren(rt, ctx)
 	parentExpr := ""
 	if !hasIndex {
-		parentExpr = callCheckUnknownPropertiesForHas(rt, ctx, false)
+		// runsAfterValidation variant: the caller asserts the value already
+		// PASSED validate, so (a) every object position is a non-null object
+		// (guards dropped) and (b) on an all-required shape every declared
+		// prop is present — a key-count compare then exactly separates clean
+		// from dirty, replacing the O(props x keys) hUKFA scan (measured 3x
+		// on a 7-prop shape, ~44x at 30 props). Ineligible shapes (optional
+		// props, index sigs, non-RT children) keep the scan, guardless.
+		if ctx.HasVariantOption("runsAfterValidation") {
+			if n, ok := countFastPathN(rt, ctx); ok {
+				parentExpr = emitCountKeysCheck(ctx, ctx.Vλl, n)
+			} else {
+				parentExpr = callCheckUnknownPropertiesForHas(rt, ctx, false, false)
+			}
+		} else {
+			parentExpr = callCheckUnknownPropertiesForHas(rt, ctx, false, true)
+		}
 	}
 	expressions := []string{}
 	if parentExpr != "" {

@@ -29,6 +29,8 @@ func axisToken(axis operations.Axis) string {
 		return "validateOptions"
 	case operations.AxisJsonStrategy:
 		return "jsonStrategy"
+	case operations.AxisHasUnknownKeysOptions:
+		return "hasUnknownKeysOptions"
 	default:
 		return "none"
 	}
@@ -43,12 +45,13 @@ type fnHashEntry struct {
 	variants       map[string]string
 }
 
-// validateSubsets returns the power set of ValidateOptions NAMES — every subset
-// an it/te call site can request. Mirrors operations.validateOptionSubsets (kept
-// local so the generator doesn't need an exported view of that internal helper).
-func validateSubsets() [][]string {
-	names := make([]string, 0, len(constants.ValidateOptions))
-	for _, opt := range constants.ValidateOptions {
+// optionSubsets returns the power set of an option table's NAMES — every subset
+// a call site can request. Mirrors operations.optionSubsets (kept local so the
+// generator doesn't need an exported view of that internal helper). Shared by
+// the validateOptions and hasUnknownKeysOptions axes.
+func optionSubsets(table []constants.ValidateOption) [][]string {
+	names := make([]string, 0, len(table))
+	for _, opt := range table {
 		names = append(names, opt.Name)
 	}
 	subsets := make([][]string, 0, 1<<len(names))
@@ -77,8 +80,13 @@ func collectEntries() []fnHashEntry {
 		entry := fnHashEntry{fnKey: op.FnKey, axis: axisToken(op.Axis), variants: map[string]string{}}
 		switch op.Axis {
 		case operations.AxisValidateOptions:
-			for _, subset := range validateSubsets() {
+			for _, subset := range optionSubsets(constants.ValidateOptions) {
 				token := constants.ValidateVariantSuffix(subset)
+				entry.variants[token] = operations.FnHashFor(op, subset, "")
+			}
+		case operations.AxisHasUnknownKeysOptions:
+			for _, subset := range optionSubsets(constants.HasUnknownKeysOptions) {
+				token := constants.HasUnknownKeysVariantSuffix(subset)
 				entry.variants[token] = operations.FnHashFor(op, subset, "")
 			}
 		case operations.AxisJsonStrategy:
@@ -150,14 +158,15 @@ func Generate() string {
 	out.WriteString("// its typeId half (injected by the plugin) still carries the version.\n")
 	out.WriteString("\n")
 
-	out.WriteString("export type FnHashAxis = 'none' | 'validateOptions' | 'jsonStrategy';\n")
+	out.WriteString("export type FnHashAxis = 'none' | 'validateOptions' | 'jsonStrategy' | 'hasUnknownKeysOptions';\n")
 	out.WriteString("\n")
 	out.WriteString("export interface FnHashEntry {\n")
 	out.WriteString("  readonly axis: FnHashAxis;\n")
 	out.WriteString("  /** jsonStrategy only: the strategy token applied when options omit `strategy`. */\n")
 	out.WriteString("  readonly defaultVariant?: string;\n")
 	out.WriteString("  /** Variant token → fnHash. Token is '' for option-less families, the validate\n")
-	out.WriteString("   *  variant suffix ('', 'NL', 'NA', 'NLA'), or the JSON strategy name. */\n")
+	out.WriteString("   *  variant suffix ('', 'NL', 'NA', 'NLA'), the hasUnknownKeys variant suffix\n")
+	out.WriteString("   *  ('', 'OV'), or the JSON strategy name. */\n")
 	out.WriteString("  readonly variants: Readonly<Record<string, string>>;\n")
 	out.WriteString("}\n")
 	out.WriteString("\n")
@@ -179,6 +188,16 @@ func Generate() string {
 	out.WriteString(" *  the letters of the present options concatenated in THIS order. */\n")
 	out.WriteString("export const VALIDATE_OPTION_LETTERS = [\n")
 	for _, opt := range constants.ValidateOptions {
+		out.WriteString(fmt.Sprintf("  [%q, %q],\n", opt.Name, opt.Letter))
+	}
+	out.WriteString("] as const satisfies ReadonlyArray<readonly [string, string]>;\n")
+	out.WriteString("\n")
+
+	out.WriteString("/** HasUnknownKeysOptions name → single-letter token, in Go declaration order\n")
+	out.WriteString(" *  (constants.HasUnknownKeysOptions). The hasUnknownKeys variant suffix is 'O'\n")
+	out.WriteString(" *  followed by the letters of the present options concatenated in THIS order. */\n")
+	out.WriteString("export const HAS_UNKNOWN_KEYS_OPTION_LETTERS = [\n")
+	for _, opt := range constants.HasUnknownKeysOptions {
 		out.WriteString(fmt.Sprintf("  [%q, %q],\n", opt.Name, opt.Letter))
 	}
 	out.WriteString("] as const satisfies ReadonlyArray<readonly [string, string]>;\n")
