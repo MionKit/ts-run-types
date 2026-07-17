@@ -12,12 +12,14 @@ document; the deltas the implementation settled differently are listed here:
   so the PLAIN huk fnHash moved `trR` → `lRN` (variant `OV` = `Omg`). A
   consumer pinning fn-hash prefixes must re-pin huk once.
 - **cloneExactShape contract — ISOLATION guarantee** (upgraded from the
-  strip-guarantee draft after review; all pinned by tests): the clone shares
-  NOTHING MUTABLE with the input. Only immutables (primitives, enums,
-  literals, Temporal) and opaque values (`any`/`unknown`/bare `object`,
-  functions, symbols, promises, non-serializable handles — copying a
-  resource is wrong, `overrideCloneExactShape` is the escape hatch) pass
-  through, both observationally equivalent to a copy.
+  strip-guarantee draft after review; all pinned by tests, full suite at
+  packages/ts-runtypes/test/suites/cloning/): `clone(x) !== x` for every
+  object-typed position. Only primitives (compare by value — freshness is
+  meaningless) and opaque values (`any`/`unknown`/bare `object`, functions,
+  symbols, promises, non-serializable handles — copying a resource is wrong,
+  `overrideCloneExactShape` is the escape hatch) pass through. Temporal
+  instances, though immutable, re-materialize via their static `from()` so
+  identity-based test assertions hold.
   - Objects always rebuild; plain class instances rebuild prototype-
     preservingly (`Object.create(Object.getPrototypeOf(v))` + declared-prop
     assigns) so `instanceof` survives — better than both the "diagnostic"
@@ -27,7 +29,7 @@ document; the deltas the implementation settled differently are listed here:
   - Map/Set are always fresh: `new Map(v)` / `new Set(v)` when entries are
     immutable/opaque, per-entry rebuild otherwise.
   - Date re-wraps (`new Date(v.getTime())`); RegExp re-compiles keeping
-    flags + lastIndex.
+    flags + lastIndex; Temporal re-materializes via `Temporal.<T>.from(v)`.
   - Index signatures do the fresh copy walk — including alongside named
     props (sig-matched keys are DECLARED and are copied, never dropped).
   - Object-bearing unions: the FACTORY throws at creation (house alwaysThrow

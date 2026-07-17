@@ -1,13 +1,14 @@
-// End-to-end tests for the unknown-keys rt family:
+// End-to-end tests for the unknown-keys predicates:
 //
 //   - hasUnknownKeys: boolean predicate (plain + runsAfterValidation variant)
-//   - cloneExactShape: non-mutating declared-shape clone (unknown keys dropped
-//     by construction) — the replacement for the removed mutating
-//     stripUnknownKeys / unknownKeysToUndefined
 //   - unknownKeyErrors: accumulate errors with path tracking
+//
+// cloneExactShape (the clone-based replacement for the removed mutating
+// stripUnknownKeys / unknownKeysToUndefined) has its own full suite at
+// test/suites/cloning/.
 
 import {describe, expect, it} from 'vitest';
-import {createHasUnknownKeys, createCloneExactShape, createUnknownKeyErrors, createValidate} from '@ts-runtypes/core';
+import {createHasUnknownKeys, createUnknownKeyErrors, createValidate} from '@ts-runtypes/core';
 
 describe('hasUnknownKeys', () => {
   it('returns false when the value matches the schema', () => {
@@ -100,215 +101,6 @@ describe('hasUnknownKeys — runsAfterValidation variant', () => {
   });
 });
 
-describe('cloneExactShape', () => {
-  it('returns a fresh value without undeclared keys (input untouched)', () => {
-    const clone = createCloneExactShape<{a: string; b: number}>();
-    const input = {a: 'x', b: 1, extra: true, more: 'gone'};
-    const out = clone(input as unknown as {a: string; b: number});
-    expect(out).toEqual({a: 'x', b: 1});
-    expect(out).not.toBe(input);
-    // Non-mutating: the input keeps its extra keys.
-    expect(input).toEqual({a: 'x', b: 1, extra: true, more: 'gone'});
-  });
-
-  it('works on frozen inputs (a mutating strip never could)', () => {
-    const clone = createCloneExactShape<{a: string}>();
-    const input = Object.freeze({a: 'x', extra: 1});
-    expect(clone(input as unknown as {a: string})).toEqual({a: 'x'});
-  });
-
-  it('is a passthrough for atomic types', () => {
-    const clone = createCloneExactShape<string>();
-    expect(clone('hello')).toBe('hello');
-  });
-
-  it('absent optional properties stay absent (no key: undefined)', () => {
-    const clone = createCloneExactShape<{a: string; b?: number}>();
-    const out = clone({a: 'x', extra: 9} as unknown as {a: string; b?: number});
-    expect(out).toEqual({a: 'x'});
-    expect('b' in out).toBe(false);
-  });
-
-  it('rebuilds nested objects and drops nested extras', () => {
-    interface User {
-      name: string;
-      address: {street: string; city: string};
-    }
-    const clone = createCloneExactShape<User>();
-    const input = {name: 'jane', address: {street: '10', city: 'sf', extra: true}};
-    const out = clone(input as unknown as User);
-    expect(out).toEqual({name: 'jane', address: {street: '10', city: 'sf'}});
-    expect(out.address).not.toBe(input.address);
-    expect((input.address as Record<string, unknown>).extra).toBe(true);
-  });
-
-  it('rebuilds arrays of objects element-wise', () => {
-    const clone = createCloneExactShape<Array<{a: string}>>();
-    const input = [
-      {a: 'x', extra: 1},
-      {a: 'y', extra: 2},
-    ];
-    const out = clone(input as unknown as Array<{a: string}>);
-    expect(out).toEqual([{a: 'x'}, {a: 'y'}]);
-    expect(input[0]).toEqual({a: 'x', extra: 1});
-  });
-
-  it('copies arrays of atomics into a fresh array (isolation guarantee)', () => {
-    const clone = createCloneExactShape<{tags: string[]}>();
-    const input = {tags: ['a', 'b']};
-    const out = clone(input);
-    expect(out.tags).toEqual(['a', 'b']);
-    expect(out.tags).not.toBe(input.tags);
-    out.tags.push('c');
-    expect(input.tags).toEqual(['a', 'b']); // mutating the clone never touches the input
-  });
-
-  it('index signature over atomics: fresh object, every declared key copied', () => {
-    const clone = createCloneExactShape<{[key: string]: number}>();
-    const input = {a: 1, b: 2, anyOther: 3};
-    const out = clone(input);
-    expect(out).toEqual({a: 1, b: 2, anyOther: 3});
-    expect(out).not.toBe(input);
-  });
-
-  it('named props + atomic index signature: sig-matched keys are copied, not dropped', () => {
-    // Regression: the sig was once filtered as "non-contributing", which made
-    // the clone drop every sig-matched key — but those keys ARE declared.
-    const clone = createCloneExactShape<{name: string; [key: string]: string}>();
-    const input = {name: 'ada', role: 'admin', team: 'core'};
-    const out = clone(input);
-    expect(out).toEqual({name: 'ada', role: 'admin', team: 'core'});
-    expect(out).not.toBe(input);
-  });
-
-  it('index signature over objects: copies every key, stripping inside values', () => {
-    const clone = createCloneExactShape<{[key: string]: {a: string}}>();
-    const input = {k1: {a: 'x', extra: 1}, k2: {a: 'y'}};
-    const out = clone(input as unknown as {[key: string]: {a: string}});
-    expect(out).toEqual({k1: {a: 'x'}, k2: {a: 'y'}});
-    expect(out).not.toBe(input);
-  });
-
-  it('re-wraps Date instances (clone(x).at !== x.at, same instant)', () => {
-    const clone = createCloneExactShape<{at: Date; note: string}>();
-    const at = new Date('2021-05-06T07:08:09.000Z');
-    const out = clone({at, note: 'n', extra: 1} as unknown as {at: Date; note: string});
-    expect(out).toEqual({at, note: 'n'});
-    expect(out.at).not.toBe(at);
-    expect(out.at.getTime()).toBe(at.getTime());
-    out.at.setTime(0);
-    expect(at.getTime()).not.toBe(0); // isolated
-  });
-
-  it('clones a root Date', () => {
-    const clone = createCloneExactShape<Date>();
-    const at = new Date('2021-05-06T07:08:09.000Z');
-    const out = clone(at);
-    expect(out).not.toBe(at);
-    expect(out).toBeInstanceOf(Date);
-    expect(out.getTime()).toBe(at.getTime());
-  });
-
-  it('clones a RegExp preserving flags and lastIndex', () => {
-    const clone = createCloneExactShape<{re: RegExp}>();
-    const re = /ab/g;
-    re.exec('abab'); // advance lastIndex to 2
-    const out = clone({re});
-    expect(out.re).not.toBe(re);
-    expect(out.re.source).toBe('ab');
-    expect(out.re.flags).toBe('g');
-    expect(out.re.lastIndex).toBe(2);
-  });
-
-  it('dispatches mutable members of an atomic union (Date | null)', () => {
-    const clone = createCloneExactShape<{at: Date | null}>();
-    const at = new Date('2021-05-06T07:08:09.000Z');
-    const cloned = clone({at});
-    expect(cloned.at).not.toBe(at);
-    expect(cloned.at?.getTime()).toBe(at.getTime());
-    expect(clone({at: null}).at).toBe(null);
-  });
-
-  it('rebuilds a Map with object values, stripping inside', () => {
-    const clone = createCloneExactShape<Map<string, {a: string}>>();
-    const m = new Map<string, unknown>([['k1', {a: 'x', extra: 'gone'}]]);
-    const out = clone(m as Map<string, {a: string}>);
-    expect(out).toBeInstanceOf(Map);
-    expect(out).not.toBe(m);
-    expect(out.get('k1')).toEqual({a: 'x'});
-    // input untouched
-    expect(m.get('k1')).toEqual({a: 'x', extra: 'gone'});
-  });
-
-  it('copies a Map of atomics into a fresh Map', () => {
-    const clone = createCloneExactShape<Map<string, number>>();
-    const m = new Map([['k', 1]]);
-    const out = clone(m);
-    expect(out).not.toBe(m);
-    expect(out).toBeInstanceOf(Map);
-    expect([...out.entries()]).toEqual([['k', 1]]);
-    out.set('k2', 2);
-    expect(m.has('k2')).toBe(false); // isolated
-  });
-
-  it('clones a class instance preserving its prototype (instanceof + methods survive)', () => {
-    class Point {
-      x = 0;
-      y = 0;
-      len(): number {
-        return Math.hypot(this.x, this.y);
-      }
-    }
-    const clone = createCloneExactShape<Point>();
-    const input = new Point();
-    input.x = 3;
-    input.y = 4;
-    (input as unknown as Record<string, unknown>).extra = 'gone';
-    const out = clone(input);
-    expect(out).not.toBe(input);
-    expect(out).toBeInstanceOf(Point);
-    expect(out.x).toBe(3);
-    expect(out.y).toBe(4);
-    expect(out.len()).toBe(5); // prototype method works on the clone
-    expect('extra' in out).toBe(false); // own extra dropped
-    expect((input as unknown as Record<string, unknown>).extra).toBe('gone'); // input untouched
-  });
-
-  it('rebuilds a Set of objects, stripping elements', () => {
-    const clone = createCloneExactShape<Set<{a: string}>>();
-    const inner = {a: 'x', extra: 'gone'};
-    const s = new Set([inner]) as unknown as Set<{a: string}>;
-    const out = clone(s);
-    expect(out).toBeInstanceOf(Set);
-    expect(out).not.toBe(s);
-    expect([...out][0]).toEqual({a: 'x'});
-    expect(inner).toEqual({a: 'x', extra: 'gone'});
-  });
-
-  it('rebuilds tuples positionally when a slot carries an object', () => {
-    const clone = createCloneExactShape<Array<[string, {a: number}]>>();
-    const input = [['x', {a: 1, extra: 9}]] as unknown as Array<[string, {a: number}]>;
-    const out = clone(input);
-    expect(out).toEqual([['x', {a: 1}]]);
-  });
-
-  it('composes with validate for the parseSafe flow', () => {
-    interface Payload {
-      id: number;
-      nested: {tag: string};
-    }
-    const validate = createValidate<Payload>();
-    const clone = createCloneExactShape<Payload>();
-    const parseSafe = (v: unknown): Payload => {
-      if (!validate(v)) throw new Error('wrong type');
-      return clone(v as Payload);
-    };
-    const dirty = {id: 1, nested: {tag: 't', extra: 1}, evil: true};
-    expect(parseSafe(dirty)).toEqual({id: 1, nested: {tag: 't'}});
-    expect(() => parseSafe({id: 'nope'})).toThrow();
-  });
-});
-
 describe('unknownKeyErrors', () => {
   it('returns an empty array when the value matches the schema', () => {
     const validate = createUnknownKeyErrors<{a: string; b: number}>();
@@ -384,12 +176,9 @@ describe('nested unknown-keys cases (hasUnknownKeys)', () => {
 //
 // For a union `{a: string} | {b: number}` the declared key set is the UNION
 // of every object member's declared property names. hasUnknownKeys and
-// unknownKeyErrors flag/report anything outside that set.
-//
-// cloneExactShape deliberately does NOT support object-bearing unions in v1:
-// without runtime arm discrimination the emitter cannot know which declared
-// shape to rebuild, and silently keeping unknown keys would defeat the strip
-// guarantee — so the build diagnoses it (CES001) and the entry always throws.
+// unknownKeyErrors flag/report anything outside that set. (cloneExactShape's
+// union stance — per-member dispatch for atomic unions, CES001 for
+// object-bearing ones — is pinned in test/suites/cloning/Unions.ts.)
 
 describe('union types — has/keyErrors merged allowlist', () => {
   type Disjoint = {a: string} | {b: number};
@@ -411,19 +200,6 @@ describe('union types — has/keyErrors merged allowlist', () => {
     expect(out.every((e) => e.expected === 'never')).toBe(true);
     const paths = out.map((e) => e.path?.[0]).sort();
     expect(paths).toEqual(['evil', 'stranger']);
-  });
-
-  it('cloneExactShape on an object-bearing union throws at factory creation (CES001 build stance)', () => {
-    // Same alwaysThrow convention as e.g. `createJsonEncoder<symbol>()` — the
-    // factory materializes the CES001 throwing entry instead of a clone that
-    // could silently keep unknown keys.
-    expect(() => createCloneExactShape<Disjoint>()).toThrow(/CES001/);
-  });
-
-  it('cloneExactShape passes atomic-only unions through by reference', () => {
-    const clone = createCloneExactShape<string | number>();
-    expect(clone('hello')).toBe('hello');
-    expect(clone(42)).toBe(42);
   });
 });
 
