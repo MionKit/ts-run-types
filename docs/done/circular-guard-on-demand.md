@@ -1,10 +1,17 @@
 # Load the circular-reference walker only when a type can cycle
 
-Status: **TODO — agreed spec** (branch `claude/circular-bundle-optimization-pvwqrw`,
-PR [#237](https://github.com/MionKit/ts-run-types/pull/237)). Nothing implemented
-yet. This is the focused, circular-only slice; the general delivery mechanism it
-rides on is specced separately in
-[demand-driven-builtin-pure-fns.md](./demand-driven-builtin-pure-fns.md).
+Status: **DONE — shipped 2026-07-17** on branch
+`claude/demand-driven-builtin-pure-fns-1vnwip`. `findCycle` moved into the
+`rt::findCycle` pure fn ([circular-pure-fns.ts](../../packages/ts-runtypes/src/runtypes/circular-pure-fns.ts),
+kind/subKind values inlined so the body stays self-contained under `new
+Function`); `circular.ts` sheds the walker + the `RunTypeKind` import, keeping only
+the arm flag, error class, `formatCircularPath`, `typeGraphIsCircular`, and
+`CircularPath`. `maybeGuardCircular` fetches the walker via
+`utils.getPureFn('rt::findCycle')` and threads it into the guard wrappers;
+`wireCircularRunTypeDeps` appends `rt::findCycle` to guarded cyclable entries'
+SoftDeps (demand by type shape). Rode the general delivery mechanism from
+[demand-driven-builtin-pure-fns.md](./demand-driven-builtin-pure-fns.md). The
+original spec text is preserved below for reference.
 
 ## Problem
 
