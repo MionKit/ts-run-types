@@ -213,29 +213,15 @@ becomes unnecessary for validation (docs update), but never harmful.
 
 ### G. Follow-up: the circular guard on the same rails
 
-Once A–E exist, the circular fix is small and was the original motivation:
-
-- Split [circular.ts](../../packages/ts-runtypes/src/runtypes/circular.ts):
-  the flag (`setRejectCircularRefs`), `CircularReferenceError`, and the tiny
-  per-family wrapper closures stay static (~0.3 KB); the walker (`findCycle` +
-  `typeGraphIsCircular`) becomes a built-in in the table (e.g.
-  `rt::findCycle`), authored next to the other built-in sources.
-- Demand signal is **type shape, not a body reference**:
-  `wireCircularRunTypeDeps` in
-  [resolver/dispatch.go](../../ts-go-runtypes/internal/compiler/resolver/dispatch.go)
-  already links the RunType data bundle into guarded circular entries — it
-  additionally appends the walker's pure-fn key to the same `SoftDeps`.
-- `maybeGuardCircular` in `entryTuple.ts` resolves the walker via
-  `utl.getPureFn('rt::findCycle')` instead of the static import.
-
-Soundness (why build-time gating is safe): the guard only engages on a real
-emitted-entry hit — every identity-fallback path in `resolveEntryTupleFn`
-returns before the guard — so Go has seen every guardable type at build time.
-That includes value-first `circular()` / `self()` schemas: ids are structural,
-so a schema resolving to an emitted entry has exactly the circularity Go
-computed for it. The remaining one-directional risk (emitter bug ships no
-walker for a circular type → guard silently absent) is pinned by Go-side tests,
-same shape as the noop-elision contract.
+Once A–E exist, the circular-reference walker becomes one more demand-delivered
+built-in (`rt::findCycle`) — the original motivation for this work. It is
+specced on its own in
+[circular-guard-on-demand.md](./circular-guard-on-demand.md): the walker moves
+into a pure fn, its demand is wired by **type shape** (`wireCircularRunTypeDeps`
+appends `rt::findCycle` to the same guarded-entry `SoftDeps` it already uses for
+the RunType data bundle) rather than a body reference, and `maybeGuardCircular`
+resolves it via `utl.getPureFn('rt::findCycle')` instead of the static import.
+The only thing it needs from this spec is the delivery mechanism (B–E).
 
 ## What does NOT change
 
@@ -286,7 +272,9 @@ same shape as the noop-elision contract.
 4. Dead built-in deletion + `formats/emit.go` comment fix.
 5. Docs: website formats guide (import no longer needed for validation),
    ARCHITECTURE.md pure-fn + circular sections, CLAUDE.md pointers.
-6. Circular walker migration (section G) + move this spec to `docs/done/`.
+6. Circular walker migration — its own spec
+   ([circular-guard-on-demand.md](./circular-guard-on-demand.md)) — then move
+   this spec to `docs/done/`.
 
 ## Open implementation details (settle in their PRs)
 
