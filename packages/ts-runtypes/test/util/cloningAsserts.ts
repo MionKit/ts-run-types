@@ -17,14 +17,30 @@
 import {expect} from 'vitest';
 import type {CloningCase} from '../suites/cloning/types.ts';
 
+/** True for object-typed values the clone contract deliberately passes
+ *  through by reference: opaque handles the type system gives no declared
+ *  shape for (promises, ArrayBuffers and their views, weak collections).
+ *  Copying a resource handle would be wrong, so sharing them is the
+ *  documented behavior — the freshness walk must not flag them. **/
+function isOpaqueHandle(value: object): boolean {
+  return (
+    value instanceof Promise ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value) ||
+    value instanceof WeakMap ||
+    value instanceof WeakSet
+  );
+}
+
 /** Collects every MUTABLE object reachable from `value` into `out`.
- *  Functions are excluded (opaque pass-through by contract); everything else
- *  object-typed counts — sharing any of them between input and clone would
- *  leak mutations across. **/
+ *  Functions and opaque handles are excluded (pass-through by contract);
+ *  everything else object-typed counts — sharing any of them between input
+ *  and clone would leak mutations across. **/
 function collectMutableRefs(value: unknown, out: Set<object>, seen: Set<object>): void {
   if (value === null || typeof value !== 'object') return;
   if (seen.has(value)) return;
   seen.add(value);
+  if (isOpaqueHandle(value)) return;
   out.add(value);
   if (value instanceof Date || value instanceof RegExp) return;
   if (value instanceof Map) {

@@ -19,7 +19,16 @@ export const DATETIME = {
     title: 'Date',
     description: 'Dates are mutable (setTime & friends) — the clone always re-wraps: fresh instance, same instant.',
     clone: () => createCloneExactShape<Date>(),
-    getTestData: () => ({values: [new Date('2021-05-06T07:08:09.000Z'), new Date(0)]}),
+    // Span whole-second, sub-second ms precision, the Unix epoch (getTime 0),
+    // and a pre-1970 (negative epoch) date.
+    getTestData: () => ({
+      values: [
+        new Date('2021-05-06T07:08:09.000Z'),
+        new Date(0),
+        new Date('2000-08-06T02:13:00.123Z'),
+        new Date('1969-12-31T23:59:59.500Z'),
+      ],
+    }),
   },
   dateInObject: {
     title: 'Date property',
@@ -36,19 +45,24 @@ export const DATETIME = {
     cloneNotes:
       'Temporal objects are immutable, so sharing would be safe — but `clone(x) !== x` holds everywhere so identity-based test assertions never surprise.',
     clone: () => createCloneExactShape<Temporal.Instant>(),
-    getTestData: () => ({values: [T.Instant.from('2020-01-15T10:30:00Z')]}),
+    getTestData: () => ({values: [T.Instant.from('2020-01-15T10:30:00Z'), T.Instant.fromEpochMilliseconds(0)]}),
   },
   temporalZonedDateTime: {
     title: 'Temporal.ZonedDateTime',
     description: 'Re-materialized via `Temporal.ZonedDateTime.from(v)`, time zone and calendar preserved.',
     clone: () => createCloneExactShape<Temporal.ZonedDateTime>(),
-    getTestData: () => ({values: [T.ZonedDateTime.from('2020-01-15T10:30:00+01:00[Europe/Madrid]')]}),
+    getTestData: () => ({
+      values: [
+        T.ZonedDateTime.from('2020-01-15T10:30:00+01:00[Europe/Madrid]'),
+        T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]'),
+      ],
+    }),
   },
   temporalPlainDate: {
     title: 'Temporal.PlainDate',
     description: 'Re-materialized via `Temporal.PlainDate.from(v)`.',
     clone: () => createCloneExactShape<Temporal.PlainDate>(),
-    getTestData: () => ({values: [T.PlainDate.from('2021-05-06')]}),
+    getTestData: () => ({values: [T.PlainDate.from('2021-05-06'), T.PlainDate.from('1999-01-01')]}),
   },
   temporalPlainDateTime: {
     title: 'Temporal.PlainDateTime',
@@ -60,7 +74,7 @@ export const DATETIME = {
     title: 'Temporal.PlainTime',
     description: 'Re-materialized via `Temporal.PlainTime.from(v)`.',
     clone: () => createCloneExactShape<Temporal.PlainTime>(),
-    getTestData: () => ({values: [T.PlainTime.from('07:08:09')]}),
+    getTestData: () => ({values: [T.PlainTime.from('07:08:09'), T.PlainTime.from('00:00:00')]}),
   },
   temporalPlainYearMonth: {
     title: 'Temporal.PlainYearMonth',
@@ -78,6 +92,8 @@ export const DATETIME = {
     title: 'Temporal.Duration',
     description: 'Re-materialized via `Temporal.Duration.from(v)`.',
     clone: () => createCloneExactShape<Temporal.Duration>(),
-    getTestData: () => ({values: [T.Duration.from({hours: 2, minutes: 30})]}),
+    getTestData: () => ({
+      values: [T.Duration.from({hours: 2, minutes: 30}), T.Duration.from('P1Y2M10DT2H30M'), T.Duration.from('PT0S')],
+    }),
   },
 } satisfies Record<string, CloningCase>;

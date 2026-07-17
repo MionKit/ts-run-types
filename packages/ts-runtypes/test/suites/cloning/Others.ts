@@ -1,10 +1,24 @@
-// cloning / Others — remaining native shapes: RegExp re-compiles (mutable
+// cloning / Others — remaining native shapes. RegExp re-compiles (mutable
 // via lastIndex, the sticky/global iteration cursor, which the clone
-// carries over).
+// carries over). Non-serializable natives (Int8Array, Promise) are opaque
+// handles the serializers alwaysThrow on — the value-level clone instead
+// passes them through at roots and container slots and drops them from
+// object shapes (the DataOnly projection): copying a handle would be
+// wrong, not just slow.
 
 import {expect} from 'vitest';
 import {createCloneExactShape} from '@ts-runtypes/core';
 import type {CloningCase} from './types.ts';
+
+// Identity-stable opaque handles (shared by reference across the twice-called
+// builders, like the function consts elsewhere in the suite).
+const typedA = new Int8Array([1, 2, 3]);
+const typedB = new Int8Array([4, 5]);
+
+// Module-level const so both getTestData() calls return the SAME reference
+// (promises pass through by reference; a per-call Promise.resolve() would
+// break the untouched-twin comparison).
+const rootPromise: Promise<string> = Promise.resolve('done');
 
 function advancedRegExp(): RegExp {
   const re = /ab/g;
@@ -13,6 +27,52 @@ function advancedRegExp(): RegExp {
 }
 
 export const OTHERS = {
+  promise_jsonStringify_error: {
+    title: 'Root Promise',
+    description: 'A root `Promise<string>` is an opaque handle with no data shape to rebuild — it passes through by reference.',
+    cloneNotes:
+      'Divergence from the serializers: they render a root Promise as an alwaysThrow factory, while the value-level clone shares the handle — copying a pending Promise would be wrong, not just slow.',
+    clone: () => createCloneExactShape<Promise<string>>(),
+    getTestData: () => ({values: [rootPromise]}),
+    passThrough: true,
+  },
+  non_serializable: {
+    title: 'Root Int8Array',
+    description: 'A root `Int8Array` is an opaque native handle — it passes through by reference.',
+    cloneNotes:
+      'Divergence from the serializers: they render a root Int8Array as an alwaysThrow factory, while the value-level clone shares the handle (no declared data shape to rebuild).',
+    clone: () => createCloneExactShape<Int8Array>(),
+    getTestData: () => ({values: [new Int8Array([1, 2, 3])]}),
+    passThrough: true,
+  },
+  non_serializable_interface: {
+    title: 'Int8Array in interface',
+    description:
+      'An `Int8Array`-typed member is DataOnly-stripped, so the rebuilt shape omits it — the clone of `{a: Int8Array}` is `{}` while the input keeps its member.',
+    clone: () => createCloneExactShape<{a: Int8Array}>(),
+    getTestData: () => ({values: [{a: new Int8Array([1, 2, 3])}], expected: [{}]}),
+  },
+  non_serializable_array: {
+    title: 'Int8Array in array',
+    description:
+      'An `Int8Array[]` root clones to a fresh array (containers are never shared); the opaque elements ride along by reference.',
+    cloneNotes:
+      'Divergence from the serializers: a non-serializable element position alwaysThrows there, while the clone slices a fresh container and shares the opaque element handles.',
+    clone: () => createCloneExactShape<Int8Array[]>(),
+    // The isolation walker excludes opaque handles (typed arrays share by
+    // contract), so real samples are expressible: fresh outer array, shared
+    // Int8Array elements.
+    getTestData: () => ({values: [[typedA, typedB], []]}),
+  },
+  non_serializable_tuple: {
+    title: 'Int8Array in tuple',
+    description:
+      'A tuple with an `Int8Array` slot clones to a fresh array (tuples ride arrays); the opaque slot value rides along by reference.',
+    cloneNotes:
+      'Divergence from the serializers: a non-serializable tuple slot alwaysThrows there, while the clone slices a fresh container and shares the opaque slot handle.',
+    clone: () => createCloneExactShape<[Int8Array]>(),
+    getTestData: () => ({values: [[typedA]]}),
+  },
   regexp: {
     title: 'RegExp',
     description: 'Re-compiled from source + flags with `lastIndex` carried over — a faithful copy even mid-iteration.',
