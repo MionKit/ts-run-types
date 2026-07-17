@@ -39,11 +39,11 @@ it('register and get pure function with extracted data', () => {
   expect(restoredFn('A', {isLowercase: true})).toBe(false);
 });
 
-it('throws when no cache entry is found', () => {
-  // The Go binary only emits entries for source files it walks. Tests like
-  // this one — which dynamically constructs a key the binary never saw —
-  // should throw on lookup. (Vite plugin rewrites the factory arg to
-  // `null`, so the runtime path is purely the cache lookup.)
+it('throws when no cache entry is found (USER key, null factory)', () => {
+  // A USER-namespaced key with a null factory and no cache entry is a
+  // missing-plugin signal — the Go binary only emits entries for files it walks,
+  // so a key it never saw must throw. (The hollowed BUILT-IN lane is exempt; see
+  // the 'hollowed built-in lane' block below.)
   expect(() => registerPureFnFactory(`${TEST_NAMESPACE}_unscanned_${Math.random()}::noSuchFn`, null)).toThrow(
     /no cache entry for/
   );
@@ -166,5 +166,43 @@ describe('arrow function factory functions', () => {
     expect(compiledB).toBeDefined();
     expect(compiledB?.pureFnDependencies?.includes('test::arrowFnA')).toBeTruthy();
     expect(compiledA?.pureFnDependencies ?? []).toEqual([]);
+  });
+});
+
+// The hollowed built-in lane (docs/todos/demand-driven-builtin-pure-fns.md phase
+// E): the dist build strips the `rt::`/`rtFormats::` factory bodies to `null`
+// because the resolver now delivers them on demand through the pure-fn cache. A
+// `null` factory for such a key must be an inert no-op — never a throw, and never
+// a cached placeholder that could mask the real body arriving via a deps thunk.
+describe('hollowed built-in lane', () => {
+  it('null factory for a built-in key is inert: no throw, not cached', () => {
+    const key = 'rt::hollowLaneUnusedFn';
+    expect(getRTUtils().getCompiledPureFn(key)).toBeUndefined();
+    // Hollowed dist ships `registerPureFnFactory('rt::…', null)`.
+    expect(() => registerPureFnFactory(key, null)).not.toThrow();
+    // Crucially NOT cached — a cached placeholder would mask the real registration.
+    expect(getRTUtils().getCompiledPureFn(key)).toBeUndefined();
+  });
+
+  it('rtFormats:: built-in key is inert too', () => {
+    expect(() => registerPureFnFactory('rtFormats::hollowLaneUnusedFmt', null)).not.toThrow();
+    expect(getRTUtils().getCompiledPureFn('rtFormats::hollowLaneUnusedFmt')).toBeUndefined();
+  });
+
+  it('real body wins whichever order it arrives in (deps-thunk after hollowed call)', () => {
+    const key = 'rt::hollowLaneRealBody';
+    // Hollowed side-effect import runs first (inert).
+    registerPureFnFactory(key, null);
+    expect(getRTUtils().getCompiledPureFn(key)).toBeUndefined();
+    // The demand-driven cache then registers the real body (modelled here via the
+    // no-plugin function path; production registers a tuple through the deps thunk).
+    registerPureFnFactory(key, function () {
+      return function real() {
+        return 42;
+      };
+    });
+    const fn = getRTUtils().getPureFn(key) as () => number;
+    expect(fn).toBeDefined();
+    expect(fn()).toBe(42);
   });
 });
