@@ -1,5 +1,7 @@
 package typefunctions
 
+import "strings"
+
 // pureFnAliases maps a pure-fn name to the short alias used in emitted
 // factory bodies. The alias becomes the local variable name bound to
 // utl.getPureFn('<ns>::<fnName>'); shortening it cuts bytes per occurrence
@@ -49,3 +51,10 @@ const (
 	corePureFnNamespace    = "rt"
 	formatsPureFnNamespace = "rtFormats"
 )
+
+// isBuiltinPureFnDep reports whether a soft-dep key names a package-owned
+// pure fn (`rt::…` / `rtFormats::…`) rather than a fn cache entry
+// (`<fnHash>_<typeId>` — no `::`). Mirrors the resolver's isBuiltinPureFnKey.
+func isBuiltinPureFnDep(dep string) bool {
+	return strings.HasPrefix(dep, corePureFnNamespace+"::") || strings.HasPrefix(dep, formatsPureFnNamespace+"::")
+}

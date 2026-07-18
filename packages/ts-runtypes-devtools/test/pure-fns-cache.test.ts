@@ -351,13 +351,15 @@ export const a = registerPureFnFactory('app::answer', function () {
 });
 `,
   };
-  // A self-referential type validated by a guarded family (createValidate)
-  // demand-wires the built-in circular walker rt::findCycle, served from the
-  // built-in table — the same CollectEntries gating path as a user pure fn.
+  // An ARMED (`{rejectCircularRefs: true}`) validator over a self-referential
+  // type demands the built-in circular walker rt::findCycle by body reference
+  // (the inline guard calls it), served from the built-in table — the same
+  // CollectEntries gating path as a user pure fn. A plain (unarmed) cyclable
+  // validate ships no walker at all (the compile-time-option model).
   const CIRCULAR_VALIDATE = {
     'circ.ts': `import {createValidate} from '@ts-runtypes/core';
 interface Node { next?: Node; val: number; }
-export const isNode = createValidate<Node>();
+export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
 `,
   };
 

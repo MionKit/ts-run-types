@@ -472,6 +472,13 @@ func AssertCompositeSoftDeps(graph virtualmodules.Graph, provenance map[string][
 			continue
 		}
 		for _, dep := range entry.SoftDeps {
+			// Built-in pure-fn edges (the armed guard's `rt::findCycle`) are NOT
+			// composite-bound primitives: they bind via `utl.getPureFn`, and
+			// serveBuiltinPureFns delivers them AFTER this assertion runs (with its
+			// own PFE9012 tripwire for a genuinely missing body). Skip them here.
+			if isBuiltinPureFnDep(dep) {
+				continue
+			}
 			if target, ok := graph[dep]; ok && target != nil && target.Kind != virtualmodules.KindMissing {
 				continue
 			}

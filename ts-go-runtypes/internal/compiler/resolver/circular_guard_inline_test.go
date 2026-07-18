@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -99,5 +100,30 @@ export const je = createJsonEncoder<Node>(undefined, {rejectCircularRefs: true})
 	}
 	if _, ok := modules["pf/rt/findCycle"]; !ok {
 		t.Errorf("rt::findCycle not served for armed encoders\nmodules: %v", keys(modules))
+	}
+}
+
+// TestInlineGuard_ArmedCompositeNeverTripsJCP001 — regression: the armed JSON
+// composite carries `rt::findCycle` in its SoftDeps (that IS the built-in's
+// demand signal), but AssertCompositeSoftDeps must not read that pure-fn edge
+// as a composite-bound primitive: the assertion runs BEFORE serveBuiltinPureFns
+// delivers the body, so treating it as a primitive fired a spurious
+// Error-severity JCP001 that failed batch builds.
+func TestInlineGuard_ArmedCompositeNeverTripsJCP001(t *testing.T) {
+	r := setupInline(t, map[string]string{"a.ts": `import {createJsonEncoder} from '@ts-runtypes/core';
+interface Node {name: string; next?: Node}
+export const je = createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+`})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}, IncludeEntryModules: true})
+	if resp.Error != "" {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	for _, d := range resp.Diagnostics {
+		if d.Code == diagnostics.CodeCompositeMissingPrimitive {
+			t.Fatalf("armed jsonEncoder tripped JCP001 on its pure-fn soft dep: args=%v", d.Args)
+		}
+	}
+	if _, ok := resp.EntryModules["pf/rt/findCycle"]; !ok {
+		t.Errorf("rt::findCycle module was not served\nmodules: %v", keys(resp.EntryModules))
 	}
 }
