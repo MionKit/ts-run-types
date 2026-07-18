@@ -182,6 +182,63 @@ func TestCheckMirrorFile_Clean(t *testing.T) {
 	}
 }
 
+// TestCheckMirrorFile_NodeModulesSourceClean: a mirror for a type whose source
+// lives inside an installed package sits at the PROJECT's mirror location (gen's
+// base-name fallback for out-of-root sources). The check must anchor its config
+// at the mirror file like gen's write side — anchoring at the resolved source
+// would re-derive the config inside the dependency (its own tsconfig) and flag
+// gen's own output as drifted.
+func TestCheckMirrorFile_NodeModulesSourceClean(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
+	pkg := filepath.Join(dir, "node_modules", "@x", "pkg")
+	writeTestFile(t, filepath.Join(pkg, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
+	writeTestFile(t, filepath.Join(pkg, "src", "stringFormats.ts"), "export interface String {}")
+	mirror := filepath.Join(dir, "src", "__runtypes", "enriched", "friendly", "stringFormats.ts")
+	writeTestFile(t, mirror, "import type { String } from '../../../../node_modules/@x/pkg/src/stringFormats';\n"+
+		"import type { FriendlyType } from '@ts-runtypes/core';\n\nexport const friendlyString = {};\n")
+
+	findings := checkMirrorFile(mirror, "")
+	if len(findings) != 0 {
+		t.Errorf("node_modules-sourced mirror at the project location should have no findings; got %+v", findings)
+	}
+}
+
+// TestCheckMirrorFile_I18nLocaleMirrorClean: a locale translation mirror at its
+// canonical home (<i18n>/<locale>/<friendly-relative path>) yields no findings —
+// the check knows the i18n subtree instead of treating it as a combined mirror.
+func TestCheckMirrorFile_I18nLocaleMirrorClean(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
+	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
+	mirror := filepath.Join(dir, "src", "__runtypes", "enriched", "i18n", "es", "models", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../../../models/user';\n"+
+		"import type { Translation } from '@ts-runtypes/core';\n\nexport const es_friendlyUser = {};\n")
+
+	findings := checkMirrorFile(mirror, "")
+	if len(findings) != 0 {
+		t.Errorf("locale mirror at the canonical location should have no findings; got %+v", findings)
+	}
+}
+
+// TestCheckMirrorFile_I18nRelocatedDrifts: a locale mirror moved off its
+// canonical home still drifts (one GE001) — the i18n arm detects real drift, it
+// doesn't blanket-pass the subtree.
+func TestCheckMirrorFile_I18nRelocatedDrifts(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
+	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
+	// Canonical home is i18n/es/models/user.ts — this one lost its models/ segment.
+	mirror := filepath.Join(dir, "src", "__runtypes", "enriched", "i18n", "es", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../../models/user';\n"+
+		"import type { Translation } from '@ts-runtypes/core';\n\nexport const es_friendlyUser = {};\n")
+
+	findings := checkMirrorFile(mirror, "")
+	if len(findings) != 1 || findings[0].Code != "GE001" {
+		t.Fatalf("relocated locale mirror should yield exactly one GE001; got %+v", findings)
+	}
+}
+
 // TestCheckMirrorFile_LegacyCombinedDrifts: a pre-split combined mirror (no
 // family segment in its path) is flagged GE001 so the user re-runs gen to
 // migrate it into the per-family files.
