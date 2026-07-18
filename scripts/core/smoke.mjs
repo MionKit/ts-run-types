@@ -7,7 +7,7 @@
 //   - The plugin's transform() recognises the marker import and produces a
 //     Site for both reflection forms AND a createX call.
 //   - scanFiles({includeEntryModules: true}) returns the cache modules the
-//     resolver would serve to Vite at virtual:rt/<…>.js.
+//     resolver would serve to Vite at rtmod:/<…>.js.
 //
 // Fixture coverage follows the marker test coverage rule (CLAUDE.md):
 //   - getRunTypeId<T>()        — static
@@ -78,7 +78,7 @@ try {
   }
 
   // 2) Resolver renders the cache modules the plugin would serve at
-  //    virtual:rt/<…>.js. An empty entryModules map means the type-fn /
+  //    rtmod:/<…>.js. An empty entryModules map means the type-fn /
   //    runtype bundle pipeline never fired.
   const result = await client.scanFiles(FILES, {includeEntryModules: true});
   const sites = result.sites ?? [];

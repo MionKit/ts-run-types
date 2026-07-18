@@ -310,15 +310,19 @@ var JsonStrategyFamilies = map[string][]string{
 
 // Per-entry virtual module settings (mirrored to TS via gen-ts-constants).
 // Every cache entry — runtype node, type-fn factory, JSON composite, pure fn —
-// is served as its own ES module `<VirtualModulePrefix><basename><EntryModuleSuffix>`
+// is served as its own ES module `<EntryModulePrefix><basename><EntryModuleSuffix>`
 // exporting one tuple under its binding name (entrymod.ExportName —
 // `<EntryBindingPrefix><identifier-escaped basename>`). The SAME name binds
 // the entry everywhere: the export, every import clause, and the call-site
-// binding the rewrite injects. See internal/compiler/virtualmodules.
+// binding the rewrite injects. See internal/compiler/entrymodules.
 const (
-	// VirtualModulePrefix is the Vite virtual-module namespace every entry
-	// module lives under.
-	VirtualModulePrefix = "virtual:rt/"
+	// EntryModulePrefix is the INTERNAL render-time specifier scheme every
+	// entry module is named under (`rtmod:/<basename>.js`). It never reaches
+	// a bundler or disk: the resolver relativizes every occurrence to a real
+	// relative path (post-render for inter-module imports, post-Apply for the
+	// imports injected into user files). A scheme rather than a path keeps
+	// rendered module text location-independent and the golden corpus stable.
+	EntryModulePrefix = "rtmod:/"
 	// EntryModuleSuffix terminates every entry-module specifier; the .js
 	// extension keeps downstream tooling (and import-analysis fast paths)
 	// treating the virtual id as plain JS.
@@ -333,7 +337,7 @@ const (
 	// keyed runtype / type-fn modules.
 	PureFnModuleDir = "pf"
 	// RunTypesBundleBasename names the SINGLE runtype data module
-	// (`virtual:rt/runtypes.js`): every reflection-demanded node lives there
+	// (`rtmod:/runtypes.js`): every reflection-demanded node lives there
 	// as one tuple row, deduplicated app-wide, with per-root facade modules
 	// aliasing into it. Unlike every other entry module it is NOT
 	// content-addressed — the Vite plugin invalidates it when a scan reports

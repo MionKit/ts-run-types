@@ -13,7 +13,7 @@
       }
     ],
     "replacements": [],
-    "expectedCode": "import {__rt_Crlf001} from 'virtual:rt/Crlf001.js';\nconst a = 1;\r\nconst id = getRunTypeId<string>(undefined, __rt_Crlf001);\r\n",
+    "expectedCode": "import {__rt_Crlf001} from 'rtmod:/Crlf001.js';\nconst a = 1;\r\nconst id = getRunTypeId<string>(undefined, __rt_Crlf001);\r\n",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -40,7 +40,7 @@
       }
     ],
     "replacements": [],
-    "expectedCode": "import {__rt_Tab0001} from 'virtual:rt/Tab0001.js';\n\t\tconst id = getRunTypeId<string>(undefined, __rt_Tab0001);\n",
+    "expectedCode": "import {__rt_Tab0001} from 'rtmod:/Tab0001.js';\n\t\tconst id = getRunTypeId<string>(undefined, __rt_Tab0001);\n",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -74,7 +74,7 @@
       }
     ],
     "replacements": [],
-    "expectedCode": "import {__rt_Mb00001} from 'virtual:rt/Mb00001.js'; import {__rt_Mb00002} from 'virtual:rt/Mb00002.js';\n// 🦄 — 🚀 — header\nconst a = getRunTypeId<string>(undefined, __rt_Mb00001);\n// más\nconst b = getRunTypeId<number>(undefined, __rt_Mb00002);\n",
+    "expectedCode": "import {__rt_Mb00001} from 'rtmod:/Mb00001.js'; import {__rt_Mb00002} from 'rtmod:/Mb00002.js';\n// 🦄 — 🚀 — header\nconst a = getRunTypeId<string>(undefined, __rt_Mb00001);\n// más\nconst b = getRunTypeId<number>(undefined, __rt_Mb00002);\n",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -98,10 +98,10 @@
         "start": 31,
         "end": 49,
         "text": "__rt_pf_ns_f",
-        "importFrom": "virtual:rt/pf/ns/f.js"
+        "importFrom": "rtmod:/pf/ns/f.js"
       }
     ],
-    "expectedCode": "import {__rt_pf_ns_f} from 'virtual:rt/pf/ns/f.js';\nregisterPureFnFactory('ns::f', __rt_pf_ns_f);\n",
+    "expectedCode": "import {__rt_pf_ns_f} from 'rtmod:/pf/ns/f.js';\nregisterPureFnFactory('ns::f', __rt_pf_ns_f);\n",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -129,7 +129,7 @@
       }
     ],
     "replacements": [],
-    "expectedCode": "import {__rt_verr_Big0001} from 'virtual:rt/verr_Big0001.js';\nconst v = createGetValidationErrors<T>(opts, undefined, undefined, __rt_verr_Big0001);\n",
+    "expectedCode": "import {__rt_verr_Big0001} from 'rtmod:/verr_Big0001.js';\nconst v = createGetValidationErrors<T>(opts, undefined, undefined, __rt_verr_Big0001);\n",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -158,7 +158,7 @@
       }
     ],
     "replacements": [],
-    "expectedCode": "import {__rt_val_Bun0001} from 'virtual:rt/fns/val.js';\nconst v = createValidate<T>(undefined, __rt_val_Bun0001);\n",
+    "expectedCode": "import {__rt_val_Bun0001} from 'rtmod:/fns/val.js';\nconst v = createValidate<T>(undefined, __rt_val_Bun0001);\n",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -182,17 +182,17 @@
         "start": 10,
         "end": 13,
         "text": "__rt_shared_a",
-        "importFrom": "virtual:rt/shared.js"
+        "importFrom": "rtmod:/shared.js"
       },
       {
         "file": "a.ts",
         "start": 26,
         "end": 29,
         "text": "__rt_shared_b",
-        "importFrom": "virtual:rt/shared.js"
+        "importFrom": "rtmod:/shared.js"
       }
     ],
-    "expectedCode": "import {__rt_shared_a, __rt_shared_b} from 'virtual:rt/shared.js';\nregA('x', __rt_shared_a); regB('y', __rt_shared_b);\n",
+    "expectedCode": "import {__rt_shared_a, __rt_shared_b} from 'rtmod:/shared.js';\nregA('x', __rt_shared_a); regB('y', __rt_shared_b);\n",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -219,7 +219,7 @@
       }
     ],
     "replacements": [],
-    "expectedCode": "import {__rt_Eof0001} from 'virtual:rt/Eof0001.js';\nconst id = getRunTypeId<string>(undefined, __rt_Eof0001)",
+    "expectedCode": "import {__rt_Eof0001} from 'rtmod:/Eof0001.js';\nconst id = getRunTypeId<string>(undefined, __rt_Eof0001)",
     "expectedMap": {
       "version": 3,
       "sources": [
@@ -246,7 +246,7 @@
       }
     ],
     "replacements": [],
-    "expectedCode": "import {__rt_Ast0001} from 'virtual:rt/Ast0001.js';\nconst w = \"𝕏abc\"; const id = getRunTypeId<string>(undefined, __rt_Ast0001);\n",
+    "expectedCode": "import {__rt_Ast0001} from 'rtmod:/Ast0001.js';\nconst w = \"𝕏abc\"; const id = getRunTypeId<string>(undefined, __rt_Ast0001);\n",
     "expectedMap": {
       "version": 3,
       "sources": [

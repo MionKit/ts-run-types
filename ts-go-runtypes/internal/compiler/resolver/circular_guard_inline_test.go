@@ -75,7 +75,7 @@ export const isNode = createValidate<Node>();
 			t.Errorf("plain cyclable type served the walker in %q — demand leaked:\n%s", name, mod)
 		}
 		// No RunType data bundle (kind-4 row bundle) for a plain createX cyclable type.
-		if strings.HasPrefix(mod, "export const __rt_runtypes") || strings.Contains(mod, "virtual:rt/runtypes.js") {
+		if strings.HasPrefix(mod, "export const __rt_runtypes") || strings.Contains(mod, "rtmod:/runtypes.js") {
 			t.Errorf("plain cyclable type emitted / imported a RunType bundle in %q:\n%s", name, mod)
 		}
 	}

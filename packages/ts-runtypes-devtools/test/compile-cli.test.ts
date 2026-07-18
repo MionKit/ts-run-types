@@ -59,7 +59,7 @@ describe('ts-runtypes --compile (tsc-like CLI)', () => {
 
       // (1) Emitted .js: types stripped, binding import relativized, call rewritten.
       const js = fs.readFileSync(path.join(dir, 'dist', 'user.js'), 'utf8');
-      expect(js).not.toContain('virtual:rt');
+      expect(js).not.toContain('rtmod:');
       expect(js).toMatch(/import \{\s*__rt_[A-Za-z0-9_$]+\s*\} from '\.\.\/__runtypes\/types\/[A-Za-z0-9_$]+\.js'/);
       expect(js).toMatch(/createValidate\(undefined, undefined, __rt_[A-Za-z0-9_$]+\)/);
 

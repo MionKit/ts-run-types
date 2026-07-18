@@ -17,9 +17,9 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -134,8 +134,8 @@ func elapsedMs(start time.Time) float64 {
 // fan-out preserved), JSON composites, pure fns, the cross-family fixpoint,
 // the global dangling-dep cascade, and missing stubs for demanded keys that
 // didn't survive. Returns the rendered modules keyed by module BASENAME.
-func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph virtualmodules.Graph, metrics *protocol.Metrics) (map[string]string, error) {
-	var graph virtualmodules.Graph
+func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph entrymodules.Graph, metrics *protocol.Metrics) (map[string]string, error) {
+	var graph entrymodules.Graph
 	if sess.opts.ModuleMode == constants.ModuleModeAllModules {
 		graph = runtype.CollectEntriesPerNode(dump)
 	} else {
@@ -191,7 +191,7 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	// fallbacks no site demanded) keep their own per-entry module.
 	if sess.opts.ModuleMode == constants.ModuleModeAllSingle {
 		for key, entry := range graph {
-			if entry.Kind == virtualmodules.KindMissing && entry.FamilyTag == "" {
+			if entry.Kind == entrymodules.KindMissing && entry.FamilyTag == "" {
 				entry.FamilyTag = demandTags[key]
 			}
 		}
@@ -199,7 +199,7 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	pruneUnreachableTypeFnEntries(graph, demanded)
 
 	renderStart := time.Now()
-	modules, err := virtualmodules.RenderGrouped(graph, sess.moduleGrouping())
+	modules, err := entrymodules.RenderGrouped(graph, sess.moduleGrouping())
 	if metrics != nil {
 		metrics.RenderMs["entryModules"] = elapsedMs(renderStart)
 	}
@@ -214,9 +214,9 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 // registry order: first error wins, RenderMs recorded (values overlap
 // wall-clock; their sum exceeds elapsed time), shard diagnostics appended
 // (== the sequential order), and Facts shards merged into the dispatch opts.
-func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]virtualmodules.Graph, error) {
+func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]entrymodules.Graph, error) {
 	families := typefunctions.Families
-	graphs := make([]virtualmodules.Graph, len(families))
+	graphs := make([]entrymodules.Graph, len(families))
 	if !sess.parallelRenderEnabled() || len(families) < 2 {
 		for familyIndex, spec := range families {
 			collectStart := time.Now()
@@ -347,12 +347,12 @@ var familyByPlainHash = func() map[string]typefunctions.FamilySpec {
 // rendered set grows monotonically toward the (finite) session type set. The
 // guard cap is defensive — hitting it leaves the remaining edges to the stub
 // pass, which preserves the build (runtime degrades to identity fallback).
-func (sess *Session) resolveCrossFamilyEdges(graph virtualmodules.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
+func (sess *Session) resolveCrossFamilyEdges(graph entrymodules.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
 	seedDump := protocol.Dump{RunTypes: dump.RunTypes}
 	for iteration := 0; iteration < 8; iteration++ {
 		missingByFamily := map[string]map[string]bool{}
 		for _, entry := range graph {
-			if entry.Kind != virtualmodules.KindTypeFn {
+			if entry.Kind != entrymodules.KindTypeFn {
 				continue
 			}
 			// Cross-family edges ride SoftDeps (hard Deps are same-family and
@@ -518,7 +518,7 @@ func (sess *Session) pureFnReplacementFiles(metrics *protocol.Metrics) []string 
 // via reflection-site bindings and pure-fn modules via their own injected
 // registration sites — neither rides the fn-site demand list, so reachability
 // over it would under-approximate their liveness.
-func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string) {
+func pruneUnreachableTypeFnEntries(graph entrymodules.Graph, demanded []string) {
 	live := make(map[string]bool, len(graph))
 	stack := make([]string, 0, len(graph))
 	enqueue := func(key string) {
@@ -528,7 +528,7 @@ func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string
 		}
 	}
 	for key, entry := range graph {
-		if entry != nil && entry.Kind != virtualmodules.KindTypeFn {
+		if entry != nil && entry.Kind != entrymodules.KindTypeFn {
 			enqueue(key)
 		}
 	}
@@ -550,35 +550,35 @@ func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string
 		}
 	}
 	for key, entry := range graph {
-		if entry != nil && entry.Kind == virtualmodules.KindTypeFn && !live[key] {
+		if entry != nil && entry.Kind == entrymodules.KindTypeFn && !live[key] {
 			delete(graph, key)
 		}
 	}
 }
 
-// moduleGrouping returns the virtualmodules.Grouping for the resolver's module
+// moduleGrouping returns the entrymodules.Grouping for the resolver's module
 // mode. Nil (everything per-entry, the runtype bundle shaping its own module
 // via CollectEntries) for default/allModules; the allSingle partition
 // otherwise: fn/composite entries ride `fns/<familyTag>` bundles, pure fns
 // the `pf` bundle, the reflection facades fold into the runtypes bundle, and
 // missing stubs follow their demanding site's family (per-entry when no site
 // demanded them — soft-dep stubs keep their own resolvable module).
-func (sess *Session) moduleGrouping() virtualmodules.Grouping {
+func (sess *Session) moduleGrouping() entrymodules.Grouping {
 	if sess.opts.ModuleMode != constants.ModuleModeAllSingle {
 		return nil
 	}
-	return func(entry *virtualmodules.Entry) string {
+	return func(entry *entrymodules.Entry) string {
 		switch entry.Kind {
-		case virtualmodules.KindTypeFn:
+		case entrymodules.KindTypeFn:
 			return constants.FnsBundleDir + "/" + entry.FamilyTag
-		case virtualmodules.KindMissing:
+		case entrymodules.KindMissing:
 			if entry.FamilyTag != "" {
 				return constants.FnsBundleDir + "/" + entry.FamilyTag
 			}
 			return ""
-		case virtualmodules.KindPureFn:
+		case entrymodules.KindPureFn:
 			return constants.PureFnModuleDir
-		case virtualmodules.KindRunTypeBundle, virtualmodules.KindRunTypeFacade:
+		case entrymodules.KindRunTypeBundle, entrymodules.KindRunTypeFacade:
 			return constants.RunTypesBundleBasename
 		}
 		return ""
@@ -632,7 +632,7 @@ func (sess *Session) stampSiteModules(sites []protocol.Site) []protocol.Site {
 // now validated against the table instead of taken on faith (the exemption flip).
 // Runs post-Cascade so demand reflects only entries that will ship, and
 // pre-AddMissingStubs so a served built-in never degrades to a KindMissing stub.
-func (sess *Session) serveBuiltinPureFns(graph virtualmodules.Graph, diagSink *[]diagnostics.Diagnostic) {
+func (sess *Session) serveBuiltinPureFns(graph entrymodules.Graph, diagSink *[]diagnostics.Diagnostic) {
 	keys := make([]string, 0, len(graph))
 	for key := range graph {
 		keys = append(keys, key)
@@ -658,7 +658,7 @@ func (sess *Session) serveBuiltinPureFns(graph virtualmodules.Graph, diagSink *[
 			// error). Restricted to type-fn entries — only their bodies reach
 			// built-ins, so the anonymous `rt::<hash>` user lane (which shares the
 			// `rt` namespace but lives only on pure-fn entries) is never misread.
-			if entry.Kind == virtualmodules.KindTypeFn && isBuiltinPureFnKey(dep) {
+			if entry.Kind == entrymodules.KindTypeFn && isBuiltinPureFnKey(dep) {
 				addDemand(dep)
 			}
 		}
@@ -1041,7 +1041,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 				// edited the source out from under the resolver's byte offsets.
 				importBlock, edits := sourcerewrite.ComputeEdits(source, fileSites, fileReplacements)
 				if importBlock != "" && request.OutDir != "" {
-					// Files-mode: relativize the injected block's virtual:rt
+					// Files-mode: relativize the injected block's rtmod:
 					// specifiers exactly as 'go' mode does to the whole file —
 					// the block is the only place those specifiers appear.
 					importBlock = relativizeUserImports(sess.absPath(file), sess.absPath(request.OutDir), importBlock)
@@ -1055,7 +1055,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			}
 			code, sourceMap := sourcerewrite.Apply(file, source, fileSites, fileReplacements)
 			if request.OutDir != "" {
-				// Files-mode: rewrite the injected import block's virtual:rt
+				// Files-mode: rewrite the injected import block's rtmod:
 				// specifiers to paths relative to this file (the generated
 				// modules live on disk under OutDir/types). Both bases are
 				// absolutized against the resolver cwd so filepath.Rel always
@@ -1174,7 +1174,7 @@ func (sess *Session) extractPureFnsForScan(files []string) (entries []purefuncti
 	// served on demand only when a fn body reaches one. An in-repo build resolves
 	// the package via `src/`, so the extractor sees the built-in registrations in
 	// pure-fns-utils.ts / *-pure-fns.ts; rewriting those factory args to
-	// `import 'virtual:rt/pf/rt/…'` would DANGLE whenever the module isn't demanded
+	// `import 'rtmod:/pf/rt/…'` would DANGLE whenever the module isn't demanded
 	// (e.g. a file that imports the marker but calls no createX). Leaving them as
 	// plain `registerPureFnFactory(key, factory)` calls keeps the harmless runtime
 	// fallback registration (idempotent with the table's tuple; hollowed in dist).

@@ -559,7 +559,7 @@ function severityLabel(s: Severity): string {
 
 export type {PluginOptions as Options};
 export {
-  VIRTUAL_MODULE_PREFIX,
+  ENTRY_MODULE_PREFIX,
   ENTRY_MODULE_SUFFIX,
   ENTRY_BINDING_PREFIX,
   CACHE_MODULES,

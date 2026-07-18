@@ -38,7 +38,7 @@ export const e = createGetValidationErrors<{a: string; b: number}>();
 		t.Fatalf("expected no diagnostics, got %+v", resp.Diagnostics)
 	}
 
-	const specifier = "virtual:rt/pf/rt/newRunTypeErr.js"
+	const specifier = "rtmod:/pf/rt/newRunTypeErr.js"
 	verrName, verrMod, ok := moduleImporting(resp.EntryModules, specifier)
 	if !ok {
 		t.Fatalf("no entry module imports %s\nmodules: %v", specifier, keys(resp.EntryModules))
@@ -79,7 +79,7 @@ export const v = createValidate<TypeFormat<string, 'uuid', {version: '4'}>>();
 	if _, ok := resp.EntryModules["pf/rtFormats/isUUID"]; !ok {
 		t.Errorf("format built-in pf/rtFormats/isUUID was not served\nmodules: %v", keys(resp.EntryModules))
 	}
-	if _, _, ok := moduleImporting(resp.EntryModules, "virtual:rt/pf/rtFormats/isUUID.js"); !ok {
+	if _, _, ok := moduleImporting(resp.EntryModules, "rtmod:/pf/rtFormats/isUUID.js"); !ok {
 		t.Errorf("no entry imports the rtFormats::isUUID module")
 	}
 }

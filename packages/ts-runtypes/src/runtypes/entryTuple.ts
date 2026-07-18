@@ -2,7 +2,7 @@
 //
 // ⚠️  SYNC BOUNDARY — MUST STAY ALIGNED WITH THE GO EMITTER
 // ----------------------------------------------------------------------------
-// The Go binary emits one ES module per cache entry (`virtual:rt/<key>.js`),
+// The Go binary emits one ES module per cache entry (`rtmod:/<key>.js`),
 // exporting a positional tuple under the entry's binding name (`__rt_<key>`,
 // identifier-escaped — the same name every importer binds). Tuples are typed
 // here as RECORD interfaces (`RunTypeBundleRecord` / `FnTypeRecord` /
@@ -27,11 +27,11 @@
 //
 // Runtype nodes are special-cased for density: every reflection-demanded
 // node rides as one headless ROW of THE single data-bundle module
-// (`virtual:rt/runtypes.js`, kind 4 — rows in slot 4, a parallel `rels` array
+// (`rtmod:/runtypes.js`, kind 4 — rows in slot 4, a parallel `rels` array
 // in slot 5 wiring each node's ref slots by ROW INDEX, content-hash key in
 // slot 3, and a residual ini in slot 2 for the rare expression-specials only),
 // and each reflection root gets a tiny facade module
-// (`virtual:rt/<rootId>.js`, kind 5) that imports the bundle and carries the
+// (`rtmod:/<rootId>.js`, kind 5) that imports the bundle and carries the
 // root id in its key slot. Each node exists exactly once app-wide; facades
 // keep the rewrite's binding-only injection working unchanged.
 //
@@ -178,7 +178,7 @@ export interface RunTypeRecord extends RunTypeRowRecord {
   ini: RunTypeIni | undefined;
 }
 
-/** Named view of THE runtype data-bundle module (`virtual:rt/runtypes.js`):
+/** Named view of THE runtype data-bundle module (`rtmod:/runtypes.js`):
  *  every reflection-demanded node as one headless row (`rows`), a parallel
  *  `rels` array wiring each node's ref-bearing slots by ROW INDEX (see
  *  wireBundleRelations), and a residual `ini` carrying only the rare
@@ -196,7 +196,7 @@ export interface RunTypeBundleRecord {
 }
 
 /** Named view of a per-reflection-root facade module
- *  (`virtual:rt/<rootId>.js`): registers nothing — it carries the root id in
+ *  (`rtmod:/<rootId>.js`): registers nothing — it carries the root id in
  *  the key slot and the bundle in its deps thunk, so the rewrite's
  *  binding-only injection keeps deriving ids from the tuple. **/
 export interface RunTypeFacadeRecord {

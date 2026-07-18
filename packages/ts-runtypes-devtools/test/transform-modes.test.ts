@@ -232,7 +232,7 @@ export const staticId = getRunTypeId<User>();
       const {sites, applied} = await assertModeParity(client, 'user.ts', source);
       // The bundle-stamped site imports from the runtypes bundle, not its own module.
       expect(sites[0].module).toBeTruthy();
-      expect(applied.code).toContain(`from 'virtual:rt/${sites[0].module}.js'`);
+      expect(applied.code).toContain(`from 'rtmod:/${sites[0].module}.js'`);
     } finally {
       client.close();
     }

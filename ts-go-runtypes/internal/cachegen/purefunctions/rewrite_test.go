@@ -34,7 +34,7 @@ export const _ = registerPureFnFactory('rt::foo', function (utl) {
 	if reps[0].Text != "__rt_pf$2Frt$2Ffoo" {
 		t.Errorf("expected the entry-module binding, got %q", reps[0].Text)
 	}
-	if reps[0].ImportFrom != "virtual:rt/pf/rt/foo.js" {
+	if reps[0].ImportFrom != "rtmod:/pf/rt/foo.js" {
 		t.Errorf("expected the virtual specifier, got %q", reps[0].ImportFrom)
 	}
 	if reps[0].Start != entry.FactoryArgStart || reps[0].End != entry.FactoryArgEnd {

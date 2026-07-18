@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 )
 
@@ -26,7 +26,7 @@ func TestCollectEntries_SingleEntry(t *testing.T) {
 	if entry == nil {
 		t.Fatalf("expected an entry keyed by 'rt::asJSONString', got %v", graph)
 	}
-	if entry.Kind != virtualmodules.KindPureFn {
+	if entry.Kind != entrymodules.KindPureFn {
 		t.Errorf("Kind: got %v want KindPureFn", entry.Kind)
 	}
 	// 6-arg tail: key, bodyHash, paramNames, code, pureFnDependencies, createPureFn.
@@ -88,7 +88,7 @@ func TestCollectEntries_RenderedModuleShape(t *testing.T) {
 		{Namespace: "b", FunctionName: "y", Code: "return utl.usePureFn('a::x')();", BodyHash: "h2",
 			ParamNames: []string{}, PureFnDependencies: []string{"a::x"}},
 	}, constants.EmitBoth)
-	modules, err := virtualmodules.RenderGrouped(graph, nil)
+	modules, err := entrymodules.RenderGrouped(graph, nil)
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestCollectEntries_RenderedModuleShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected module basename pf/b/y, got %v", keysOf(modules))
 	}
-	if !strings.Contains(consumer, "import {__rt_pf$2Fa$2Fx} from 'virtual:rt/pf/a/x.js';") {
+	if !strings.Contains(consumer, "import {__rt_pf$2Fa$2Fx} from 'rtmod:/pf/a/x.js';") {
 		t.Errorf("pure-fn dep import missing:\n%s", consumer)
 	}
 	if !strings.Contains(consumer, "export const __rt_pf$2Fb$2Fy=[2,()=>[__rt_pf$2Fa$2Fx],,'b::y',") {
@@ -122,7 +122,7 @@ func TestReplacements_SwapsFactoryArgForBinding(t *testing.T) {
 	if got[0].Text != "__rt_pf$2Frt$2Ffoo" {
 		t.Errorf("Text should be the entry-module binding, got %q", got[0].Text)
 	}
-	if got[0].ImportFrom != "virtual:rt/pf/rt/foo.js" {
+	if got[0].ImportFrom != "rtmod:/pf/rt/foo.js" {
 		t.Errorf("ImportFrom should be the virtual specifier, got %q", got[0].ImportFrom)
 	}
 }

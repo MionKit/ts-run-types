@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -18,7 +18,7 @@ import (
 // first — production (resolver.collectEntryModules) always cascades before
 // rendering, so a single-family join must too or it would surface parents
 // whose dropped children make them unservable.
-func joinEntries(t *testing.T, graph virtualmodules.Graph) string {
+func joinEntries(t *testing.T, graph entrymodules.Graph) string {
 	t.Helper()
 	graph.Cascade()
 	keys := make([]string, 0, len(graph))

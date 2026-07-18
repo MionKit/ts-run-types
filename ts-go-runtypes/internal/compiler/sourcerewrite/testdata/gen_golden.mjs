@@ -93,7 +93,7 @@ cases.push(async () => {
   const start = byteIndexOf(code, '() => 1');
   const end = start + Buffer.byteLength('() => 1', 'utf8');
   const replacements = [
-    {file: 'a.ts', start, end, text: '__rt_pf_rt_foo', importFrom: 'virtual:rt/pf/rt/foo.js'},
+    {file: 'a.ts', start, end, text: '__rt_pf_rt_foo', importFrom: 'rtmod:/pf/rt/foo.js'},
   ];
   await emit('pure_fn_replace', 'a.ts', code, [], replacements);
 });
@@ -154,7 +154,7 @@ cases.push(async () => {
   const sitePos = byteIndexOf(code, ')', code.indexOf('createValidate<Baz>'));
   const sites = [{file: 'a.ts', pos: sitePos, id: 'Baz6666', paramIndex: 1, argsCount: 0, fnId: 'val'}];
   const replacements = [
-    {file: 'a.ts', start, end, text: '__rt_pf_rt_foo', importFrom: 'virtual:rt/pf/rt/foo.js'},
+    {file: 'a.ts', start, end, text: '__rt_pf_rt_foo', importFrom: 'rtmod:/pf/rt/foo.js'},
   ];
   await emit('mixed', 'a.ts', code, sites, replacements);
 });

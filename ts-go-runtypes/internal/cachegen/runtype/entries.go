@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/hashid"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -15,9 +15,9 @@ import (
 const bundleKeyLength = 10
 
 // CollectEntries builds the runtype side of the entry-module graph: ONE data
-// bundle (`virtual:rt/runtypes.js`) carrying every reflection-demanded node
+// bundle (`rtmod:/runtypes.js`) carrying every reflection-demanded node
 // as a headless tuple row with a single combined footer initializer, plus one
-// facade module per reflection ROOT (`virtual:rt/<rootId>.js` — the module
+// facade module per reflection ROOT (`rtmod:/<rootId>.js` — the module
 // the rewrite's binding-only injection already imports at getRunTypeId /
 // builder / mock sites). Function-family modules never
 // import runtype modules, so the runtype graph is self-contained: the bundle
@@ -32,8 +32,8 @@ const bundleKeyLength = 10
 // the bundle content does and the runtime's processed-keys guard re-registers
 // an evolved bundle after an HMR reload (the module NAME stays fixed; the
 // Vite plugin invalidates it on addedRunTypes).
-func CollectEntries(dump protocol.Dump) virtualmodules.Graph {
-	graph := virtualmodules.Graph{}
+func CollectEntries(dump protocol.Dump) entrymodules.Graph {
+	graph := entrymodules.Graph{}
 	nodes := indexNodes(dump.RunTypes)
 	// Bundle rows are the reflection-only roots' graphs. Circular createX types
 	// no longer contribute rows: the circular-reference guard became a
@@ -79,9 +79,9 @@ func CollectEntries(dump protocol.Dump) virtualmodules.Graph {
 		relEnd--
 	}
 	bundleKey := "rts_" + hashid.QuickHash(strings.Join(rows, ","), bundleKeyLength, "")
-	graph.Add(&virtualmodules.Entry{
+	graph.Add(&entrymodules.Entry{
 		Key:      bundleKey,
-		Kind:     virtualmodules.KindRunTypeBundle,
+		Kind:     entrymodules.KindRunTypeBundle,
 		ArgsText: quoteJS(bundleKey) + ",[" + rowsText.String() + "],[" + strings.Join(relRows[:relEnd], ",") + "]",
 		InitBody: footer.String(),
 	})
@@ -89,9 +89,9 @@ func CollectEntries(dump protocol.Dump) virtualmodules.Graph {
 	// made it into the dump (defensive): the injected import must resolve, and
 	// the runtime degrades to a registry miss exactly as before.
 	for _, root := range facadeRoots {
-		graph.Add(&virtualmodules.Entry{
+		graph.Add(&entrymodules.Entry{
 			Key:      root,
-			Kind:     virtualmodules.KindRunTypeFacade,
+			Kind:     entrymodules.KindRunTypeFacade,
 			ArgsText: quoteJS(root),
 			Deps:     []string{bundleKey},
 		})
@@ -110,7 +110,7 @@ func indexNodes(runTypes []*protocol.RunType) map[string]*protocol.RunType {
 	return nodes
 }
 
-// CollectEntriesPerNode is the allModules-mode collector: one virtualmodules.Entry
+// CollectEntriesPerNode is the allModules-mode collector: one entrymodules.Entry
 // per cached RunType (the pre-bundle layout). Tuple args reuse
 // renderFactoryArgs verbatim, the per-entry init body reuses writeFooter, and
 // Deps collects the KindRef ids the footer references so the assembler
@@ -118,8 +118,8 @@ func indexNodes(runTypes []*protocol.RunType) map[string]*protocol.RunType {
 // scoping happens at the dump layer (scopedDump for scanFiles, full cache for
 // dump). Measured slower than the bundle on dense reflection graphs (the
 // reason the bundle replaced it) — kept as the allModules escape hatch.
-func CollectEntriesPerNode(dump protocol.Dump) virtualmodules.Graph {
-	graph := make(virtualmodules.Graph, len(dump.RunTypes))
+func CollectEntriesPerNode(dump protocol.Dump) entrymodules.Graph {
+	graph := make(entrymodules.Graph, len(dump.RunTypes))
 	for _, runType := range dump.RunTypes {
 		if runType == nil || runType.ID == "" {
 			continue
@@ -129,9 +129,9 @@ func CollectEntriesPerNode(dump protocol.Dump) virtualmodules.Graph {
 		// (each child rides its own module dep), unlike the data bundle which
 		// uses row indices.
 		writeFooter(&footer, runType)
-		graph.Add(&virtualmodules.Entry{
+		graph.Add(&entrymodules.Entry{
 			Key:      runType.ID,
-			Kind:     virtualmodules.KindRunType,
+			Kind:     entrymodules.KindRunType,
 			ArgsText: strings.Join(renderFactoryArgs(runType), ","),
 			InitBody: footer.String(),
 			Deps:     collectRefDeps(runType),

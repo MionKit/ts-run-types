@@ -15,7 +15,7 @@ import {
   MODULE_MODE_ALL_MODULES,
   MODULE_MODE_ALL_SINGLE,
   RUNTYPES_BUNDLE_BASENAME,
-  VIRTUAL_MODULE_PREFIX,
+  ENTRY_MODULE_PREFIX,
 } from '../src/go-generated/runtypes-constants.generated.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -46,7 +46,7 @@ export const staticId = getRunTypeId<User>();
       expect(sites.length).toBe(1);
       expect(sites[0].module).toBe(RUNTYPES_BUNDLE_BASENAME);
       const binding = ENTRY_BINDING_PREFIX + sites[0].id;
-      expect(out).toContain(`import {${binding}} from '${VIRTUAL_MODULE_PREFIX}${RUNTYPES_BUNDLE_BASENAME}.js';`);
+      expect(out).toContain(`import {${binding}} from '${ENTRY_MODULE_PREFIX}${RUNTYPES_BUNDLE_BASENAME}.js';`);
       expect(out).toContain(`getRunTypeId<User>(undefined, ${binding});`);
     });
   });
@@ -62,7 +62,7 @@ export const reflectedId = getRunTypeId(u);
       expect(sites.length).toBe(1);
       expect(sites[0].module).toBe(RUNTYPES_BUNDLE_BASENAME);
       const binding = ENTRY_BINDING_PREFIX + sites[0].id;
-      expect(out).toContain(`import {${binding}} from '${VIRTUAL_MODULE_PREFIX}${RUNTYPES_BUNDLE_BASENAME}.js';`);
+      expect(out).toContain(`import {${binding}} from '${ENTRY_MODULE_PREFIX}${RUNTYPES_BUNDLE_BASENAME}.js';`);
       expect(out).toContain(`getRunTypeId(u, ${binding});`);
     });
   });
@@ -77,7 +77,7 @@ export const isBeta = createValidate<Beta>();
     await withModeClient(MODULE_MODE_ALL_SINGLE, {'pair.ts': code}, async (client) => {
       const {code: out, sites} = await rewrite('pair.ts', code, client);
       expect(sites.length).toBe(2);
-      const valSpecifier = `${VIRTUAL_MODULE_PREFIX}${FNS_BUNDLE_DIR}/val.js`;
+      const valSpecifier = `${ENTRY_MODULE_PREFIX}${FNS_BUNDLE_DIR}/val.js`;
       for (const site of sites) expect(site.module).toBe(`${FNS_BUNDLE_DIR}/val`);
       // Exactly one import statement for the bundle, carrying both bindings.
       const occurrences = out.split(`from '${valSpecifier}'`).length - 1;
@@ -157,7 +157,7 @@ export const staticId = getRunTypeId<User>();
       expect(sites.length).toBe(1);
       expect(sites[0].module ?? '').toBe('');
       // Per-entry form: named import of the root node module's binding.
-      expect(out).toContain(`import {${ENTRY_BINDING_PREFIX}${sites[0].id}} from '${VIRTUAL_MODULE_PREFIX}${sites[0].id}.js';`);
+      expect(out).toContain(`import {${ENTRY_BINDING_PREFIX}${sites[0].id}} from '${ENTRY_MODULE_PREFIX}${sites[0].id}.js';`);
       const scan = await client.scanFiles(['user.ts'], {includeEntryModules: true});
       expect(scan.entryModules?.[RUNTYPES_BUNDLE_BASENAME]).toBeUndefined();
       const rootModule = scan.entryModules?.[sites[0].id];

@@ -11,7 +11,7 @@
     }
   ],
   "replacements": [],
-  "expectedCode": "import {__rt_Inl5555} from 'virtual:rt/Inl5555.js';\nconst x = '🦄 — y'; const id = getRunTypeId<string>(undefined, __rt_Inl5555);\n",
+  "expectedCode": "import {__rt_Inl5555} from 'rtmod:/Inl5555.js';\nconst x = '🦄 — y'; const id = getRunTypeId<string>(undefined, __rt_Inl5555);\n",
   "expectedMap": {
     "version": 3,
     "sources": [

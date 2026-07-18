@@ -99,7 +99,7 @@ export const cpf = registerAnonymousPureFn(function _double(n: number): number {
       const reps = (response.replacements ?? []) as Replacement[];
       const {factory, hash} = factoryAndHashReplacements(reps);
       expect(factory, 'factory-arg rewrite').toBeTruthy();
-      expect(factory!.importFrom).toBe(`virtual:rt/pf/rt/${key.slice('rt::'.length)}.js`);
+      expect(factory!.importFrom).toBe(`rtmod:/pf/rt/${key.slice('rt::'.length)}.js`);
       expect(hash, 'hash splice').toBeTruthy();
       // The injected id is EXACTLY the key the entry registers under.
       expect(hash!.text).toBe(`, '${key}'`);

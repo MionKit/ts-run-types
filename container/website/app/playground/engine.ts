@@ -239,7 +239,7 @@ function materialize(
 
 // transformedSource returns the file the build plugin actually produces for the
 // selected factory: the resolver's real transform of `import … / <type> / const
-// … = <factory>…()`. That is the injected `import { __rt_… } from 'virtual:rt/…'`
+// … = <factory>…()`. That is the injected `import { __rt_… } from 'rtmod:/…'`
 // block plus the call rewritten with its trailing `__rt_…` argument — shown
 // verbatim in the type column's "after build" view so the edits the plugin makes
 // on top of the generated code are visible. Falls back to the untransformed
@@ -287,7 +287,7 @@ export async function transformedSource(
 // A single generated cache module: the virtual-module specifier the transformed
 // file (or a sibling cache) imports, plus its `export const __rt_… = […]` source.
 export interface CacheModule {
-  name: string; // e.g. `virtual:rt/fns/jdST.js`
+  name: string; // e.g. `rtmod:/fns/jdST.js`
   code: string;
 }
 
@@ -307,7 +307,7 @@ export async function generatedCache(
 ): Promise<CacheModule[]> {
   const {dispatch} = await getResolver(options);
   const {entryModules} = scan(dispatch, factory, userCode, mode, fnOptions);
-  return Object.entries(entryModules).map(([basename, code]) => ({name: `virtual:rt/${basename}.js`, code: code.trim()}));
+  return Object.entries(entryModules).map(([basename, code]) => ({name: `rtmod:/${basename}.js`, code: code.trim()}));
 }
 
 // mock generates a random value for the type via createMockData (the same

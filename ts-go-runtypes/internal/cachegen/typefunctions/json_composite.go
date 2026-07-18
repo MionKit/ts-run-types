@@ -6,7 +6,7 @@ import (
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -71,8 +71,8 @@ var (
 // noop gate, or disk-cached verdict). A primitive missing from the graph is
 // treated as live (conservative bind; AssertCompositeSoftDeps still surfaces
 // the invariant breach). Nil graph = bind everything (unit-test shape).
-func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered virtualmodules.Graph) virtualmodules.Graph {
-	graph := virtualmodules.Graph{}
+func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered entrymodules.Graph) entrymodules.Graph {
+	graph := entrymodules.Graph{}
 	refTable := opts.RefTable
 	if refTable == nil {
 		refTable = make(map[string]*protocol.RunType, len(dump.RunTypes))
@@ -124,7 +124,7 @@ func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered v
 // operation's entry for id — false exactly when the rendered graph holds a
 // noop (family-identity) entry for it, in which case calling it is dead
 // weight and the binding elides. Missing entries stay live (conservative).
-func primitiveIsLive(rendered virtualmodules.Graph, primOp string, id string) bool {
+func primitiveIsLive(rendered entrymodules.Graph, primOp string, id string) bool {
 	if rendered == nil {
 		return true
 	}
@@ -146,7 +146,7 @@ func primitiveIsLive(rendered virtualmodules.Graph, primOp string, id string) bo
 // structural id (+ family), so the liveness set is identical on every build
 // that hits the same structural header — recomputing deps from the current
 // graph on a cache hit always agrees with the baked body.
-func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts, rendered virtualmodules.Graph, refTable map[string]*protocol.RunType, rejectCircular bool) *virtualmodules.Entry {
+func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts, rendered entrymodules.Graph, refTable map[string]*protocol.RunType, rejectCircular bool) *entrymodules.Entry {
 	op, ok := operations.ByName(composite.OpName)
 	if !ok {
 		return nil
@@ -200,14 +200,14 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 			"undefined", // code — holed (runtime uses the composite's native-JSON noop)
 			"true",      // isNoop — kept: the signal that selects the noop fn
 		})
-		return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: joinArgs(args), IsNoop: true}
+		return &entrymodules.Entry{Key: entryKey, Kind: entrymodules.KindTypeFn, FamilyTag: tag, ArgsText: joinArgs(args), IsNoop: true}
 	}
 
 	// The armed variant shares the plain entry's (id, tag) disk-cache path, so it
 	// is session-rendered — never read from or written to that cache.
 	if !guarded {
 		if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
-			return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
+			return &entrymodules.Entry{Key: entryKey, Kind: entrymodules.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
 		}
 	}
 
@@ -243,7 +243,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	if !guarded {
 		writeCachedCompositeEntry(runType, tag, argsText, opts)
 	}
-	return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: softDeps}
+	return &entrymodules.Entry{Key: entryKey, Kind: entrymodules.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: softDeps}
 }
 
 // circularGuardPureFnKey is the built-in pure-fn key the armed circular guard
@@ -454,7 +454,7 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText s
 // third message arg regardless; when no site is known (unit-test shape, or a
 // composite with no recorded provenance) a single file-less diagnostic is
 // still emitted so the tripwire never goes silent.
-func AssertCompositeSoftDeps(graph virtualmodules.Graph, provenance map[string][]diagnostics.Site, diagSink *[]diagnostics.Diagnostic) {
+func AssertCompositeSoftDeps(graph entrymodules.Graph, provenance map[string][]diagnostics.Site, diagSink *[]diagnostics.Diagnostic) {
 	if diagSink == nil {
 		return
 	}
@@ -465,7 +465,7 @@ func AssertCompositeSoftDeps(graph virtualmodules.Graph, provenance map[string][
 	sort.Strings(keys)
 	for _, key := range keys {
 		entry := graph[key]
-		if entry == nil || entry.Kind != virtualmodules.KindTypeFn {
+		if entry == nil || entry.Kind != entrymodules.KindTypeFn {
 			continue
 		}
 		if _, ok := constants.JsonCompositeByTag(entry.FamilyTag); !ok {
@@ -479,7 +479,7 @@ func AssertCompositeSoftDeps(graph virtualmodules.Graph, provenance map[string][
 			if isBuiltinPureFnDep(dep) {
 				continue
 			}
-			if target, ok := graph[dep]; ok && target != nil && target.Kind != virtualmodules.KindMissing {
+			if target, ok := graph[dep]; ok && target != nil && target.Kind != entrymodules.KindMissing {
 				continue
 			}
 			_, typeID, ok := splitNamespacedHash(entry.Key)
