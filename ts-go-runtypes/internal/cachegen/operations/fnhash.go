@@ -30,6 +30,16 @@ func fnHashSalt(canonicalKey string) string {
 	return "op|" + canonicalKey
 }
 
+// circularCanonicalSuffix is appended to a CircularGuarded operation's canonical
+// key when the `rejectCircularRefs` compile option is armed. It is ORTHOGONAL to
+// every existing axis (validate options / json strategy / none) — the same
+// suffix folds into all four guarded families uniformly, so an armed factory and
+// a plain one for the same T hash to distinct entries (pay-for-use, like
+// noLiterals). The JS runtime mirror (fnHash.ts / fnHashes.generated.ts) uses the
+// token letter "C" for the same fork; the two strings differ but each maps to the
+// same hash value via FnHashFor, so they never need to match byte-for-byte.
+const circularCanonicalSuffix = "~C"
+
 // Canonical returns the deterministic, property-order-independent hash input for
 // an operation + its call-site compile-time args.
 //
@@ -44,9 +54,18 @@ func fnHashSalt(canonicalKey string) string {
 //   - AxisJsonStrategy:  Name + "|" + strategy, defaulting an empty strategy to
 //     the operation's DefaultStrategy.
 //
-// Any FUTURE axis that canonicalizes a raw object literal MUST recursively sort
-// its keys here to preserve order-independence.
-func Canonical(op Operation, optionNames []string, strategy string) string {
+// When `rejectCircular` is set on a CircularGuarded op, circularCanonicalSuffix
+// is appended after the axis key. Any FUTURE axis that canonicalizes a raw object
+// literal MUST recursively sort its keys here to preserve order-independence.
+func Canonical(op Operation, optionNames []string, strategy string, rejectCircular bool) string {
+	key := canonicalAxisKey(op, optionNames, strategy)
+	if rejectCircular && op.CircularGuarded {
+		key += circularCanonicalSuffix
+	}
+	return key
+}
+
+func canonicalAxisKey(op Operation, optionNames []string, strategy string) string {
 	switch op.Axis {
 	case AxisValidateOptions:
 		return op.Name + "|" + constants.ValidateVariantSuffix(optionNames)
@@ -73,46 +92,56 @@ func FnHash(canonicalKey string) string {
 
 // FnHashFor is the one-call convenience: Canonical + FnHash for an operation and
 // its call-site args. The scanner uses this to compute the injected fnHash and
-// the emitter to name entries.
-func FnHashFor(op Operation, optionNames []string, strategy string) string {
-	return FnHash(Canonical(op, optionNames, strategy))
+// the emitter to name entries. `rejectCircular` folds in only for CircularGuarded
+// operations (ignored otherwise).
+func FnHashFor(op Operation, optionNames []string, strategy string, rejectCircular bool) string {
+	return FnHash(Canonical(op, optionNames, strategy, rejectCircular))
 }
 
 // PlainHash returns the fnHash of an operation's DEFAULT variant (no options /
-// default strategy), looked up by canonical name. Used for cross-family
-// references that always target the plain form — e.g. the union-discriminator
-// `validate` check (PlainHash("validate")) and a walker's own-family InnerPrefix.
-// Panics on an unknown name (a programmer error, caught at first call / in tests).
+// default strategy / no circular guard), looked up by canonical name. Used for
+// cross-family references that always target the plain form — e.g. the
+// union-discriminator `validate` check (PlainHash("validate")) and a walker's
+// own-family InnerPrefix. Panics on an unknown name (a programmer error, caught
+// at first call / in tests).
 func PlainHash(name string) string {
 	op, ok := byName[name]
 	if !ok {
 		panic(fmt.Sprintf("operations.PlainHash: unknown operation %q", name))
 	}
-	return FnHashFor(op, nil, "")
+	return FnHashFor(op, nil, "", false)
 }
 
 // allCanonicalKeys enumerates every canonical key the registry can produce: each
 // AxisNone op once, each AxisValidateOptions op over all ValidateOptions subsets, and
-// each AxisJsonStrategy op over all its strategies. The collision guard hashes
+// each AxisJsonStrategy op over all its strategies — and, for every CircularGuarded
+// op, the same set again with rejectCircular armed. The collision guard hashes
 // this whole set.
 func allCanonicalKeys() []string {
 	var keys []string
 	for _, op := range registry {
-		switch op.Axis {
-		case AxisValidateOptions:
-			for _, subset := range optionSubsets(constants.ValidateOptions) {
-				keys = append(keys, Canonical(op, subset, ""))
+		// CircularGuarded ops fork on rejectCircular; enumerate both plain and armed.
+		circularVariants := []bool{false}
+		if op.CircularGuarded {
+			circularVariants = []bool{false, true}
+		}
+		for _, rejectCircular := range circularVariants {
+			switch op.Axis {
+			case AxisValidateOptions:
+				for _, subset := range optionSubsets(constants.ValidateOptions) {
+					keys = append(keys, Canonical(op, subset, "", rejectCircular))
+				}
+			case AxisHasUnknownKeysOptions:
+				for _, subset := range optionSubsets(constants.HasUnknownKeysOptions) {
+					keys = append(keys, Canonical(op, subset, "", rejectCircular))
+				}
+			case AxisJsonStrategy:
+				for _, strategy := range op.Strategies {
+					keys = append(keys, Canonical(op, nil, strategy, rejectCircular))
+				}
+			default:
+				keys = append(keys, Canonical(op, nil, "", rejectCircular))
 			}
-		case AxisHasUnknownKeysOptions:
-			for _, subset := range optionSubsets(constants.HasUnknownKeysOptions) {
-				keys = append(keys, Canonical(op, subset, ""))
-			}
-		case AxisJsonStrategy:
-			for _, strategy := range op.Strategies {
-				keys = append(keys, Canonical(op, nil, strategy))
-			}
-		default:
-			keys = append(keys, Canonical(op, nil, ""))
 		}
 	}
 	return keys

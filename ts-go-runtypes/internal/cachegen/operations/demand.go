@@ -12,6 +12,12 @@ type Demand struct {
 	VariantSuffix string
 	Options       []string
 	FnHash        string
+	// RejectCircular marks the demand for a CircularGuarded family's armed
+	// variant (the `{rejectCircularRefs: true}` fork). The emitter renders the
+	// inline circular guard for exactly these entries. It rides on the root /
+	// composite demand only — never on the JSON primitives a composite wraps,
+	// which stay plain (the guard is at the composite level).
+	RejectCircular bool
 }
 
 // DemandFor returns the cache-entry demands for a createX call site identified
@@ -27,25 +33,29 @@ type Demand struct {
 //
 // Reflection-only sites (unknown fnKey) yield nil. This is the forward
 // (structured) replacement for the old constants.DemandsForFnId reverse-parse.
-func DemandFor(fnKey string, optionNames []string, strategy string) []Demand {
+func DemandFor(fnKey string, optionNames []string, strategy string, rejectCircular bool) []Demand {
 	op, ok := byFnKey[fnKey]
 	if !ok {
 		return nil
 	}
+	// rejectCircular only forks a CircularGuarded op; normalise away otherwise so
+	// non-guarded families never carry a spurious armed flag.
+	armed := rejectCircular && op.CircularGuarded
 	switch op.Axis {
 	case AxisValidateOptions:
 		return []Demand{{
-			FamilyTag:     op.FamilyTag,
-			VariantSuffix: constants.ValidateVariantSuffix(optionNames),
-			Options:       optionNames,
-			FnHash:        FnHashFor(op, optionNames, ""),
+			FamilyTag:      op.FamilyTag,
+			VariantSuffix:  constants.ValidateVariantSuffix(optionNames),
+			Options:        optionNames,
+			FnHash:         FnHashFor(op, optionNames, "", armed),
+			RejectCircular: armed,
 		}}
 	case AxisHasUnknownKeysOptions:
 		return []Demand{{
 			FamilyTag:     op.FamilyTag,
 			VariantSuffix: constants.HasUnknownKeysVariantSuffix(optionNames),
 			Options:       optionNames,
-			FnHash:        FnHashFor(op, optionNames, ""),
+			FnHash:        FnHashFor(op, optionNames, "", false),
 		}}
 	case AxisJsonStrategy:
 		if strategy == "" {
@@ -53,14 +63,16 @@ func DemandFor(fnKey string, optionNames []string, strategy string) []Demand {
 		}
 		var demands []Demand
 		// The composite entry itself — routes to the composite emitter via its
-		// per-strategy family tag and is keyed by the composite fnHash.
+		// per-strategy family tag and is keyed by the composite fnHash. The
+		// circular guard rides HERE (the composite level), not on the primitives.
 		if compositeTag, ok := constants.JsonCompositeTag(op.Name, strategy); ok {
 			demands = append(demands, Demand{
-				FamilyTag: compositeTag,
-				FnHash:    FnHashFor(op, nil, strategy),
+				FamilyTag:      compositeTag,
+				FnHash:         FnHashFor(op, nil, strategy, armed),
+				RejectCircular: armed,
 			})
 		}
-		// The primitive families the composite body references.
+		// The primitive families the composite body references — always plain.
 		for _, tag := range constants.JsonStrategyFamilies[op.Name+"|"+strategy] {
 			primitive, ok := byFamilyT[tag]
 			if !ok {
@@ -68,14 +80,15 @@ func DemandFor(fnKey string, optionNames []string, strategy string) []Demand {
 			}
 			demands = append(demands, Demand{
 				FamilyTag: tag,
-				FnHash:    FnHashFor(primitive, nil, ""),
+				FnHash:    FnHashFor(primitive, nil, "", false),
 			})
 		}
 		return demands
 	default:
 		return []Demand{{
-			FamilyTag: op.FamilyTag,
-			FnHash:    FnHashFor(op, nil, ""),
+			FamilyTag:      op.FamilyTag,
+			FnHash:         FnHashFor(op, nil, "", armed),
+			RejectCircular: armed,
 		}}
 	}
 }

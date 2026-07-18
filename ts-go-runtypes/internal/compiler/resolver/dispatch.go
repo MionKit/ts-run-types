@@ -154,9 +154,11 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	graph.Merge(typefunctions.CollectJsonCompositeEntries(dump, rtOpts, graph))
 	graph.Merge(pureFnGraph)
 
-	// Link the reflection RunType bundle into the guarded fn entries of
-	// circular types so the runtime circular-reference guard can walk values.
-	sess.wireCircularRunTypeDeps(graph, dump)
+	// The circular-reference guard is now a compile-time option: an armed
+	// (`{rejectCircularRefs: true}`) guarded entry inlines the guard with a baked
+	// skeleton and demands rt::findCycleParent by body reference (served like any
+	// built-in), so there is no type-shape wiring or RunType-bundle linking left
+	// to do here — a plain (unarmed) cyclable type ships neither.
 
 	sess.resolveCrossFamilyEdges(graph, dump, rtOpts)
 	// Composite prologues bind primitives with an unguarded
@@ -611,85 +613,6 @@ func (sess *Session) stampSiteModules(sites []protocol.Site) []protocol.Site {
 		}
 	}
 	return out
-}
-
-// circularGuardedFamilyTags are the family tags whose runtime factory applies
-// the circular-reference guard: createValidate ('val'),
-// createGetValidationErrors ('verr'), createBinaryEncoder ('tb'), and the four
-// createJsonEncoder composites ('jeCL'/'jeMU'/'jeDI'/'jeCO'). Only these entries
-// get the reflection RunType bundle linked into their dep closure; every other
-// family of a circular type pays nothing (decoders take serialized input that
-// cannot cycle; the leaf families never guard).
-var circularGuardedFamilyTags = map[string]bool{
-	"val":  true,
-	"verr": true,
-	"tb":   true,
-	"jeCL": true,
-	"jeMU": true,
-	"jeDI": true,
-	"jeCO": true,
-}
-
-// findCyclePureFnKey is the built-in pure fn that carries the circular-reference
-// walker. Its demand is wired by TYPE SHAPE, not a body reference: no emitted
-// body ever calls it (only the runtime guard wrapper maybeGuardCircular does), so
-// wireCircularRunTypeDeps appends it to the SoftDeps of exactly the guarded fn
-// entries whose type cycles — the same set that gets the RunType bundle. The
-// built-in table then serves it on demand (serveBuiltinPureFns), so the walker's
-// module registers precisely when a cycle-capable createX entry does.
-const findCyclePureFnKey = "rt::findCycle"
-
-// wireCircularRunTypeDeps links the reflection RunType graph into the dep
-// closure of every guarded fn entry whose type can cycle, so the runtime guard
-// (setRejectCircularRefs) can walk the value against its RunType, AND appends the
-// walker pure fn (rt::findCycle) to the same entries. Both ride as SOFT deps —
-// imported and registered by initFromTuple, but never cascaded (the fn body
-// references neither; only the runtime wrapper does). In the default / allSingle
-// bundle modes the RunType dep is the single data bundle; in allModules mode it
-// is the type's own per-node module (key == typeId).
-func (sess *Session) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump protocol.Dump) {
-	circular := runtype.CircularGuardTypeIDs(dump)
-	if len(circular) == 0 {
-		return
-	}
-	perNode := sess.opts.ModuleMode == constants.ModuleModeAllModules
-	bundleKey := ""
-	if !perNode {
-		for key, entry := range graph {
-			if entry.Kind == virtualmodules.KindRunTypeBundle {
-				bundleKey = key
-				break
-			}
-		}
-		if bundleKey == "" {
-			return
-		}
-	}
-	for _, entry := range graph {
-		if entry.Kind != virtualmodules.KindTypeFn || !circularGuardedFamilyTags[entry.FamilyTag] {
-			continue
-		}
-		typeID := typeIDFromEntryKey(entry.Key)
-		if typeID == "" || !circular[typeID] {
-			continue
-		}
-		dep := bundleKey
-		if perNode {
-			if _, ok := graph[typeID]; !ok {
-				continue
-			}
-			dep = typeID
-		}
-		if dep != "" && dep != entry.Key && !containsString(entry.SoftDeps, dep) {
-			entry.SoftDeps = append(entry.SoftDeps, dep)
-		}
-		// The walker pure fn rides the SAME guarded-cyclable entries — demand by
-		// type shape (no body references it). serveBuiltinPureFns delivers it from
-		// the built-in table off this SoftDep.
-		if !containsString(entry.SoftDeps, findCyclePureFnKey) {
-			entry.SoftDeps = append(entry.SoftDeps, findCyclePureFnKey)
-		}
-	}
 }
 
 // serveBuiltinPureFns delivers the package-owned pure-fn bodies (`rt::…` /

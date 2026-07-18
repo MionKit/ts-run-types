@@ -33,6 +33,10 @@ export interface FnHashOptions {
   noIsArrayCheck?: boolean;
   strategy?: string;
   runsAfterValidation?: boolean;
+  /** Arms the circular-reference guard — forks a CircularGuarded family's fnHash
+   *  (validate / validationErrors / toBinary / jsonEncoder) by appending the 'C'
+   *  variant token. Ignored for non-guarded families. */
+  rejectCircularRefs?: boolean;
 }
 
 // Mirror of Go constants.ValidateVariantSuffix: 'N' + the letters of the present
@@ -78,6 +82,9 @@ export function getFnHash(fnKey: FnHashKey | (string & {}), options?: FnHashOpti
   if (entry.axis === 'validateOptions') token = validateVariantToken(options);
   else if (entry.axis === 'jsonStrategy') token = options?.strategy ?? entry.defaultVariant ?? '';
   else if (entry.axis === 'hasUnknownKeysOptions') token = hasUnknownKeysVariantToken(options);
+  // CircularGuarded families fork on rejectCircularRefs: the armed variant's token
+  // is the base token with a trailing 'C' (mirror of Go's circularCanonicalSuffix).
+  if (entry.circularGuarded && options?.rejectCircularRefs) token += 'C';
   const hash = entry.variants[token];
   if (hash === undefined) throw new Error(`getFnHash: fnKey ${JSON.stringify(fnKey)} has no ${JSON.stringify(token)} variant`);
   return hash;

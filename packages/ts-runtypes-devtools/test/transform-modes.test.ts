@@ -143,6 +143,42 @@ export const isUser = createValidate(
     }
   );
 
+  // Armed circular-guard variant: the injected fnHash forks (`{rejectCircularRefs:
+  // true}`), and the emitted body carries the inline guard + baked skeleton. Both
+  // wire modes must reproduce that rewrite byte-for-byte. Marker rule: both call
+  // shapes.
+  runTest(
+    'armed rejectCircularRefs (static): edits mode reproduces go mode byte-for-byte',
+    {
+      'armed.ts': `import {createValidate} from '@ts-runtypes/core';
+interface Node {name: string; next?: Node}
+export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {applied} = await assertModeParity(client, 'armed.ts', sources['armed.ts']);
+        expect(applied.code).toMatch(/createValidate<Node>\(undefined, \{rejectCircularRefs: true\}, __rt_[A-Za-z0-9_]+\)/);
+      });
+    }
+  );
+
+  runTest(
+    'armed rejectCircularRefs (reflection): edits mode reproduces go mode byte-for-byte',
+    {
+      'armed-reflect.ts': `import {createValidate} from '@ts-runtypes/core';
+interface Node {name: string; next?: Node}
+const inference: Node = {name: 'a'};
+export const isNode = createValidate(inference, {rejectCircularRefs: true});
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        await assertModeParity(client, 'armed-reflect.ts', sources['armed-reflect.ts']);
+      });
+    }
+  );
+
   // Pure-fn Replacement (a span edit, not a point insertion).
   runTest(
     'pure-fn replacement: edits mode reproduces go mode byte-for-byte',

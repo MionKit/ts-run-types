@@ -89,7 +89,7 @@ func assertLeafUnionInlined(
 	// The union root records ZERO CrossFamilyDeps for the inlined members
 	// (the inline splice bypasses registerRTLookup entirely).
 	refTable := buildRefTable(runTypes)
-	rendered := renderEntryWithDeps(refTable[rootID], settings, emitter, innerPrefix(settings), refTable, RenderOpts{}, "", nil)
+	rendered := renderEntryWithDeps(refTable[rootID], settings, emitter, innerPrefix(settings), refTable, RenderOpts{}, "", nil, false)
 	for _, id := range inlinedIDs {
 		key := valKey(id)
 		if containsStr(rendered.crossFamilyDeps, key) {
@@ -181,7 +181,7 @@ func TestUnionInlineLeaf_ObjectMembersStayCrossFamily(t *testing.T) {
 		}
 
 		refTable := buildRefTable(runTypes)
-		rendered := renderEntryWithDeps(refTable[rootID], settings, tc.emitter, innerPrefix(settings), refTable, RenderOpts{}, "", nil)
+		rendered := renderEntryWithDeps(refTable[rootID], settings, tc.emitter, innerPrefix(settings), refTable, RenderOpts{}, "", nil, false)
 		for _, id := range []string{"big", "dat"} {
 			key := valKey(id)
 			if !containsStr(rendered.crossFamilyDeps, key) {
@@ -229,7 +229,7 @@ func TestUnionInlineLeaf_FormatMemberStaysCrossFamily(t *testing.T) {
 	}
 
 	refTable := buildRefTable(runTypes)
-	rendered := renderEntryWithDeps(refTable["unf"], settings, ToBinaryEmitter{}, innerPrefix(settings), refTable, RenderOpts{}, "", nil)
+	rendered := renderEntryWithDeps(refTable["unf"], settings, ToBinaryEmitter{}, innerPrefix(settings), refTable, RenderOpts{}, "", nil, false)
 	if !containsStr(rendered.crossFamilyDeps, uidKey) {
 		t.Errorf("format-branded member MUST record a CrossFamilyDeps edge %q; got %v", uidKey, rendered.crossFamilyDeps)
 	}

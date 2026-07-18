@@ -7,12 +7,13 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// The per-call `{rejectCircularRefs}` override is a runtime-only flag — it must NOT
-// fold into the injected fnHash, so a circular-checking validator and a plain
-// one for the same type share a single compiled entry. `noLiterals` (a real
-// ValidateOptions variant) DOES fork the hash; rejectCircularRefs rides alongside it
-// without changing it.
-func TestRejectCircularRefsExcludedFromFnHash(t *testing.T) {
+// The per-call `{rejectCircularRefs: true}` option is now a COMPILE-TIME option:
+// it forks the injected fnHash (like `noLiterals`), so an armed validator and a
+// plain one for the same type resolve to DISTINCT compiled entries — the armed
+// one bakes the inline cycle guard into its body. It is orthogonal to the other
+// ValidateOptions, so `noLiterals` and `noLiterals + rejectCircularRefs` also
+// fork.
+func TestRejectCircularRefsForksFnHash(t *testing.T) {
 	const src = `import {createValidate} from '@ts-runtypes/core';
 interface Node {name: string; next?: Node}
 createValidate<Node>();
@@ -46,16 +47,24 @@ createValidate<Node>(undefined, {noLiterals: true, rejectCircularRefs: true});
 	noLiterals := fnIDAt("createValidate<Node>(undefined, {noLiterals: true})")
 	noLiteralsCircular := fnIDAt("createValidate<Node>(undefined, {noLiterals: true, rejectCircularRefs: true})")
 
-	if plain == "" || noLiterals == "" {
-		t.Fatalf("expected non-empty fnIds, got plain=%q noLiterals=%q", plain, noLiterals)
+	if plain == "" || circular == "" || noLiterals == "" || noLiteralsCircular == "" {
+		t.Fatalf("expected non-empty fnIds, got plain=%q circular=%q noLiterals=%q noLiteralsCircular=%q", plain, circular, noLiterals, noLiteralsCircular)
 	}
-	if plain != circular {
-		t.Fatalf("rejectCircularRefs forked the fnHash: plain=%q rejectCircularRefs=%q", plain, circular)
+	if plain == circular {
+		t.Fatalf("rejectCircularRefs must fork the fnHash: plain=%q rejectCircularRefs=%q", plain, circular)
 	}
-	if noLiterals != noLiteralsCircular {
-		t.Fatalf("rejectCircularRefs forked the noLiterals fnHash: %q vs %q", noLiterals, noLiteralsCircular)
+	if noLiterals == noLiteralsCircular {
+		t.Fatalf("rejectCircularRefs must fork the noLiterals fnHash: %q vs %q", noLiterals, noLiteralsCircular)
 	}
 	if plain == noLiterals {
 		t.Fatalf("sanity: noLiterals should change the fnHash but matched plain (%q)", plain)
+	}
+	// All four are distinct — the two options are orthogonal.
+	seen := map[string]bool{plain: true}
+	for _, id := range []string{circular, noLiterals, noLiteralsCircular} {
+		if seen[id] {
+			t.Fatalf("expected four distinct fnIds, got a collision at %q", id)
+		}
+		seen[id] = true
 	}
 }

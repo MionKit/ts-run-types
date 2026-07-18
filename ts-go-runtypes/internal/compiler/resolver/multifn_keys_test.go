@@ -33,7 +33,7 @@ func leafFnHash(t *testing.T, fnKey string) string {
 	if !ok {
 		t.Fatalf("no operation registered for fnKey %q", fnKey)
 	}
-	return operations.FnHashFor(op, nil, "")
+	return operations.FnHashFor(op, nil, "", false)
 }
 
 // TestResolver_MultiFn_FourKeys pins the widened fn-key cap: a single marker

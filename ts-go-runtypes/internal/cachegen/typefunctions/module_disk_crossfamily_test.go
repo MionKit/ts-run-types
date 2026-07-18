@@ -57,7 +57,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 	opts := RenderOpts{Store: store, Lookup: lookup, RefTable: refTable}
 
 	// First render: walker runs, writes the entry (with CrossFamilyRefs).
-	first := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, prefix, refTable, opts, "", nil)
+	first := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, prefix, refTable, opts, "", nil, false)
 	if first.argsText == "" {
 		t.Fatal("first render produced empty args for the conflict-prop union")
 	}
@@ -112,7 +112,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 	if err := os.WriteFile(cachePath, mutated, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	second := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, prefix, refTable, opts, "", nil)
+	second := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, prefix, refTable, opts, "", nil, false)
 	if second.argsText != entry.ArgsText {
 		t.Fatalf("second render did not hit the disk cache (args=%q, want the mutated sentinel)", second.argsText)
 	}
@@ -213,7 +213,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyHashDriftMiss(t *testing.T) {
 	lookup.set("pad", "pd:prop")
 
 	settings := constants.CacheModules["prepareForJson"]
-	rendered := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, innerPrefix(settings), refTable, RenderOpts{Store: store, Lookup: lookup, RefTable: refTable}, "", nil)
+	rendered := renderEntryWithDeps(refTable[rootID], settings, PrepareForJsonEmitter{}, innerPrefix(settings), refTable, RenderOpts{Store: store, Lookup: lookup, RefTable: refTable}, "", nil, false)
 	if rendered.argsText == "" {
 		t.Fatal("post-miss render produced empty args")
 	}
@@ -255,7 +255,7 @@ func TestRenderFnModule_DiskCache_FormatV1IsMiss(t *testing.T) {
 	}
 
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}}}
-	rendered := renderEntryWithDeps(dump.RunTypes[0], constants.CacheModules["validate"], ValidateEmitter{}, "val_", buildRefTable(dump.RunTypes), RenderOpts{Store: store, Lookup: lookup}, "", nil)
+	rendered := renderEntryWithDeps(dump.RunTypes[0], constants.CacheModules["validate"], ValidateEmitter{}, "val_", buildRefTable(dump.RunTypes), RenderOpts{Store: store, Lookup: lookup}, "", nil, false)
 	if rendered.argsText == v1["argsText"] {
 		t.Errorf("v1 file should be a miss under FormatVersion %d, but the stale v1 args were returned", diskcache.FormatVersion)
 	}

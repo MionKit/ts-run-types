@@ -1,10 +1,42 @@
 # `rejectCircularRefs` as a real compiler option (inline the cycle check)
 
-Status: **TODO — exploration only** (owner request 2026-07-18; not committed to
-implementing). This doc records what the change would require, and in particular
-its cache / fnHash (function-id) impact, so the trade-off can be judged before any
-code lands. It supersedes the type-shape-gated design shipped in
-[docs/done/circular-guard-on-demand.md](../done/circular-guard-on-demand.md).
+Status: **DONE — shipped 2026-07-18.** `rejectCircularRefs` is now a compile-time
+option that forks the fnHash on the four guarded families; the global
+`setRejectCircularRefs` toggle and the `rt::findCycle` co-walker + its RunType
+data bundle are gone. Supersedes the type-shape-gated design in
+[docs/done/circular-guard-on-demand.md](./circular-guard-on-demand.md). The
+original exploration text is preserved below; **what actually shipped differs in
+three deliberate ways** (owner-approved):
+
+1. **One orthogonal fnHash suffix, not three axes.** Rather than extend
+   `AxisValidateOptions`, invent a `tb` axis, and thread the option into the JSON
+   composite + its primitives, the change adds a `CircularGuarded bool` to
+   `operations.Operation` and appends `circularCanonicalSuffix` (`~C`) uniformly
+   in `Canonical` (fnhash.go). The guard rides at the composite / factory level,
+   so the composed JSON primitives (pj/pjs/cj/sj) stay plain — untouched. The
+   generated `fnHashes.generated.ts` grows a `C`-suffixed variant per guarded
+   family and existing hashes are byte-stable (no prefix churn for consumers).
+2. **No conditional normalization (acyclic types).** Circularity is unknown at
+   fnHash-injection time, so an armed acyclic type mints a harmless duplicate
+   entry (byte-identical body under a distinct key), exactly like a no-op
+   `noLiterals`. Accepted as the pay-for-use tradeoff; a follow-up could add a
+   post-scan normalization pass if the duplication ever matters.
+3. **`findCycleParent(value, skeleton)` — paths, no ancestor stack.** Open
+   question 4's concern (an ancestor stack threaded through the traversal) is
+   avoided: `BuildCircularSkeleton` (circular_skeleton.go) bakes the pruned
+   cycle-edge PATH graph into the armed factory, and `rt::findCycleParent`
+   (circular-pure-fns.ts) does its own restricted DFS over just those edges with a
+   descent stack LOCAL to the pure fn. Nothing is threaded through the emitted
+   validator, so child inlining and union arm-trying can't interfere.
+
+Answers to the open questions, as resolved: (1) dropping the global toggle is
+accepted; (2) fnHash-prefix churn is a non-issue because existing hashes stay put
+and only new `C` variants are added to the generated table; (3) `findCycleParent`
+is a built-in PURE FN taking the paths list in its context (like hasUnknownKeys's
+propNames); (4) navigate via baked paths with a self-local stack — no ancestor
+stack.
+
+---
 
 ## Idea
 

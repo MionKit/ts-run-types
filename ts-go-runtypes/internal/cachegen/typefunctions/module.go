@@ -158,20 +158,20 @@ func innerPrefix(settings constants.CacheModuleSettings) string {
 // for a non-empty suffix it's `<variantFhash>_<id>` — the variant fhash folds
 // the option NAMES (carried in `options`) into the hash, so e.g. the
 // noIsArrayCheck variant of validate is keyed by FnHashFor(validate, [noIsArrayCheck]).
-func variantKey(settings constants.CacheModuleSettings, suffix string, options []string, id string) string {
+func variantKey(settings constants.CacheModuleSettings, suffix string, options []string, id string, rejectCircular bool) string {
 	op := familyOp(settings)
-	if suffix == "" {
+	if suffix == "" && !rejectCircular {
 		return operations.PlainHash(op.Name) + "_" + id
 	}
-	return operations.FnHashFor(op, options, "") + "_" + id
+	return operations.FnHashFor(op, options, "", rejectCircular) + "_" + id
 }
 
 // variantFactoryName builds the outer factory's printed name —
 // `g_<variantFhash>_<id>`. The plain branch reduces to `g_<plainFhash>_<id>`
 // (= `settings.VarPrefix + id`). Wrapping `variantKey` with the `g_` prefix
 // keeps the factory and cache-key shapes in lockstep.
-func variantFactoryName(settings constants.CacheModuleSettings, suffix string, options []string, id string) string {
-	return "g_" + variantKey(settings, suffix, options, id)
+func variantFactoryName(settings constants.CacheModuleSettings, suffix string, options []string, id string, rejectCircular bool) string {
+	return "g_" + variantKey(settings, suffix, options, id, rejectCircular)
 }
 
 // CollectFamilyEntries compiles one family's demanded cache entries into
@@ -223,11 +223,11 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 	// CompileChild; the compile pass returns CodeNS from any leaf with no emit,
 	// compound parents propagate it, and the walker's IsUnsupported flag drops
 	// the factory — see codetype.go's CodeNS contract.
-	renderEntry := func(runType *protocol.RunType, suffix string, options []string) ([]string, bool) {
+	renderEntry := func(runType *protocol.RunType, suffix string, options []string, rejectCircular bool) ([]string, bool) {
 		if runType == nil || !emitter.Supports(runType) {
 			return nil, false
 		}
-		entryID := variantKey(settings, suffix, options, runType.ID)
+		entryID := variantKey(settings, suffix, options, runType.ID, rejectCircular)
 		if existing, exists := graph[entryID]; exists {
 			return existing.Deps, true
 		}
@@ -242,15 +242,16 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 		}
 		// Override: a custom function registered for this (family, type) replaces
 		// the structural body with a cfn redirect. Only the PLAIN variant is
-		// overridden — option variants (valNL, …) change behaviour the single
-		// override fn can't express, so they fall through to structural emit.
-		if suffix == "" {
+		// overridden — option variants (valNL, …) and the armed circular-guard
+		// variant change behaviour the single override fn can't express, so they
+		// fall through to structural emit.
+		if suffix == "" && !rejectCircular {
 			if cfnHash := overrideHashForTag(runType, settings.Tag); cfnHash != "" {
 				graph.Add(buildRedirectEntry(entryID, settings.Tag, runType, cfnHash, opts))
 				return nil, true // a redirect has no same-family child deps
 			}
 		}
-		rendered := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options)
+		rendered := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options, rejectCircular)
 		if rendered.argsText == "" {
 			return nil, false
 		}
@@ -311,10 +312,14 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			}
 			demands := demand[rootID]
 			sort.Slice(demands, func(i, j int) bool {
-				return demands[i].VariantSuffix < demands[j].VariantSuffix
+				if demands[i].VariantSuffix != demands[j].VariantSuffix {
+					return demands[i].VariantSuffix < demands[j].VariantSuffix
+				}
+				// Plain before armed for a stable, deterministic emit order.
+				return !demands[i].RejectCircular && demands[j].RejectCircular
 			})
 			for _, demanded := range demands {
-				if deps, ok := renderEntry(root, demanded.VariantSuffix, demanded.Options); ok {
+				if deps, ok := renderEntry(root, demanded.VariantSuffix, demanded.Options, demanded.RejectCircular); ok {
 					enqueueChildren(deps)
 				}
 			}
@@ -334,7 +339,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			if root == nil {
 				continue
 			}
-			if deps, ok := renderEntry(root, "", nil); ok {
+			if deps, ok := renderEntry(root, "", nil, false); ok {
 				enqueueChildren(deps)
 			}
 		}
@@ -345,7 +350,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			if child == nil {
 				continue
 			}
-			if deps, ok := renderEntry(child, "", nil); ok {
+			if deps, ok := renderEntry(child, "", nil, false); ok {
 				enqueueChildren(deps)
 			}
 		}
@@ -358,7 +363,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			if runType == nil || !emitter.Supports(runType) {
 				continue
 			}
-			renderEntry(runType, "", nil)
+			renderEntry(runType, "", nil, false)
 		}
 	}
 
@@ -372,6 +377,15 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 // same type requested with the same options at N call sites yields one entry.
 func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]protocol.SiteDemand {
 	bySuffix := make(map[string]map[string]protocol.SiteDemand)
+	// Dedup key folds RejectCircular in so the armed variant is distinct from the
+	// plain one even when they share an (empty) VariantSuffix — otherwise the
+	// armed entry would collapse into the plain one and lose its guard.
+	dedupKey := func(demanded protocol.SiteDemand) string {
+		if demanded.RejectCircular {
+			return demanded.VariantSuffix + "~C"
+		}
+		return demanded.VariantSuffix
+	}
 	for _, site := range sites {
 		if site.ID == "" || len(site.Demand) == 0 {
 			continue
@@ -383,7 +397,7 @@ func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]p
 			if bySuffix[site.ID] == nil {
 				bySuffix[site.ID] = make(map[string]protocol.SiteDemand)
 			}
-			bySuffix[site.ID][demanded.VariantSuffix] = demanded
+			bySuffix[site.ID][dedupKey(demanded)] = demanded
 		}
 	}
 	out := make(map[string][]protocol.SiteDemand, len(bySuffix))
@@ -449,11 +463,14 @@ type entryRender struct {
 // a miss; we then fall through to the walker as usual and write the
 // fresh result back. Read/write errors are non-fatal — the collector
 // always produces output even when the cache is broken.
-func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string) entryRender {
-	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID)
-	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID)
+func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string, rejectCircular bool) entryRender {
+	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID, rejectCircular)
+	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID, rejectCircular)
 
-	if variantSuffix == "" {
+	// The armed circular variant renders a distinct body but shares the plain
+	// entry's on-disk cache path (keyed by runType.ID + tag), so it must never
+	// read or write that cache — session-rendered like the option variants.
+	if variantSuffix == "" && !rejectCircular {
 		if cached, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
 			// Disk-cache hit: the walker never runs, but the entry's
 			// cross-family edges were persisted as CrossFamilyRefs and
@@ -479,6 +496,16 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		for _, name := range variantOptions {
 			walker.VariantOptions[name] = true
 		}
+	}
+	// Prime the walker for the armed circular-guard variant: compute the baked
+	// skeleton (nil for an acyclic type, where the guard is a no-op) and Compile
+	// prepends the inline guard. A non-nil skeleton also forces the entry
+	// non-noop below so the guarded body always ships.
+	var circularSkeleton *CircularSkeleton
+	if rejectCircular {
+		circularSkeleton = BuildCircularSkeleton(runType, refTable)
+		walker.RejectCircular = true
+		walker.CircularSkeleton = circularSkeleton
 	}
 	// Wire diagnostic emission for this walk. EmitDiagnostic fans each
 	// recorded code out across every call site referencing this RT.
@@ -519,7 +546,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 				kindLabel := leafKindLabel(diagLeaf)
 				walker.EmitDiagnostic(diagCode, kindLabel)
 				argsText := renderAlwaysThrowEntry(runType, innerName, diagCode, kindLabel, walker.rootProvenance)
-				if variantSuffix == "" {
+				if variantSuffix == "" && !rejectCircular {
 					// alwaysThrow entries emit no dep calls — no same-family
 					// or cross-family edges to persist.
 					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, nil, false, opts)
@@ -539,7 +566,12 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// noop→live; text never produces a noop verdict. (Hand-built test
 	// emitters without a predicate keep the shape verdict.)
 	isNoop := shapeNoop
-	if predicate, ok := emitter.(NoopTypePredicate); ok {
+	if circularSkeleton != nil {
+		// Armed circular entry: it always ships the full guarded body, never the
+		// noop short-form (the guard prologue must run). Skip the noop predicate
+		// so the (possibly identity) underlying transform can't collapse it.
+		isNoop = false
+	} else if predicate, ok := emitter.(NoopTypePredicate); ok {
 		predicateCtx := walker.getEmitContext(walker.Vλl)
 		isNoop = predicate.IsNoopType(runType, predicateCtx)
 		walker.putEmitContext(predicateCtx)
@@ -568,7 +600,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			"true",      // isNoop — kept: the signal that selects the noop fn
 		}
 		argsText := joinArgs(holeifyArgs(args))
-		if variantSuffix == "" {
+		if variantSuffix == "" && !rejectCircular {
 			// A noop body emits no dep calls, so no same-family or
 			// cross-family lookups are registered.
 			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, nil, true, opts)
@@ -654,7 +686,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 	pureFnDeps := pureFnDepKeys(walker.PureFnDependencies)
 	argsText := joinArgs(args)
-	if variantSuffix == "" {
+	if variantSuffix == "" && !rejectCircular {
 		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, pureFnDeps, false, opts)
 	}
 	return entryRender{argsText: argsText, deps: deps, crossFamilyDeps: crossFamilyDeps, pureFnDeps: pureFnDeps}

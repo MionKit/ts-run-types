@@ -39,7 +39,7 @@ func TestRenderFnModule_DiskCache_PureFnRefsRoundTrip(t *testing.T) {
 	prefix := innerPrefix(settings)
 	opts := RenderOpts{Store: store, Lookup: lookup, RefTable: refTable}
 
-	first := renderEntryWithDeps(refTable[rootID], settings, ValidationErrorsEmitter{}, prefix, refTable, opts, "", nil)
+	first := renderEntryWithDeps(refTable[rootID], settings, ValidationErrorsEmitter{}, prefix, refTable, opts, "", nil, false)
 	if first.argsText == "" {
 		t.Fatal("first render produced empty args")
 	}
@@ -71,7 +71,7 @@ func TestRenderFnModule_DiskCache_PureFnRefsRoundTrip(t *testing.T) {
 	if err := os.WriteFile(cachePath, mutated, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	second := renderEntryWithDeps(refTable[rootID], settings, ValidationErrorsEmitter{}, prefix, refTable, opts, "", nil)
+	second := renderEntryWithDeps(refTable[rootID], settings, ValidationErrorsEmitter{}, prefix, refTable, opts, "", nil, false)
 	if second.argsText != entry.ArgsText {
 		t.Fatalf("second render did not hit the disk cache (args=%q)", second.argsText)
 	}

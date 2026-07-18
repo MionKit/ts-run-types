@@ -667,6 +667,11 @@ type SiteDemand struct {
 	VariantSuffix string   `json:"variant,omitempty"`
 	Options       []string `json:"options,omitempty"`
 	FnHash        string   `json:"fnHash,omitempty"`
+	// RejectCircular flags the armed `{rejectCircularRefs: true}` fork of a
+	// CircularGuarded family (validate / validationErrors / toBinary /
+	// jsonEncoder). The emitter renders the inline circular-reference guard for
+	// exactly these entries; it never rides a JSON primitive demand.
+	RejectCircular bool `json:"rejectCircular,omitempty"`
 }
 
 // UncheckedPattern is one format `pattern` whose mockSamples the build-time

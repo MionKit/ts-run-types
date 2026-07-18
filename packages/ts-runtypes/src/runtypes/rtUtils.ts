@@ -23,6 +23,8 @@ import {
   deserializeClass as deserializeClassImpl,
   classSerializerEpoch as classSerializerEpochImpl,
 } from './classSerializerRegistry.ts';
+import {CircularReferenceError} from './circular.ts';
+import type {CircularPath} from './circular.ts';
 import type {ClassSerializerEntry} from './classSerializerRegistry.ts';
 import type {DataOnly} from './dataOnly.ts';
 import type {CompTimeArgs} from '../markers.ts';
@@ -175,6 +177,13 @@ const rtUtils = {
     return () => {
       throw new Error(message);
     };
+  },
+  // Constructs the CircularReferenceError an armed encoder body throws when its
+  // inline guard (rt::findCycleParent) detects a reference cycle. Kept on rtUtils
+  // so the emitted factory body — rebuilt via `new Function('utl', code)` — can
+  // reach the error class without a module import.
+  circularError(path: CircularPath): CircularReferenceError {
+    return new CircularReferenceError(path);
   },
   // Custom user-class (de)serializer lookup. Emitted factory bodies for plain
   // user classes (KindClass + SubKindNone) call this with the class node's
