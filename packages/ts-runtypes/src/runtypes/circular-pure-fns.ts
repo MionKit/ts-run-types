@@ -54,40 +54,43 @@ type CircularSkeleton = {c: number[]; e: {p: unknown[][]; t: number}[][]};
  *  null when acyclic. Called inline from the armed guarded factory bodies. **/
 export type FindCycleFn = (value: unknown, skeleton: CircularSkeleton) => CircularPath | null;
 
+/** Per-call walk state, allocated fresh on every findCycle invocation and passed
+ *  down the recursion — NEVER closure-shared. Isolation matters twice: reading
+ *  `val[key]` can run user code (a getter / Proxy trap) that synchronously
+ *  invokes ANOTHER armed factory mid-walk, and closure-held state would let that
+ *  inner call clobber the outer walk (missed cycle → the real validator body
+ *  recurses forever); and closure-held state would also retain the last walked
+ *  object graph after the call returns, pinning it from GC. `c`/`e` mirror the
+ *  skeleton; `stack` is the descent stack, `path` the access trail, `safe` the
+ *  per-node acyclic memo. **/
+type CircularWalkState = {
+  c: number[];
+  e: CircularSkeleton['e'];
+  stack: unknown[];
+  path: CircularPath;
+  safe: Set<unknown>[];
+};
+
 registerPureFnFactory('rt::findCycle', function () {
-  // Per-call state lives in the factory closure (built ONCE when the pure fn
-  // materialises) and is reset at the top of each call, so the recursive `nav` /
-  // `dfs` closures below are created once, not on every invocation. Safe as
-  // shared state because findCycle is synchronous, single-threaded, and
-  // never re-enters itself — calls never interleave.
-  let tracked: number[] = [];
-  let edges: CircularSkeleton['e'] = [];
-  // Descent stack (array) of tracked (circular-typed) values on the current
-  // path. A value re-encountered while still on the stack is a back-edge →
-  // cycle; membership is a linear `indexOf` (identity), fast because the stack
-  // stays short (see the note above).
-  const stack: unknown[] = [];
-  const path: CircularPath = [];
-  // Per-node memo of values whose subtree was fully explored with no cycle. A
-  // shared / DAG value reachable by many paths would otherwise be re-walked once
-  // per path — exponential on a diamond DAG. Remembering the clean ones makes it
-  // O(V+E). A Set (not an array) because this grows to the whole visited set,
-  // unlike the short descent stack. Reset per call.
-  const safe: Set<unknown>[] = [];
+  // The recursive `nav` / `dfs` closures are created ONCE here (factory closure,
+  // at materialisation) — but ALL mutable state rides the per-call `st` argument
+  // (CircularWalkState above), so invocations are fully isolated: a synchronous
+  // re-entrant call (getter / Proxy trap invoking another armed factory) gets its
+  // own state, and the walked graph is GC-able the moment findCycle returns.
 
   // Navigate one edge path from `val`, branching at iteration segments; at the
   // path end, descend into the reached value as tracked node `toNode`.
-  const nav = (val: unknown, segs: unknown[][], si: number, toNode: number): boolean => {
-    if (si === segs.length) return dfs(val, toNode);
+  const nav = (val: unknown, segs: unknown[][], si: number, toNode: number, st: CircularWalkState): boolean => {
+    if (si === segs.length) return dfs(val, toNode, st);
     const seg = segs[si];
     const kind = seg[0];
     if (kind === 'k') {
       const child = val === null || typeof val !== 'object' ? undefined : (val as any)[seg[1] as any];
       if (child === undefined || child === null) return false;
-      path.push(seg[1] as string | number);
-      const hit = nav(child, segs, si + 1, toNode);
+      st.path.push(seg[1] as string | number);
+      const hit = nav(child, segs, si + 1, toNode, st);
       if (hit) return true;
-      path.pop();
+      st.path.pop();
       return false;
     }
     if (kind === 'a') {
@@ -95,9 +98,9 @@ registerPureFnFactory('rt::findCycle', function () {
       for (let i = 0; i < val.length; i++) {
         const el = val[i];
         if (el === undefined || el === null) continue;
-        path.push(i);
-        if (nav(el, segs, si + 1, toNode)) return true;
-        path.pop();
+        st.path.push(i);
+        if (nav(el, segs, si + 1, toNode, st)) return true;
+        st.path.pop();
       }
       return false;
     }
@@ -106,9 +109,9 @@ registerPureFnFactory('rt::findCycle', function () {
       for (const key of Object.keys(val as object)) {
         const pv = (val as any)[key];
         if (pv === undefined || pv === null) continue;
-        path.push(key);
-        if (nav(pv, segs, si + 1, toNode)) return true;
-        path.pop();
+        st.path.push(key);
+        if (nav(pv, segs, si + 1, toNode, st)) return true;
+        st.path.pop();
       }
       return false;
     }
@@ -117,9 +120,9 @@ registerPureFnFactory('rt::findCycle', function () {
       let index = 0;
       for (const el of val) {
         if (el !== undefined && el !== null) {
-          path.push(index);
-          if (nav(el, segs, si + 1, toNode)) return true;
-          path.pop();
+          st.path.push(index);
+          if (nav(el, segs, si + 1, toNode, st)) return true;
+          st.path.pop();
         }
         index++;
       }
@@ -131,9 +134,9 @@ registerPureFnFactory('rt::findCycle', function () {
       for (const entry of val) {
         const member = kind === 'mk' ? entry[0] : entry[1];
         if (member !== undefined && member !== null) {
-          path.push((kind === 'mk' ? 'mapKey[' : 'mapValue[') + index + ']');
-          if (nav(member, segs, si + 1, toNode)) return true;
-          path.pop();
+          st.path.push((kind === 'mk' ? 'mapKey[' : 'mapValue[') + index + ']');
+          if (nav(member, segs, si + 1, toNode, st)) return true;
+          st.path.pop();
         }
         index++;
       }
@@ -145,29 +148,29 @@ registerPureFnFactory('rt::findCycle', function () {
   // Push a tracked value on the descent stack (cycle-check first), follow its
   // circular edges, then pop. Non-tracked nodes (the root when its type isn't
   // itself circular) are traversed without stacking.
-  const dfs = (val: unknown, node: number): boolean => {
+  const dfs = (val: unknown, node: number, st: CircularWalkState): boolean => {
     if (val === null || typeof val !== 'object') return false;
     // Already proven acyclic as this node (on an earlier path) → skip. Sound
     // because a cycle THROUGH `val` is caught during `val`'s own descent (it sits
     // on the stack then), so an acyclic subtree is path-independent.
-    const known = safe[node];
+    const known = st.safe[node];
     if (known !== undefined && known.has(val)) return false;
-    const isTracked = !!tracked[node];
+    const isTracked = !!st.c[node];
     if (isTracked) {
-      if (stack.indexOf(val) !== -1) return true;
-      stack.push(val);
+      if (st.stack.indexOf(val) !== -1) return true;
+      st.stack.push(val);
     }
-    const outgoing = edges[node];
+    const outgoing = st.e[node];
     for (let i = 0; i < outgoing.length; i++) {
-      if (nav(val, outgoing[i].p, 0, outgoing[i].t)) return true;
+      if (nav(val, outgoing[i].p, 0, outgoing[i].t, st)) return true;
     }
     // LIFO: this frame pushed `val` on entry, so pop removes exactly it.
-    if (isTracked) stack.pop();
+    if (isTracked) st.stack.pop();
     // Clean subtree → memoize so a shared / DAG re-arrival skips it.
-    let bucket = safe[node];
+    let bucket = st.safe[node];
     if (bucket === undefined) {
       bucket = new Set();
-      safe[node] = bucket;
+      st.safe[node] = bucket;
     }
     bucket.add(val);
     return false;
@@ -175,11 +178,7 @@ registerPureFnFactory('rt::findCycle', function () {
 
   return function findCycle(value: unknown, skeleton: CircularSkeleton): CircularPath | null {
     if (value === null || typeof value !== 'object' || !skeleton) return null;
-    tracked = skeleton.c;
-    edges = skeleton.e;
-    stack.length = 0;
-    path.length = 0;
-    safe.length = 0;
-    return dfs(value, 0) ? path.slice() : null;
+    const st: CircularWalkState = {c: skeleton.c, e: skeleton.e, stack: [], path: [], safe: []};
+    return dfs(value, 0, st) ? st.path.slice() : null;
   };
 });
