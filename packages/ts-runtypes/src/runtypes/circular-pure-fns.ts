@@ -53,103 +53,112 @@ type CircularSkeleton = {c: number[]; e: {p: unknown[][]; t: number}[][]};
 export type FindCycleParentFn = (value: unknown, skeleton: CircularSkeleton) => CircularPath | null;
 
 registerPureFnFactory('rt::findCycleParent', function () {
-  return function findCycleParent(value: unknown, skeleton: CircularSkeleton): CircularPath | null {
-    if (value === null || typeof value !== 'object' || !skeleton) return null;
-    const tracked = skeleton.c;
-    const edges = skeleton.e;
-    // Descent stack (array) of tracked (circular-typed) values on the current
-    // path. A value re-encountered while still on the stack is a back-edge →
-    // cycle; membership is a linear `indexOf` (identity), fast because the stack
-    // stays short (see the note above).
-    const stack: unknown[] = [];
-    const path: CircularPath = [];
+  // Per-call state lives in the factory closure (built ONCE when the pure fn
+  // materialises) and is reset at the top of each call, so the recursive `nav` /
+  // `dfs` closures below are created once, not on every invocation. Safe as
+  // shared state because findCycleParent is synchronous, single-threaded, and
+  // never re-enters itself — calls never interleave.
+  let tracked: number[] = [];
+  let edges: CircularSkeleton['e'] = [];
+  // Descent stack (array) of tracked (circular-typed) values on the current
+  // path. A value re-encountered while still on the stack is a back-edge →
+  // cycle; membership is a linear `indexOf` (identity), fast because the stack
+  // stays short (see the note above).
+  const stack: unknown[] = [];
+  const path: CircularPath = [];
 
-    // Navigate one edge path from `val`, branching at iteration segments; at the
-    // path end, descend into the reached value as tracked node `toNode`.
-    const nav = (val: unknown, segs: unknown[][], si: number, toNode: number): boolean => {
-      if (si === segs.length) return dfs(val, toNode);
-      const seg = segs[si];
-      const kind = seg[0];
-      if (kind === 'k') {
-        const child = val === null || typeof val !== 'object' ? undefined : (val as any)[seg[1] as any];
-        if (child === undefined || child === null) return false;
-        path.push(seg[1] as string | number);
-        const hit = nav(child, segs, si + 1, toNode);
-        if (hit) return true;
+  // Navigate one edge path from `val`, branching at iteration segments; at the
+  // path end, descend into the reached value as tracked node `toNode`.
+  const nav = (val: unknown, segs: unknown[][], si: number, toNode: number): boolean => {
+    if (si === segs.length) return dfs(val, toNode);
+    const seg = segs[si];
+    const kind = seg[0];
+    if (kind === 'k') {
+      const child = val === null || typeof val !== 'object' ? undefined : (val as any)[seg[1] as any];
+      if (child === undefined || child === null) return false;
+      path.push(seg[1] as string | number);
+      const hit = nav(child, segs, si + 1, toNode);
+      if (hit) return true;
+      path.pop();
+      return false;
+    }
+    if (kind === 'a') {
+      if (!Array.isArray(val)) return false;
+      for (let i = 0; i < val.length; i++) {
+        const el = val[i];
+        if (el === undefined || el === null) continue;
+        path.push(i);
+        if (nav(el, segs, si + 1, toNode)) return true;
         path.pop();
-        return false;
       }
-      if (kind === 'a') {
-        if (!Array.isArray(val)) return false;
-        for (let i = 0; i < val.length; i++) {
-          const el = val[i];
-          if (el === undefined || el === null) continue;
-          path.push(i);
+      return false;
+    }
+    if (kind === 'i') {
+      if (val === null || typeof val !== 'object') return false;
+      for (const key of Object.keys(val as object)) {
+        const pv = (val as any)[key];
+        if (pv === undefined || pv === null) continue;
+        path.push(key);
+        if (nav(pv, segs, si + 1, toNode)) return true;
+        path.pop();
+      }
+      return false;
+    }
+    if (kind === 's') {
+      if (!(val instanceof Set)) return false;
+      let index = 0;
+      for (const el of val) {
+        if (el !== undefined && el !== null) {
+          path.push(index);
           if (nav(el, segs, si + 1, toNode)) return true;
           path.pop();
         }
-        return false;
+        index++;
       }
-      if (kind === 'i') {
-        if (val === null || typeof val !== 'object') return false;
-        for (const key of Object.keys(val as object)) {
-          const pv = (val as any)[key];
-          if (pv === undefined || pv === null) continue;
-          path.push(key);
-          if (nav(pv, segs, si + 1, toNode)) return true;
+      return false;
+    }
+    if (kind === 'mk' || kind === 'mv') {
+      if (!(val instanceof Map)) return false;
+      let index = 0;
+      for (const entry of val) {
+        const member = kind === 'mk' ? entry[0] : entry[1];
+        if (member !== undefined && member !== null) {
+          path.push((kind === 'mk' ? 'mapKey[' : 'mapValue[') + index + ']');
+          if (nav(member, segs, si + 1, toNode)) return true;
           path.pop();
         }
-        return false;
-      }
-      if (kind === 's') {
-        if (!(val instanceof Set)) return false;
-        let index = 0;
-        for (const el of val) {
-          if (el !== undefined && el !== null) {
-            path.push(index);
-            if (nav(el, segs, si + 1, toNode)) return true;
-            path.pop();
-          }
-          index++;
-        }
-        return false;
-      }
-      if (kind === 'mk' || kind === 'mv') {
-        if (!(val instanceof Map)) return false;
-        let index = 0;
-        for (const entry of val) {
-          const member = kind === 'mk' ? entry[0] : entry[1];
-          if (member !== undefined && member !== null) {
-            path.push((kind === 'mk' ? 'mapKey[' : 'mapValue[') + index + ']');
-            if (nav(member, segs, si + 1, toNode)) return true;
-            path.pop();
-          }
-          index++;
-        }
-        return false;
+        index++;
       }
       return false;
-    };
+    }
+    return false;
+  };
 
-    // Push a tracked value on the descent stack (cycle-check first), follow its
-    // circular edges, then pop. Non-tracked nodes (the root when its type isn't
-    // itself circular) are traversed without stacking.
-    const dfs = (val: unknown, node: number): boolean => {
-      if (val === null || typeof val !== 'object') return false;
-      const isTracked = !!tracked[node];
-      if (isTracked) {
-        if (stack.indexOf(val) !== -1) return true;
-        stack.push(val);
-      }
-      const outgoing = edges[node];
-      for (let i = 0; i < outgoing.length; i++) {
-        if (nav(val, outgoing[i].p, 0, outgoing[i].t)) return true;
-      }
-      // LIFO: this frame pushed `val` on entry, so pop removes exactly it.
-      if (isTracked) stack.pop();
-      return false;
-    };
+  // Push a tracked value on the descent stack (cycle-check first), follow its
+  // circular edges, then pop. Non-tracked nodes (the root when its type isn't
+  // itself circular) are traversed without stacking.
+  const dfs = (val: unknown, node: number): boolean => {
+    if (val === null || typeof val !== 'object') return false;
+    const isTracked = !!tracked[node];
+    if (isTracked) {
+      if (stack.indexOf(val) !== -1) return true;
+      stack.push(val);
+    }
+    const outgoing = edges[node];
+    for (let i = 0; i < outgoing.length; i++) {
+      if (nav(val, outgoing[i].p, 0, outgoing[i].t)) return true;
+    }
+    // LIFO: this frame pushed `val` on entry, so pop removes exactly it.
+    if (isTracked) stack.pop();
+    return false;
+  };
 
+  return function findCycleParent(value: unknown, skeleton: CircularSkeleton): CircularPath | null {
+    if (value === null || typeof value !== 'object' || !skeleton) return null;
+    tracked = skeleton.c;
+    edges = skeleton.e;
+    stack.length = 0;
+    path.length = 0;
     return dfs(value, 0) ? path.slice() : null;
   };
 });
