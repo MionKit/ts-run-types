@@ -20,7 +20,7 @@ import {
   RT_TYPE_TAG,
   TODO_LINE,
   TODO_TAG,
-} from '../../src/runtypes-constants.generated.ts';
+} from '../../src/go-generated/runtypes-constants.generated.ts';
 
 const TAGS_GO = fs.readFileSync(path.resolve(__dirname, '../../../../ts-go-runtypes/internal/enrichment/mirror/tags.go'), 'utf8');
 const NAMES_GO = fs.readFileSync(path.resolve(__dirname, '../../../../ts-go-runtypes/internal/enrichment/names.go'), 'utf8');

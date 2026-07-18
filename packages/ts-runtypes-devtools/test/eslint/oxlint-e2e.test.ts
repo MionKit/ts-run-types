@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {promisify} from 'node:util';
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
-import {TODO_LINE} from '../../src/runtypes-constants.generated.ts';
+import {TODO_LINE} from '../../src/go-generated/runtypes-constants.generated.ts';
 import {BIN, hasBinary, makeFixtureProject, type FixtureProject} from './fixture.ts';
 
 const execFileAsync = promisify(execFile);

@@ -11,7 +11,7 @@ import {
   MODULE_MODE_ALL_SINGLE,
   MODULE_MODE_DEFAULT,
   type ModuleMode,
-} from './runtypes-constants.generated.ts';
+} from './go-generated/runtypes-constants.generated.ts';
 
 // PluginOptions is the host-plugin surface. The CANONICAL place to configure
 // the compiler's PROJECT knobs (emitMode, moduleMode, inlineMode, cacheDir,
@@ -582,4 +582,4 @@ export {
   ENTRY_BINDING_PREFIX,
   CACHE_MODULES,
   type CacheModuleSettings,
-} from './runtypes-constants.generated.ts';
+} from './go-generated/runtypes-constants.generated.ts';

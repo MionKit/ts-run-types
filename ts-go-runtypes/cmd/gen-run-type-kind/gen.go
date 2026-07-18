@@ -48,7 +48,7 @@ func monorepoRoot() string {
 // runTypeKindOutputPath is the absolute path of the marker-package (@ts-runtypes/
 // core) TS mirror — the `RunTypeKind` / `RunTypeSubKind` const objects.
 func runTypeKindOutputPath() string {
-	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes", "src", "runTypeKind.ts")
+	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes", "src", "go-generated", "runTypeKind.ts")
 }
 
 // reflectionKindOutputPath is the absolute path of the devtools-package
@@ -56,7 +56,7 @@ func runTypeKindOutputPath() string {
 // sentinel, generated from the SAME protocol consts so the two mirrors can never
 // drift from each other or from the Go wire protocol.
 func reflectionKindOutputPath() string {
-	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes-devtools", "src", "reflectionKind.generated.ts")
+	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes-devtools", "src", "go-generated", "reflectionKind.generated.ts")
 }
 
 // Generate builds the full body of `runTypeKind.ts` from the live
@@ -96,7 +96,7 @@ func Generate() (string, error) {
 	out.WriteString("//     pnpm rtx core codegen kind\n")
 	out.WriteString("//\n")
 	out.WriteString("// which regenerates this file AND the devtools-package mirror\n")
-	out.WriteString("// (packages/ts-runtypes-devtools/src/reflectionKind.generated.ts) from the same\n")
+	out.WriteString("// (packages/ts-runtypes-devtools/src/go-generated/reflectionKind.generated.ts) from the same\n")
 	out.WriteString("// protocol consts. The TestRunTypeKindFileInSync Go test and\n")
 	out.WriteString("// `pnpm rtx core codegen kind --check` (CI) both fail on any drift.\n")
 	out.WriteString("//\n")
@@ -171,7 +171,7 @@ func GenerateDevtools() (string, error) {
 	out.WriteString("//     pnpm rtx core codegen kind\n")
 	out.WriteString("//\n")
 	out.WriteString("// which regenerates this file AND the marker-package mirror\n")
-	out.WriteString("// (packages/ts-runtypes/src/runTypeKind.ts) from the same protocol consts, so\n")
+	out.WriteString("// (packages/ts-runtypes/src/go-generated/runTypeKind.ts) from the same protocol consts, so\n")
 	out.WriteString("// the two can never drift. The TestRunTypeKindFileInSync Go test and\n")
 	out.WriteString("// `pnpm rtx core codegen kind --check` (CI) both fail on any drift.\n")
 	out.WriteString("//\n")

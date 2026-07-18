@@ -16,7 +16,12 @@
 // version bump. The values come from the Go-generated fnHashes table (the single
 // source of truth is operations.FnHashFor); nothing is hashed at runtime.
 
-import {FN_HASHES, HAS_UNKNOWN_KEYS_OPTION_LETTERS, VALIDATE_OPTION_LETTERS, type FnHashEntry} from './fnHashes.generated.ts';
+import {
+  FN_HASHES,
+  HAS_UNKNOWN_KEYS_OPTION_LETTERS,
+  VALIDATE_OPTION_LETTERS,
+  type FnHashEntry,
+} from './go-generated/fnHashes.generated.ts';
 
 /** The Fn tokens getFnHash accepts — the InjectTypeFnArgs Fn keys for every
  *  createX factory and JSON value-level primitive (`val`, `verr`, `tb`, `fb`,

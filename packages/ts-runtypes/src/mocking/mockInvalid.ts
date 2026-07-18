@@ -20,7 +20,7 @@
 // (nothing fails them); those are dropped from the candidate set so the break
 // always lands on a position that can actually be made invalid.
 
-import {RunTypeKind} from '../runTypeKind.ts';
+import {RunTypeKind} from '../go-generated/runTypeKind.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import {mockRunType} from './mockType.ts';

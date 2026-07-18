@@ -11,7 +11,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import plugin, {meta, rules} from '../../src/eslint/index.ts';
 import {resetSharedSession} from '../../src/eslint/session.ts';
 import {ResolverClient} from '../../src/resolver-client.ts';
-import {TODO_LINE, TODO_TAG} from '../../src/runtypes-constants.generated.ts';
+import {TODO_LINE, TODO_TAG} from '../../src/go-generated/runtypes-constants.generated.ts';
 import {BIN, hasBinary, makeFixtureProject, runRule, type FixtureProject, type LintReportedProblem} from './fixture.ts';
 
 const FORMS_TS = `import {getRunTypeId} from '@ts-runtypes/core';

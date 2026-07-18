@@ -14,10 +14,10 @@
 // Wording changes go in internal/diagnostics/messages.go, never here — regenerate
 // with `pnpm run gen:diag-catalog`.
 
-import {DIAGNOSTIC_CATALOG} from './diagnosticCatalog.generated.ts';
+import {DIAGNOSTIC_CATALOG} from './go-generated/diagnosticCatalog.generated.ts';
 
-export {DIAGNOSTIC_CATALOG} from './diagnosticCatalog.generated.ts';
-export type {DiagnosticEntry} from './diagnosticCatalog.generated.ts';
+export {DIAGNOSTIC_CATALOG} from './go-generated/diagnosticCatalog.generated.ts';
+export type {DiagnosticEntry} from './go-generated/diagnosticCatalog.generated.ts';
 
 /** Resolve `{0}`, `{1}`, … placeholders against the args array. */
 function substitute(template: string, args: readonly string[] | undefined): string {

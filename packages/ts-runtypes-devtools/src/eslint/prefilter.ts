@@ -3,7 +3,12 @@
 // like an enrichment mirror can produce no RunTypes diagnostics, so the
 // rules skip it entirely — the common case for most files in a lint run.
 
-import {FRIENDLY_TEXT_NAME, FRIENDLY_TYPE_NAME, MARKER_COMMENT_PREFIX, MOCK_DATA_NAME} from '../runtypes-constants.generated.ts';
+import {
+  FRIENDLY_TEXT_NAME,
+  FRIENDLY_TYPE_NAME,
+  MARKER_COMMENT_PREFIX,
+  MOCK_DATA_NAME,
+} from '../go-generated/runtypes-constants.generated.ts';
 
 // MARKER_MODULE mirrors the unplugin's short-circuit: match the package only
 // as a quoted import specifier (`'@ts-runtypes/core`, `"@ts-runtypes/core`, incl.
