@@ -52,12 +52,35 @@ the migration; the devtools mirror should be generated from the same source too.
    drift-checks both. Both generated files are oxfmt-stable, so the Go test's raw
    string compare and the codegen `--check` (format-then-diff) agree.
 
-## Not done (out of scope, still latent)
+## Follow-up (same PR): the two sibling issues, now fixed
 
-- `cmd/gen-fn-hashes` has the SAME `repoRoot()` = module-root pattern and a structurally
-  wrong `fnHashesOutputPath()` — but it has no test and the helper is dead code (its
-  `main()` prints to stdout, redirected by rtx), so nothing exercises the wrong path.
-  Left untouched.
-- The devtools `REFLECTION_SUB_KIND` in `runtypes-constants.generated.ts` (from
-  `gen-ts-constants`) is a partial subset (7 entries, missing the Temporal sub-kinds
-  `runTypeKind.ts` carries). Separate generator, separate source; not addressed here.
+1. **`cmd/gen-fn-hashes` path + missing test.** It had the SAME `repoRoot()` =
+   module-root pattern (a structurally-wrong `fnHashesOutputPath()`, dead because
+   `main()` prints to stdout) AND a `main.go` doc comment falsely claiming a
+   `gen_test.go` existed. Fixed: `repoRoot()` → `monorepoRoot()` (`../../..`), and
+   added `gen_test.go` (`TestFnHashesFileInSync` + `TestCollectEntriesNonEmpty`).
+   The fn-hashes generator emits string values, so oxfmt reflows it (wrapping,
+   trailing commas) — a raw byte-compare isn't viable, so the test is a
+   format-agnostic **containment** check (every fnKey/fnHash the registry produces
+   appears in the committed file); `pnpm rtx core codegen fnhashes --check` remains
+   the exact byte gate. Stale `pnpm run gen:fn-hashes` doc references updated to
+   `pnpm rtx core codegen fnhashes`.
+
+2. **Devtools `REFLECTION_SUB_KIND` completed + unified.** It was a hand-written
+   7-entry partial in `gen-ts-constants` (silently dropping `none` + all 8 Temporal
+   sub-kinds) whose doc claimed a faithful mirror — and it was entirely unused, so
+   not a functional bug, only a drift-prone inconsistency. Fixed by moving sub-kind
+   generation into `gen-run-type-kind` (which already AST-parses `subkind.go`): the
+   devtools `reflectionKind.generated.ts` now carries the FULL `REFLECTION_SUB_KIND`
+   map + `ReflectionSubKind` type alongside `ReflectionKind`/`KIND_REF`, re-exported
+   from `protocol.ts`; `writeReflectionSubKind` was removed from `gen-ts-constants`.
+   `TestGenerateDevtoolsMatchesRunTypeKind` now cross-checks the sub-kind values
+   against the marker's `RunTypeSubKind` too, so the partial-mirror class of bug
+   can't recur.
+
+## Still out of scope
+
+- `fnHashesOutputPath()` is now correct but the fn-hashes generator still relies on
+  oxfmt post-formatting (its Go test is a containment check, not byte-exact) — the
+  exact gate stays `codegen fnhashes --check`. This is inherent to a generator that
+  emits string literals oxfmt reflows.

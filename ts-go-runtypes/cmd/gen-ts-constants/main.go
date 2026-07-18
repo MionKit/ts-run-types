@@ -109,8 +109,10 @@ func buildVitePluginConstants() string {
 	out.WriteString("\n")
 	writeEntryModuleConstants(out)
 	out.WriteString("\n")
-	writeReflectionSubKind(out)
-	out.WriteString("\n")
+	// REFLECTION_SUB_KIND / ReflectionSubKind moved to cmd/gen-run-type-kind's
+	// devtools mirror (reflectionKind.generated.ts), generated from the FULL
+	// internal/protocol/subkind.go parse so it can't drift (the old hand-list here
+	// was a partial subset that silently omitted the Temporal sub-kinds).
 	writeNonSerializableGlobals(out)
 	out.WriteString("\n")
 	writeEnrichmentTagConstants(out)
@@ -136,31 +138,6 @@ func writeEntryModuleConstants(out *strings.Builder) {
 	fmt.Fprintf(out, "export const MODULE_MODE_ALL_SINGLE = %q;\n", constants.ModuleModeAllSingle)
 	fmt.Fprintf(out, "export const MODULE_MODE_ALL_MODULES = %q;\n", constants.ModuleModeAllModules)
 	out.WriteString("export type ModuleMode = typeof MODULE_MODE_DEFAULT | typeof MODULE_MODE_ALL_SINGLE | typeof MODULE_MODE_ALL_MODULES;\n")
-}
-
-// writeReflectionSubKind emits a TS `as const` map mirroring
-// internal/protocol/subkind.go's ReflectionSubKind enum. The numeric
-// values must match the reference ReflectionSubKind exactly so structural
-// ids agree byte-for-byte across the Go and TS halves.
-func writeReflectionSubKind(out *strings.Builder) {
-	entries := []struct {
-		name  string
-		value protocol.ReflectionSubKind
-	}{
-		{"mapKey", protocol.SubKindMapKey},
-		{"mapValue", protocol.SubKindMapValue},
-		{"setItem", protocol.SubKindSetItem},
-		{"date", protocol.SubKindDate},
-		{"map", protocol.SubKindMap},
-		{"set", protocol.SubKindSet},
-		{"nonSerializable", protocol.SubKindNonSerializable},
-	}
-	out.WriteString("export const REFLECTION_SUB_KIND = {\n")
-	for _, entry := range entries {
-		out.WriteString(fmt.Sprintf("  %s: %d,\n", entry.name, entry.value))
-	}
-	out.WriteString("} as const;\n")
-	out.WriteString("export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];\n")
 }
 
 // writeNonSerializableGlobals emits the symbol-name list used by both

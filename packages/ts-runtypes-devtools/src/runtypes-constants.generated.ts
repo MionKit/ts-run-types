@@ -94,17 +94,6 @@ export const MODULE_MODE_ALL_SINGLE = 'allSingle';
 export const MODULE_MODE_ALL_MODULES = 'allModules';
 export type ModuleMode = typeof MODULE_MODE_DEFAULT | typeof MODULE_MODE_ALL_SINGLE | typeof MODULE_MODE_ALL_MODULES;
 
-export const REFLECTION_SUB_KIND = {
-  mapKey: 1801,
-  mapValue: 1802,
-  setItem: 1803,
-  date: 2001,
-  map: 2002,
-  set: 2003,
-  nonSerializable: 2004,
-} as const;
-export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];
-
 export const NON_SERIALIZABLE_GLOBALS = [
   'Error',
   'EvalError',
