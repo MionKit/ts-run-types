@@ -1,7 +1,8 @@
 // Wire types mirroring internal/protocol/protocol.go. The interfaces below are
-// hand-maintained (to keep the plugin dep-free); the ReflectionKind enum +
-// KIND_REF sentinel are code-generated from the same Go source
-// (reflectionKind.generated.ts) so the kind discriminators can never drift.
+// hand-maintained (to keep the plugin dep-free); the ReflectionKind enum,
+// KIND_REF sentinel, and REFLECTION_SUB_KIND map are code-generated from the same
+// Go source (reflectionKind.generated.ts) so the kind/sub-kind discriminators can
+// never drift.
 //
 // The shape is the canonical runtypes reflection `RunType` discriminated
 // union. Child RunType slots in the JSON wire format are sentinels
@@ -9,11 +10,12 @@
 // import the generated runtypes-cache.ts module which contains a fully-knotted
 // graph.
 
-// ReflectionKind + KIND_REF are GENERATED from internal/protocol/protocol.go
-// (the same source as @ts-runtypes/core's RunTypeKind), re-exported here so
-// existing `import {ReflectionKind} from './protocol.ts'` sites are unchanged.
-import {KIND_REF, ReflectionKind} from './reflectionKind.generated.ts';
-export {KIND_REF, ReflectionKind};
+// ReflectionKind + KIND_REF + REFLECTION_SUB_KIND are GENERATED from
+// internal/protocol/{protocol,subkind}.go (the same source as @ts-runtypes/core's
+// RunTypeKind / RunTypeSubKind), re-exported here so existing
+// `import {ReflectionKind} from './protocol.ts'` sites are unchanged.
+import {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind} from './reflectionKind.generated.ts';
+export {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind};
 
 // Re-export the cache-module settings generated from
 // internal/constants/constants.go so callers have a single place to import

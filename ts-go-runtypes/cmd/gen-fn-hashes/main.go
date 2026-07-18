@@ -12,15 +12,17 @@
 //
 // The values MUST match operations.FnHashFor exactly (the plugin injects the
 // SAME hashes at each createX call site), so gen_test.go asserts the committed
-// file equals this generator's current output.
+// file carries every fnKey/fnHash this generator produces (a format-agnostic
+// containment check); `pnpm rtx core codegen fnhashes --check` (CI) is the exact
+// byte-for-byte guard after formatting.
 //
 // Run:
 //
 //	go run ./cmd/gen-fn-hashes > packages/ts-runtypes/src/fnHashes.generated.ts
 //
-// Or via the pnpm script:
+// Or via rtx (regenerates + formats + drift-checks):
 //
-//	pnpm run gen:fn-hashes
+//	pnpm rtx core codegen fnhashes [--check]
 package main
 
 import (

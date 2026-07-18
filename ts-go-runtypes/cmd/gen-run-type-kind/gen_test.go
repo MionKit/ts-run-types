@@ -89,13 +89,19 @@ func TestParseConstsFoundEntries(t *testing.T) {
 
 // TestGenerateDevtoolsMatchesRunTypeKind pins the cross-mirror invariant: every
 // non-negative ReflectionKind enum member the devtools mirror emits has the SAME
-// numeric value as the marker mirror's RunTypeKind entry, and KIND_REF equals
-// RunTypeKind.ref. This catches a divergence introduced in the generator itself
-// (e.g. a filtering bug) that a per-file sync check would miss.
+// numeric value as the marker mirror's RunTypeKind entry, KIND_REF equals
+// RunTypeKind.ref, and every REFLECTION_SUB_KIND entry matches RunTypeSubKind
+// (the FULL set, Temporal included — the omission this fix closes). This catches a
+// divergence introduced in the generator itself (e.g. a filtering bug) that a
+// per-file sync check would miss.
 func TestGenerateDevtoolsMatchesRunTypeKind(t *testing.T) {
 	kinds, err := parseConsts(moduleRoot()+"/internal/protocol/protocol.go", "ReflectionKind", "Kind")
 	if err != nil {
 		t.Fatalf("parse protocol.go: %v", err)
+	}
+	subKinds, err := parseConsts(moduleRoot()+"/internal/protocol/subkind.go", "ReflectionSubKind", "SubKind")
+	if err != nil {
+		t.Fatalf("parse subkind.go: %v", err)
 	}
 	devtools, err := GenerateDevtools()
 	if err != nil {
@@ -113,6 +119,12 @@ func TestGenerateDevtoolsMatchesRunTypeKind(t *testing.T) {
 		want := entry.JsName + " = " + strconv.Itoa(entry.Value) + ","
 		if !strings.Contains(devtools, want) {
 			t.Errorf("devtools ReflectionKind missing enum member %q (value drift vs RunTypeKind?)", want)
+		}
+	}
+	for _, entry := range subKinds {
+		want := entry.JsName + ": " + strconv.Itoa(entry.Value) + ","
+		if !strings.Contains(devtools, want) {
+			t.Errorf("devtools REFLECTION_SUB_KIND missing %q (a partial/drifted sub-kind mirror?)", want)
 		}
 	}
 }
