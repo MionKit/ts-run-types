@@ -14,7 +14,7 @@
 // internal/protocol/{protocol,subkind}.go (the same source as @ts-runtypes/core's
 // RunTypeKind / RunTypeSubKind), re-exported here so existing
 // `import {ReflectionKind} from './protocol.ts'` sites are unchanged.
-import {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind} from './reflectionKind.generated.ts';
+import {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind} from './go-generated/reflectionKind.generated.ts';
 export {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind};
 
 // Re-export the cache-module settings generated from
@@ -28,7 +28,7 @@ export {
   VALIDATE_VAR_PREFIX,
   VALIDATE_MODULE_NAME,
   type CacheModuleSettings,
-} from './runtypes-constants.generated.ts';
+} from './go-generated/runtypes-constants.generated.ts';
 
 export interface ClassRef {
   // builtin: "Date" | "Map" | "Set" | "RegExp" — footer wires

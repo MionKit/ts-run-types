@@ -12,7 +12,7 @@ import {ResolverClient} from '../src/resolver-client.ts';
 import {applyEdits, sourceHash} from '../src/apply-edits.ts';
 import type {SourceMap} from '../src/protocol.ts';
 import {BIN, hasBinary, RUNTYPES_DTS, runTest, withInlineSources} from './helpers/inline.ts';
-import {MODULE_MODE_ALL_SINGLE} from '../src/runtypes-constants.generated.ts';
+import {MODULE_MODE_ALL_SINGLE} from '../src/go-generated/runtypes-constants.generated.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;

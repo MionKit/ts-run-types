@@ -40,7 +40,7 @@
 // of defensively guarding — a crash here is a signal, not a hazard.
 
 import type {RunType} from '../../../src/runtypes/types.ts';
-import {RunTypeKind, RunTypeSubKind} from '../../../src/runTypeKind.ts';
+import {RunTypeKind, RunTypeSubKind} from '../../../src/go-generated/runTypeKind.ts';
 
 const kind = RunTypeKind;
 const sub = RunTypeSubKind;

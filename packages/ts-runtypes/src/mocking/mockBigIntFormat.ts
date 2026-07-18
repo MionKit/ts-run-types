@@ -7,7 +7,7 @@
 // Bigint params arrive on the wire as STRINGS (tsgo's TypeToString, e.g.
 // "9223372036854775807n") — `toBig` strips the trailing `n` and rebuilds
 // the bigint, preserving full precision.
-import {RunTypeKind} from '../runTypeKind.ts';
+import {RunTypeKind} from '../go-generated/runTypeKind.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import {registerMockingFunction} from './mockRegistry.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';

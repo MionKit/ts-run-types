@@ -121,7 +121,7 @@ export {
   RunTypeSubKind,
   type RunTypeSubKindName,
   type RunTypeSubKindValue,
-} from './runTypeKind.ts';
+} from './go-generated/runTypeKind.ts';
 
 // String JSON I/O is `createJsonEncoder` + `createJsonDecoder`. The VALUE-level
 // transforms they build on — the per-strategy prepareForJson / restoreFromJson

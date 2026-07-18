@@ -16,7 +16,7 @@ import {
   MODULE_MODE_ALL_SINGLE,
   RUNTYPES_BUNDLE_BASENAME,
   VIRTUAL_MODULE_PREFIX,
-} from '../src/runtypes-constants.generated.ts';
+} from '../src/go-generated/runtypes-constants.generated.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;

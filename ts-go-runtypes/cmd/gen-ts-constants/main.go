@@ -8,7 +8,7 @@
 //
 // Output:
 //
-//   - packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts
+//   - packages/ts-runtypes-devtools/src/go-generated/runtypes-constants.generated.ts
 //     The registry consumed by the Vite plugin (cache modules, reflection
 //     sub kinds, non-serializable globals).
 //
@@ -30,7 +30,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-const vitePluginConstantsPath = "packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts"
+const vitePluginConstantsPath = "packages/ts-runtypes-devtools/src/go-generated/runtypes-constants.generated.ts"
 
 func main() {
 	if err := writeFile(filepath.Join(repoRoot(), vitePluginConstantsPath), buildVitePluginConstants()); err != nil {
