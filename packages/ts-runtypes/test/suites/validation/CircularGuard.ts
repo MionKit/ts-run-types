@@ -407,6 +407,55 @@ export const CIRCULAR_GUARD = {
     expectValid: true,
   },
 
+  dag_multi_level_shared: {
+    title: 'Deep diamond DAG (shared, multi-level) is not a cycle',
+    description:
+      'Each level references the same child twice (`a === b`); acyclic, so the guard must pass. Pins the fully-explored memo — without it the guard re-walks each shared subtree per path (exponential).',
+    validate: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createValidate<Node>(undefined, {rejectCircularRefs: true});
+    },
+    validateReflect: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      const inference: Node = {name: 'a'};
+      return createValidate(inference, {rejectCircularRefs: true});
+    },
+    getValidationErrors: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
+    },
+    getValidationErrorsReflect: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      const inference: Node = {name: 'a'};
+      return createGetValidationErrors(inference, {rejectCircularRefs: true});
+    },
+    getValue: () => {
+      // A diamond DAG: every node's `a` and `b` point at the SAME next node, so
+      // the guard reaches each node by 2^depth paths. Kept shallow (the emitted
+      // validator that runs after the guard also re-walks shared subtrees).
+      let head: {name: string; a?: unknown; b?: unknown} = {name: 'leaf'};
+      for (let i = 0; i < 5; i++) head = {name: 'n' + i, a: head, b: head};
+      return head;
+    },
+    expectValid: true,
+  },
+
   disarmed_acyclic: {
     title: 'Disarmed guard leaves acyclic validation unchanged',
     description: 'No `{rejectCircularRefs}` — a normal acyclic value validates exactly as without the feature.',
