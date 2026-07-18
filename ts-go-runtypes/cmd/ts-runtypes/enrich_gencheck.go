@@ -54,14 +54,18 @@ func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
 		// A path OUTSIDE the enrich dir is a SOURCE file (the `gen <source> --check`
 		// form): check ITS mirrors, not the source file itself — whose own
 		// `import type { … }` lines would otherwise be misread as breadcrumbs. A
-		// source file has one mirror per family (plus, transitionally, a pre-split
-		// combined file at the legacy path). A path inside the enrich dir (a mirror
-		// file, or the dir) is scanned directly.
+		// source file has one mirror per family, one translation per configured
+		// locale (plus, transitionally, a pre-split combined file at the legacy
+		// path); missing ones are skipped by collectMirrorFiles. A path inside
+		// the enrich dir (a mirror file, or the dir) is scanned directly.
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && !isUnder(config.EnrichDir, candidate) {
 			targets = []string{
 				config.mirrorPath(familyFriendly, candidate),
 				config.mirrorPath(familyMock, candidate),
 				config.legacyMirrorPath(candidate),
+			}
+			for _, locale := range config.I18nLocales {
+				targets = append(targets, config.translationPathFor(locale, config.mirrorPath(familyFriendly, candidate)))
 			}
 		} else {
 			targets = []string{candidate}
@@ -206,12 +210,36 @@ func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 
 	// GE001 — cosmetic location drift: the mirror file is not where the source's
 	// computed mirror path would put it. CLI-only (needs the enrich config).
+	// The config anchors at the MIRROR file — the project that owns the mirror
+	// tree — exactly like gen's write side, so the two can never disagree. (An
+	// anchor at the resolved source re-derives the config inside a DEPENDENCY
+	// for a node_modules-sourced type and flags gen's own output as drifted.)
 	// The expected location depends on the file's FAMILY, read off its path
-	// segment under the enrich root (friendly/ or mock/); a file at neither
-	// segment is a pre-split combined mirror (or a hand-moved one) and drifts
-	// against both family paths.
+	// segment under the enrich root (friendly/, mock/, or i18n/<locale>/); a
+	// file at none of them is a pre-split combined mirror (or a hand-moved one)
+	// and drifts against both family paths.
 	resolvedSource := mirror.ResolveBreadcrumb(mirrorFile, breadcrumb.Spec)
-	config := resolveEnrichConfig(resolvedSource, genDirFlag)
+	config := resolveEnrichConfig(mirrorFile, genDirFlag)
+
+	// i18n locale mirror: its canonical home derives from the friendly mirror
+	// it translates (<I18nDir>/<locale>/<friendly-relative path>).
+	if locale, isLocaleMirror := localeMirrorOf(config, mirrorFile); isLocaleMirror {
+		expectedMirror := config.translationPathFor(locale, config.mirrorPath(familyFriendly, resolvedSource))
+		if tspath.NormalizePath(expectedMirror) != tspath.NormalizePath(mirrorFile) {
+			line, col := lineIndex.At(breadcrumb.Start)
+			findings = append(findings, driftFinding{
+				File:     mirrorFile,
+				Severity: enrichment.Warning,
+				Code:     diagnostics.CodeGenMirrorDrift,
+				Message:  fmt.Sprintf("mirror location drift: source maps to %s but this file is %s — re-run gen to relocate", expectedMirror, mirrorFile),
+				Args:     []string{expectedMirror, mirrorFile},
+				Line:     line,
+				Col:      col,
+			})
+		}
+		return findings
+	}
+
 	family, ok := mirrorFamilyOf(config.EnrichDir, mirrorFile)
 	if !ok {
 		line, col := lineIndex.At(breadcrumb.Start)
@@ -244,6 +272,22 @@ func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 	}
 
 	return findings
+}
+
+// localeMirrorOf reports whether mirrorFile is an i18n locale mirror under the
+// config's i18n root, and which locale segment it sits in. A .ts file directly
+// under i18n/ (no locale segment) is not a locale mirror — it falls through to
+// the family check and drifts like any other hand-moved file.
+func localeMirrorOf(config enrichConfig, mirrorFile string) (string, bool) {
+	rel, err := filepath.Rel(config.I18nDir, mirrorFile)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return "", false
+	}
+	segments := strings.SplitN(filepath.ToSlash(rel), "/", 2)
+	if len(segments) < 2 {
+		return "", false
+	}
+	return segments[0], true
 }
 
 // mirrorFamilyOf reads a mirror file's family off its path: the first segment
