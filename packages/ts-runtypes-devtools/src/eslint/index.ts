@@ -7,24 +7,21 @@
 // The Go resolver is the single diagnostics engine — these rules are pure
 // transport. Each linted file takes ONE resolver pass (marker scan +
 // enrichment health, see Request.checkEnrich); the routing layer
-// (diagnosticRouting.ts) then fans the wire diagnostics out to rules:
+// (diagnosticRouting.ts) then fans the wire diagnostics out to rules grouped
+// by DIAGNOSTIC FAMILY and NAMED for what they catch, not for severity:
+// `runtypes/validate-non-serializable` + `runtypes/validate-skipped-member`,
+// `runtypes/json-non-serializable` + `runtypes/json-skipped-member`, … plus the
+// enrichment concern rules. Severity is the linter's job: each rule ships with
+// the Go catalog default, and the host's per-rule level is what applies. The
+// full set is the RULE_SPECS table.
 //
-//   runtypes/error | warn | info     compiler diagnostics, routed by each
-//                                    diagnostic's OWN severity so oxlint's
-//                                    per-rule severity keeps the error/warn
-//                                    CI gate faithful (the code + family ride
-//                                    in the message, e.g. "[VL010] …").
-//   runtypes/no-enrichment-todo      unfilled @todo scaffold lines.
-//   runtypes/no-orphan-carcass       stale @rtOrphan / @rtOrphanChild blocks.
-//   runtypes/enrichment-field        FriendlyText/MockData content findings.
-//   runtypes/enrichment-drift        mirror breadcrumb drift (source deleted
-//                                    or type no longer declared).
-//
-// Configuration rides the host's shared `settings.runtypes` (binary, socket,
-// cwd, timeoutMs — see LintSessionOptions); rules take no per-rule options.
+// The plugin needs no RunTypes-specific configuration: it resolves the host
+// resolver binary itself (@ts-runtypes/bin) and runs in process.cwd(), like
+// any other linter. The one optional knob is `settings.runtypes.timeoutMs`
+// (the per-file wait budget); rules take no per-rule options.
 
 import {createRequire} from 'node:module';
-import {routeDiagnostic, type RuleName} from './diagnosticRouting.ts';
+import {routeDiagnostic, RULE_SPECS, type RuleName} from './diagnosticRouting.ts';
 import {looksLikeEnrichmentFile, needsResolverPass} from './prefilter.ts';
 import {prewarmSession, sharedSession, type LintSessionOptions} from './session.ts';
 
@@ -55,16 +52,17 @@ interface RuleModule {
 // file claims its engine-error reporting for the process lifetime.
 const engineErrorClaims = new Map<string, RuleName>();
 
-// sessionOptions pulls the plugin's shared configuration from
-// `settings.runtypes` (both hosts expose flat-config settings verbatim).
-function sessionOptions(settings: Record<string, unknown> | undefined): LintSessionOptions {
+// sessionOptions pulls the plugin's one knob — the per-file timeout — from
+// `settings.runtypes.timeoutMs`. The resolver binary and working directory are
+// deliberately NOT configurable: the plugin resolves the host binary itself
+// (@ts-runtypes/bin) and runs in process.cwd(), like any other linter, so a
+// `binary`, `cwd`, or `socket` under `settings.runtypes` is ignored. Exported
+// for the transparency regression test.
+export function sessionOptions(settings: Record<string, unknown> | undefined): LintSessionOptions {
   const raw = settings?.['runtypes'];
   if (!raw || typeof raw !== 'object') return {};
   const bag = raw as Record<string, unknown>;
   const options: LintSessionOptions = {};
-  if (typeof bag['binary'] === 'string') options.binary = bag['binary'];
-  if (typeof bag['socket'] === 'string') options.socket = bag['socket'];
-  if (typeof bag['cwd'] === 'string') options.cwd = bag['cwd'];
   if (typeof bag['timeoutMs'] === 'number') options.timeoutMs = bag['timeoutMs'];
   return options;
 }
@@ -111,56 +109,26 @@ const packageVersion = (createRequire(import.meta.url)('../../package.json') as 
 
 export const meta = {name: 'runtypes', version: packageVersion};
 
-export const rules: Record<RuleName, RuleModule> = {
-  error: diagnosticRule(
-    'error',
-    'RunTypes compiler diagnostics with error severity (unsupported types that throw at runtime, marker misuse, pure-function extraction failures)',
-    needsResolverPass
-  ),
-  warn: diagnosticRule(
-    'warn',
-    'RunTypes compiler diagnostics with warning severity (non-serializable members silently dropped from validators and codecs)',
-    needsResolverPass
-  ),
-  info: diagnosticRule('info', 'RunTypes compiler diagnostics with info severity', needsResolverPass),
-  'no-enrichment-todo': diagnosticRule(
-    'no-enrichment-todo',
-    'Forbid unfilled @todo scaffold placeholders in generated enrichment files',
-    looksLikeEnrichmentFile
-  ),
-  'no-orphan-carcass': diagnosticRule(
-    'no-orphan-carcass',
-    'Forbid stale @rtOrphan / @rtOrphanChild carcasses in generated enrichment files (run `ts-runtypes gen --prune` or restore the type)',
-    looksLikeEnrichmentFile
-  ),
-  'enrichment-field': diagnosticRule(
-    'enrichment-field',
-    'FriendlyText / MockData maps must match the source type (no dead fields, constraints, or placeholders)',
-    looksLikeEnrichmentFile
-  ),
-  'enrichment-drift': diagnosticRule(
-    'enrichment-drift',
-    'Enrichment mirror files must track a live source (breadcrumb resolves and the source still declares the imported types)',
-    looksLikeEnrichmentFile
-  ),
-};
+// rules and recommended are both built from the single RULE_SPECS table, so
+// adding a family rule (or changing its default) is a one-line edit there —
+// nothing is hand-listed twice. The gate is the file pre-filter: compiler
+// rules scan any file with marker / RT calls, enrichment rules only generated
+// mirror files.
+export const rules: Record<RuleName, RuleModule> = Object.fromEntries(
+  RULE_SPECS.map((spec) => [
+    spec.name,
+    diagnosticRule(spec.name, spec.description, spec.gate === 'enrichment' ? looksLikeEnrichmentFile : needsResolverPass),
+  ])
+) as Record<RuleName, RuleModule>;
 
-// recommended: every gate on, info off — the .oxlintrc.json twin of this
-// lives in the package README / website documentation. Declared after the
-// plugin object so the flat config can reference it.
+// recommended: every rule at its family default (the Go catalog severity of
+// the codes it carries). Declared after the plugin object so the flat config
+// can reference it. The .oxlintrc.json twin lives in the website documentation.
 const plugin = {meta, rules, configs: {} as Record<string, unknown>};
 
 plugin.configs['recommended'] = {
   plugins: {runtypes: plugin},
-  rules: {
-    'runtypes/error': 'error',
-    'runtypes/warn': 'warn',
-    'runtypes/info': 'off',
-    'runtypes/no-enrichment-todo': 'error',
-    'runtypes/no-orphan-carcass': 'error',
-    'runtypes/enrichment-field': 'error',
-    'runtypes/enrichment-drift': 'error',
-  },
+  rules: Object.fromEntries(RULE_SPECS.map((spec) => [`runtypes/${spec.name}`, spec.default])),
 };
 
 export const configs = plugin.configs;

@@ -114,8 +114,8 @@ func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
 // comment block/line tagged @rtOrphan / @rtOrphanChild, along with the
 // commented-out code lines they tag. It reports what was removed. This is the
 // only path that truly deletes content.
-func runGenPrune(positional []string, enrichDirFlag string) {
-	mirrorFiles := collectPruneTargets(positional, enrichDirFlag)
+func runGenPrune(positional []string, genDirFlag string) {
+	mirrorFiles := collectPruneTargets(positional, genDirFlag)
 
 	var totalRemoved int
 	for _, mirrorFile := range mirrorFiles {
@@ -131,9 +131,9 @@ func runGenPrune(positional []string, enrichDirFlag string) {
 // file/dir to sweep), or — with no argument — the enrich dir resolved from the
 // current directory's tsconfig. Unlike --check, --prune never redirects a path
 // through mirrorPath: a file argument is always the thing to prune, so it must not
-// depend on enrich-dir resolution recognizing it (which broke a mirror in a
-// non-default enrich dir pruned without --enrich-dir).
-func collectPruneTargets(positional []string, enrichDirFlag string) []string {
+// depend on gen-dir resolution recognizing it (which broke a mirror in a
+// non-default enrich dir pruned without --gen-dir).
+func collectPruneTargets(positional []string, genDirFlag string) []string {
 	var target string
 	if len(positional) > 0 {
 		target = tspath.NormalizePath(mustAbs(positional[0]))
@@ -142,7 +142,7 @@ func collectPruneTargets(positional []string, enrichDirFlag string) []string {
 		if err != nil {
 			fatal("gen --prune: getwd: %v", err)
 		}
-		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), enrichDirFlag)
+		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), genDirFlag)
 		target = config.EnrichDir
 	}
 	files, err := collectMirrorFiles(target)

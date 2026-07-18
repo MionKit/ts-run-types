@@ -1,6 +1,6 @@
 <template>
   <span class="rt-logo" role="img" aria-label="RunTypes">
-    Run<span class="rt-logo-trademark">Types®</span>
+    <span class="rt-logo-clear">TS</span>Run<span class="rt-logo-clear">Types</span>
   </span>
 </template>
 
@@ -13,7 +13,7 @@
   color: var(--color-primary-500);
 }
 
-.rt-logo-trademark {
+.rt-logo-clear {
   color: var(--ui-text-highlighted);
 }
 

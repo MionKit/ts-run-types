@@ -90,7 +90,7 @@ else if (process.env.RT_BENCH_CACHE_DIR) process.env.RT_CACHE_DIR = process.env.
 // (<srcDir>/__runtypes, inferred from the tsconfig) lands under the read-only marker
 // mount in-container, so RT_BENCH_RT_OUTDIR points it at a writable path under the
 // vite root instead. Omitted on the host, where the inferred dir is writable.
-const OUTDIR_OPT = process.env.RT_BENCH_RT_OUTDIR ? {outDir: process.env.RT_BENCH_RT_OUTDIR} : {};
+const OUTDIR_OPT = process.env.RT_BENCH_RT_OUTDIR ? {genDir: process.env.RT_BENCH_RT_OUTDIR} : {};
 
 // The vite plugin entry — dynamic import so it can resolve from the bind-mounted
 // node_modules in-container (bare specifier) or the dist path on the host.

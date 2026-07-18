@@ -50,6 +50,7 @@
   },
   "files": [
     "dist",
+    "oxlint-recommended.json",
     "README.md"
   ],
   "publishConfig": {

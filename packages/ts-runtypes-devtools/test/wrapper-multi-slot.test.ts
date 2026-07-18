@@ -62,7 +62,7 @@ const callHook = (hook: any, thisArg: unknown, ...args: unknown[]): unknown =>
   typeof hook === 'function' ? hook.apply(thisArg, args) : hook.handler.apply(thisArg, args);
 
 function makePlugin() {
-  return runtypesRollup({binary: BIN, cwd: FIXTURE_DIR, tsconfig: 'tsconfig.json', outDir: OUT_DIR}) as any;
+  return runtypesRollup({binary: BIN, cwd: FIXTURE_DIR, tsconfig: 'tsconfig.json', genDir: OUT_DIR}) as any;
 }
 
 describe('multi-slot injection (several marker params on one call)', () => {

@@ -102,13 +102,12 @@ func EmitClosure(root *protocol.RunType, opts ClosureOptions) []NamedConst {
 		return nil
 	}
 	emitter := &closureEmitter{
-		resolve:        opts.Resolve,
-		declFiles:      opts.DeclFiles,
-		state:          map[string]emitState{},
-		names:          map[string]string{},
-		usedVar:        map[string]bool{},
-		sourceLocale:   opts.SourceLocale,
-		friendlyErrors: opts.FriendlyErrors,
+		resolve:      opts.Resolve,
+		declFiles:    opts.DeclFiles,
+		state:        map[string]emitState{},
+		names:        map[string]string{},
+		usedVar:      map[string]bool{},
+		sourceLocale: opts.SourceLocale,
 	}
 	// Seed the root's display name so its const uses the caller-supplied TypeName
 	// even if the projected node's TypeName differs (re-export aliases etc.).
@@ -164,7 +163,6 @@ func (emitter *closureEmitter) emitNamed(named *protocol.RunType, displayName st
 func (emitter *closureEmitter) renderBody(self *protocol.RunType, friendly bool) string {
 	ctx := newWalkCtx(emitter.resolve)
 	ctx.setSourceLocale(emitter.sourceLocale)
-	ctx.setFriendlyErrors(emitter.friendlyErrors)
 	// The body's ROOT node (self, first encounter) must walk inline — otherwise the
 	// const body would be a reference to itself. enteredBody flips on that first
 	// encounter; a LATER encounter of self is a genuine back-edge (e.g. a

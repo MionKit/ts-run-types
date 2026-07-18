@@ -91,7 +91,7 @@ function makePlugin() {
     binary: BIN,
     cwd: MAIN_DIR,
     tsconfig: 'tsconfig.json',
-    outDir: OUT_DIR,
+    genDir: OUT_DIR,
   }) as any;
 }
 

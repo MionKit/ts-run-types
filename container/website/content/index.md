@@ -23,11 +23,11 @@ leading: "We fixed TypeScript"
 strikeWord: "fixed"
 enhancedWord: "Enhanced"
 titles:
-  - 'And added type reflection'
-  - 'And automatic validation'
-  - 'And automatic data mocking'
-  - 'And any type serialization'
-  - 'Say hello to RunTypes®'
+  - 'Types reflection'
+  - 'Automatic validation'
+  - 'Automatic data mocking'
+  - 'Same type roundtrip serialization'
+  - 'Say hello to TsRunTypes'
 ---
 #description
 TypeScript decided it is **(Just a Linter)** and to ditch your types at run-time.

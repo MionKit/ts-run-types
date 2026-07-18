@@ -14,11 +14,11 @@ func migrateFixture(t *testing.T) (enrichConfig, string) {
 	t.Helper()
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
-		`{ "compilerOptions": { "rootDir": "src", "plugins": [{ "name": "ts-runtypes", "enrichDir": "runtypes/generated" }] } }`)
+		`{ "compilerOptions": { "rootDir": "src" } }`)
 	source := filepath.Join(dir, "src", "models.ts")
 	writeTestFile(t, source, "export interface User { name: string }\n")
-	writeTestFile(t, filepath.Join(dir, "runtypes", "generated", "models.ts"),
-		"import type { User } from '../../src/models';\n"+
+	writeTestFile(t, filepath.Join(dir, "src", "__runtypes", "enriched", "models.ts"),
+		"import type { User } from '../../models';\n"+
 			"import type { FriendlyType, MockData } from '@ts-runtypes/core';\n\n"+
 			"/** @rtType User#u1 @rtIds {name: n1} */\n"+
 			"export const friendlyUser: FriendlyType<User> = {\n"+
@@ -62,7 +62,7 @@ func TestMigrateLegacyMirror_SplitsAndDeletes(t *testing.T) {
 		t.Errorf("mock mirror wrong:\n%s", mock)
 	}
 	// Breadcrumb re-anchored one level deeper.
-	if !strings.Contains(friendly, "from '../../../src/models'") {
+	if !strings.Contains(friendly, "from '../../../models'") {
 		t.Errorf("friendly breadcrumb not recomputed:\n%s", friendly)
 	}
 

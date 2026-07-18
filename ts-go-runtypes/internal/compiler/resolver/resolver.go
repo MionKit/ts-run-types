@@ -44,6 +44,12 @@ type Options struct {
 	// is supplied to New(). When unset, SetSources falls back to the
 	// existing Program's GetCurrentDirectory.
 	Cwd string
+	// TsconfigGenDir is the tsconfig `genDir` value (absolute; empty when the
+	// tsconfig sets none). resolveOutDir prefers it over the inferred
+	// <srcDir>/__runtypes default, so every lane (bundler plugin, --compile,
+	// enrich CLI) agrees on the output root; an explicit per-request outDir
+	// (the plugin's own genDir option) still wins.
+	TsconfigGenDir string
 	// SingleThreaded forces single-checker mode on Programs built by
 	// SetSources. Mirrors program.Options.SingleThreaded. Also forces the
 	// serial scan path (a one-checker pool has nothing to fan out over).

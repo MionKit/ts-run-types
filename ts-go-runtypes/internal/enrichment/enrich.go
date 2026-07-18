@@ -50,11 +50,6 @@ type walkCtx struct {
 	// constraint scaffolds arms for — the source locale's category set (default:
 	// English `one`/`other`). Non-count-bearing constraints stay plain strings.
 	pluralArms []string
-	// defaultErrors flips the scaffold's `rt$errors` mode to the exclusive
-	// `{rt$default: ''}` catch-all (tsconfig `friendlyErrors: "default"`). Only
-	// affects what NEW nodes scaffold — an authored node's mode is owned by
-	// the author and the reconcile follows it.
-	defaultErrors bool
 }
 
 // namedRefAction tells a node walker how to handle a child that is a reference to
@@ -76,18 +71,10 @@ func newWalkCtx(resolve func(id string) *protocol.RunType) *walkCtx {
 	return &walkCtx{resolve: resolve, seen: map[*protocol.RunType]bool{}, pluralArms: cldr.Categories("en")}
 }
 
-// setFriendlyErrors flips the scaffold's `rt$errors` mode ("default" → the
-// exclusive `{rt$default: ”}` catch-all; anything else → per-constraint).
-func (ctx *walkCtx) setFriendlyErrors(mode string) {
-	ctx.defaultErrors = mode == "default"
-}
-
-// bareMeta is the meta skeleton for a node with no format constraints — and,
-// in default-errors mode, for EVERY node (the catch-all replaces the record).
+// bareMeta is the meta skeleton for a node with no format constraints.
+// Scaffolds are always per-constraint; the authored `rt$default` catch-all
+// remains a valid hand-written shape the reconcile preserves.
 func (ctx *walkCtx) bareMeta() string {
-	if ctx.defaultErrors {
-		return "{rt$label: '', rt$errors: {rt$default: ''}}"
-	}
 	return "{rt$label: '', rt$errors: {type: ''}}"
 }
 

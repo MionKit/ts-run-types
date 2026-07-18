@@ -80,14 +80,14 @@ const ctx = {
   warn(): void {},
 };
 
-// No wrapper-related options exist — the whole point. binary/cwd/tsconfig/outDir
+// No wrapper-related options exist — the whole point. binary/cwd/tsconfig/genDir
 // only pin the fixture project.
 function makePlugin() {
   return runtypesRollup({
     binary: BIN,
     cwd: FIXTURE_DIR,
     tsconfig: 'tsconfig.json',
-    outDir: OUT_DIR,
+    genDir: OUT_DIR,
   }) as any;
 }
 
