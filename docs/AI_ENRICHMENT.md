@@ -40,8 +40,8 @@ Everything RunTypes emits today — validators, JSON/binary codecs, the reflecti
 bundle — is a **pure function of the type**: deterministic, regenerated every
 build, never committed, correct by construction. There is no "sync" problem
 because there is nothing to keep in sync; the artifact *is* the type, recomputed.
-All of it lives only as ephemeral `virtual:rt/*` modules + the gitignored
-`node_modules/.cache/ts-runtypes/` disk cache.
+All of it lives only as regenerated files under the gitignored
+`<genDir>/types/` + the `node_modules/.cache/ts-runtypes/` disk cache.
 
 `FriendlyText<T>` and `MockData<T>` are a different species:
 
@@ -69,7 +69,7 @@ linked:
 
 | | identified by | link to it |
 | --- | --- | --- |
-| Cache module (`virtual:rt/*`) | **structural id** (location-independent, recomputed) | **plugin-injected** (invisible) — there is no file to import |
+| Cache module (`<genDir>/types/*.js`) | **structural id** (location-independent, recomputed) | **plugin-injected** (regenerated every build — never hand-imported) |
 | Enrichment (`src/__runtypes/enriched/*`) | **type name + source path** (human-meaningful, committed) | **real `import`** (visible, IDE-managed, in the dep graph) |
 
 The rule: **a link's persistence matches its target's**. Committed artifact ⟹
