@@ -179,7 +179,7 @@ const rtUtils = {
     };
   },
   // Constructs the CircularReferenceError an armed encoder body throws when its
-  // inline guard (rt::findCycleParent) detects a reference cycle. Kept on rtUtils
+  // inline guard (rt::findCycle) detects a reference cycle. Kept on rtUtils
   // so the emitted factory body — rebuilt via `new Function('utl', code)` — can
   // reach the error class without a module import.
   circularError(path: CircularPath): CircularReferenceError {

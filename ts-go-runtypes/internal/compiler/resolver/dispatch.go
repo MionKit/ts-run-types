@@ -156,7 +156,7 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 
 	// The circular-reference guard is now a compile-time option: an armed
 	// (`{rejectCircularRefs: true}`) guarded entry inlines the guard with a baked
-	// skeleton and demands rt::findCycleParent by body reference (served like any
+	// skeleton and demands rt::findCycle by body reference (served like any
 	// built-in), so there is no type-shape wiring or RunType-bundle linking left
 	// to do here — a plain (unarmed) cyclable type ships neither.
 

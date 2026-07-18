@@ -21,17 +21,17 @@ three deliberate ways** (owner-approved):
    entry (byte-identical body under a distinct key), exactly like a no-op
    `noLiterals`. Accepted as the pay-for-use tradeoff; a follow-up could add a
    post-scan normalization pass if the duplication ever matters.
-3. **`findCycleParent(value, skeleton)` — paths, no ancestor stack.** Open
+3. **`findCycle(value, skeleton)` — paths, no ancestor stack.** Open
    question 4's concern (an ancestor stack threaded through the traversal) is
    avoided: `BuildCircularSkeleton` (circular_skeleton.go) bakes the pruned
-   cycle-edge PATH graph into the armed factory, and `rt::findCycleParent`
+   cycle-edge PATH graph into the armed factory, and `rt::findCycle`
    (circular-pure-fns.ts) does its own restricted DFS over just those edges with a
    descent stack LOCAL to the pure fn. Nothing is threaded through the emitted
    validator, so child inlining and union arm-trying can't interfere.
 
 Answers to the open questions, as resolved: (1) dropping the global toggle is
 accepted; (2) fnHash-prefix churn is a non-issue because existing hashes stay put
-and only new `C` variants are added to the generated table; (3) `findCycleParent`
+and only new `C` variants are added to the generated table; (3) `findCycle`
 is a built-in PURE FN taking the paths list in its context (like hasUnknownKeys's
 propNames); (4) navigate via baked paths with a self-local stack — no ancestor
 stack.
@@ -55,9 +55,9 @@ normal compile-time option like `noLiterals`:
   At each such re-entry point the emitter threads an **ancestor list** through the
   recursive descent (add-on-descent / delete-on-ascent, exactly the identity
   discipline `findCycle` uses today) and emits a check:
-  `rt::findCycleParent(value, ancestors)` — walk the parent chain until the parent
+  `rt::findCycle(value, ancestors)` — walk the parent chain until the parent
   is null (root reached, no cycle) or the current value is found among the
-  ancestors (a back-edge → cycle). `findCycleParent` is tiny (a membership / walk
+  ancestors (a back-edge → cycle). `findCycle` is tiny (a membership / walk
   up a linked ancestor frame), inlinable or a small built-in pure fn; the ~200-line
   `rt::findCycle` co-walker goes away.
 - Because the shape is already baked into the emitted validator/encoder, the cycle
@@ -134,7 +134,7 @@ forces.
 - **Emitters (every guarded family):** thread an ancestor stack through the
   recursive descent in the walker
   ([typefunctions/walker.go](../../ts-go-runtypes/internal/cachegen/typefunctions/walker.go))
-  and emit the `findCycleParent` check at each `IsCircular` re-entry point —
+  and emit the `findCycle` check at each `IsCircular` re-entry point —
   across `validate`, `validationErrors`, the JSON walking primitives
   (`pj`/`pjs`/`cj`) that the `je*` composites wrap, and `toBinary`. This is a
   change to **every emitted body for a cyclable type**, and to the dep-call
@@ -148,7 +148,7 @@ forces.
 - **Scanner:** capture the per-call `{rejectCircularRefs: true}` comptime option
   into `Site.Demand` (it is currently read nowhere) and route it to the variant
   suffix.
-- **Runtime:** the small `findCycleParent` helper (built-in pure fn or inlined);
+- **Runtime:** the small `findCycle` helper (built-in pure fn or inlined);
   delete `rt::findCycle` and the `maybeGuardCircular` wrapper +
   `wireCircularRunTypeDeps`' bundle/walker wiring; **remove or repurpose**
   `setRejectCircularRefs` / `isRejectCircularRefsEnabled` /
@@ -181,7 +181,7 @@ breaking API change). Cyclable types used both ways double their entries.
   toggle a hard requirement? (This alone likely decides go/no-go.)
 - Is the fnHash-prefix churn tolerable for downstream consumers (mion), or does it
   need a compatibility shim / version gate?
-- `findCycleParent` inlined vs. a built-in pure fn — bytes vs. dedup.
+- `findCycle` inlined vs. a built-in pure fn — bytes vs. dedup.
 - Does the ancestor-stack threading interact badly with child inlining
   (`inlineMode`) and union arm-trying (where the same value is walked against
   multiple arms)?

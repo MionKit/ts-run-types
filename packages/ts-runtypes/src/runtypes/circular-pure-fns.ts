@@ -1,9 +1,9 @@
-// Registration module for the circular-reference walker `rt::findCycleParent`.
+// Registration module for the circular-reference walker `rt::findCycle`.
 //
 // The circular-reference guard is a COMPILE-TIME option (`{rejectCircularRefs:
 // true}`): only the armed variant of a guarded factory (validate /
 // validationErrors / toBinary / jsonEncoder) inlines the guard, and only for a
-// cycle-capable type. The armed body calls `rt::findCycleParent(value, skeleton)`
+// cycle-capable type. The armed body calls `rt::findCycle(value, skeleton)`
 // where `skeleton` is a small graph BAKED into the factory closure at build time
 // (computed by internal/cachegen/typefunctions/circular_skeleton.go). So this
 // walker needs NO RunType graph at runtime — the skeleton IS the pruned,
@@ -42,21 +42,21 @@ import {registerPureFnFactory} from './pureFn.ts';
  *  in circular.ts (kept there as the public type). **/
 type CircularPath = (string | number)[];
 
-/** The baked circular skeleton passed to `rt::findCycleParent` (see the module
+/** The baked circular skeleton passed to `rt::findCycle` (see the module
  *  comment). Kept loose (`any`-ish) on purpose — the pure-fn extractor casts
  *  away annotations, so the shape is documented, not enforced, at runtime. **/
 type CircularSkeleton = {c: number[]; e: {p: unknown[][]; t: number}[][]};
 
-/** Runtime shape of the `rt::findCycleParent` pure fn: walk `value` against its
+/** Runtime shape of the `rt::findCycle` pure fn: walk `value` against its
  *  baked circular skeleton and return the path to the first reference cycle, or
  *  null when acyclic. Called inline from the armed guarded factory bodies. **/
-export type FindCycleParentFn = (value: unknown, skeleton: CircularSkeleton) => CircularPath | null;
+export type FindCycleFn = (value: unknown, skeleton: CircularSkeleton) => CircularPath | null;
 
-registerPureFnFactory('rt::findCycleParent', function () {
+registerPureFnFactory('rt::findCycle', function () {
   // Per-call state lives in the factory closure (built ONCE when the pure fn
   // materialises) and is reset at the top of each call, so the recursive `nav` /
   // `dfs` closures below are created once, not on every invocation. Safe as
-  // shared state because findCycleParent is synchronous, single-threaded, and
+  // shared state because findCycle is synchronous, single-threaded, and
   // never re-enters itself — calls never interleave.
   let tracked: number[] = [];
   let edges: CircularSkeleton['e'] = [];
@@ -153,7 +153,7 @@ registerPureFnFactory('rt::findCycleParent', function () {
     return false;
   };
 
-  return function findCycleParent(value: unknown, skeleton: CircularSkeleton): CircularPath | null {
+  return function findCycle(value: unknown, skeleton: CircularSkeleton): CircularPath | null {
     if (value === null || typeof value !== 'object' || !skeleton) return null;
     tracked = skeleton.c;
     edges = skeleton.e;
