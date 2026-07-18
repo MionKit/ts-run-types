@@ -103,8 +103,16 @@ func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered v
 				if runType == nil {
 					continue
 				}
-				if entry := collectJsonCompositeEntry(runType, tag, composite, opts, rendered); entry != nil {
-					graph.Add(entry)
+				// A site can demand both the plain and the armed (rejectCircularRefs)
+				// composite for the same id — render each (plain before armed).
+				variants := demand[id]
+				sort.Slice(variants, func(i, j int) bool {
+					return !variants[i].RejectCircular && variants[j].RejectCircular
+				})
+				for _, demanded := range variants {
+					if entry := collectJsonCompositeEntry(runType, tag, composite, opts, rendered, refTable, demanded.RejectCircular); entry != nil {
+						graph.Add(entry)
+					}
 				}
 			}
 		}
@@ -138,20 +146,26 @@ func primitiveIsLive(rendered virtualmodules.Graph, primOp string, id string) bo
 // structural id (+ family), so the liveness set is identical on every build
 // that hits the same structural header — recomputing deps from the current
 // graph on a cache hit always agrees with the baked body.
-func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts, rendered virtualmodules.Graph) *virtualmodules.Entry {
+func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts, rendered virtualmodules.Graph, refTable map[string]*protocol.RunType, rejectCircular bool) *virtualmodules.Entry {
 	op, ok := operations.ByName(composite.OpName)
 	if !ok {
 		return nil
 	}
-	entryKey := operations.FnHashFor(op, nil, composite.Strategy) + "_" + runType.ID
+	entryKey := operations.FnHashFor(op, nil, composite.Strategy, rejectCircular) + "_" + runType.ID
+	// Armed encoder over a cycle-capable type: bake the circular skeleton so the
+	// body prepends the inline guard (nil for an acyclic type → behaves like the
+	// plain composite under a distinct key). Decoders never arm (jsonDecoder is
+	// not CircularGuarded, so rejectCircular is normalised to false upstream).
+	var circularSkeleton *CircularSkeleton
+	if rejectCircular {
+		circularSkeleton = BuildCircularSkeleton(runType, refTable)
+	}
 	// Override: a custom JSON encoder/decoder registered for this type replaces
 	// the whole composite (every strategy of the op) with a cfn redirect. The
 	// node id already folded the override hash, so this key is unique to the
-	// overridden type. (The site's demand still names the structural
-	// primitives, but renderEntry skips them for an overridden type —
-	// compositeOverriddenForPrimitive — so no dead module is emitted; pinned
-	// by TestOverride_JsonEncoderComposite.)
-	if cfnHash := runType.Overrides[op.FnKey]; cfnHash != "" {
+	// overridden type. Only the PLAIN variant is overridden — the armed variant
+	// falls through to structural emit so its guard still runs.
+	if cfnHash := runType.Overrides[op.FnKey]; cfnHash != "" && !rejectCircular {
 		return buildRedirectEntry(entryKey, tag, runType, cfnHash, opts)
 	}
 	isLive := func(primOp string) bool { return primitiveIsLive(rendered, primOp, runType.ID) }
@@ -164,6 +178,10 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	// presence invariant at collect time (AssertCompositeSoftDeps).
 	deps := jsonCompositeDeps(composite, runType.ID, isLive)
 	wrapRoot := rootNeedsDataOnlyWrap(runType)
+	// An armed encoder over a cyclable type must ALWAYS ship its full body so the
+	// guard prologue runs — never the noop short-form. (Acyclic armed types have a
+	// nil skeleton and behave like the plain composite.)
+	guarded := circularSkeleton != nil
 
 	// Noop short-form: with every primitive binding elided (deps empty) and no
 	// root envelope, the full body would be nothing but native JSON —
@@ -172,10 +190,10 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	// tags, noopParse for jd* tags). Emit the same short-form tuple the family
 	// renderer uses (key, typeName, code hole, isNoop=true): no factory ships
 	// and the runtime substitutes the native-JSON fn. wrapRoot (undefined/void)
-	// encoders keep their full body — the `[v]` envelope is real work — and
-	// overridden types never reach here (redirect returned above). Not
-	// disk-cached: trivial to re-derive, like redirects.
-	if len(deps) == 0 && !wrapRoot {
+	// encoders keep their full body — the `[v]` envelope is real work — a guarded
+	// entry keeps its full body too, and overridden types never reach here
+	// (redirect returned above). Not disk-cached: trivial to re-derive.
+	if len(deps) == 0 && !wrapRoot && !guarded {
 		args := holeifyArgs([]string{
 			quoteJS(entryKey),
 			quoteJS(rtTypeName(runType)),
@@ -185,11 +203,24 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 		return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: joinArgs(args), IsNoop: true}
 	}
 
-	if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
-		return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
+	// The armed variant shares the plain entry's (id, tag) disk-cache path, so it
+	// is session-rendered — never read from or written to that cache.
+	if !guarded {
+		if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
+			return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
+		}
 	}
 
-	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive, wrapRoot)
+	skeletonJS := ""
+	pureFnDepsArg := "[]"
+	softDeps := deps
+	if guarded {
+		skeletonJS = circularSkeleton.JSLiteral()
+		pureFnDepsArg = "[" + quoteJS(circularParentPureFnKey) + "]"
+		softDeps = append(append([]string(nil), deps...), circularParentPureFnKey)
+	}
+
+	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive, wrapRoot, skeletonJS)
 	_, factoryBody := WrapClosure("g_"+entryKey, entryKey, innerFn, contextLines)
 	codeArg := "undefined"
 	if opts.EmitMode.EmitsCode() {
@@ -203,15 +234,26 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 		quoteJS(entryKey),
 		quoteJS(rtTypeName(runType)),
 		codeArg,
-		"false", // isNoop — this path always has a real body (a live primitive or the wrapRoot envelope)
-		"[]",    // rtDependencies — primitive refs are resolved by fnHash, not same-family deps
-		"[]",    // pureFnDependencies
+		"false",       // isNoop — this path always has a real body (a live primitive, the wrapRoot envelope, or the guard)
+		"[]",          // rtDependencies — primitive refs are resolved by fnHash, not same-family deps
+		pureFnDepsArg, // pureFnDependencies — rt::findCycleParent for the armed guard, else empty
 		createRTFnArg,
 	})
 	argsText := joinArgs(args)
-	writeCachedCompositeEntry(runType, tag, argsText, opts)
-	return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: deps}
+	if !guarded {
+		writeCachedCompositeEntry(runType, tag, argsText, opts)
+	}
+	return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: softDeps}
 }
+
+// circularParentPureFnKey is the built-in pure-fn key the armed circular guard
+// references (delivered on demand via the entry's SoftDeps). circularGuardFcpAlias
+// is the local binding name (mirrors pureFnAliases["findCycleParent"], so the
+// composite's guard bytes match the walker-path guard's).
+const (
+	circularParentPureFnKey = corePureFnNamespace + "::findCycleParent"
+	circularGuardFcpAlias   = "fcp"
+)
 
 // jsonCompositeDeps names the primitive entries a composite body resolves at
 // materialise time — one `<plainFhash>_<id>` per LIVE family in the
@@ -261,7 +303,7 @@ func rootNeedsDataOnlyWrap(runType *protocol.RunType) bool {
 // unwrapped — byte-for-byte what calling the family noop fn would compute
 // (identity for pj/pjs/rj/ukuw; for sj the elided form is the family noop
 // itself, native JSON.stringify).
-func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string, isLive func(primOp string) bool, wrapRoot bool) (contextLines string, innerFn string) {
+func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string, isLive func(primOp string) bool, wrapRoot bool, circularSkeletonJS string) (contextLines string, innerFn string) {
 	// resolve emits a context-item const binding `name` to the primitive's fn.
 	// The direct `.fn` read is always resolvable: noop primitives register
 	// with the family noop fn pre-set (entryTuple.ts familyMeta — identity
@@ -327,6 +369,15 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 			// declared object props by position, no key names) — strips undeclared
 			// keys by construction like `clone`. Pairs with the `compact` decoder.
 			body = "return JSON.stringify(" + arrayWrap(wrap("cjFn", "compactForJson", "v")) + ");"
+		}
+		// Armed circular guard (encoders only): a detected cycle throws a
+		// CircularReferenceError before any JSON is produced. The pure fn + baked
+		// skeleton are hoisted once into the factory closure.
+		if circularSkeletonJS != "" {
+			ctx = append(ctx,
+				"const "+circularGuardFcpAlias+" = utl.getPureFn('"+circularParentPureFnKey+"')",
+				"const "+circularGuardContextKey+" = "+circularSkeletonJS)
+			body = "const cyR=" + circularGuardFcpAlias + "(v," + circularGuardContextKey + ");if(cyR)throw utl.circularError(cyR);" + body
 		}
 		innerFn = "function " + entryKey + "(v){" + body + "}"
 	case "jsonDecoder":

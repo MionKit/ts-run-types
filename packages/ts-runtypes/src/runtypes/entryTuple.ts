@@ -46,8 +46,6 @@
 import {getRTUtils} from './rtUtils.ts';
 import type {RTUtils} from './rtUtils.ts';
 import type {AnyFn, CompiledFnArgs, CompiledFnData, CompiledPureFunction, CompiledTypeFn, RunType} from './types.ts';
-import {CircularReferenceError, isRejectCircularRefsEnabled, typeGraphIsCircular} from './circular.ts';
-import type {FindCycleFn} from './circular-pure-fns.ts';
 
 // Numeric slot-0 kinds (Go: constants.TupleKind*). Type-fn entries carry their
 // family tag string instead. Runtype nodes normally ride as headless ROWS of
@@ -748,8 +746,7 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   fnName: string,
   identityFn: F,
   schemaId: string | undefined,
-  injected: unknown,
-  rejectCircularRefs?: boolean
+  injected: unknown
 ): F {
   const utils = getRTUtils();
   if (isMissingTuple(injected)) return identityFn;
@@ -769,70 +766,13 @@ export function resolveEntryTupleFn<F extends AnyFn>(
   if (schemaId !== undefined) key = key.slice(0, FN_HASH_LEN) + '_' + schemaId;
   const typeId = key.slice(FN_HASH_LEN + 1);
   const entry = utils.getRT(key);
-  if (entry) {
-    const fn = entry.fn as F;
-    // Per-call `{rejectCircularRefs}` overrides the global flag; undefined falls
-    // back to it. Disarmed is the hot path — skip the RunType lookup entirely.
-    const armed = rejectCircularRefs ?? isRejectCircularRefsEnabled();
-    return armed ? maybeGuardCircular(fnName, fn, utils.getRunType(typeId), utils) : fn;
-  }
+  // The circular-reference guard is now a COMPILE-TIME option: `{rejectCircularRefs:
+  // true}` forks the injected fnHash, so an armed call resolves a DIFFERENT entry
+  // whose body self-guards (via rt::findCycleParent). The runtime factory reads
+  // nothing here — like noLiterals, the option is already baked into `key`.
+  if (entry) return entry.fn as F;
   if (utils.hasRunType(typeId)) return identityFn;
   throw new Error(
     `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
   );
-}
-
-// =============================================================================
-// Circular-reference guard
-// =============================================================================
-
-// Per-family guard wrappers, keyed by the createX factory's fnName. Only the
-// four live-object families guard; each applies its own policy — validate
-// stays total (returns false), getValidationErrors records a diagnostic, and
-// the encoders throw (matching JSON.stringify). Decoders and the
-// huk/ces/uke/fmt leaf families are absent and never wrap.
-const circularGuards: Record<string, (fn: AnyFn, rt: RunType, findCycle: FindCycleFn) => AnyFn> = {
-  createValidate: (fn, rt, findCycle) => (value: unknown) => (findCycle(value, rt) ? false : fn(value)),
-  createGetValidationErrors: (fn, rt, findCycle) => (value: unknown, pth?: unknown, errs?: unknown) => {
-    const cycle = findCycle(value, rt);
-    // A cycle short-circuits: record it and STOP — descending into the base
-    // validator would recurse forever on the same cyclic value.
-    if (cycle) {
-      const out = Array.isArray(errs) ? (errs as unknown[]) : [];
-      out.push({path: Array.isArray(pth) ? [...(pth as unknown[]), ...cycle] : cycle, expected: 'circular'});
-      return out;
-    }
-    return fn(value, pth, errs);
-  },
-  createJsonEncoder: encoderCircularGuard,
-  createBinaryEncoder: encoderCircularGuard,
-};
-
-// Shared encoder policy: a cycle throws CircularReferenceError before the base
-// encoder runs; trailing args (e.g. the binary serializer) flow through.
-function encoderCircularGuard(fn: AnyFn, rt: RunType, findCycle: FindCycleFn): AnyFn {
-  return (value: unknown, ...rest: unknown[]) => {
-    const cycle = findCycle(value, rt);
-    if (cycle) throw new CircularReferenceError(cycle);
-    return fn(value, ...rest);
-  };
-}
-
-/** Wraps `fn` with its family's circular-reference guard when `rt`'s type graph
- *  can actually cycle. Callers gate on the armed flag (global or per-call) first;
- *  this returns `fn` untouched for non-guarded families, a missing RunType, or
- *  an acyclic type — all no-op for free.
- *
- *  The walker itself (`rt::findCycle`) is a demand-delivered built-in pure fn, not
- *  a static import — the resolver wires it into a cyclable guarded entry's deps
- *  (wireCircularRunTypeDeps), so it is registered whenever the gate below passes.
- *  The `!findCycle` branch is a defensive fail-open (guard disabled), never the
- *  normal path. **/
-function maybeGuardCircular<F extends AnyFn>(fnName: string, fn: F, rt: RunType | undefined, utils: RTUtils): F {
-  if (!rt) return fn;
-  const guard = circularGuards[fnName];
-  if (!guard || !typeGraphIsCircular(rt)) return fn;
-  const findCycle = utils.getPureFn('rt::findCycle') as FindCycleFn | undefined;
-  if (!findCycle) return fn;
-  return guard(fn, rt, findCycle) as F;
 }

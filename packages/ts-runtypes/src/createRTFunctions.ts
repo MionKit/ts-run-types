@@ -30,11 +30,12 @@ export interface ValidateOptions {
    *  The variant cache key changes (e.g. `val_<id>` → `valNA_<id>`) so
    *  the same type id can serve both the guarded and unguarded factory. **/
   noIsArrayCheck?: boolean;
-  /** Per-call circular-reference guard — overrides the global `setRejectCircularRefs`
-   *  for THIS validator (`true` arms, `false` disables). Runtime-only: it is
-   *  deliberately NOT one of the Go scanner's `ValidateOptions`, so it never
-   *  folds into the fnHash / cache key (a circular-checking and a plain
-   *  validator for the same `T` share one compiled entry). **/
+  /** Arms the circular-reference guard for THIS validator: a value containing a
+   *  reference cycle makes `createValidate` return false and
+   *  `createGetValidationErrors` record a `{expected: 'circular'}` entry.
+   *  COMPILE-TIME (like `noLiterals`): it forks the injected fnHash, so an armed
+   *  and a plain validator for the same `T` compile to distinct entries — the
+   *  armed one bakes the cycle check into its body (pay-for-use). **/
   rejectCircularRefs?: boolean;
 }
 
@@ -210,8 +211,9 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  *    ends must share the type, like the binary codec.
  */
 export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct' | 'compact';
-// `rejectCircularRefs` is the per-call circular-reference override (see ValidateOptions);
-// runtime-only — the JSON axis hashes only `strategy`, so it never forks the cache.
+// Both options are COMPILE-TIME (see ValidateOptions.rejectCircularRefs): `strategy`
+// selects the composite, and `rejectCircularRefs` forks it into an armed variant
+// whose body throws a CircularReferenceError on a reference cycle.
 export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; rejectCircularRefs?: boolean};
 
 /** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
@@ -235,32 +237,21 @@ export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
  *  build time). Slot 0 (`val`) may be a value-first schema whose runtime
  *  `.id` overrides the injected typeId (correct even for recursive schemas);
  *  the family fnHash still comes from the injected tuple's key. **/
-function resolveTupleEntry<F extends AnyFn>(
-  fnName: string,
-  identityFn: F,
-  val: unknown,
-  args: unknown,
-  rejectCircularRefs?: boolean
-): F {
+function resolveTupleEntry<F extends AnyFn>(fnName: string, identityFn: F, val: unknown, args: unknown): F {
   const schemaId = isRunTypeSchema(val) ? val.id : undefined;
-  return resolveEntryTupleFn(fnName, identityFn, schemaId, args, rejectCircularRefs);
-}
-
-/** Reads the per-call `rejectCircularRefs` override off a createX options bag
- *  (undefined when no options / not set → the global flag decides). **/
-function readRejectCircularRefs(options: unknown): boolean | undefined {
-  return (options as {rejectCircularRefs?: boolean} | undefined)?.rejectCircularRefs;
+  return resolveEntryTupleFn(fnName, identityFn, schemaId, args);
 }
 
 /** Returns the compiled closure for an option-carrying createX factory
  *  (`createValidate` / `createGetValidationErrors`, 3-arg `(val, options, args)`). The
- *  injected entry tuple sits at the trailing slot; options @slot1 are baked
- *  into the tuple's key at build time so the runtime ignores them. **/
+ *  injected entry tuple sits at the trailing slot; options @slot1 (including
+ *  `rejectCircularRefs`) are compile-time — baked into the tuple's key at build
+ *  time, so the runtime ignores them. **/
 function createTypeFnArgsFunction<F extends AnyFn>(
   fnName: string,
   identityFn: F
 ): (val?: unknown, options?: unknown, args?: unknown) => F {
-  return (val, options, args) => resolveTupleEntry(fnName, identityFn, val, args, readRejectCircularRefs(options));
+  return (val, _options, args) => resolveTupleEntry(fnName, identityFn, val, args);
 }
 
 /** Returns the compiled closure for a leaf family that does NOT honour
@@ -405,16 +396,12 @@ export function createJsonEncoder<T>(
 ): JsonEncoderFn;
 export function createJsonEncoder<T>(
   valOrSchema?: T | RunType<T>,
-  options?: CompTimeFnArgs<JsonEncoderOptions>,
+  _options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
-  return resolveTupleEntry<JsonEncoderFn>(
-    'createJsonEncoder',
-    jsonStringifyFallback,
-    valOrSchema,
-    id,
-    options?.rejectCircularRefs
-  );
+  // `strategy` + `rejectCircularRefs` are compile-time — the plugin baked both
+  // into `id`'s fnHash, so the runtime just resolves the injected tuple.
+  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', jsonStringifyFallback, valOrSchema, id);
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared

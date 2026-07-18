@@ -15,9 +15,15 @@ export interface FnHashEntry {
   readonly axis: FnHashAxis;
   /** jsonStrategy only: the strategy token applied when options omit `strategy`. */
   readonly defaultVariant?: string;
+  /** CircularGuarded families (validate / validationErrors / toBinary /
+   *  jsonEncoder) fork on the rejectCircularRefs compile option: each base
+   *  variant token also has a 'C'-suffixed armed twin. getFnHash appends 'C'
+   *  when options.rejectCircularRefs is set on such a family. */
+  readonly circularGuarded?: true;
   /** Variant token → fnHash. Token is '' for option-less families, the validate
    *  variant suffix ('', 'NL', 'NA', 'NLA'), the hasUnknownKeys variant suffix
-   *  ('', 'OV'), or the JSON strategy name. */
+   *  ('', 'OV'), or the JSON strategy name — each optionally with a trailing
+   *  'C' for the rejectCircularRefs fork on a CircularGuarded family. */
   readonly variants: Readonly<Record<string, string>>;
 }
 
@@ -32,17 +38,35 @@ export const FN_HASHES = {
   jsonEncoder: {
     axis: 'jsonStrategy',
     defaultVariant: 'clone',
-    variants: {clone: 'wUi', compact: 'yeS', direct: 'y0u', mutate: 'z1L'},
+    circularGuarded: true,
+    variants: {
+      clone: 'wUi',
+      cloneC: 't3D',
+      compact: 'yeS',
+      compactC: 'LxJ',
+      direct: 'y0u',
+      directC: 'DJJ',
+      mutate: 'z1L',
+      mutateC: 'MEw',
+    },
   },
   pj: {axis: 'none', variants: {'': 'tt1'}},
   pjs: {axis: 'none', variants: {'': 'oak'}},
   rj: {axis: 'none', variants: {'': 'X13'}},
   sj: {axis: 'none', variants: {'': 'qm4'}},
-  tb: {axis: 'none', variants: {'': 'plZ'}},
+  tb: {axis: 'none', circularGuarded: true, variants: {'': 'plZ', C: 'GC8'}},
   uke: {axis: 'none', variants: {'': 'XFJ'}},
   ukuw: {axis: 'none', variants: {'': 'N3x'}},
-  val: {axis: 'validateOptions', variants: {'': 'nPZ', NA: 'WeU', NL: 'N7J', NLA: 'GYK'}},
-  verr: {axis: 'validateOptions', variants: {'': 'pBb', NA: 'UKg', NL: 'LD5', NLA: 'Yk4'}},
+  val: {
+    axis: 'validateOptions',
+    circularGuarded: true,
+    variants: {'': 'nPZ', C: 'cCe', NA: 'WeU', NAC: 'fJb', NL: 'N7J', NLA: 'GYK', NLAC: 'z9t', NLC: 'iai'},
+  },
+  verr: {
+    axis: 'validateOptions',
+    circularGuarded: true,
+    variants: {'': 'pBb', C: 'a8A', NA: 'UKg', NAC: 'F3L', NL: 'LD5', NLA: 'Yk4', NLAC: 'NJl', NLC: 'IuS'},
+  },
 } as const satisfies Record<string, FnHashEntry>;
 
 /** ValidateOptions name → single-letter token, in Go declaration order

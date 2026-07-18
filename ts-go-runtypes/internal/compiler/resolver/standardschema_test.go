@@ -50,8 +50,8 @@ createStandardSchema<string>();
 	if !ok {
 		t.Fatalf("no operation registered for fnKey 'verr'")
 	}
-	wantVal := operations.FnHashFor(valOp, nil, "")
-	wantVerr := operations.FnHashFor(verrOp, nil, "")
+	wantVal := operations.FnHashFor(valOp, nil, "", false)
+	wantVerr := operations.FnHashFor(verrOp, nil, "", false)
 
 	if len(site.FnIds) != 2 {
 		t.Fatalf("expected 2 fnIds (val, verr), got %d (%+v)", len(site.FnIds), site.FnIds)
@@ -95,7 +95,7 @@ createValidate<string>();
 		t.Errorf("single-fn site should carry no FnIds list, got %v", site.FnIds)
 	}
 	valOp, _ := operations.ByFnKey("val")
-	if want := operations.FnHashFor(valOp, nil, ""); site.FnId != want {
+	if want := operations.FnHashFor(valOp, nil, "", false); site.FnId != want {
 		t.Errorf("scalar FnId = %q, want %q", site.FnId, want)
 	}
 }

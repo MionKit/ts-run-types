@@ -62,13 +62,20 @@ func axisToken(axis operations.Axis) string {
 }
 
 // fnHashEntry is one operation's rendered TS entry: its axis, the optional
-// default variant (JSON strategy families only), and every variant token → hash.
+// default variant (JSON strategy families only), whether it forks on the
+// rejectCircular compile option, and every variant token → hash.
 type fnHashEntry struct {
-	fnKey          string
-	axis           string
-	defaultVariant string
-	variants       map[string]string
+	fnKey           string
+	axis            string
+	defaultVariant  string
+	circularGuarded bool
+	variants        map[string]string
 }
+
+// circularVariantLetter is appended to a CircularGuarded op's base variant token
+// for its armed (rejectCircularRefs) fork — the JS-side mirror of the Go
+// operations.circularCanonicalSuffix. getFnHash appends the same letter.
+const circularVariantLetter = "C"
 
 // optionSubsets returns the power set of an option table's NAMES — every subset
 // a call site can request. Mirrors operations.optionSubsets (kept local so the
@@ -102,25 +109,39 @@ func collectEntries() []fnHashEntry {
 		if op.FnKey == "" {
 			continue
 		}
-		entry := fnHashEntry{fnKey: op.FnKey, axis: axisToken(op.Axis), variants: map[string]string{}}
-		switch op.Axis {
-		case operations.AxisValidateOptions:
-			for _, subset := range optionSubsets(constants.ValidateOptions) {
-				token := constants.ValidateVariantSuffix(subset)
-				entry.variants[token] = operations.FnHashFor(op, subset, "")
+		entry := fnHashEntry{fnKey: op.FnKey, axis: axisToken(op.Axis), circularGuarded: op.CircularGuarded, variants: map[string]string{}}
+		// CircularGuarded ops emit each base variant twice: plain, and armed with
+		// the "C" letter appended (getFnHash mirrors the append). Non-guarded ops
+		// emit only the plain lane.
+		circularForks := []bool{false}
+		if op.CircularGuarded {
+			circularForks = []bool{false, true}
+		}
+		addVariant := func(baseToken string, rejectCircular bool, hash string) {
+			token := baseToken
+			if rejectCircular {
+				token += circularVariantLetter
 			}
-		case operations.AxisHasUnknownKeysOptions:
-			for _, subset := range optionSubsets(constants.HasUnknownKeysOptions) {
-				token := constants.HasUnknownKeysVariantSuffix(subset)
-				entry.variants[token] = operations.FnHashFor(op, subset, "")
+			entry.variants[token] = hash
+		}
+		for _, rejectCircular := range circularForks {
+			switch op.Axis {
+			case operations.AxisValidateOptions:
+				for _, subset := range optionSubsets(constants.ValidateOptions) {
+					addVariant(constants.ValidateVariantSuffix(subset), rejectCircular, operations.FnHashFor(op, subset, "", rejectCircular))
+				}
+			case operations.AxisHasUnknownKeysOptions:
+				for _, subset := range optionSubsets(constants.HasUnknownKeysOptions) {
+					addVariant(constants.HasUnknownKeysVariantSuffix(subset), rejectCircular, operations.FnHashFor(op, subset, "", rejectCircular))
+				}
+			case operations.AxisJsonStrategy:
+				entry.defaultVariant = op.DefaultStrategy
+				for _, strategy := range op.Strategies {
+					addVariant(strategy, rejectCircular, operations.FnHashFor(op, nil, strategy, rejectCircular))
+				}
+			default:
+				addVariant("", rejectCircular, operations.FnHashFor(op, nil, "", rejectCircular))
 			}
-		case operations.AxisJsonStrategy:
-			entry.defaultVariant = op.DefaultStrategy
-			for _, strategy := range op.Strategies {
-				entry.variants[strategy] = operations.FnHashFor(op, nil, strategy)
-			}
-		default:
-			entry.variants[""] = operations.FnHashFor(op, nil, "")
 		}
 		entries = append(entries, entry)
 	}
@@ -189,9 +210,15 @@ func Generate() string {
 	out.WriteString("  readonly axis: FnHashAxis;\n")
 	out.WriteString("  /** jsonStrategy only: the strategy token applied when options omit `strategy`. */\n")
 	out.WriteString("  readonly defaultVariant?: string;\n")
+	out.WriteString("  /** CircularGuarded families (validate / validationErrors / toBinary /\n")
+	out.WriteString("   *  jsonEncoder) fork on the rejectCircularRefs compile option: each base\n")
+	out.WriteString("   *  variant token also has a 'C'-suffixed armed twin. getFnHash appends 'C'\n")
+	out.WriteString("   *  when options.rejectCircularRefs is set on such a family. */\n")
+	out.WriteString("  readonly circularGuarded?: true;\n")
 	out.WriteString("  /** Variant token → fnHash. Token is '' for option-less families, the validate\n")
 	out.WriteString("   *  variant suffix ('', 'NL', 'NA', 'NLA'), the hasUnknownKeys variant suffix\n")
-	out.WriteString("   *  ('', 'OV'), or the JSON strategy name. */\n")
+	out.WriteString("   *  ('', 'OV'), or the JSON strategy name — each optionally with a trailing\n")
+	out.WriteString("   *  'C' for the rejectCircularRefs fork on a CircularGuarded family. */\n")
 	out.WriteString("  readonly variants: Readonly<Record<string, string>>;\n")
 	out.WriteString("}\n")
 	out.WriteString("\n")
@@ -201,6 +228,9 @@ func Generate() string {
 		fields := []string{"axis: " + jsStr(entry.axis)}
 		if entry.defaultVariant != "" {
 			fields = append(fields, "defaultVariant: "+jsStr(entry.defaultVariant))
+		}
+		if entry.circularGuarded {
+			fields = append(fields, "circularGuarded: true")
 		}
 		fields = append(fields, "variants: "+renderVariants(entry.variants))
 		out.WriteString(fmt.Sprintf("  %s: {%s},\n", tsKey(entry.fnKey), strings.Join(fields, ", ")))

@@ -141,6 +141,17 @@ type Walker struct {
 	// variant only changes the root's body. Empty when this walker
 	// emits the plain entry.
 	VariantOptions map[string]bool
+	// RejectCircular marks this walker as rendering the armed
+	// (`{rejectCircularRefs: true}`) variant of a CircularGuarded family. When
+	// set with a non-nil CircularSkeleton, Compile prepends the inline
+	// circular-reference guard to the finalized body. Root-scoped like
+	// VariantOptions — children render plain, so only the root body carries the
+	// guard.
+	RejectCircular bool
+	// CircularSkeleton is the baked cycle-capable graph the inline guard walks
+	// (nil for an acyclic armed type, where no guard is emitted). Set by the
+	// renderer alongside RejectCircular.
+	CircularSkeleton *CircularSkeleton
 	// Vλl is the current value-accessor expression. Recomputed on
 	// every pushStack from the live stack of frames. For an atomic
 	// root it equals the first arg's Name (e.g. "v"); for a member
@@ -591,8 +602,53 @@ func (w *Walker) Compile() (innerFnDecl string, isNoop bool, isUnsupported bool)
 	}
 	finalCode, noop := w.Emitter.Finalize(w.Code)
 	w.Code = finalCode
+	// An armed (rejectCircularRefs) variant over a cycle-capable type prepends
+	// the inline circular-reference guard. The guard runs a restricted walk of
+	// the value against the baked skeleton and applies the family's reaction
+	// (return false / push a `circular` error / throw) before the real body — so
+	// the finalized body is never an identity noop.
+	if w.RejectCircular && w.CircularSkeleton != nil {
+		w.emitCircularGuard()
+		noop = false
+	}
 	innerFnDecl = fmt.Sprintf("function %s(%s){%s}", w.FnName, w.argsList(true), w.Code)
 	return innerFnDecl, noop, false
+}
+
+// CircularGuardReactor is implemented by the walker-path CircularGuarded
+// emitters (validate / validationErrors / toBinary). EmitCircularGuard returns
+// the guard statement prepended to the body: it runs `<fcpAlias>(v, <skeletonConst>)`
+// and, on a non-null result (a detected cycle), applies the family's policy —
+// `return false` (validate), record a `{expected:'circular'}` error and return
+// (validationErrors), or throw a CircularReferenceError (encoders). The JSON
+// composites don't use the walker; they inline their own guard in
+// json_composite.go.
+type CircularGuardReactor interface {
+	EmitCircularGuard(fcpAlias, skeletonConst string) string
+}
+
+// circularGuardContextKey names the closure-hoisted skeleton const shared by the
+// guard prologue.
+const circularGuardContextKey = "cyP"
+
+// circularPureFnFilePath is the canonical source path rt::findCycleParent's body
+// is registered under (the built-in pure-fn table extracts it from here).
+const circularPureFnFilePath = "packages/ts-runtypes/src/runtypes/circular-pure-fns.ts"
+
+// emitCircularGuard hoists the rt::findCycleParent alias + the baked skeleton
+// const into the factory closure and prepends the family's guard statement to
+// the body. No-op when the emitter is not a CircularGuardReactor (only the
+// guarded families implement it).
+func (w *Walker) emitCircularGuard() {
+	reactor, ok := w.Emitter.(CircularGuardReactor)
+	if !ok {
+		return
+	}
+	ctx := w.getEmitContext(w.Vλl)
+	defer w.putEmitContext(ctx)
+	fcpAlias := ctx.UsePureFn(corePureFnNamespace, "findCycleParent", circularPureFnFilePath)
+	ctx.SetContextItem(circularGuardContextKey, "const "+circularGuardContextKey+" = "+w.CircularSkeleton.JSLiteral())
+	w.Code = reactor.EmitCircularGuard(fcpAlias, circularGuardContextKey) + w.Code
 }
 
 // ContextLines returns the `const xyz = …` declarations in insertion

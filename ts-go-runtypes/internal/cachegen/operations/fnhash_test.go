@@ -6,12 +6,14 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/constants"
 )
 
-// expectedCanonicalKeyCount is a canary: 14 AxisNone ops (7 public leaf + 7
-// internal primitives) × 1, plus 2 ValidateOptions ops × 4 subsets, plus
-// jsonEncoder's 4 + jsonDecoder's 3 strategies = 14 + 8 + 7. If this trips,
-// an operation was added/removed without updating the count (and you should
-// re-confirm the collision guard still holds).
-const expectedCanonicalKeyCount = 14 + 8 + 7
+// expectedCanonicalKeyCount is a canary. Base set = 29: 12 AxisNone ops × 1,
+// huk's 2 HasUnknownKeysOptions subsets, val+verr's 4 ValidateOptions subsets
+// each (8), jsonEncoder's 4 + jsonDecoder's 3 strategies (7). On top, the four
+// CircularGuarded ops fork on rejectCircular, ADDING one armed key per plain
+// variant: val +4, verr +4, tb +1, jsonEncoder +4 = +13. If this trips, an
+// operation (or the circular fork) changed without updating the count (and you
+// should re-confirm the collision guard still holds).
+const expectedCanonicalKeyCount = 29 + 13
 
 func TestFnHashCollisionFree(t *testing.T) {
 	// Runs at init too, but assert here so the failure is a test, not a panic.
@@ -37,8 +39,8 @@ func TestFnHashCollisionFree(t *testing.T) {
 
 func TestFnHashDeterministic(t *testing.T) {
 	validate, _ := ByName("validate")
-	a := FnHashFor(validate, []string{"noLiterals"}, "")
-	b := FnHashFor(validate, []string{"noLiterals"}, "")
+	a := FnHashFor(validate, []string{"noLiterals"}, "", false)
+	b := FnHashFor(validate, []string{"noLiterals"}, "", false)
 	if a != b {
 		t.Fatalf("FnHashFor not deterministic: %q vs %q", a, b)
 	}
@@ -46,22 +48,53 @@ func TestFnHashDeterministic(t *testing.T) {
 
 func TestCanonicalOptionOrderIndependent(t *testing.T) {
 	validate, _ := ByName("validate")
-	forward := Canonical(validate, []string{"noLiterals", "noIsArrayCheck"}, "")
-	reverse := Canonical(validate, []string{"noIsArrayCheck", "noLiterals"}, "")
+	forward := Canonical(validate, []string{"noLiterals", "noIsArrayCheck"}, "", false)
+	reverse := Canonical(validate, []string{"noIsArrayCheck", "noLiterals"}, "", false)
 	if forward != reverse {
 		t.Fatalf("Canonical is option-order-dependent: %q vs %q", forward, reverse)
 	}
-	if FnHashFor(validate, []string{"noLiterals", "noIsArrayCheck"}, "") != FnHashFor(validate, []string{"noIsArrayCheck", "noLiterals"}, "") {
+	if FnHashFor(validate, []string{"noLiterals", "noIsArrayCheck"}, "", false) != FnHashFor(validate, []string{"noIsArrayCheck", "noLiterals"}, "", false) {
 		t.Fatal("FnHashFor is option-order-dependent")
 	}
 }
 
 func TestCanonicalDistinguishesOptionSets(t *testing.T) {
 	validate, _ := ByName("validate")
-	plain := FnHashFor(validate, nil, "")
-	noLiterals := FnHashFor(validate, []string{"noLiterals"}, "")
+	plain := FnHashFor(validate, nil, "", false)
+	noLiterals := FnHashFor(validate, []string{"noLiterals"}, "", false)
 	if plain == noLiterals {
 		t.Fatal("plain and noLiterals validate must hash differently")
+	}
+}
+
+// TestRejectCircularForksHash pins the new contract: rejectCircular forks a
+// CircularGuarded op's fnHash across every axis (validate options, none, json
+// strategy) and is orthogonal to the other options — while leaving a
+// non-guarded op untouched.
+func TestRejectCircularForksHash(t *testing.T) {
+	validate, _ := ByName("validate")
+	verr, _ := ByName("validationErrors")
+	toBinary, _ := ByName("toBinary")
+	jsonEncoder, _ := ByName("jsonEncoder")
+	fromBinary, _ := ByName("fromBinary") // not CircularGuarded
+
+	forks := func(name string, op Operation, options []string, strategy string) {
+		plain := FnHashFor(op, options, strategy, false)
+		armed := FnHashFor(op, options, strategy, true)
+		if plain == armed {
+			t.Fatalf("%s: rejectCircular did not fork the fnHash (%q)", name, plain)
+		}
+	}
+	forks("validate", validate, nil, "")
+	forks("validate|NL", validate, []string{"noLiterals"}, "")
+	forks("validationErrors", verr, nil, "")
+	forks("toBinary", toBinary, nil, "")
+	forks("jsonEncoder|clone", jsonEncoder, nil, "clone")
+	forks("jsonEncoder|mutate", jsonEncoder, nil, "mutate")
+
+	// A non-guarded op ignores rejectCircular entirely.
+	if FnHashFor(fromBinary, nil, "", false) != FnHashFor(fromBinary, nil, "", true) {
+		t.Fatal("fromBinary is not CircularGuarded; rejectCircular must be a no-op")
 	}
 }
 
@@ -124,12 +157,12 @@ func TestByFamilyTag(t *testing.T) {
 
 func TestPlainHashMatchesDefaultVariant(t *testing.T) {
 	validate, _ := ByName("validate")
-	if PlainHash("validate") != FnHashFor(validate, nil, "") {
+	if PlainHash("validate") != FnHashFor(validate, nil, "", false) {
 		t.Fatal("PlainHash must equal the default-variant fnHash")
 	}
 	// jsonEncoder's plain form is its default strategy.
 	jsonEncoder, _ := ByName("jsonEncoder")
-	if PlainHash("jsonEncoder") != FnHashFor(jsonEncoder, nil, jsonEncoder.DefaultStrategy) {
+	if PlainHash("jsonEncoder") != FnHashFor(jsonEncoder, nil, jsonEncoder.DefaultStrategy, false) {
 		t.Fatal("PlainHash for a composite must equal its default-strategy fnHash")
 	}
 }

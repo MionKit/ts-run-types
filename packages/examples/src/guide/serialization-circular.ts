@@ -1,4 +1,4 @@
-import {createJsonEncoder, createBinaryEncoder, CircularReferenceError, setRejectCircularRefs} from '@ts-runtypes/core';
+import {createJsonEncoder, createBinaryEncoder, CircularReferenceError} from '@ts-runtypes/core';
 
 // A self-referential shape: a node that can point at another Node.
 interface Node {
@@ -24,20 +24,17 @@ try {
 }
 // end-per-call
 
-// start-global
-// Or arm it once globally — every guarded factory (validate, getValidationErrors,
-// JSON encoder, binary encoder) checks unless given `{rejectCircularRefs: false}`.
-setRejectCircularRefs(true);
-
-const encodeBin = createBinaryEncoder<Node>(); // armed via the global flag
+// start-binary
+// The binary encoder arms the same way. `rejectCircularRefs` is a compile-time
+// option, so the armed encoder is a separate compiled function that bakes the
+// cycle check into its body (you only pay for it where you ask for it).
+const encodeBin = createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
 try {
   encodeBin(cyclic as Node);
 } catch (err) {
   err instanceof CircularReferenceError; // true
 }
-
-setRejectCircularRefs(false); // disarm — back to the default
-// end-global
+// end-binary
 
 // start-dag
 // Shared-but-acyclic values pass — `shared` is reached twice, but never

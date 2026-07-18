@@ -276,7 +276,7 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 		if !ok {
 			t.Fatalf("unknown composite tag %q", tag)
 		}
-		entry := collectJsonCompositeEntry(runType, tag, composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+		entry := collectJsonCompositeEntry(runType, tag, composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered, nil, false)
 		if entry == nil {
 			t.Fatalf("no composite entry for %q", tag)
 		}
@@ -287,8 +287,8 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	noopGraph.Add(&virtualmodules.Entry{Key: pjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
 	noopGraph.Add(&virtualmodules.Entry{Key: ukuwKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "ukuw", ArgsText: "'" + ukuwKey + "'"})
 
-	jdPRKey := operations.FnHashFor(mustOp(t, "jsonDecoder"), nil, "preserve") + "_obj1"
-	jeMUKey := operations.FnHashFor(mustOp(t, "jsonEncoder"), nil, "mutate") + "_obj1"
+	jdPRKey := operations.FnHashFor(mustOp(t, "jsonDecoder"), nil, "preserve", false) + "_obj1"
+	jeMUKey := operations.FnHashFor(mustOp(t, "jsonEncoder"), nil, "mutate", false) + "_obj1"
 
 	// jdPR: rj noop → every binding elided → the noop short form; no body,
 	// no factory, no deps. The bare JSON.parse moved into the runtime noop.
@@ -564,7 +564,7 @@ func TestNoopVerdict_TripwireDemotesLyingPredicate(t *testing.T) {
 	// A registered tag is required for key derivation; the emitter under test
 	// is still the lying fake — the real fmt emitter is never consulted.
 	settings := constants.CacheModuleSettings{Name: "lying", VarPrefix: "fmt", Tag: "fmt"}
-	rendered := renderEntryWithDeps(runType, settings, lyingNoopEmitter{}, "fmt_", refTable, RenderOpts{EmitMode: constants.EmitBoth}, "", nil)
+	rendered := renderEntryWithDeps(runType, settings, lyingNoopEmitter{}, "fmt_", refTable, RenderOpts{EmitMode: constants.EmitBoth}, "", nil, false)
 	if rendered.isNoop {
 		t.Fatal("tripwire must demote a lying predicate's verdict to live")
 	}
@@ -729,7 +729,7 @@ func TestJsonComposite_DirectStrategyTwoLayerCollapse(t *testing.T) {
 		t.Fatal("unknown composite tag jeDI")
 	}
 
-	entry := collectJsonCompositeEntry(types["str"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+	entry := collectJsonCompositeEntry(types["str"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered, nil, false)
 	if entry == nil {
 		t.Fatal("no jeDI entry for str")
 	}
@@ -740,7 +740,7 @@ func TestJsonComposite_DirectStrategyTwoLayerCollapse(t *testing.T) {
 		t.Errorf("collapsed jeDI must carry no primitive deps, got %v", entry.SoftDeps)
 	}
 
-	objEntry := collectJsonCompositeEntry(types["objCompat"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+	objEntry := collectJsonCompositeEntry(types["objCompat"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered, nil, false)
 	if objEntry == nil {
 		t.Fatal("no jeDI entry for objCompat")
 	}
@@ -764,7 +764,7 @@ func TestJsonComposite_WrapRootNeverNoop(t *testing.T) {
 	}
 	noopGraph := virtualmodules.Graph{}
 	noopGraph.Add(&virtualmodules.Entry{Key: pjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
-	entry := collectJsonCompositeEntry(runType, "jeMU", composite, RenderOpts{EmitMode: constants.EmitBoth}, noopGraph)
+	entry := collectJsonCompositeEntry(runType, "jeMU", composite, RenderOpts{EmitMode: constants.EmitBoth}, noopGraph, nil, false)
 	if entry == nil {
 		t.Fatal("no composite entry for jeMU")
 	}

@@ -174,7 +174,7 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if !ok {
 		t.Fatal("jsonEncoder operation missing from the registry")
 	}
-	rootKey := operations.FnHashFor(jsonEncoderOp, nil, "mutate") + "_" + rootSiteID
+	rootKey := operations.FnHashFor(jsonEncoderOp, nil, "mutate", false) + "_" + rootSiteID
 	userModule := entryModule(resp, rootKey)
 	if !strings.Contains(userModule, "'User',,true]") {
 		t.Errorf("jeMU composite for the absorbed User must collapse to the noop short form, got: %s", userModule)

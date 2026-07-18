@@ -45,6 +45,16 @@ func (ValidationErrorsEmitter) Args() []ArgSpec {
 	}
 }
 
+// EmitCircularGuard renders the inline circular-reference guard for the armed
+// validationErrors variant: a detected cycle records a `{expected:'circular'}`
+// entry at the current path (prefixed by the incoming `pth`) and returns early —
+// descending into the base body would recurse forever on the cyclic value.
+// Mirrors the old runtime guard's short-circuit in entryTuple.ts.
+func (ValidationErrorsEmitter) EmitCircularGuard(fcpAlias, skeletonConst string) string {
+	return "const cyR=" + fcpAlias + "(v," + skeletonConst + ");" +
+		"if(cyR){er.push({path:pth.length?pth.concat(cyR):cyR,expected:'circular'});return er;}"
+}
+
 // Supports — the shared validate/validationErrors kind set
 // (validationSupports in validate.go).
 func (ValidationErrorsEmitter) Supports(rt *protocol.RunType) bool {

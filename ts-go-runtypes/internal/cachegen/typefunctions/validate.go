@@ -32,6 +32,13 @@ func (ValidateEmitter) Args() []ArgSpec {
 	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
 }
 
+// EmitCircularGuard renders the inline circular-reference guard for the armed
+// validate variant: a detected cycle makes the total validator return false
+// (matching the old runtime guard's `findCycle ? false : fn(value)`).
+func (ValidateEmitter) EmitCircularGuard(fcpAlias, skeletonConst string) string {
+	return "if(" + fcpAlias + "(v," + skeletonConst + "))return false;"
+}
+
 // Supports gates the renderer's top-level loop. Covers every atomic
 // kind whose node ships an emitIsType, plus KindClass restricted
 // to the Date subkind (the reference nodes/atomic/date.ts treats Date as
