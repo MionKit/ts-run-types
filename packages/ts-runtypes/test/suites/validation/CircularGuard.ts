@@ -456,6 +456,68 @@ export const CIRCULAR_GUARD = {
     expectValid: true,
   },
 
+  reentrant_getter_walk: {
+    title: 'A getter that re-enters another armed guard cannot corrupt the walk',
+    description:
+      'Reading `a` runs a getter that synchronously validates a DIFFERENT cyclic value with its own armed validator; the outer cycle (via `b`) must still be detected. Pins the per-call walk state — shared closure state would let the inner call clobber the outer stack/skeleton and miss the cycle (→ the real validator recurses forever).',
+    validate: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createValidate<Node>(undefined, {rejectCircularRefs: true});
+    },
+    validateReflect: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      const inference: Node = {name: 'a'};
+      return createValidate(inference, {rejectCircularRefs: true});
+    },
+    getValidationErrors: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
+    },
+    getValidationErrorsReflect: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      const inference: Node = {name: 'a'};
+      return createGetValidationErrors(inference, {rejectCircularRefs: true});
+    },
+    getValue: () => {
+      // A separate armed validator over its own cyclic value, invoked from a
+      // getter DURING the outer walk (walk order visits `a` before `b`).
+      interface Inner {
+        label: string;
+        next?: Inner;
+      }
+      const innerCyclic: {label: string; next?: unknown} = {label: 'i'};
+      innerCyclic.next = innerCyclic;
+      const checkInner = createValidate<Inner>(undefined, {rejectCircularRefs: true});
+      const outer: {name: string; a?: unknown; b?: unknown} = {name: 'o'};
+      Object.defineProperty(outer, 'a', {
+        enumerable: true,
+        get() {
+          checkInner(innerCyclic as Inner); // re-entrant armed walk (returns false)
+          return undefined; // `a` contributes nothing to the outer walk
+        },
+      });
+      outer.b = outer; // the REAL cycle the outer guard must still catch
+      return outer;
+    },
+    expectValid: false,
+  },
+
   disarmed_acyclic: {
     title: 'Disarmed guard leaves acyclic validation unchanged',
     description: 'No `{rejectCircularRefs}` — a normal acyclic value validates exactly as without the feature.',
