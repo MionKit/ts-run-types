@@ -24,7 +24,7 @@
 // v1 keeps mocks in the ISO calendar + UTC time zone (the common case);
 // calendar/time-zone variety is out of scope (documented in the spec).
 
-import {RunTypeSubKind} from '../go-generated/runTypeKind.ts';
+import {RunTypeSubKind} from '../go-generated/runTypeKind.generated.ts';
 import {random} from './mockUtils.ts';
 
 // Minimal structural views of the global Temporal namespace — just the

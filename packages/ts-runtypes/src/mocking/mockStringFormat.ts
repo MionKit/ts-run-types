@@ -6,7 +6,7 @@
 // mock walker AFTER this returns, so these produce the base valid value.
 
 import {registerMockingFunction} from './mockRegistry.ts';
-import {RunTypeKind} from '../go-generated/runTypeKind.ts';
+import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import type {
   DomainParams,

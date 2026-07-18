@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import type {RunType} from '../../../src/runtypes/types.ts';
-import {RunTypeKind} from '../../../src/go-generated/runTypeKind.ts';
+import {RunTypeKind} from '../../../src/go-generated/runTypeKind.generated.ts';
 import {invalidForKind, collectMutationTargets, mutateToInvalid, applyMutation} from './invalidValue.ts';
 
 // --- tiny RunType builders (hand-built graphs; no Go binary needed) ---

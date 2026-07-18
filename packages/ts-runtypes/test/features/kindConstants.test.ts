@@ -1,5 +1,5 @@
 // RunTypeKind / RunTypeSubKind are the public graph-dispatch constants
-// (auto-generated from the Go protocol, see src/go-generated/runTypeKind.ts). Both const
+// (auto-generated from the Go protocol, see src/go-generated/runTypeKind.generated.ts). Both const
 // maps must be reachable from the package INDEX so graph consumers can key
 // builtin-class detection on subKind (`subKind === RunTypeSubKind.date`)
 // instead of the false-positive-prone `typeName === 'Date'`.
