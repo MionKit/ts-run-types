@@ -24,7 +24,7 @@ const LANE_ROOT = resolve(HERE, '../suites/enrich/.tmp/reconcile');
 const createdFixtures = new Set<string>();
 
 // A mirror family: each enrichment family owns its own mirror subtree
-// (runtypes/generated/friendly/ vs runtypes/generated/mock/).
+// (<genDir>/enriched/friendly/ vs <genDir>/enriched/mock/).
 export type MirrorFamily = 'friendly' | 'mock';
 
 // A reconcile fixture is a self-contained temp project under a unique subdir of
