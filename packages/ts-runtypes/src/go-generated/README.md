@@ -11,15 +11,15 @@ never mix generated and manual code in one file.
 
 ## What's here
 
-| File                    | Generator               | Go source of truth                                               |
-| ----------------------- | ----------------------- | ---------------------------------------------------------------- |
-| `runTypeKind.ts`        | `cmd/gen-run-type-kind` | `internal/protocol/protocol.go` + `internal/protocol/subkind.go` |
-| `fnHashes.generated.ts` | `cmd/gen-fn-hashes`     | `internal/cachegen/operations` (registry + fnhash salt)          |
+| File                       | Generator               | Go source of truth                                               |
+| -------------------------- | ----------------------- | ---------------------------------------------------------------- |
+| `runTypeKind.generated.ts` | `cmd/gen-run-type-kind` | `internal/protocol/protocol.go` + `internal/protocol/subkind.go` |
+| `fnHashes.generated.ts`    | `cmd/gen-fn-hashes`     | `internal/cachegen/operations` (registry + fnhash salt)          |
 
 ## Regenerate
 
 ```bash
-pnpm rtx core codegen kind        # runTypeKind.ts (+ the devtools ReflectionKind mirror)
+pnpm rtx core codegen kind        # runTypeKind.generated.ts (+ the devtools ReflectionKind mirror)
 pnpm rtx core codegen fnhashes    # fnHashes.generated.ts
 pnpm rtx core codegen all         # every Go→TS mirror in the repo
 ```

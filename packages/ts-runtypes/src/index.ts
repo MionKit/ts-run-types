@@ -109,7 +109,7 @@ export {type FormatAnnotation} from './runtypes/formatAnnotation.ts';
 export {registerMockingFunction, type MockFormatFn} from './mocking/mockRegistry.ts';
 export {registerFormatPattern, type FormatPattern, type StringPatternArgs} from './runtypes/formatPattern.ts';
 // Reflection-kind enum mirrors (auto-generated from the Go protocol — see
-// runTypeKind.ts). Re-exported so concrete formats under `src/formats/` can
+// runTypeKind.generated.ts). Re-exported so concrete formats under `src/formats/` can
 // declare `readonly kind = RunTypeKind.string`, and so graph consumers can key
 // on kind/subKind (builtin classes project atomically: detect Date via
 // `subKind === RunTypeSubKind.date`, never via `typeName === 'Date'`, which
@@ -121,7 +121,7 @@ export {
   RunTypeSubKind,
   type RunTypeSubKindName,
   type RunTypeSubKindValue,
-} from './go-generated/runTypeKind.ts';
+} from './go-generated/runTypeKind.generated.ts';
 
 // String JSON I/O is `createJsonEncoder` + `createJsonDecoder`. The VALUE-level
 // transforms they build on — the per-strategy prepareForJson / restoreFromJson

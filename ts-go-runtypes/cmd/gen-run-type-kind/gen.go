@@ -48,7 +48,7 @@ func monorepoRoot() string {
 // runTypeKindOutputPath is the absolute path of the marker-package (@ts-runtypes/
 // core) TS mirror — the `RunTypeKind` / `RunTypeSubKind` const objects.
 func runTypeKindOutputPath() string {
-	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes", "src", "go-generated", "runTypeKind.ts")
+	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes", "src", "go-generated", "runTypeKind.generated.ts")
 }
 
 // reflectionKindOutputPath is the absolute path of the devtools-package
@@ -59,7 +59,7 @@ func reflectionKindOutputPath() string {
 	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes-devtools", "src", "go-generated", "reflectionKind.generated.ts")
 }
 
-// Generate builds the full body of `runTypeKind.ts` from the live
+// Generate builds the full body of `runTypeKind.generated.ts` from the live
 // protocol const declarations. The output is deterministic and depends
 // only on the contents of `internal/protocol/protocol.go` +
 // `internal/protocol/subkind.go`.
@@ -171,7 +171,7 @@ func GenerateDevtools() (string, error) {
 	out.WriteString("//     pnpm rtx core codegen kind\n")
 	out.WriteString("//\n")
 	out.WriteString("// which regenerates this file AND the marker-package mirror\n")
-	out.WriteString("// (packages/ts-runtypes/src/go-generated/runTypeKind.ts) from the same protocol consts, so\n")
+	out.WriteString("// (packages/ts-runtypes/src/go-generated/runTypeKind.generated.ts) from the same protocol consts, so\n")
 	out.WriteString("// the two can never drift. The TestRunTypeKindFileInSync Go test and\n")
 	out.WriteString("// `pnpm rtx core codegen kind --check` (CI) both fail on any drift.\n")
 	out.WriteString("//\n")

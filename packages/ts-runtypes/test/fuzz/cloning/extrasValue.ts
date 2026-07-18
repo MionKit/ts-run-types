@@ -20,7 +20,7 @@
 // type-checked by validate — both oracle directions would break).
 
 import type {RunType} from '../../../src/runtypes/types.ts';
-import {RunTypeKind, RunTypeSubKind} from '../../../src/go-generated/runTypeKind.ts';
+import {RunTypeKind, RunTypeSubKind} from '../../../src/go-generated/runTypeKind.generated.ts';
 
 const kind = RunTypeKind;
 const sub = RunTypeSubKind;
