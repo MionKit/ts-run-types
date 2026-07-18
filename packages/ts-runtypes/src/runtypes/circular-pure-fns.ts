@@ -26,7 +26,9 @@
 // references no module-level import. It walks ONLY the baked circular edges with
 // a descent stack LOCAL to itself (add-on-descent / delete-on-ascent), so DAGs /
 // shared refs pass and only a true reference cycle flags — matching
-// JSON.stringify's semantics.
+// JSON.stringify's semantics. A per-node "fully-explored" memo (`safe`) keeps it
+// O(V+E): a shared value reachable by many paths is walked once, never re-walked
+// per path (a diamond DAG would be exponential otherwise).
 //
 // The stack is a plain ARRAY, not a Set: it holds only the tracked values on the
 // CURRENT descent path (short in practice — a tree's height, a short chain), and
@@ -66,6 +68,12 @@ registerPureFnFactory('rt::findCycle', function () {
   // stays short (see the note above).
   const stack: unknown[] = [];
   const path: CircularPath = [];
+  // Per-node memo of values whose subtree was fully explored with no cycle. A
+  // shared / DAG value reachable by many paths would otherwise be re-walked once
+  // per path — exponential on a diamond DAG. Remembering the clean ones makes it
+  // O(V+E). A Set (not an array) because this grows to the whole visited set,
+  // unlike the short descent stack. Reset per call.
+  const safe: Set<unknown>[] = [];
 
   // Navigate one edge path from `val`, branching at iteration segments; at the
   // path end, descend into the reached value as tracked node `toNode`.
@@ -139,6 +147,11 @@ registerPureFnFactory('rt::findCycle', function () {
   // itself circular) are traversed without stacking.
   const dfs = (val: unknown, node: number): boolean => {
     if (val === null || typeof val !== 'object') return false;
+    // Already proven acyclic as this node (on an earlier path) → skip. Sound
+    // because a cycle THROUGH `val` is caught during `val`'s own descent (it sits
+    // on the stack then), so an acyclic subtree is path-independent.
+    const known = safe[node];
+    if (known !== undefined && known.has(val)) return false;
     const isTracked = !!tracked[node];
     if (isTracked) {
       if (stack.indexOf(val) !== -1) return true;
@@ -150,6 +163,13 @@ registerPureFnFactory('rt::findCycle', function () {
     }
     // LIFO: this frame pushed `val` on entry, so pop removes exactly it.
     if (isTracked) stack.pop();
+    // Clean subtree → memoize so a shared / DAG re-arrival skips it.
+    let bucket = safe[node];
+    if (bucket === undefined) {
+      bucket = new Set();
+      safe[node] = bucket;
+    }
+    bucket.add(val);
     return false;
   };
 
@@ -159,6 +179,7 @@ registerPureFnFactory('rt::findCycle', function () {
     edges = skeleton.e;
     stack.length = 0;
     path.length = 0;
+    safe.length = 0;
     return dfs(value, 0) ? path.slice() : null;
   };
 });
