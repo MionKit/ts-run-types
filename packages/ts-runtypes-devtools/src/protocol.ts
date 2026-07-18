@@ -194,7 +194,7 @@ export interface Site {
   trailingComma?: boolean;
   // module, when present, is the bundle-module BASENAME this site's entry
   // rides in (allSingle module mode): the rewrite imports the binding from
-  // `virtual:rt/<module>.js` instead of the entry's own module. The clause
+  // `rtmod:/<module>.js` instead of the entry's own module. The clause
   // shape is identical either way (export name == the binding).
   module?: string;
 }
@@ -219,7 +219,7 @@ export interface Replacement {
   end: number;
   text: string;
   // When non-empty, the virtual-module specifier the rewrite must import for
-  // the substituted expression to resolve — e.g. `virtual:rt/pf/rt/foo.js`.
+  // the substituted expression to resolve — e.g. `rtmod:/pf/rt/foo.js`.
   // `text` IS the module's export name (every entry exports under its binding
   // name), so the rewrite imports `{<text>}` directly.
   importFrom?: string;
@@ -406,7 +406,7 @@ export interface Response {
   replacements?: Replacement[];
   runTypes?: RunType[];
   // One rendered ES-module source per cache entry, keyed by module
-  // BASENAME (the `<basename>` of `virtual:rt/<basename>.js` — the cache
+  // BASENAME (the `<basename>` of `rtmod:/<basename>.js` — the cache
   // key for runtype / type-fn entries, the `pf/<ns>/<fn>` encoding for
   // pure fns). In files-mode the resolver writes these to disk under
   // `<outDir>/types/` via the `generate` op; this wire field is the

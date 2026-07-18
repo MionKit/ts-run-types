@@ -33,7 +33,7 @@ getRunTypeId<User>();
         // Static form has no value argument — the value slot is padded with
         // `undefined` so the injected entry-module binding lands in slot 1,
         // with the matching import at offset 0.
-        expect(out).toContain(`import {__rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
+        expect(out).toContain(`import {__rt_${sites[0].id}} from 'rtmod:/${sites[0].id}.js';`);
         expect(out).toContain(`getRunTypeId<User>(undefined, __rt_${sites[0].id});`);
       });
     }
@@ -55,7 +55,7 @@ getRunTypeId(u);
         expect(sites.length).toBe(1);
         expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
         // Reflect form: `u` is arg 0, the injected binding is arg 1.
-        expect(out).toContain(`import {__rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
+        expect(out).toContain(`import {__rt_${sites[0].id}} from 'rtmod:/${sites[0].id}.js';`);
         expect(out).toContain(`getRunTypeId(u, __rt_${sites[0].id});`);
       });
     }
@@ -82,8 +82,8 @@ createStandardSchema<string>();
         const valBinding = `__rt_${valFn}_${id}`;
         const verrBinding = `__rt_${verrFn}_${id}`;
         // BOTH entry modules are imported, one binding each.
-        expect(out).toContain(`import {__rt_${valFn}_${id}} from 'virtual:rt/${valFn}_${id}.js';`);
-        expect(out).toContain(`import {__rt_${verrFn}_${id}} from 'virtual:rt/${verrFn}_${id}.js';`);
+        expect(out).toContain(`import {__rt_${valFn}_${id}} from 'rtmod:/${valFn}_${id}.js';`);
+        expect(out).toContain(`import {__rt_${verrFn}_${id}} from 'rtmod:/${verrFn}_${id}.js';`);
         // The single trailing slot (ids @ paramIndex 2) carries an array of the
         // two bindings; the val/options slots (0,1) are `undefined`-padded.
         expect(out).toContain(`createStandardSchema<string>(undefined, undefined, [${valBinding}, ${verrBinding}]);`);

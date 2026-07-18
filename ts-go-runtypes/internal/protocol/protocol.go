@@ -557,7 +557,7 @@ type Response struct {
 	Replacements []Replacement `json:"replacements,omitempty"`
 	RunTypes     []*RunType    `json:"runTypes,omitempty"`
 	// EntryModules carries one rendered ES-module source per cache entry,
-	// keyed by module BASENAME (the `<basename>` of `virtual:rt/<basename>.js`
+	// keyed by module BASENAME (the `<basename>` of `rtmod:/<basename>.js`
 	// — the cache key for runtype / type-fn entries, the `pf/<ns>/<fn>`
 	// encoding for pure fns). The Vite plugin serves these verbatim from its
 	// virtual-module load hook. Populated on OpDump (full session) and on
@@ -650,7 +650,7 @@ type Site struct {
 	TrailingComma bool `json:"trailingComma,omitempty"`
 	// Module, when non-empty, is the bundle-module BASENAME this site's entry
 	// rides in (allSingle module mode): the rewrite imports the binding from
-	// `virtual:rt/<Module>.js` instead of the entry's own module — the clause
+	// `rtmod:/<Module>.js` instead of the entry's own module — the clause
 	// shape is identical either way (export name == the binding). Empty in
 	// default/allModules mode. Derived statically from mode + site shape, so
 	// it is present on every scanFiles response — including the plain
@@ -702,7 +702,7 @@ type Replacement struct {
 	Text  string `json:"text"`
 	// ImportFrom, when non-empty, is the virtual-module specifier the Vite
 	// plugin must import for the substituted expression to resolve — e.g.
-	// `virtual:rt/pf/rt/foo.js`. Text IS the module's export name (every
+	// `rtmod:/pf/rt/foo.js`. Text IS the module's export name (every
 	// entry exports under its binding name), so the plugin imports `{<Text>}`
 	// directly. Empty for plain text substitutions.
 	ImportFrom string `json:"importFrom,omitempty"`

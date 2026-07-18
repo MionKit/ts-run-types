@@ -1,4 +1,4 @@
-package virtualmodules
+package entrymodules
 
 import (
 	"strings"
@@ -38,7 +38,7 @@ func TestRender_OrderingLeavesFirstAlphaWithinLevel(t *testing.T) {
 	graph.Add(&Entry{Key: "aa", Kind: KindRunType, ArgsText: "'aa',5"})
 	source := renderOne(t, graph, "parent")
 
-	wantImports := "import {__rt_aa} from 'virtual:rt/aa.js';\nimport {__rt_bb} from 'virtual:rt/bb.js';\n"
+	wantImports := "import {__rt_aa} from 'rtmod:/aa.js';\nimport {__rt_bb} from 'rtmod:/bb.js';\n"
 	if !strings.HasPrefix(source, wantImports) {
 		t.Fatalf("import order mismatch:\n got: %q\nwant prefix: %q", source, wantImports)
 	}
@@ -57,10 +57,10 @@ func TestRender_ImportsDirectDepsOnly(t *testing.T) {
 	graph.Add(&Entry{Key: "leaf", Kind: KindRunType, ArgsText: "'leaf',5"})
 	source := renderOne(t, graph, "grand")
 
-	if strings.Contains(source, "virtual:rt/leaf.js") {
+	if strings.Contains(source, "rtmod:/leaf.js") {
 		t.Fatalf("grandparent must not import its transitive dep: %q", source)
 	}
-	wantImports := "import {__rt_parent} from 'virtual:rt/parent.js';\n"
+	wantImports := "import {__rt_parent} from 'rtmod:/parent.js';\n"
 	if !strings.HasPrefix(source, wantImports) {
 		t.Fatalf("direct-dep import mismatch:\n got: %q\nwant prefix: %q", source, wantImports)
 	}
@@ -77,8 +77,8 @@ func TestRender_SameLevelAlphabetical(t *testing.T) {
 	graph.Add(&Entry{Key: "mm", Kind: KindRunType, ArgsText: "'mm',5"})
 	source := renderOne(t, graph, "root")
 
-	mm := strings.Index(source, "virtual:rt/mm.js")
-	zz := strings.Index(source, "virtual:rt/zz.js")
+	mm := strings.Index(source, "rtmod:/mm.js")
+	zz := strings.Index(source, "rtmod:/zz.js")
 	if mm < 0 || zz < 0 || mm > zz {
 		t.Fatalf("expected mm before zz at the same level: %q", source)
 	}
@@ -97,7 +97,7 @@ func TestRender_CycleCollapsesToOneLevel(t *testing.T) {
 		// direct deps: leaf(level0) < peer(cycle level)
 		t.Fatalf("cycle deps order mismatch: %q", source)
 	}
-	wantImports := "import {__rt_leaf} from 'virtual:rt/leaf.js';\nimport {__rt_peer} from 'virtual:rt/peer.js';\n"
+	wantImports := "import {__rt_leaf} from 'rtmod:/leaf.js';\nimport {__rt_peer} from 'rtmod:/peer.js';\n"
 	if !strings.HasPrefix(source, wantImports) {
 		t.Fatalf("cycle import order mismatch: %q", source)
 	}
@@ -160,7 +160,7 @@ func TestRender_PureFnModuleNameEncoding(t *testing.T) {
 	if !ok {
 		t.Fatalf("escaped pure-fn basename missing: %v", keysOf(out))
 	}
-	if !strings.Contains(weird, "import {__rt_pf$2Frt$2FnewRunTypeErr} from 'virtual:rt/pf/rt/newRunTypeErr.js';") {
+	if !strings.Contains(weird, "import {__rt_pf$2Frt$2FnewRunTypeErr} from 'rtmod:/pf/rt/newRunTypeErr.js';") {
 		t.Fatalf("pure-fn dep import should use the encoded basename: %q", weird)
 	}
 	if !strings.Contains(weird, "export const __rt_pf$2Fwe$20ird$2Ffn$24x=[2,()=>[__rt_pf$2Frt$2FnewRunTypeErr],,'we ird::fn$x','h2'];") {

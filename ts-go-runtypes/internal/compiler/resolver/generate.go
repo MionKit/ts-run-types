@@ -123,7 +123,7 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 	if err := EnsureOutputHygiene(outDir, typesDir); err != nil {
 		return nil, err
 	}
-	// Rewrite the inter-module virtual:rt imports baked into each module to
+	// Rewrite the inter-module rtmod: imports baked into each module to
 	// paths relative to that module, so the on-disk files resolve natively in
 	// any bundler (the wire sources still use virtual specifiers).
 	onDisk := make(map[string]string, len(modules))

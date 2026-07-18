@@ -3,7 +3,7 @@ package resolver
 import (
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 )
 
@@ -12,15 +12,15 @@ import (
 // demanded-but-absent built-in into a PFE9012. serveBuiltinPureFns reads only
 // (graph, diagSink), so a zero Session is enough.
 
-func builtinSoftDepEntry(key string, softDeps []string) *virtualmodules.Entry {
-	return &virtualmodules.Entry{Key: key, Kind: virtualmodules.KindTypeFn, FamilyTag: "verr", ArgsText: "'" + key + "'", SoftDeps: softDeps}
+func builtinSoftDepEntry(key string, softDeps []string) *entrymodules.Entry {
+	return &entrymodules.Entry{Key: key, Kind: entrymodules.KindTypeFn, FamilyTag: "verr", ArgsText: "'" + key + "'", SoftDeps: softDeps}
 }
 
 // TestServeBuiltin_ServesDemandedAndTransitive — a type-fn entry that soft-deps a
 // built-in gets that built-in served as a pure-fn module, and the table's
 // transitive closure rides along (isDateString_YMD -> isDateString).
 func TestServeBuiltin_ServesDemandedAndTransitive(t *testing.T) {
-	graph := virtualmodules.Graph{}
+	graph := entrymodules.Graph{}
 	graph.Add(builtinSoftDepEntry("verr_root", []string{"rt::newRunTypeErr"}))
 	graph.Add(builtinSoftDepEntry("val_fmt", []string{"rtFormats::isDateString_YMD"}))
 
@@ -32,7 +32,7 @@ func TestServeBuiltin_ServesDemandedAndTransitive(t *testing.T) {
 		if entry == nil {
 			t.Fatalf("built-in %q was not served", key)
 		}
-		if entry.Kind != virtualmodules.KindPureFn {
+		if entry.Kind != entrymodules.KindPureFn {
 			t.Errorf("served %q kind = %d, want KindPureFn", key, entry.Kind)
 		}
 	}
@@ -45,7 +45,7 @@ func TestServeBuiltin_ServesDemandedAndTransitive(t *testing.T) {
 // `rt::`-namespaced key the table does not carry is a build error (the exemption
 // flip: built-ins are validated against the table, not taken on faith).
 func TestServeBuiltin_MissingIsPFE9012(t *testing.T) {
-	graph := virtualmodules.Graph{}
+	graph := entrymodules.Graph{}
 	graph.Add(builtinSoftDepEntry("verr_root", []string{"rt::newRunTypeErr", "rt::totallyMadeUp"}))
 
 	var diags []diagnostics.Diagnostic
@@ -72,8 +72,8 @@ func TestServeBuiltin_MissingIsPFE9012(t *testing.T) {
 // built-in (the isBuiltinPureFnKey gate is scoped to type-fn entries for exactly
 // this reason).
 func TestServeBuiltin_AnonymousUserKeyNotFlagged(t *testing.T) {
-	graph := virtualmodules.Graph{}
-	graph.Add(&virtualmodules.Entry{Key: "rt::abc123def456", Kind: virtualmodules.KindPureFn, ArgsText: "'rt::abc123def456'", SoftDeps: []string{"rt::xyz789hash012"}})
+	graph := entrymodules.Graph{}
+	graph.Add(&entrymodules.Entry{Key: "rt::abc123def456", Kind: entrymodules.KindPureFn, ArgsText: "'rt::abc123def456'", SoftDeps: []string{"rt::xyz789hash012"}})
 
 	var diags []diagnostics.Diagnostic
 	(&Session{}).serveBuiltinPureFns(graph, &diags)

@@ -121,7 +121,7 @@ export const _ = registerPureFnFactory('rt::foo', function () {
       const reps = response.replacements ?? [];
       expect(reps.length).toBe(1);
       expect(reps[0].text).toBe('__rt_pf$2Frt$2Ffoo');
-      expect(reps[0].importFrom).toBe('virtual:rt/pf/rt/foo.js');
+      expect(reps[0].importFrom).toBe('rtmod:/pf/rt/foo.js');
       expect(reps[0].end).toBeGreaterThan(reps[0].start);
       // Verify the rewrite produces a syntactically clean binding-swapped
       // call form when applied to the source.

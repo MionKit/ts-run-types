@@ -150,7 +150,7 @@ describeIf('playground engine (WASM, live execution)', () => {
     const mods = await generatedCache('getRunType', TYPE);
     // Reflection is a single runtype data bundle module (compact cache, not expanded JSON).
     expect(mods).toHaveLength(1);
-    expect(mods[0].name).toMatch(/^virtual:rt\/.+\.js$/);
+    expect(mods[0].name).toMatch(/^rtmod:\/.+\.js$/);
     expect(mods[0].code).toMatch(/export const __rt_/);
   });
 
@@ -207,7 +207,7 @@ const MyType = RT.object({
     const mods = await generatedCache('createValidate', TYPE);
     // A single function type = one named cache module.
     expect(mods).toHaveLength(1);
-    expect(mods[0].name).toMatch(/^virtual:rt\/.+\.js$/);
+    expect(mods[0].name).toMatch(/^rtmod:\/.+\.js$/);
     // The WASM resolver runs EmitFunctions (cmd/ts-runtypes-wasm/main.go), so the
     // factory rides as a real `function g_…(utl){…}` in the tuple, not an escaped
     // code string - clearer in the "Generated Cache" view.
@@ -218,12 +218,12 @@ const MyType = RT.object({
   it('generated cache returns one named module per family (codecs span several)', async () => {
     // A JSON codec's composite looks its primitives up at runtime, so the resolver
     // emits several sibling modules that import each other. The cache view keeps
-    // them as separate named sections (each labeled with its `virtual:rt/…` name)
+    // them as separate named sections (each labeled with its `rtmod:/…` name)
     // rather than a single blob.
     const mods = await generatedCache('createJsonDecoder', TYPE);
     expect(mods.length).toBeGreaterThan(1);
     for (const m of mods) {
-      expect(m.name).toMatch(/^virtual:rt\/.+\.js$/);
+      expect(m.name).toMatch(/^rtmod:\/.+\.js$/);
       expect(m.code).toMatch(/export const __rt_/);
     }
   });
@@ -253,7 +253,7 @@ type MyType = { outer: Inner };`;
   it('transformedSource is the real transform: injected import + a clean __rt_ arg (type mode)', async () => {
     const code = await transformedSource('createValidate', 'validate', TYPE);
     // The injected virtual-module import the build plugin adds for the entry tuple.
-    expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'virtual:rt\/.+';/m);
+    expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'rtmod:\/.+';/m);
     // The call carries the injected id as a clean trailing arg (slot-filling
     // `undefined` padding stripped) - no `(undefined, __rt_…)`.
     expect(code).toMatch(/const validate = createValidate<MyType>\(__rt_[A-Za-z0-9_]+\);/);
@@ -280,7 +280,7 @@ type MyType = { outer: Inner };`;
 import * as TF from '@ts-runtypes/core/formats';
 const MyType = RT.object({id: TF.number(), name: TF.string()});`;
     const code = await transformedSource('createJsonEncoder', 'toJson', schema, undefined, 'schema');
-    expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'virtual:rt\/.+';/m);
+    expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'rtmod:\/.+';/m);
     expect(code).toMatch(/const toJson = createJsonEncoder\(MyType, __rt_[A-Za-z0-9_]+\);/);
   });
 

@@ -1,6 +1,6 @@
 # Compiler-Driven Transform — Migration Spec
 
-_Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file transform and the Vite plugin is a thin wrapper; both the Go and JS suites are green. Real-file cache emission has SINCE SHIPPED (files-mode: modules are written under `<genDir>/types/` and `virtual:rt` is internal-only — see ARCHITECTURE → Rewrite mechanics); the plugin-free CLI shipped as `--compile`._
+_Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file transform and the Vite plugin is a thin wrapper; both the Go and JS suites are green. Real-file cache emission has SINCE SHIPPED (files-mode: modules are written under `<genDir>/types/` and the internal render scheme is `rtmod:/` — see ARCHITECTURE → Rewrite mechanics); the plugin-free CLI shipped as `--compile`._
 
 ## Implementation status
 
@@ -12,7 +12,7 @@ _Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file tran
 
 **Architectural decisions (made because the spec author was away):**
 
-1. **Cache modules are still served as `virtual:rt/*` virtual modules** by the plugin's `load()` this phase. The spec's "real files as the Vite default / drop virtual modules" depends on the spec's own deferred open questions (real-file dev-watcher loop, HMR parity, generated `.d.ts`, cross-runtime resolution). Keeping virtual modules kept the import specifiers unchanged, so the entire suite stays green with only the 3 `rewrite.ts`-importing tests repointed to `client.transform()`. Making real files the Vite default is left to Phase 2/4-followup. (Since superseded: files-mode later landed for every bundler — real files under `<genDir>/types/`, no virtual-module hooks.)
+1. **Cache modules are still served as `virtual:rt/*` virtual modules** by the plugin's `load()` this phase. The spec's "real files as the Vite default / drop virtual modules" depends on the spec's own deferred open questions (real-file dev-watcher loop, HMR parity, generated `.d.ts`, cross-runtime resolution). Keeping virtual modules kept the import specifiers unchanged, so the entire suite stays green with only the 3 `rewrite.ts`-importing tests repointed to `client.transform()`. Making real files the Vite default is left to Phase 2/4-followup. (Since superseded: files-mode later landed for every bundler — real files under `<genDir>/types/`, no virtual-module hooks, and the internal scheme was renamed `rtmod:/`.)
 2. **`OpTransform` partitions edits per file with a path-tolerant match** (`sameTransformPath`, mirroring the JS scan-batcher's `samePath`): scan Sites echo the requested **relative** path, but pure-fn Replacements carry the program's **absolute** path. An exact match silently dropped the pure-fn replacements (factory args weren't rewritten ⇒ lost `pureFnDependencies`); the tolerant match is required.
 
 **Remaining roadmap (the plugin-free portability extension):**
@@ -105,7 +105,7 @@ Net effect: the offset protocol seam between Go and JS is removed; rewrite + map
 
 ### 2. Shared cache modules become real files
 
-Go writes the app-wide modules currently served virtually — the `runtypes.js` data bundle (one row per node app-wide), the per-reflection-root facades, and the per-`<fnHash>_<typeId>` function entries — as real `.js` files into the cache dir. Content-addressing already guarantees immutability for entry modules; **write-only-on-content-change** keeps the dev watcher from looping, and only the data bundle is rewritten (on `addedRunTypes`), mirroring today's invalidation. The emit assembler is [`ts-go-runtypes/internal/compiler/virtualmodules/virtualmodules.go`](../ts-go-runtypes/internal/compiler/virtualmodules/virtualmodules.go); the runtime tuple contract stays [`packages/ts-runtypes/src/runtypes/entryTuple.ts`](../packages/ts-runtypes/src/runtypes/entryTuple.ts).
+Go writes the app-wide modules currently served virtually — the `runtypes.js` data bundle (one row per node app-wide), the per-reflection-root facades, and the per-`<fnHash>_<typeId>` function entries — as real `.js` files into the cache dir. Content-addressing already guarantees immutability for entry modules; **write-only-on-content-change** keeps the dev watcher from looping, and only the data bundle is rewritten (on `addedRunTypes`), mirroring today's invalidation. The emit assembler is [`ts-go-runtypes/internal/compiler/entrymodules/entrymodules.go`](../ts-go-runtypes/internal/compiler/entrymodules/entrymodules.go); the runtime tuple contract stays [`packages/ts-runtypes/src/runtypes/entryTuple.ts`](../packages/ts-runtypes/src/runtypes/entryTuple.ts).
 
 ### 3. Import resolution
 

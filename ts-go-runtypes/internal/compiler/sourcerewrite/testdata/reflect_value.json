@@ -11,7 +11,7 @@
     }
   ],
   "replacements": [],
-  "expectedCode": "import {__rt_Abc1234} from 'virtual:rt/Abc1234.js';\nconst s = 'hello';\nconst id = getRunTypeId(s, __rt_Abc1234);\n",
+  "expectedCode": "import {__rt_Abc1234} from 'rtmod:/Abc1234.js';\nconst s = 'hello';\nconst id = getRunTypeId(s, __rt_Abc1234);\n",
   "expectedMap": {
     "version": 3,
     "sources": [

@@ -3,13 +3,13 @@ package purefunctions
 import (
 	"strings"
 
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/jsquote"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// CollectEntries builds one virtualmodules.Entry per extracted pure fn. The tuple
+// CollectEntries builds one entrymodules.Entry per extracted pure fn. The tuple
 // args mirror the pre-migration `factory(<key>, <bodyHash>, <paramNames>,
 // <code>, <pureFnDependencies>, <createPureFn>)` call interior.
 //
@@ -34,8 +34,8 @@ import (
 // Deps carry the entry's pure-fn dependencies (the `utl.usePureFn(<key>)`
 // lookups its body reaches) so importing one pure fn transitively loads the
 // pure fns it calls.
-func CollectEntries(entries []Entry, emitMode constants.EmitMode) virtualmodules.Graph {
-	graph := make(virtualmodules.Graph, len(entries))
+func CollectEntries(entries []Entry, emitMode constants.EmitMode) entrymodules.Graph {
+	graph := make(entrymodules.Graph, len(entries))
 	for _, entry := range entries {
 		// Gate the code / createPureFn slots on the emit mode. An empty string is
 		// a JS array hole; a trailing hole is trimmed (the common code-mode entry
@@ -60,9 +60,9 @@ func CollectEntries(entries []Entry, emitMode constants.EmitMode) virtualmodules
 		// Pure-fn deps are SOFT: a dep outside the collected set stubs out
 		// instead of cascading — its real registration happens at its own
 		// registerPureFnFactory call site when the defining module loads.
-		graph.Add(&virtualmodules.Entry{
+		graph.Add(&entrymodules.Entry{
 			Key:      entry.Key(),
-			Kind:     virtualmodules.KindPureFn,
+			Kind:     entrymodules.KindPureFn,
 			ArgsText: strings.Join(args, ","),
 			SoftDeps: append([]string(nil), entry.PureFnDependencies...),
 		})
@@ -94,7 +94,7 @@ func trimTrailingHoles(args []string) []string {
 // Entries without FactoryArgStart/End populated (e.g. a synthetic
 // Entry built by a test) are skipped — only real extraction
 // results carry the byte offsets needed to rewrite source.
-// Text doubles as the export name in BOTH layouts (see virtualmodules.ExportName);
+// Text doubles as the export name in BOTH layouts (see entrymodules.ExportName);
 // bundled selects allSingle module mode, where ImportFrom targets the `pf`
 // bundle instead of the per-entry module.
 func Replacements(entries []Entry, bundled bool) []protocol.Replacement {
@@ -103,16 +103,16 @@ func Replacements(entries []Entry, bundled bool) []protocol.Replacement {
 		if entry.FilePath == "" || entry.FactoryArgEnd <= entry.FactoryArgStart {
 			continue
 		}
-		basename := virtualmodules.ModuleName(entry.Key(), virtualmodules.KindPureFn)
+		basename := entrymodules.ModuleName(entry.Key(), entrymodules.KindPureFn)
 		replacement := protocol.Replacement{
 			File:       entry.FilePath,
 			Start:      entry.FactoryArgStart,
 			End:        entry.FactoryArgEnd,
-			Text:       virtualmodules.BindingName(basename),
-			ImportFrom: virtualmodules.ImportSpecifier(basename),
+			Text:       entrymodules.BindingName(basename),
+			ImportFrom: entrymodules.ImportSpecifier(basename),
 		}
 		if bundled {
-			replacement.ImportFrom = virtualmodules.ImportSpecifier(constants.PureFnModuleDir)
+			replacement.ImportFrom = entrymodules.ImportSpecifier(constants.PureFnModuleDir)
 		}
 		out = append(out, replacement)
 		// Anonymous lane: splice the injected `"rt::<hash>"` id into the empty

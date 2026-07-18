@@ -428,7 +428,7 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
     modules.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const parts = [];
     for (const [basename, source] of modules) {
-      parts.push(`// === virtual:rt/${basename}.js ===`);
+      parts.push(`// === rtmod:/${basename}.js ===`);
       parts.push(source.endsWith('\n') ? source.slice(0, -1) : source);
       parts.push('');
     }

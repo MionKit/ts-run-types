@@ -274,7 +274,7 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
 // packages/ts-runtypes/src/runtypes/entryTuple.ts.
 export type EntryTuple = readonly unknown[];
 
-const IMPORT_LINE = /^import \{(__rt_[A-Za-z0-9_$]+)\} from 'virtual:rt\/(.+)\.js';\n/gm;
+const IMPORT_LINE = /^import \{(__rt_[A-Za-z0-9_$]+)\} from 'rtmod:\/(.+)\.js';\n/gm;
 const EXPORT_LINE = /^export const (__rt_[A-Za-z0-9_$]+)=/m;
 
 // evalEntryModules evaluates every per-entry virtual module source into its

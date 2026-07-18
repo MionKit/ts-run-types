@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -39,9 +39,9 @@ func emitModules(t *testing.T, roots []string, runTypes []*protocol.RunType) map
 		sites = append(sites, protocol.Site{ID: root})
 	}
 	graph := CollectEntries(protocol.Dump{RunTypes: runTypes, Sites: sites})
-	modules, err := virtualmodules.RenderGrouped(graph, nil)
+	modules, err := entrymodules.RenderGrouped(graph, nil)
 	if err != nil {
-		t.Fatalf("virtualmodules.Render: %v", err)
+		t.Fatalf("entrymodules.Render: %v", err)
 	}
 	return modules
 }
@@ -76,7 +76,7 @@ func keysOfModules(modules map[string]string) []string {
 func intPtr(n int) *int { return &n }
 
 // TestBundleShape — all nodes land as rows of ONE bundle module
-// (`virtual:rt/runtypes.js`) with tuple head [4,<hole>,<ini|hole>,'rts_<hash>',
+// (`rtmod:/runtypes.js`) with tuple head [4,<hole>,<ini|hole>,'rts_<hash>',
 // [rows…],[rels…]] (the bundle is dep-less — rows are inline; an atomic node
 // has no relations, so `rels` is empty), and each root gets a facade module
 // [5,()=>[__rt_runtypes],<hole>,'<rootId>'] whose single dep imports the bundle.
@@ -97,7 +97,7 @@ func TestBundleShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected facade module x1, got %v", keysOfModules(modules))
 	}
-	wantImport := "import {__rt_runtypes} from 'virtual:rt/" + constants.RunTypesBundleBasename + ".js';\n"
+	wantImport := "import {__rt_runtypes} from 'rtmod:/" + constants.RunTypesBundleBasename + ".js';\n"
 	if !strings.HasPrefix(facade, wantImport) {
 		t.Errorf("facade must import the bundle:\n got: %q\nwant prefix: %q", facade, wantImport)
 	}

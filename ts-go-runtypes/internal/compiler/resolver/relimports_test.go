@@ -21,23 +21,23 @@ func TestRelWithinTypes(t *testing.T) {
 }
 
 func TestRelativizeModuleImports(t *testing.T) {
-	src := "import {__rt_runtypes} from 'virtual:rt/runtypes.js';\nexport const __rt_fns_val=[1];\n"
+	src := "import {__rt_runtypes} from 'rtmod:/runtypes.js';\nexport const __rt_fns_val=[1];\n"
 	got := relativizeModuleImports("fns/val", src)
 	if want := "from '../runtypes.js'"; !strings.Contains(got, want) {
 		t.Fatalf("expected relative import %q in:\n%s", want, got)
 	}
-	if strings.Contains(got, "virtual:rt/") {
+	if strings.Contains(got, "rtmod:/") {
 		t.Fatalf("virtual specifier survived relativization:\n%s", got)
 	}
 }
 
 func TestRelativizeUserImports(t *testing.T) {
-	code := "import {__rt_val_Foo1234} from 'virtual:rt/val_Foo1234.js';\nconst v = createValidate(__rt_val_Foo1234);\n"
+	code := "import {__rt_val_Foo1234} from 'rtmod:/val_Foo1234.js';\nconst v = createValidate(__rt_val_Foo1234);\n"
 	got := relativizeUserImports("src/models/user.ts", "src/__runtypes", code)
 	if want := "from '../__runtypes/types/val_Foo1234.js'"; !strings.Contains(got, want) {
 		t.Fatalf("expected relative import %q in:\n%s", want, got)
 	}
-	if strings.Contains(got, "virtual:rt/") {
+	if strings.Contains(got, "rtmod:/") {
 		t.Fatalf("virtual specifier survived relativization:\n%s", got)
 	}
 	// Rewriting only the specifier text must not change the line count (source

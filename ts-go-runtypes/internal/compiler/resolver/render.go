@@ -8,7 +8,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/builtinpurefns"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
@@ -136,7 +136,7 @@ func (sess *Session) extractProgramPureFns(metrics *protocol.Metrics) (entries [
 // extractor and returns the per-entry graph (the OpDump path; OpScanFiles
 // reuses its own per-request extraction instead). Returns the wire-shaped
 // diagnostics from the in-place extraction alongside.
-func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmodules.Graph, []diagnostics.Diagnostic) {
+func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (entrymodules.Graph, []diagnostics.Diagnostic) {
 	entries, _, diags := sess.extractProgramPureFns(metrics)
 	// Precedence: the built-in pure-fn table is the SINGLE producer of every
 	// `rt::`/`rtFormats::` body. An IN-REPO program resolves the package via `src/`

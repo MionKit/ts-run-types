@@ -1,19 +1,19 @@
 // Package entrymod assembles the per-entry virtual ES modules emitted by the
 // resolver: one module per cache entry (type-fn factory, JSON composite, pure
-// fn), named `virtual:rt/<basename>.js`, exporting a single positional tuple
+// fn), named `rtmod:/<basename>.js`, exporting a single positional tuple
 // under its binding name (ExportName — `__rt_<basename>`, identifier-escaped).
 // The SAME name binds the entry everywhere: the export, every importer's
 // clause (`{__rt_X}`, never renamed), and the call-site binding the rewrite
 // injects — one naming system across per-entry modules and bundles. Runtype
 // nodes are denser than fn entries (one tiny row per node, heavily shared),
 // so they ship as ROWS of THE single data-bundle module
-// (`virtual:rt/runtypes.js`, KindRunTypeBundle) aliased by one facade module
+// (`rtmod:/runtypes.js`, KindRunTypeBundle) aliased by one facade module
 // per reflection root (KindRunTypeFacade) — see
 // internal/cachegen/runtype.CollectEntries.
 //
 // Module shape (every kind):
 //
-//	import {__rt_<dep1>} from 'virtual:rt/<dep1>.js';   // DIRECT deps only
+//	import {__rt_<dep1>} from 'rtmod:/<dep1>.js';   // DIRECT deps only
 //	…
 //	function ini(rtu){const c=(id)=>rtu.useRunType(id);<footer>}  // runtype only
 //	export const __rt_<basename>=[<kindSlot>,<()=>[__rt_<dep1>,…]|hole>,<ini|hole>,<positional args…>];
@@ -48,7 +48,7 @@
 // deterministic — cycle members only reference each other through
 // `ini`/registry lookups that run after the whole registration phase, so
 // intra-SCC order is correctness-neutral.
-package virtualmodules
+package entrymodules
 
 import (
 	"fmt"
@@ -80,7 +80,7 @@ const (
 	// pre-migration silent-degrade semantics (tuple slot 0 = 3).
 	KindMissing Kind = 3
 	// KindRunTypeBundle — THE single runtype data module
-	// (`virtual:rt/runtypes.js`): slot 3 carries a content-hash key, slot 4 an
+	// (`rtmod:/runtypes.js`): slot 3 carries a content-hash key, slot 4 an
 	// array of headless runtype rows (one per reflection-demanded node,
 	// deduplicated app-wide), slot 2 the ONE combined footer initializer. The
 	// content-hash key (not the fixed module name) is what the runtime's
@@ -88,7 +88,7 @@ const (
 	// rows (tuple slot 0 = 4).
 	KindRunTypeBundle Kind = 4
 	// KindRunTypeFacade — the per-reflection-root alias module
-	// (`virtual:rt/<rootId>.js`). Imports the bundle and registers nothing;
+	// (`rtmod:/<rootId>.js`). Imports the bundle and registers nothing;
 	// it exists so the rewrite's binding-only injection keeps working — the
 	// root id rides in the key slot and the bundle rides the deps thunk
 	// (tuple slot 0 = 5).
@@ -292,9 +292,9 @@ func BindingName(basename string) string {
 }
 
 // ImportSpecifier builds the full virtual-module specifier for a basename —
-// `virtual:rt/<basename>.js`.
+// `rtmod:/<basename>.js`.
 func ImportSpecifier(basename string) string {
-	return constants.VirtualModulePrefix + basename + constants.EntryModuleSuffix
+	return constants.EntryModulePrefix + basename + constants.EntryModuleSuffix
 }
 
 // Grouping assigns an entry to a bundle module: a non-empty return is the

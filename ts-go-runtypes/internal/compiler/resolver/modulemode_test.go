@@ -206,7 +206,7 @@ export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
 	if !ok {
 		t.Fatalf("missing %s/tb bundle; modules: %v", constants.FnsBundleDir, moduleNames(resp))
 	}
-	valSpecifier := constants.VirtualModulePrefix + constants.FnsBundleDir + "/val" + constants.EntryModuleSuffix
+	valSpecifier := constants.EntryModulePrefix + constants.FnsBundleDir + "/val" + constants.EntryModuleSuffix
 	if !strings.Contains(tbBundle, "from '"+valSpecifier+"'") {
 		t.Fatalf("tb bundle missing named import from %s:\n%s", valSpecifier, tbBundle)
 	}
@@ -243,7 +243,7 @@ export const _ = registerPureFnFactory('test::double', function (utl) {
 		t.Fatalf("expected a pure-fn replacement")
 	}
 	rep := resp.Replacements[0]
-	pfSpecifier := constants.VirtualModulePrefix + constants.PureFnModuleDir + constants.EntryModuleSuffix
+	pfSpecifier := constants.EntryModulePrefix + constants.PureFnModuleDir + constants.EntryModuleSuffix
 	if rep.ImportFrom != pfSpecifier {
 		t.Fatalf("replacement ImportFrom = %q, want %q", rep.ImportFrom, pfSpecifier)
 	}

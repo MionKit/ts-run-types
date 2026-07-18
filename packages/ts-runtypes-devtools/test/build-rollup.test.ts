@@ -3,7 +3,7 @@
 // (buildStart, transform) and asserts the files-mode chain: buildStart writes
 // the cache modules to real files under <genDir>/types, and the marker call is
 // rewritten with an injected RELATIVE import pointing at one of those real
-// files (no virtual:rt specifier, no resolveId/load hooks). Loading that file
+// files (no rtmod: specifier, no resolveId/load hooks). Loading that file
 // from disk yields the validator generated from the type. Proof that the
 // /rollup entry produces a working Rollup plugin off the shared unplugin
 // factory. The /vite entry's full real-build coverage lives in build-split +
@@ -71,11 +71,11 @@ describe('rollup build / @ts-runtypes/devtools/rollup entry', () => {
 
         // transform: the marker call is rewritten to the entry-binding form and
         // a RELATIVE import to a real on-disk module is injected (the same
-        // rewrite /vite performs in files-mode — no virtual:rt specifier).
+        // rewrite /vite performs in files-mode — no rtmod: specifier).
         const transformed = (await callHook(plugin.transform, ctx, FIXTURE, ENTRY)) as {code: string} | null;
         expect(transformed).toBeTruthy();
         const code = transformed!.code;
-        expect(code, `files-mode must not inject virtual:rt imports:\n${code}`).not.toContain('virtual:rt/');
+        expect(code, `files-mode must not inject rtmod: imports:\n${code}`).not.toContain('rtmod:/');
         const match = code.match(/from '(\.\.?\/[^']+\.js)'/);
         expect(match, `expected an injected relative module import in:\n${code}`).toBeTruthy();
         const specifier = match![1];
