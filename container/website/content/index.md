@@ -510,7 +510,7 @@ const isUser = createValidate<User>();
 
 ::::code-group
 ```ts [Transformed]
-import {__rt_a1b_Xk7} from 'virtual:rt/a1b_Xk7.js';
+import {__rt_a1b_Xk7} from './__runtypes/types/a1b_Xk7.js';
 
 type Order = {
   id: string;
@@ -523,7 +523,7 @@ const isUser = createValidate<User>(__rt_a1b_Xk7);
 ::::
 
 ::::code-group
-```js [Generated Module a1b_Xk7]
+```js [__runtypes/types/a1b_Xk7.js]
 // shown as a function for clarity — the real emit is a positional
 // tuple: faster to initialise, fewer bytes on the wire
 export function __rt_a1b_Xk7(value) {

@@ -1,6 +1,6 @@
 # Compiler-Driven Transform — Migration Spec
 
-_Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file transform and the Vite plugin is a thin wrapper; both the Go and JS suites are green. Real-file cache emission + the plugin-free CLI (the portability extension) are the remaining roadmap — see Implementation status below._
+_Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file transform and the Vite plugin is a thin wrapper; both the Go and JS suites are green. Real-file cache emission has SINCE SHIPPED (files-mode: modules are written under `<genDir>/types/` and `virtual:rt` is internal-only — see ARCHITECTURE → Rewrite mechanics); the plugin-free CLI shipped as `--compile`._
 
 ## Implementation status
 
@@ -12,7 +12,7 @@ _Status: Core migration IMPLEMENTED (2026-06-19). Go owns the full per-file tran
 
 **Architectural decisions (made because the spec author was away):**
 
-1. **Cache modules are still served as `virtual:rt/*` virtual modules** by the plugin's `load()` this phase. The spec's "real files as the Vite default / drop virtual modules" depends on the spec's own deferred open questions (real-file dev-watcher loop, HMR parity, generated `.d.ts`, cross-runtime resolution). Keeping virtual modules kept the import specifiers unchanged, so the entire suite stays green with only the 3 `rewrite.ts`-importing tests repointed to `client.transform()`. Making real files the Vite default is left to Phase 2/4-followup.
+1. **Cache modules are still served as `virtual:rt/*` virtual modules** by the plugin's `load()` this phase. The spec's "real files as the Vite default / drop virtual modules" depends on the spec's own deferred open questions (real-file dev-watcher loop, HMR parity, generated `.d.ts`, cross-runtime resolution). Keeping virtual modules kept the import specifiers unchanged, so the entire suite stays green with only the 3 `rewrite.ts`-importing tests repointed to `client.transform()`. Making real files the Vite default is left to Phase 2/4-followup. (Since superseded: files-mode later landed for every bundler — real files under `<genDir>/types/`, no virtual-module hooks.)
 2. **`OpTransform` partitions edits per file with a path-tolerant match** (`sameTransformPath`, mirroring the JS scan-batcher's `samePath`): scan Sites echo the requested **relative** path, but pure-fn Replacements carry the program's **absolute** path. An exact match silently dropped the pure-fn replacements (factory args weren't rewritten ⇒ lost `pureFnDependencies`); the tolerant match is required.
 
 **Remaining roadmap (the plugin-free portability extension):**
