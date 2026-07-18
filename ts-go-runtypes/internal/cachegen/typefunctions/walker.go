@@ -631,11 +631,11 @@ type CircularGuardReactor interface {
 // guard prologue.
 const circularGuardContextKey = "cyP"
 
-// circularPureFnFilePath is the canonical source path rt::findCycleParent's body
+// circularPureFnFilePath is the canonical source path rt::findCycle's body
 // is registered under (the built-in pure-fn table extracts it from here).
 const circularPureFnFilePath = "packages/ts-runtypes/src/runtypes/circular-pure-fns.ts"
 
-// emitCircularGuard hoists the rt::findCycleParent alias + the baked skeleton
+// emitCircularGuard hoists the rt::findCycle alias + the baked skeleton
 // const into the factory closure and prepends the family's guard statement to
 // the body. No-op when the emitter is not a CircularGuardReactor (only the
 // guarded families implement it).
@@ -646,7 +646,7 @@ func (w *Walker) emitCircularGuard() {
 	}
 	ctx := w.getEmitContext(w.Vλl)
 	defer w.putEmitContext(ctx)
-	fcpAlias := ctx.UsePureFn(corePureFnNamespace, "findCycleParent", circularPureFnFilePath)
+	fcpAlias := ctx.UsePureFn(corePureFnNamespace, "findCycle", circularPureFnFilePath)
 	ctx.SetContextItem(circularGuardContextKey, "const "+circularGuardContextKey+" = "+w.CircularSkeleton.JSLiteral())
 	w.Code = reactor.EmitCircularGuard(fcpAlias, circularGuardContextKey) + w.Code
 }

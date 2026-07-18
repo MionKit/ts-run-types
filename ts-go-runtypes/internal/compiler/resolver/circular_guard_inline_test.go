@@ -9,7 +9,7 @@ import (
 
 // End-to-end coverage for the inline circular-reference guard (the compile-time
 // `rejectCircularRefs` option). The armed variant of a guarded family must (a)
-// bake the guard prologue + skeleton into its body, (b) demand rt::findCycleParent
+// bake the guard prologue + skeleton into its body, (b) demand rt::findCycle
 // by body reference (delivered like any built-in), while (c) a PLAIN cyclable type
 // carries no guard, no walker, and no RunType bundle — the pay-for-use win.
 
@@ -34,7 +34,7 @@ func findEntryWith(modules map[string]string, needle string) (string, bool) {
 	return "", false
 }
 
-func TestInlineGuard_ArmedValidateBakesGuardAndDemandsFindCycleParent(t *testing.T) {
+func TestInlineGuard_ArmedValidateBakesGuardAndDemandsFindCycle(t *testing.T) {
 	modules := scanEntryModules(t, `import {createValidate} from '@ts-runtypes/core';
 interface Node {name: string; next?: Node}
 export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
@@ -48,18 +48,18 @@ export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true}
 	armed := modules[armedName]
 	// Quote-free substrings: the factory body is a quoted JS string, so single
 	// quotes inside it are escaped (\'), but these fragments carry none.
-	for _, want := range []string{"fcp = utl.getPureFn(", "if(fcp(v,cyP))return false", "const cyP = {c:["} {
+	for _, want := range []string{"fc = utl.getPureFn(", "if(fc(v,cyP))return false", "const cyP = {c:["} {
 		if !strings.Contains(armed, want) {
 			t.Errorf("armed validate entry missing %q:\n%s", want, armed)
 		}
 	}
 	// It demands the built-in by body reference (the pure-fn dep tuple slot is a
 	// real JS array literal, so its single quotes are NOT escaped).
-	if !strings.Contains(armed, "'rt::findCycleParent'") {
-		t.Errorf("armed entry does not list the findCycleParent pure-fn dep:\n%s", armed)
+	if !strings.Contains(armed, "'rt::findCycle'") {
+		t.Errorf("armed entry does not list the findCycle pure-fn dep:\n%s", armed)
 	}
-	if _, ok := modules["pf/rt/findCycleParent"]; !ok {
-		t.Errorf("rt::findCycleParent module was not served\nmodules: %v", keys(modules))
+	if _, ok := modules["pf/rt/findCycle"]; !ok {
+		t.Errorf("rt::findCycle module was not served\nmodules: %v", keys(modules))
 	}
 }
 
@@ -70,7 +70,7 @@ interface Node {name: string; next?: Node}
 export const isNode = createValidate<Node>();
 `)
 	for name, mod := range modules {
-		if strings.Contains(mod, "findCycleParent") {
+		if strings.Contains(mod, "findCycle") {
 			t.Errorf("plain cyclable type served the walker in %q — demand leaked:\n%s", name, mod)
 		}
 		// No RunType data bundle (kind-4 row bundle) for a plain createX cyclable type.
@@ -97,7 +97,7 @@ export const je = createJsonEncoder<Node>(undefined, {rejectCircularRefs: true})
 	if throwers < 2 {
 		t.Errorf("expected both armed encoders (tb + je) to throw via utl.circularError, found %d\nmodules: %v", throwers, keys(modules))
 	}
-	if _, ok := modules["pf/rt/findCycleParent"]; !ok {
-		t.Errorf("rt::findCycleParent not served for armed encoders\nmodules: %v", keys(modules))
+	if _, ok := modules["pf/rt/findCycle"]; !ok {
+		t.Errorf("rt::findCycle not served for armed encoders\nmodules: %v", keys(modules))
 	}
 }

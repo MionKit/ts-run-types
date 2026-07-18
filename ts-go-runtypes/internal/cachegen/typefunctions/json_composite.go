@@ -216,8 +216,8 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	softDeps := deps
 	if guarded {
 		skeletonJS = circularSkeleton.JSLiteral()
-		pureFnDepsArg = "[" + quoteJS(circularParentPureFnKey) + "]"
-		softDeps = append(append([]string(nil), deps...), circularParentPureFnKey)
+		pureFnDepsArg = "[" + quoteJS(circularGuardPureFnKey) + "]"
+		softDeps = append(append([]string(nil), deps...), circularGuardPureFnKey)
 	}
 
 	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey, isLive, wrapRoot, skeletonJS)
@@ -236,7 +236,7 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 		codeArg,
 		"false",       // isNoop — this path always has a real body (a live primitive, the wrapRoot envelope, or the guard)
 		"[]",          // rtDependencies — primitive refs are resolved by fnHash, not same-family deps
-		pureFnDepsArg, // pureFnDependencies — rt::findCycleParent for the armed guard, else empty
+		pureFnDepsArg, // pureFnDependencies — rt::findCycle for the armed guard, else empty
 		createRTFnArg,
 	})
 	argsText := joinArgs(args)
@@ -246,13 +246,13 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	return &virtualmodules.Entry{Key: entryKey, Kind: virtualmodules.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: softDeps}
 }
 
-// circularParentPureFnKey is the built-in pure-fn key the armed circular guard
-// references (delivered on demand via the entry's SoftDeps). circularGuardFcpAlias
-// is the local binding name (mirrors pureFnAliases["findCycleParent"], so the
+// circularGuardPureFnKey is the built-in pure-fn key the armed circular guard
+// references (delivered on demand via the entry's SoftDeps). circularGuardFnAlias
+// is the local binding name (mirrors pureFnAliases["findCycle"], so the
 // composite's guard bytes match the walker-path guard's).
 const (
-	circularParentPureFnKey = corePureFnNamespace + "::findCycleParent"
-	circularGuardFcpAlias   = "fcp"
+	circularGuardPureFnKey = corePureFnNamespace + "::findCycle"
+	circularGuardFnAlias   = "fc"
 )
 
 // jsonCompositeDeps names the primitive entries a composite body resolves at
@@ -375,9 +375,9 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 		// skeleton are hoisted once into the factory closure.
 		if circularSkeletonJS != "" {
 			ctx = append(ctx,
-				"const "+circularGuardFcpAlias+" = utl.getPureFn('"+circularParentPureFnKey+"')",
+				"const "+circularGuardFnAlias+" = utl.getPureFn('"+circularGuardPureFnKey+"')",
 				"const "+circularGuardContextKey+" = "+circularSkeletonJS)
-			body = "const cyR=" + circularGuardFcpAlias + "(v," + circularGuardContextKey + ");if(cyR)throw utl.circularError(cyR);" + body
+			body = "const cyR=" + circularGuardFnAlias + "(v," + circularGuardContextKey + ");if(cyR)throw utl.circularError(cyR);" + body
 		}
 		innerFn = "function " + entryKey + "(v){" + body + "}"
 	case "jsonDecoder":

@@ -13,10 +13,10 @@ import (
 // an armed (`{rejectCircularRefs: true}`) guarded factory. The skeleton is the
 // pruned graph of a type's cycle-capable positions: the property/element access
 // paths that lead from one circular node to the next. At runtime the built-in
-// pure fn `rt::findCycleParent(value, skeleton)` walks ONLY those edges with a
+// pure fn `rt::findCycle(value, skeleton)` walks ONLY those edges with a
 // descent stack local to itself and reports the first true reference cycle —
-// replacing the old whole-value `rt::findCycle` co-walk AND the RunType data
-// bundle it needed. Only cycle-capable positions become skeleton nodes; the
+// replacing the previous whole-value, RunType-driven co-walk AND the RunType
+// data bundle it needed. Only cycle-capable positions become skeleton nodes; the
 // acyclic intermediates between them collapse into an edge's path segments.
 //
 // Runtime shape (see packages/ts-runtypes/src/runtypes/circular-pure-fns.ts):
@@ -301,7 +301,7 @@ func setElementType(node *protocol.RunType) *protocol.RunType {
 }
 
 // JSLiteral renders the skeleton as the compact JS object literal baked into the
-// armed factory closure and passed to rt::findCycleParent.
+// armed factory closure and passed to rt::findCycle.
 func (skeleton *CircularSkeleton) JSLiteral() string {
 	var out strings.Builder
 	out.WriteString("{c:[")

@@ -13,7 +13,7 @@ var pureFnAliases = map[string]string{
 	"getUnknownKeysFromArray": "gUKFA",
 	"hasUnknownKeysFromArray": "hUKFA",
 	"countEnumKeys":           "cntEK",
-	"findCycleParent":         "fcp",
+	"findCycle":               "fc",
 }
 
 // pureFnAlias returns the emitter-side alias for a registered pure-fn
