@@ -28,17 +28,35 @@ var jsNameOverrides = map[string]string{
 	"bigInt": "bigint",
 }
 
-// repoRoot returns the repository root derived from this source file's
-// location, so the generator and its test work regardless of the
-// caller's working directory.
-func repoRoot() string {
+// moduleRoot is the Go module root (ts-go-runtypes/), derived from this source
+// file's location so it resolves regardless of the caller's working directory.
+// The protocol consts we parse live under here (internal/protocol/).
+func moduleRoot() string {
 	_, thisFile, _, _ := runtime.Caller(0)
 	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
 }
 
-// runTypeKindOutputPath is the absolute path of the TS file we emit.
+// monorepoRoot is the repository root — the parent of the Go module — where the
+// `packages/` workspaces live. The emitted TS files land under here, NOT under
+// the Go module: a past migration moved the Go tree into ts-go-runtypes/ but left
+// packages/ at the repo root (see docs/done/go-tree-subdir-migration.md), so the
+// output paths need one more level up than the protocol reads.
+func monorepoRoot() string {
+	return filepath.Dir(moduleRoot())
+}
+
+// runTypeKindOutputPath is the absolute path of the marker-package (@ts-runtypes/
+// core) TS mirror — the `RunTypeKind` / `RunTypeSubKind` const objects.
 func runTypeKindOutputPath() string {
-	return filepath.Join(repoRoot(), "packages", "ts-runtypes", "src", "runTypeKind.ts")
+	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes", "src", "runTypeKind.ts")
+}
+
+// reflectionKindOutputPath is the absolute path of the devtools-package
+// (@ts-runtypes/devtools) TS mirror — the `ReflectionKind` enum + `KIND_REF`
+// sentinel, generated from the SAME protocol consts so the two mirrors can never
+// drift from each other or from the Go wire protocol.
+func reflectionKindOutputPath() string {
+	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes-devtools", "src", "reflectionKind.generated.ts")
 }
 
 // Generate builds the full body of `runTypeKind.ts` from the live
@@ -47,7 +65,7 @@ func runTypeKindOutputPath() string {
 // `internal/protocol/subkind.go`.
 func Generate() (string, error) {
 	kinds, err := parseConsts(
-		filepath.Join(repoRoot(), "internal", "protocol", "protocol.go"),
+		filepath.Join(moduleRoot(), "internal", "protocol", "protocol.go"),
 		"ReflectionKind",
 		"Kind",
 	)
@@ -55,7 +73,7 @@ func Generate() (string, error) {
 		return "", fmt.Errorf("parse protocol.go: %w", err)
 	}
 	subKinds, err := parseConsts(
-		filepath.Join(repoRoot(), "internal", "protocol", "subkind.go"),
+		filepath.Join(moduleRoot(), "internal", "protocol", "subkind.go"),
 		"ReflectionSubKind",
 		"SubKind",
 	)
@@ -75,10 +93,12 @@ func Generate() (string, error) {
 	out.WriteString("//\n")
 	out.WriteString("// To update: change the Go source, then run:\n")
 	out.WriteString("//\n")
-	out.WriteString("//     pnpm run gen:run-type-kind\n")
+	out.WriteString("//     pnpm rtx core codegen kind\n")
 	out.WriteString("//\n")
-	out.WriteString("// The TestRunTypeKindFileInSync Go test fails on any drift between this\n")
-	out.WriteString("// file and the generator's output, so local edits will be caught by CI.\n")
+	out.WriteString("// which regenerates this file AND the devtools-package mirror\n")
+	out.WriteString("// (packages/ts-runtypes-devtools/src/reflectionKind.generated.ts) from the same\n")
+	out.WriteString("// protocol consts. The TestRunTypeKindFileInSync Go test and\n")
+	out.WriteString("// `pnpm rtx core codegen kind --check` (CI) both fail on any drift.\n")
 	out.WriteString("//\n")
 	out.WriteString("// Numeric discriminators that JS-side consumers use to dispatch on the\n")
 	out.WriteString("// shape of a RunType node in the runTypesCache. Values must match the\n")
@@ -107,6 +127,71 @@ func writeConstObj(out *strings.Builder, name string, entries []kindEntry) {
 		fmt.Fprintf(out, "  %s: %d,\n", entry.JsName, entry.Value)
 	}
 	out.WriteString("} as const;\n")
+}
+
+// GenerateDevtools builds the body of the devtools-package mirror
+// `reflectionKind.generated.ts` — a TS `enum ReflectionKind` (the non-negative
+// reflection kinds) plus the `KIND_REF` sentinel const — from the SAME
+// internal/protocol/protocol.go consts Generate() reads. Kept a distinct output
+// (not folded into RunTypeKind) so the Vite plugin keeps its own dep-free
+// `ReflectionKind` enum; it is now generated instead of hand-maintained, so it
+// can no longer drift from the Go protocol or from RunTypeKind. The `ref` (-1)
+// sentinel is emitted as `KIND_REF`, not an enum member, matching the plugin's
+// long-standing shape (a value pointing at another node by id, not a real kind).
+func GenerateDevtools() (string, error) {
+	kinds, err := parseConsts(
+		filepath.Join(moduleRoot(), "internal", "protocol", "protocol.go"),
+		"ReflectionKind",
+		"Kind",
+	)
+	if err != nil {
+		return "", fmt.Errorf("parse protocol.go: %w", err)
+	}
+
+	var out strings.Builder
+	out.WriteString("// ============================================================================\n")
+	out.WriteString("//                            AUTO-GENERATED FILE\n")
+	out.WriteString("//                            DO NOT EDIT MANUALLY\n")
+	out.WriteString("// ============================================================================\n")
+	out.WriteString("//\n")
+	out.WriteString("// Generated by cmd/gen-run-type-kind from internal/protocol/protocol.go.\n")
+	out.WriteString("//\n")
+	out.WriteString("// To update: change the Go source, then run:\n")
+	out.WriteString("//\n")
+	out.WriteString("//     pnpm rtx core codegen kind\n")
+	out.WriteString("//\n")
+	out.WriteString("// which regenerates this file AND the marker-package mirror\n")
+	out.WriteString("// (packages/ts-runtypes/src/runTypeKind.ts) from the same protocol consts, so\n")
+	out.WriteString("// the two can never drift. The TestRunTypeKindFileInSync Go test and\n")
+	out.WriteString("// `pnpm rtx core codegen kind --check` (CI) both fail on any drift.\n")
+	out.WriteString("//\n")
+	out.WriteString("// The devtools plugin's dep-free mirror of the reflection RunType kind\n")
+	out.WriteString("// discriminators. Values match the Go binary's wire output byte-for-byte and\n")
+	out.WriteString("// stay in lockstep with RunTypeKind in @ts-runtypes/core (same source).\n")
+	out.WriteString("//\n")
+	out.WriteString("// ============================================================================\n")
+	out.WriteString("\n")
+
+	out.WriteString("export enum ReflectionKind {\n")
+	for _, entry := range kinds {
+		// Negative sentinels (ref = -1) ride as consts below, not enum members —
+		// the plugin dispatches on them separately (KIND_REF).
+		if entry.Value < 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "  %s = %d,\n", entry.JsName, entry.Value)
+	}
+	out.WriteString("}\n")
+	out.WriteString("\n")
+	out.WriteString("// kindRef is our sentinel — not a reflection kind. Used in JSON to point at\n")
+	out.WriteString("// another type by id without inlining the referenced node.\n")
+	for _, entry := range kinds {
+		if entry.JsName == "ref" {
+			fmt.Fprintf(&out, "export const KIND_REF = %d;\n", entry.Value)
+		}
+	}
+
+	return out.String(), nil
 }
 
 // parseConsts walks the AST of `filename` and returns every top-level

@@ -1,5 +1,7 @@
-// Wire types mirroring internal/protocol/protocol.go. Hand-maintained rather
-// than code-generated to keep the plugin dep-free.
+// Wire types mirroring internal/protocol/protocol.go. The interfaces below are
+// hand-maintained (to keep the plugin dep-free); the ReflectionKind enum +
+// KIND_REF sentinel are code-generated from the same Go source
+// (reflectionKind.generated.ts) so the kind discriminators can never drift.
 //
 // The shape is the canonical runtypes reflection `RunType` discriminated
 // union. Child RunType slots in the JSON wire format are sentinels
@@ -7,48 +9,11 @@
 // import the generated runtypes-cache.ts module which contains a fully-knotted
 // graph.
 
-export enum ReflectionKind {
-  never = 0,
-  any = 1,
-  unknown = 2,
-  void = 3,
-  object = 4,
-  string = 5,
-  number = 6,
-  boolean = 7,
-  symbol = 8,
-  bigint = 9,
-  null = 10,
-  undefined = 11,
-  regexp = 12,
-  literal = 13,
-  templateLiteral = 14,
-  property = 15,
-  method = 16,
-  function = 17,
-  parameter = 18,
-  promise = 19,
-  class = 20,
-  typeParameter = 21,
-  enum = 22,
-  union = 23,
-  intersection = 24,
-  array = 25,
-  tuple = 26,
-  tupleMember = 27,
-  enumMember = 28,
-  rest = 29,
-  objectLiteral = 30,
-  indexSignature = 31,
-  propertySignature = 32,
-  methodSignature = 33,
-  infer = 34,
-  callSignature = 35,
-}
-
-// kindRef is our sentinel — not a reflection kind. Used in JSON to point at
-// another type by id without inlining the referenced node.
-export const KIND_REF = -1;
+// ReflectionKind + KIND_REF are GENERATED from internal/protocol/protocol.go
+// (the same source as @ts-runtypes/core's RunTypeKind), re-exported here so
+// existing `import {ReflectionKind} from './protocol.ts'` sites are unchanged.
+import {KIND_REF, ReflectionKind} from './reflectionKind.generated.ts';
+export {KIND_REF, ReflectionKind};
 
 // Re-export the cache-module settings generated from
 // internal/constants/constants.go so callers have a single place to import

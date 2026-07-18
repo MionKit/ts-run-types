@@ -75,7 +75,9 @@ const FUZZ = {
 const GO_RUN = ['go', '-C', 'ts-go-runtypes', 'run'];
 const CODEGEN = {
   constants: {run: [...GO_RUN, './cmd/gen-ts-constants'], outputs: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts']},
-  kind: {run: [...GO_RUN, './cmd/gen-run-type-kind'], stdoutTo: 'packages/ts-runtypes/src/runTypeKind.ts', outputs: ['packages/ts-runtypes/src/runTypeKind.ts'], fmt: ['packages/ts-runtypes/src/runTypeKind.ts']},
+  // Writes BOTH mirrors itself (marker RunTypeKind + devtools ReflectionKind enum)
+  // from one protocol parse, so they can't drift; no stdoutTo (multi-file output).
+  kind: {run: [...GO_RUN, './cmd/gen-run-type-kind'], outputs: ['packages/ts-runtypes/src/runTypeKind.ts', 'packages/ts-runtypes-devtools/src/reflectionKind.generated.ts'], fmt: ['packages/ts-runtypes/src/runTypeKind.ts', 'packages/ts-runtypes-devtools/src/reflectionKind.generated.ts']},
   fnhashes: {run: [...GO_RUN, './cmd/gen-fn-hashes'], stdoutTo: 'packages/ts-runtypes/src/fnHashes.generated.ts', outputs: ['packages/ts-runtypes/src/fnHashes.generated.ts'], fmt: ['packages/ts-runtypes/src/fnHashes.generated.ts']},
   diag: {run: ['node', 'scripts/core/gen-diagnostics-catalog.mjs'], outputs: ['packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts', 'container/website/app/components/content/diagnostics-catalog.json'], fmt: []},
   // Built-in pure-fn body table (Go, not a Go->TS mirror): extracts the
