@@ -12,9 +12,9 @@
 import {createFriendlyText, createFriendlyTextI18n, createGetValidationErrors, createMockData} from '@ts-runtypes/core';
 import {type CheckResult, ok} from './check';
 import type {EnrichedUser} from './models/enriched-user';
-import {friendlyEnrichedUser} from '../runtypes/generated/friendly/models/enriched-user';
-import {mockEnrichedUser} from '../runtypes/generated/mock/models/enriched-user';
-import {es_friendlyEnrichedUser} from '../runtypes/generated/i18n/es/models/enriched-user';
+import {friendlyEnrichedUser} from './__runtypes/enriched/friendly/models/enriched-user';
+import {mockEnrichedUser} from './__runtypes/enriched/mock/models/enriched-user';
+import {es_friendlyEnrichedUser} from './__runtypes/enriched/i18n/es/models/enriched-user';
 
 const getUserErrors = createGetValidationErrors<EnrichedUser>();
 
