@@ -9,10 +9,12 @@
 //
 // To update: change the Go source, then run:
 //
-//     pnpm run gen:run-type-kind
+//     pnpm rtx core codegen kind
 //
-// The TestRunTypeKindFileInSync Go test fails on any drift between this
-// file and the generator's output, so local edits will be caught by CI.
+// which regenerates this file AND the devtools-package mirror
+// (packages/ts-runtypes-devtools/src/reflectionKind.generated.ts) from the same
+// protocol consts. The TestRunTypeKindFileInSync Go test and
+// `pnpm rtx core codegen kind --check` (CI) both fail on any drift.
 //
 // Numeric discriminators that JS-side consumers use to dispatch on the
 // shape of a RunType node in the runTypesCache. Values must match the

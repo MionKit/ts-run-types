@@ -1,37 +1,50 @@
-// gen-run-type-kind regenerates the TS mirror of ReflectionKind and
+// gen-run-type-kind regenerates the TWO TS mirrors of ReflectionKind /
 // ReflectionSubKind from internal/protocol/protocol.go and
-// internal/protocol/subkind.go. The const declarations are parsed
-// from the Go AST — there's no hand-maintained list of kind names in
-// this program, so adding a new Kind* or SubKind* in protocol/ flows
-// through to the JS-side without touching the generator.
+// internal/protocol/subkind.go:
 //
-// The numeric discriminator values MUST match the Go binary's wire
-// output byte-for-byte — JS-side consumers dispatch on these to read
-// runTypesCache nodes, so any drift silently breaks the JS half. A
-// companion test (`gen_test.go`) asserts the committed TS file is in
-// sync with the generator's current output.
+//   - packages/ts-runtypes/src/runTypeKind.ts — the marker package's
+//     `RunTypeKind` / `RunTypeSubKind` const objects.
+//   - packages/ts-runtypes-devtools/src/reflectionKind.generated.ts — the Vite
+//     plugin's dep-free `ReflectionKind` enum + `KIND_REF` sentinel.
+//
+// Both are written from the SAME parse so they can never drift from each other or
+// from the Go wire protocol. The const declarations are parsed from the Go AST —
+// there's no hand-maintained list of kind names in this program, so adding a new
+// Kind*/SubKind* in protocol/ flows through to both JS mirrors untouched.
+//
+// The numeric discriminator values MUST match the Go binary's wire output
+// byte-for-byte — JS-side consumers dispatch on these to read runTypesCache
+// nodes, so any drift silently breaks the JS half. A companion test
+// (`gen_test.go`) asserts both committed TS files are in sync with the
+// generator's current output.
 //
 // Run:
 //
-//	go run ./cmd/gen-run-type-kind > packages/ts-runtypes/src/runTypeKind.ts
+//	go run ./cmd/gen-run-type-kind      # writes both files
 //
-// Or via the pnpm script:
+// Or via rtx (regenerates + formats + drift-checks):
 //
-//	pnpm run gen:run-type-kind
+//	pnpm rtx core codegen kind [--check]
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 )
 
 func main() {
-	body, err := Generate()
+	marker, err := Generate()
 	if err != nil {
 		log.Fatalf("gen-run-type-kind: %v", err)
 	}
-	if _, err := fmt.Fprint(os.Stdout, body); err != nil {
-		log.Fatalf("gen-run-type-kind: write stdout: %v", err)
+	if err := os.WriteFile(runTypeKindOutputPath(), []byte(marker), 0o644); err != nil {
+		log.Fatalf("gen-run-type-kind: write %s: %v", runTypeKindOutputPath(), err)
+	}
+	devtools, err := GenerateDevtools()
+	if err != nil {
+		log.Fatalf("gen-run-type-kind: %v", err)
+	}
+	if err := os.WriteFile(reflectionKindOutputPath(), []byte(devtools), 0o644); err != nil {
+		log.Fatalf("gen-run-type-kind: write %s: %v", reflectionKindOutputPath(), err)
 	}
 }
