@@ -98,7 +98,11 @@ export const isObj = createValidate<{a: number; b: string}>();
 		t.Fatalf("validate family missing cfn redirect:\n%s", validateSources)
 	}
 	all := allEntrySources(resp)
-	if !strings.Contains(all, "typeof v === 'string'") {
+	// The override body rides the cfn pure-fn module. In the default (code) emit
+	// mode it ships as the pure-fn `code` STRING, whose single quotes are escaped
+	// (`\'string\'`); match on the escaping-neutral prefix so this holds in every
+	// emit mode (the same prefix appears in the functions-mode live literal too).
+	if !strings.Contains(all, "return (v) => typeof v === ") {
 		t.Fatalf("cfn module missing the override body:\n%s", all)
 	}
 }
@@ -122,7 +126,10 @@ export const enc = createJsonEncoder<{id: number}>();
 	if !strings.Contains(all, "usePureFn(") || !strings.Contains(all, "cfn::") {
 		t.Fatalf("json encoder composite missing cfn redirect:\n%s", all)
 	}
-	if !strings.Contains(all, `'{"id":'`) {
+	// Override body rides the cfn pure-fn module as the `code` string (default
+	// emit mode); its surrounding single quotes are escaped in the code slot, so
+	// match the JSON prefix itself — present in every emit mode.
+	if !strings.Contains(all, `{"id":`) {
 		t.Fatalf("cfn module missing the override body:\n%s", all)
 	}
 	// The composite redirect references no primitives, so the structural

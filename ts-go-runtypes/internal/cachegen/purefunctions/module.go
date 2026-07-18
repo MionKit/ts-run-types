@@ -13,28 +13,50 @@ import (
 // args mirror the pre-migration `factory(<key>, <bodyHash>, <paramNames>,
 // <code>, <pureFnDependencies>, <createPureFn>)` call interior.
 //
-// The createPureFn argument is an inline `function(utl){…}` literal
-// whose body is the same `code` string templated in directly. The
-// per-entry module is the canonical runtime home of every pure-fn body —
-// the Vite plugin separately rewrites the user's
-// `registerPureFnFactory(pureFnId, factory)` call so the factory argument
-// becomes the imported entry binding (see Replacements), and the runtime
-// registers the tuple at that call site.
+// The `code` (slot 3, relative to the key) and `createPureFn` (slot 5) slots
+// vary by emit mode, mirroring the type-fn precedent (typefunctions/module.go's
+// codeArg/createRTFnArg):
+//   - EmitCode (default): the `code` STRING, createPureFn dropped (a trailing
+//     hole). The runtime rebuilds the factory from `code` + `paramNames` via
+//     `new Function(...paramNames, code)` on first lookup (initPureFunction).
+//   - EmitFunctions: `code` dropped (an in-place hole), the live
+//     `function(<params>){<code>}` literal shipped. The runtime uses it directly.
+//   - EmitBoth: both — the body twice — for runtimes that disallow `new Function`
+//     (CSP) yet still read `.code`. This was the unconditional pre-option behavior.
+//
+// The createPureFn argument is an inline `function(<params>){…}` literal whose
+// body is the same `code` string templated in directly. The per-entry module is
+// the canonical runtime home of every pure-fn body — the Vite plugin separately
+// rewrites the user's `registerPureFnFactory(pureFnId, factory)` call so the
+// factory argument becomes the imported entry binding (see Replacements), and the
+// runtime registers the tuple at that call site.
 //
 // Deps carry the entry's pure-fn dependencies (the `utl.usePureFn(<key>)`
 // lookups its body reaches) so importing one pure fn transitively loads the
 // pure fns it calls.
-func CollectEntries(entries []Entry) virtualmodules.Graph {
+func CollectEntries(entries []Entry, emitMode constants.EmitMode) virtualmodules.Graph {
 	graph := make(virtualmodules.Graph, len(entries))
 	for _, entry := range entries {
-		args := []string{
+		// Gate the code / createPureFn slots on the emit mode. An empty string is
+		// a JS array hole; a trailing hole is trimmed (the common code-mode entry
+		// ends at pureFnDependencies), while an interior hole (functions mode's
+		// dropped `code`) stays in place because a later slot is populated.
+		codeArg := ""
+		if emitMode.EmitsCode() {
+			codeArg = jsquote.Single(entry.Code)
+		}
+		createPureFnArg := ""
+		if emitMode.EmitsFactory() {
+			createPureFnArg = createPureFnJS(entry.Code, entry.ParamNames)
+		}
+		args := trimTrailingHoles([]string{
 			jsquote.Single(entry.Key()),
 			jsquote.Single(entry.BodyHash),
 			paramNamesJS(entry.ParamNames),
-			jsquote.Single(entry.Code),
+			codeArg,
 			depKeysJS(entry.PureFnDependencies),
-			createPureFnJS(entry.Code, entry.ParamNames),
-		}
+			createPureFnArg,
+		})
 		// Pure-fn deps are SOFT: a dep outside the collected set stubs out
 		// instead of cascading — its real registration happens at its own
 		// registerPureFnFactory call site when the defining module loads.
@@ -46,6 +68,17 @@ func CollectEntries(entries []Entry) virtualmodules.Graph {
 		})
 	}
 	return graph
+}
+
+// trimTrailingHoles drops the trailing run of empty-string (JS array hole) args
+// so a mode that omits the last slot (code mode's dropped createPureFn) shortens
+// the tuple instead of ending on a hole. Interior holes are preserved.
+func trimTrailingHoles(args []string) []string {
+	end := len(args)
+	for end > 0 && args[end-1] == "" {
+		end--
+	}
+	return args[:end]
 }
 
 // Replacements builds the wire-shaped byte-range rewrites that swap the
