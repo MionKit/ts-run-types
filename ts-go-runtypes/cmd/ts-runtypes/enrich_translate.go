@@ -20,9 +20,12 @@ import (
 // friendly mirror, parameterized per locale (const prefix, output path, plural
 // arms, sibling refs) — the friendly mirror is read for DISCOVERY only (which
 // types to emit), never for generation content.
-func runGenTranslate(translateValue string, positional []string, update, prune bool, enrichDirFlag string) {
-	config, sourceMirrors := translateTargets(positional, enrichDirFlag)
+func runGenTranslate(translateValue string, positional []string, update, prune bool, genDirFlag string) {
+	config, sourceMirrors := translateTargets(positional, genDirFlag)
 	locales := resolveTranslateLocales(translateValue, config)
+	// The i18n root is a conventional dir under genDir — self-document it the
+	// moment the translate lane touches it.
+	config.ensureFamilyReadme(defaultI18nDirName)
 
 	// --prune is a pure carcass sweep over the locale files — it never needs the
 	// Program, so it runs (and exits) before any program building.
@@ -70,17 +73,17 @@ func runGenTranslate(translateValue string, positional []string, update, prune b
 // translateTargets resolves the enrich config + the friendly source mirror set
 // for a translate invocation: `<src>` (a source .ts) maps to its friendly
 // mirror; no positional walks every mirror under the friendly family root.
-func translateTargets(positional []string, enrichDirFlag string) (enrichConfig, []string) {
+func translateTargets(positional []string, genDirFlag string) (enrichConfig, []string) {
 	if len(positional) > 0 {
 		src := tspath.NormalizePath(mustAbs(positional[0]))
-		config := resolveEnrichConfig(src, enrichDirFlag)
+		config := resolveEnrichConfig(src, genDirFlag)
 		return config, []string{config.mirrorPath(familyFriendly, src)}
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		fatal("gen --translate: getwd: %v", err)
 	}
-	config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), enrichDirFlag)
+	config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), genDirFlag)
 	sourceMirrors, err := collectMirrorFiles(filepath.Join(config.EnrichDir, familyFriendly))
 	if err != nil {
 		fatal("gen --translate: %v", err)
@@ -205,8 +208,7 @@ func buildTranslationSpecs(config enrichConfig, sourceMirror string, locales []s
 				Resolve:   item.resolved.Resolve,
 				DeclFiles: item.resolved.DeclFiles,
 				// The TARGET locale drives the plural arm set of the emitted scaffolds.
-				SourceLocale:   locale,
-				FriendlyErrors: config.FriendlyErrors,
+				SourceLocale: locale,
 			}) {
 				if seenVar[named.FriendlyVar] {
 					continue // two roots reached the same named type — one const app-wide
@@ -303,12 +305,12 @@ var todoBlankPattern = regexp.MustCompile(`:\s*''`)
 // reconcile would change it), TR004 orphan carcasses awaiting --prune.
 // Severity is Warning unless tsconfig i18n.strict is true (then everything is
 // an Error and the exit code drives CI).
-func runCheckTranslate(translateValue string, enrichDirFlag string) {
+func runCheckTranslate(translateValue string, genDirFlag string) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		fatal("check --translate: getwd: %v", err)
 	}
-	config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), enrichDirFlag)
+	config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), genDirFlag)
 	locales := resolveTranslateLocales(translateValue, config)
 	sourceMirrors, err := collectMirrorFiles(filepath.Join(config.EnrichDir, familyFriendly))
 	if err != nil {

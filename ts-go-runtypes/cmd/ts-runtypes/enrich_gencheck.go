@@ -41,16 +41,16 @@ type driftFinding struct {
 //
 // GE002/GE003 detection is shared with `check` and the resolver's checkEnrich
 // pass (mirror.CheckBreadcrumbDrift); GE001 lives here because only the CLI
-// knows the project's enrich-dir config.
+// knows the project's gen-dir config.
 //
 // The argument is a single mirror .ts file or a directory to walk. With no
 // argument, it walks the enrich dir resolved from the current directory's
 // tsconfig. Exits 1 when any Error finding is present.
-func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
+func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
 	var targets []string
 	if len(positional) > 0 {
 		candidate := tspath.NormalizePath(mustAbs(positional[0]))
-		config := resolveEnrichConfig(candidate, enrichDirFlag)
+		config := resolveEnrichConfig(candidate, genDirFlag)
 		// A path OUTSIDE the enrich dir is a SOURCE file (the `gen <source> --check`
 		// form): check ITS mirrors, not the source file itself — whose own
 		// `import type { … }` lines would otherwise be misread as breadcrumbs. A
@@ -72,7 +72,7 @@ func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
 			fatal("gen --check: getwd: %v", err)
 		}
 		// Resolve the enrich dir from cwd's tsconfig — the default scan root.
-		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), enrichDirFlag)
+		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), genDirFlag)
 		targets = []string{config.EnrichDir}
 	}
 
@@ -87,7 +87,7 @@ func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
 
 	var findings []driftFinding
 	for _, mirrorFile := range mirrorFiles {
-		findings = append(findings, checkMirrorFile(mirrorFile, enrichDirFlag)...)
+		findings = append(findings, checkMirrorFile(mirrorFile, genDirFlag)...)
 	}
 	sort.SliceStable(findings, func(left, right int) bool {
 		if findings[left].File != findings[right].File {
@@ -167,7 +167,7 @@ func collectMirrorFiles(target string) ([]string, error) {
 // checkMirrorFile reads one mirror file's breadcrumb and returns its drift
 // findings. A mirror file with no readable breadcrumb yields nothing (it is not
 // a generated mirror, or has no source link to check).
-func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
+func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 	contents, err := os.ReadFile(mirrorFile)
 	if err != nil {
 		return []driftFinding{{
@@ -211,7 +211,7 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	// segment is a pre-split combined mirror (or a hand-moved one) and drifts
 	// against both family paths.
 	resolvedSource := mirror.ResolveBreadcrumb(mirrorFile, breadcrumb.Spec)
-	config := resolveEnrichConfig(resolvedSource, enrichDirFlag)
+	config := resolveEnrichConfig(resolvedSource, genDirFlag)
 	family, ok := mirrorFamilyOf(config.EnrichDir, mirrorFile)
 	if !ok {
 		line, col := lineIndex.At(breadcrumb.Start)

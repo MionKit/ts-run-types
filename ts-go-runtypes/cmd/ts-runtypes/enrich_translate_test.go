@@ -34,9 +34,9 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string, string) 
       "i18n": { "sourceLocale": "en", "locales": ["pl", "es"], "strict": `+strictJSON+` } }] } }`)
 	source := filepath.Join(dir, "src", "models.ts")
 	writeTestFile(t, source, "export interface User { name: string }\n")
-	sourceMirror := filepath.Join(dir, "runtypes", "generated", "friendly", "models.ts")
+	sourceMirror := filepath.Join(dir, "src", "__runtypes", "enriched", "friendly", "models.ts")
 	writeTestFile(t, sourceMirror,
-		"import type { User } from '../../../src/models';\n"+
+		"import type { User } from '../../../models';\n"+
 			"import type { FriendlyText } from '@ts-runtypes/core';\n\n"+
 			"/** @rtType User#u1 @rtIds {name: n1} */\n"+
 			"export const friendlyUser: FriendlyText<User> = {\n"+
@@ -216,7 +216,7 @@ func TestCheckTranslationFile_Findings(t *testing.T) {
 // grows and off again after an update.
 func TestCheckTranslationFile_OutOfDate(t *testing.T) {
 	_, source, _ := translateFixture(t, false)
-	translationPath := filepath.Join(filepath.Dir(source), "..", "runtypes", "generated", "i18n", "pl", "models.ts")
+	translationPath := filepath.Join(filepath.Dir(source), "__runtypes", "enriched", "i18n", "pl", "models.ts")
 
 	baseSpec := stubTranslationSpec(source, translationPath, "{rt$label: '', name: {rt$label: ''}}")
 	if wrote := writeMirrorFile(baseSpec); !wrote {

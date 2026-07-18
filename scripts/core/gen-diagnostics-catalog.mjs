@@ -124,7 +124,7 @@ function tsString(value) {
 
 const entries = goRecords
   .map((record) => {
-    const lines = [`  ${record.code}: {`, `    headline: ${tsString(record.headline)},`];
+    const lines = [`  ${record.code}: {`, `    headline: ${tsString(record.headline)},`, `    severity: ${tsString(record.severity)},`];
     if (record.detail) lines.push(`    detail: ${tsString(record.detail)},`);
     lines.push('  },');
     return lines.join('\n');
@@ -142,6 +142,8 @@ const generatedTs = `// GENERATED FILE — DO NOT EDIT. Run \`pnpm rtx core code
 export interface DiagnosticEntry {
   /** Single-line headline. Mandatory. */
   readonly headline: string;
+  /** Catalog severity — the default lint-rule tier this code routes to. */
+  readonly severity: 'error' | 'warning' | 'info';
   /** Optional multi-line detail block (explanation + code-example fix). */
   readonly detail?: string;
 }

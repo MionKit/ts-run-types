@@ -20,7 +20,7 @@ type buildFlags struct {
 	singleThreaded         bool
 	noParallelScan         bool
 	noParallelRender       bool
-	runTypesGenDir         string
+	genDir                 string
 	emitMode               string
 	inlineMode             string
 	moduleMode             string
@@ -37,7 +37,7 @@ type buildOptions struct {
 	singleThreaded         bool
 	disableParallelScan    bool
 	disableParallelRender  bool
-	runTypesGenDir         string
+	genDir                 string
 	emitMode               string
 	inlineMode             string
 	moduleMode             string
@@ -51,7 +51,7 @@ type buildOptions struct {
 // mergeBuildOptions resolves the effective build configuration from the CLI
 // flags and the tsconfig plugin entry. Precedence (highest first): an
 // explicitly-set flag, then the tsconfig plugin entry, then the binary default
-// the flag already carries. absCwd anchors relative path values (runTypesGenDir).
+// the flag already carries. absCwd anchors relative path values (genDir).
 // The RT disk cache is NOT resolved here — it follows the project's incremental
 // setting (see resolver.Options.CacheFollowsIncremental) with the internal
 // RT_CACHE_DIR env override applied in main.go.
@@ -93,17 +93,19 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 
 	// Size-estimate knobs: a tsconfig value fills in only when the flag was not
 	// explicitly passed (the flag already carries the binary default).
-	if !flags.set["size-bias"] && plugin.SizeBias != nil {
-		out.sizeBias = *plugin.SizeBias
-	}
-	if !flags.set["size-items"] && plugin.SizeItems != nil {
-		out.sizeItems = *plugin.SizeItems
-	}
-	if !flags.set["size-string-bytes"] && plugin.SizeStringBytes != nil {
-		out.sizeStringBytes = *plugin.SizeStringBytes
-	}
-	if !flags.set["size-max-bytes"] && plugin.SizeMaxBytes != nil {
-		out.sizeMaxBytes = *plugin.SizeMaxBytes
+	if size := plugin.Size; size != nil {
+		if !flags.set["size-bias"] && size.Bias != nil {
+			out.sizeBias = *size.Bias
+		}
+		if !flags.set["size-items"] && size.Items != nil {
+			out.sizeItems = *size.Items
+		}
+		if !flags.set["size-string-bytes"] && size.StringBytes != nil {
+			out.sizeStringBytes = *size.StringBytes
+		}
+		if !flags.set["size-max-bytes"] && size.MaxBytes != nil {
+			out.sizeMaxBytes = *size.MaxBytes
+		}
 	}
 
 	// parallelScan / parallelRender read true=on (matching the host plugin's
@@ -117,22 +119,22 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		out.disableParallelRender = !*plugin.ParallelRender
 	}
 
-	out.runTypesGenDir = resolveRunTypesGenDir(flags, plugin, absCwd)
+	out.genDir = resolveGenDir(flags, plugin, absCwd)
 	return out
 }
 
-// resolveRunTypesGenDir layers where `--compile` writes its cache modules: an
-// explicit --run-types-gen-dir flag wins, then the tsconfig `runTypesGenDir`
+// resolveGenDir layers where `--compile` writes its cache modules: an
+// explicit --gen-dir flag wins, then the tsconfig `genDir`
 // entry, then the <cwd>/__runtypes default. Relative values resolve under
 // absCwd. Unlike cacheDir there is no disable state — compile always needs an
 // output location — so an empty explicit value falls through to the default.
-func resolveRunTypesGenDir(flags buildFlags, plugin tsRuntypesPlugin, absCwd string) string {
+func resolveGenDir(flags buildFlags, plugin tsRuntypesPlugin, absCwd string) string {
 	value := ""
 	switch {
-	case flags.set["run-types-gen-dir"]:
-		value = strings.TrimSpace(flags.runTypesGenDir)
-	case plugin.RunTypesGenDir != nil:
-		value = strings.TrimSpace(*plugin.RunTypesGenDir)
+	case flags.set["gen-dir"]:
+		value = strings.TrimSpace(flags.genDir)
+	case strings.TrimSpace(plugin.GenDir) != "":
+		value = strings.TrimSpace(plugin.GenDir)
 	}
 	if value == "" {
 		value = filepath.Join(absCwd, "__runtypes")
@@ -145,7 +147,7 @@ func resolveRunTypesGenDir(flags buildFlags, plugin tsRuntypesPlugin, absCwd str
 
 // normalizeCacheDir resolves the internal RT_CACHE_DIR override value to an
 // absolute path (empty stays empty — an explicit disable). Relative values
-// anchor under absCwd, matching how runTypesGenDir resolves.
+// anchor under absCwd, matching how genDir resolves.
 func normalizeCacheDir(value, absCwd string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {

@@ -67,8 +67,8 @@ function setupProject(fields: Field[], typeName = 'User'): Project {
     dir,
     src,
     genDir,
-    friendlyMirror: path.join(genDir, 'friendly', 'src', 'models.ts'),
-    mockMirror: path.join(genDir, 'mock', 'src', 'models.ts'),
+    friendlyMirror: path.join(genDir, 'enriched', 'friendly', 'src', 'models.ts'),
+    mockMirror: path.join(genDir, 'enriched', 'mock', 'src', 'models.ts'),
   };
 }
 
@@ -80,7 +80,7 @@ function readMirrors(project: Project): string {
 
 // genUpdate runs the real reconcile (the op a dev-loop save handler fires).
 function genUpdate(project: Project, typeName = 'User'): {status: number; output: string} {
-  const result = spawnSync(BIN, ['gen', project.src, typeName, '--update', '--enrich-dir', project.genDir], {
+  const result = spawnSync(BIN, ['gen', project.src, typeName, '--update', '--gen-dir', project.genDir], {
     encoding: 'utf8',
   });
   return {status: result.status ?? -1, output: (result.stdout ?? '') + (result.stderr ?? '')};

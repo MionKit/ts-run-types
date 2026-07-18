@@ -79,7 +79,7 @@ type ConstraintTemplates<P> = {type: FriendlyTemplate} & {
 
 /** `rt$default` mode: ONE message for the whole field, whatever failed.
  *  MUTUALLY EXCLUSIVE with per-constraint messages — a node is either fully
- *  custom or fully catch-all, never a mix. The tsconfig `friendlyErrors` knob
+ *  custom or fully catch-all, never a mix. Scaffolds are always per-constraint;
  *  picks which mode `gen` scaffolds FIRST; after that the node's authored
  *  mode is owned by the author and the reconcile follows it. */
 type DefaultOnlyTemplates = {rt$default: FriendlyTemplate; type?: never};

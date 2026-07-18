@@ -22,11 +22,13 @@ const moduleFileExt = ".js"
 
 // outputDirAllowedMembers are the RunTypes-owned top-level entries an output root
 // may contain for us to treat it as ours: the generated `types/` half, the
-// committed `enriched/` half, and the VCS-hygiene markers. Their CONTENTS are
-// never inspected — only the output root's own top level is checked.
+// committed `enriched/` half, the self-documenting README, and the VCS-hygiene
+// markers. Their CONTENTS are never inspected — only the output root's own top
+// level is checked.
 var outputDirAllowedMembers = map[string]bool{
 	typesSubdir:  true, // "types"
 	"enriched":   true,
+	"README.md":  true,
 	".gitignore": true,
 	".gitkeep":   true,
 }
@@ -88,9 +90,9 @@ func ensureOutDirAvailable(outDir string) error {
 		name := entry.Name()
 		if !isIgnorableOutputEntry(name) {
 			return fmt.Errorf("refusing to generate RunTypes output into %s: it contains %q, which RunTypes did not generate. "+
-				"This is a special RunTypes-managed output directory — it is owned by the build and is meant to hold ONLY RunTypes output: the regenerated `types/` cache modules (rebuilt every build, gitignored) and the committed `enriched/` mirror, plus VCS markers (.gitignore / .gitkeep) and harmless OS noise. "+
-				"A foreign entry means `outDir` is pointed at a real, pre-existing directory that generating here would pollute (and prune files from). "+
-				"Point the plugin's `outDir` (or the CLI) at a dedicated folder used only for RunTypes output; the default <srcDir>/%s keeps clear of a hand-authored `runtypes/` source dir via its `__` prefix.",
+				"This is a special RunTypes-managed output directory — it is owned by the build and is meant to hold ONLY RunTypes output: the regenerated `types/` cache modules (rebuilt every build, gitignored), the committed `enriched/` mirror, the README, plus VCS markers (.gitignore / .gitkeep) and harmless OS noise. "+
+				"A foreign entry means `genDir` is pointed at a real, pre-existing directory that generating here would pollute (and prune files from). "+
+				"Point the plugin's `genDir` (or the CLI) at a dedicated folder used only for RunTypes output; the default <srcDir>/%s keeps clear of a hand-authored `runtypes/` source dir via its `__` prefix.",
 				outDir, name, outputDirName)
 		}
 		// `types`/`enriched` count as ours only as directories; a regular file
@@ -98,8 +100,8 @@ func ensureOutDirAvailable(outDir string) error {
 		// with an opaque "not a directory" error.
 		if outputDirSubdirs[name] && !entry.IsDir() {
 			return fmt.Errorf("refusing to generate RunTypes output into %s: %q exists but is not a directory. "+
-				"RunTypes manages `%s/` as a generated output subdirectory, so a plain file by that name means `outDir` points at a pre-existing directory. "+
-				"Remove or rename the file, or point `outDir` at a dedicated folder used only for RunTypes output.",
+				"RunTypes manages `%s/` as a generated output subdirectory, so a plain file by that name means `genDir` points at a pre-existing directory. "+
+				"Remove or rename the file, or point `genDir` at a dedicated folder used only for RunTypes output.",
 				outDir, name, name)
 		}
 	}
@@ -117,6 +119,9 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 	typesDir := filepath.Join(outDir, typesSubdir)
 	if err := os.MkdirAll(typesDir, 0o755); err != nil {
 		return nil, unwritableOutDirError(typesDir, err)
+	}
+	if err := EnsureOutputHygiene(outDir, typesDir); err != nil {
+		return nil, err
 	}
 	// Rewrite the inter-module virtual:rt imports baked into each module to
 	// paths relative to that module, so the on-disk files resolve natively in
@@ -139,6 +144,55 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 	return manifest, nil
 }
 
+// EnsureOutputHygiene self-documents the output root on every generate lane
+// (bundler plugin AND the --compile CLI, since both funnel through
+// generateToDisk): each folder carries a README saying what it is, the
+// regenerated types/ half is gitignored, and the committed enriched/ half
+// exists. Write-if-absent so a watched file is never churned and a user's
+// edit never clobbered.
+func EnsureOutputHygiene(outDir, typesDir string) error {
+	enrichedDir := filepath.Join(outDir, "enriched")
+	if err := os.MkdirAll(enrichedDir, 0o755); err != nil {
+		return unwritableOutDirError(enrichedDir, err)
+	}
+	writeIfAbsent := func(path, content string) error {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			return unwritableOutDirError(path, err)
+		}
+		return nil
+	}
+	if err := writeIfAbsent(filepath.Join(outDir, "README.md"),
+		"# RunTypes output\n"+
+			"\n"+
+			"This folder is managed by RunTypes (the `genDir` option, set in tsconfig\n"+
+			"or on the bundler plugin). Everything under it follows convention:\n"+
+			"\n"+
+			"- `types/` — modules generated on every build. Not committed; do not edit.\n"+
+			"- `enriched/` — committed enrichment files: `friendly/` (labels and\n"+
+			"  messages), `mock/` (sample data), `i18n/<locale>/` (translations).\n"); err != nil {
+		return err
+	}
+	if err := writeIfAbsent(filepath.Join(typesDir, ".gitignore"),
+		"# Generated by RunTypes — do not edit or commit.\n*\n"); err != nil {
+		return err
+	}
+	if err := writeIfAbsent(filepath.Join(typesDir, "README.md"),
+		"# Generated modules\n"+
+			"\n"+
+			"Everything here is regenerated by RunTypes on every build.\n"+
+			"Do not edit; nothing in this folder is committed (see .gitignore).\n"); err != nil {
+		return err
+	}
+	return writeIfAbsent(filepath.Join(enrichedDir, "README.md"),
+		"# Enrichment\n"+
+			"\n"+
+			"Reserved by RunTypes for build-time enrichment output.\n"+
+			"Committed; safe to keep in version control.\n")
+}
+
 // unwritableOutDirError wraps a write failure in the output tree with an
 // actionable message. Files-mode has NO virtual-module fallback — a writable
 // project dir is required at build time — so a permission / read-only-FS
@@ -147,7 +201,7 @@ func generateToDisk(outDir string, modules map[string]string) ([]string, error) 
 func unwritableOutDirError(typesDir string, err error) error {
 	lower := strings.ToLower(err.Error())
 	if errors.Is(err, fs.ErrPermission) || strings.Contains(lower, "read-only") || strings.Contains(lower, "permission denied") {
-		return fmt.Errorf("cannot write generated RunTypes modules under %s: %w — files-mode needs a writable output dir; set the plugin's `outDir` to a writable path or build where the project tree is writable", typesDir, err)
+		return fmt.Errorf("cannot write generated RunTypes modules under %s: %w — files-mode needs a writable output dir; set the plugin's `genDir` to a writable path or build where the project tree is writable", typesDir, err)
 	}
 	return fmt.Errorf("writing generated RunTypes modules under %s: %w", typesDir, err)
 }
@@ -189,6 +243,9 @@ const outputDirName = "__runtypes"
 func (sess *Session) resolveOutDir(requested string) string {
 	if requested != "" {
 		return sess.absPath(requested)
+	}
+	if sess.opts.TsconfigGenDir != "" {
+		return sess.absPath(sess.opts.TsconfigGenDir)
 	}
 	return filepath.Join(sess.inferSrcDir(), outputDirName)
 }

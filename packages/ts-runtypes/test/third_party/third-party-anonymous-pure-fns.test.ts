@@ -98,7 +98,7 @@ function makePlugin() {
     binary: BIN,
     cwd: FIXTURE_DIR,
     tsconfig: 'tsconfig.json',
-    outDir: path.join(FIXTURE_DIR, '__runtypes'),
+    genDir: path.join(FIXTURE_DIR, '__runtypes'),
   }) as any;
 }
 

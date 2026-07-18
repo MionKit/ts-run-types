@@ -265,7 +265,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	}
 	src := familyEntrySources(resp, "prepareForJson")
 	// never under prepareForJson → PJ001; leaf kind label "Never".
-	wantMessage := "[" + diagnostics.CodePJNeverRoot + "] Cannot encode `Never` to JSON."
+	wantMessage := "[" + diagnostics.CodePJNeverRoot + "] Type `Never` can never be encoded to JSON — the generated function will always fail."
 	if !strings.Contains(src, wantMessage) {
 		t.Errorf("expected rendered alwaysThrow message %q embedded in init(), got:\n%s", wantMessage, src)
 	}

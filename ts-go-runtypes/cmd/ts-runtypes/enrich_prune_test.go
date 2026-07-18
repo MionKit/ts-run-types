@@ -9,7 +9,7 @@ import (
 // TestCollectPruneTargets_FileUsedAsIs is the regression for `gen --prune <file>`:
 // an explicit mirror-file argument must be pruned directly, never redirected
 // through mirrorPath — so a mirror living in a NON-default enrich dir (resolved
-// without --enrich-dir) still resolves to itself, not to a non-existent
+// without --gen-dir) still resolves to itself, not to a non-existent
 // mirror-of-mirror that yields "0 files".
 func TestCollectPruneTargets_FileUsedAsIs(t *testing.T) {
 	dir := t.TempDir()

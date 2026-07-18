@@ -15,6 +15,16 @@ The original spec split detection: Family A (compiler diagnostics) from the Go b
 - **CLI parity for free.** `ts-runtypes check <file> [--json]` now reports tag hygiene + content validity + GE002/GE003 with 1-based positions and exits 1 on errors; `gen --check` gained `--json`. CI can gate on the binary alone, no node linter required.
 - **Codes joined the one catalog — split per mirror family.** Since the FriendlyType/MockData two-file split there is no "general enrich" code group: hygiene codes are per-family (FT020 todo, FT021/FT022 orphan const/field in a FriendlyType mirror; MD020–MD022 in a MockData mirror — attributed by `FamilyClassifier` in [`hygiene.go`](../../internal/enrichment/mirror/hygiene.go): carcass-preserved annotation, else nearest annotation, else the DSL import), registered in [`codes_friendly.go`](../../internal/diagnostics/codes_friendly.go) / [`codes_mock.go`](../../internal/diagnostics/codes_mock.go); the mirror↔source linkage codes (GE000–GE003) in [`codes_gencheck.go`](../../internal/diagnostics/codes_gencheck.go). The wire ships `code + args` only; ALL user-facing wording (headline + detail with example and fix) is single-sourced in [`internal/diagnostics/messages.go`](../../internal/diagnostics/messages.go) and exported by `pnpm run gen:diag-catalog` into the GENERATED front-end dictionary [`diagnosticCatalog.generated.ts`](../../packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts) (every compiler code, all families) plus the website diagnostics page's "Enrichment files" subsystem.
 
+> **Superseded (2026-07-18):** the Family A severity-tier rules below
+> (`runtypes/error|warn|info`) were replaced by diagnostic-**family** rules named
+> for what they catch (`runtypes/validate-non-serializable` +
+> `runtypes/validate-skipped-member`, `runtypes/json-non-serializable` +
+> `runtypes/json-skipped-member`, `runtypes/invalid-marker`, …). See
+> [`lint-rules-by-diagnostic-family.md`](lint-rules-by-diagnostic-family.md).
+> The enrichment concern rules (points 4, 7) shipped and then had their `-warn`
+> twins renamed too (`enrichment-message`, `enrichment-broken-source`,
+> `enrichment-misplaced-file`); `no-enrichment-todo` / `no-orphan-carcass` are unchanged.
+
 ## Decisions (from the §12 open questions)
 
 1. **Package placement:** in `ts-runtypes-devtools` on the `./eslint` subpath — as specced. No `./oxlint` alias; the guide documents that the one entry serves both hosts.

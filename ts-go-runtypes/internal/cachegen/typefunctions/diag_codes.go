@@ -149,7 +149,7 @@ func (RestoreFromJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 // SKIP the primitive entry (empty argsText) instead of rendering an alwaysThrow
 // like every sibling strategy — leaving the compact composite binding a
 // never-rendered primitive (JCP001). The unserializable-leaf reason is
-// wire-shape-independent ("Cannot encode `Function` to JSON" holds for compact
+// wire-shape-independent ("Type `Function` can never be encoded to JSON" holds for compact
 // too), so the shared PJS*/RJ* wording is exactly right — compact now matches
 // clone (PJS003) and preserve/strip (RJ003) byte-for-byte.
 func (CompactForJsonEmitter) DiagCodeFor(slot DiagSlot) string {

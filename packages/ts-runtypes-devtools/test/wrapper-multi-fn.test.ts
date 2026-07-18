@@ -73,7 +73,7 @@ function makePlugin() {
     binary: BIN,
     cwd: FIXTURE_DIR,
     tsconfig: 'tsconfig.json',
-    outDir: OUT_DIR,
+    genDir: OUT_DIR,
   }) as any;
 }
 

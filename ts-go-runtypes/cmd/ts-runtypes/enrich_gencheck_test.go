@@ -172,8 +172,8 @@ func TestCheckMirrorFile_Clean(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
 	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
-	mirror := filepath.Join(dir, "runtypes", "generated", "friendly", "models", "user.ts")
-	writeTestFile(t, mirror, "import type { User } from '../../../../src/models/user';\n"+
+	mirror := filepath.Join(dir, "src", "__runtypes", "enriched", "friendly", "models", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../../models/user';\n"+
 		"import type { FriendlyType } from '@ts-runtypes/core';\n\nexport const friendlyUser = {};\n")
 
 	findings := checkMirrorFile(mirror, "")
@@ -189,8 +189,8 @@ func TestCheckMirrorFile_LegacyCombinedDrifts(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
 	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface User { name: string }")
-	mirror := filepath.Join(dir, "runtypes", "generated", "models", "user.ts")
-	writeTestFile(t, mirror, "import type { User } from '../../../src/models/user';\n"+
+	mirror := filepath.Join(dir, "src", "__runtypes", "enriched", "models", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../models/user';\n"+
 		"import type { FriendlyType, MockData } from '@ts-runtypes/core';\n\nexport const friendlyUser = {};\n")
 
 	findings := checkMirrorFile(mirror, "")
@@ -202,8 +202,8 @@ func TestCheckMirrorFile_LegacyCombinedDrifts(t *testing.T) {
 // TestCheckMirrorFile_GE002: a deleted source produces a GE002 error.
 func TestCheckMirrorFile_GE002(t *testing.T) {
 	dir := t.TempDir()
-	mirror := filepath.Join(dir, "runtypes", "generated", "models", "user.ts")
-	writeTestFile(t, mirror, "import type { User } from '../../../src/models/user';\n")
+	mirror := filepath.Join(dir, "src", "__runtypes", "enriched", "models", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../models/user';\n")
 
 	findings := checkMirrorFile(mirror, "")
 	if len(findings) != 1 || findings[0].Code != "GE002" {
@@ -217,8 +217,8 @@ func TestCheckMirrorFile_GE003(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{ "compilerOptions": { "rootDir": "src" } }`)
 	writeTestFile(t, filepath.Join(dir, "src", "models", "user.ts"), "export interface Renamed {}")
-	mirror := filepath.Join(dir, "runtypes", "generated", "models", "user.ts")
-	writeTestFile(t, mirror, "import type { User } from '../../../src/models/user';\n")
+	mirror := filepath.Join(dir, "src", "__runtypes", "enriched", "models", "user.ts")
+	writeTestFile(t, mirror, "import type { User } from '../../../models/user';\n")
 
 	findings := checkMirrorFile(mirror, "")
 	codes := map[string]bool{}

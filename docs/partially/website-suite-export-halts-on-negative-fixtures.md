@@ -24,7 +24,7 @@ This is the step that generates `gendocs/*-suite.json` for the docs site. It is 
 - The resolver is behaving **correctly**: the "errors" are the test suite's *intended*
   negative cases. Diagnostic tally over the 1678 (captured via a customLogger, since
   `export-validation.mjs` sets `logLevel:'error'` and suppresses them):
-  `VE002` (Cannot validate `Unsupported`), `NE001`, and the JSON/binary families
+  `VE002` (type can never be validated), `NE001`, and the JSON/binary families
   `PJ/RJ/SJ/PJS/TB/FB 00x`, `VL002` — all from files like
   `packages/ts-runtypes/test/suites/validation/Atomic.ts` and
   `packages/ts-runtypes/test/features/nonEnumerableGuard.test.ts`.

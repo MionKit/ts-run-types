@@ -88,7 +88,7 @@ function makePlugin(entryDir: string, extra?: {failOnError?: boolean}) {
     binary: BIN,
     cwd: entryDir,
     tsconfig: 'tsconfig.json',
-    outDir: path.join(entryDir, '__runtypes'),
+    genDir: path.join(entryDir, '__runtypes'),
     ...extra,
   }) as any;
 }

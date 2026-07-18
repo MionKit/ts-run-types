@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "@nuxt/ui";
+@import 'tailwindcss';
+@import '@nuxt/ui';
 
 @theme static {
   --color-green-50: #f7f9f4;
@@ -49,7 +49,6 @@ body h1 {
   color: var(--ui-primary);
 }
 
-
 body .video-player > img {
   width: 100%;
 }
@@ -71,21 +70,20 @@ pre code {
   color: var(--color-green-50);
 }
 
-
 pre.px-4 {
   padding-left: 0.8rem;
   padding-right: 0.4rem;
 }
 
 /* Home Page Hero */
-.home-hero > div{
+.home-hero > div {
   padding-bottom: calc(var(--spacing) * 12);
 }
 
 /* Every section title is green-500. (The old `.home-page` wrapper this rule
    targeted isn't actually emitted in the DOM, so key on the UPageSection title
    slot, which every section title carries.) */
-h2[data-slot="title"] {
+h2[data-slot='title'] {
   color: var(--color-green-500);
 }
 
@@ -94,7 +92,7 @@ h2[data-slot="title"] {
   color: var(--color-green-500);
 }
 
-.home-features h2 a{
+.home-features h2 a {
   color: var(--color-green-500);
 }
 
@@ -103,9 +101,8 @@ h2[data-slot="title"] {
 }
 
 .home-features a {
-  color: var(--ui-text-highlighted)
+  color: var(--ui-text-highlighted);
 }
-
 
 .home-features .stylish-list {
   display: flex;
@@ -133,14 +130,14 @@ h2[data-slot="title"] {
 }
 
 .dark table tbody td strong {
-    color: var(--color-primary-300)
+  color: var(--color-primary-300);
 }
 
 .dark table th {
-    color: var(--color-primary-400)
+  color: var(--color-primary-400);
 }
 
-@media screen and (min-width: 780px){
+@media screen and (min-width: 780px) {
   .home-features h2 {
     font-size: 3rem;
   }
@@ -293,7 +290,6 @@ h2[data-slot="title"] {
   color: var(--ui-text-dimmed);
 }
 
-
 /* Home "Two ways to describe a shape" — type-first vs schema-first, side by side.
    Two single-tab code-groups in a 2-col grid; min-width:0 lets each code block
    wrap inside its column instead of forcing the grid wider. Stacks when narrow. */
@@ -312,13 +308,13 @@ h2[data-slot="title"] {
   flex-direction: column;
 }
 
-.rt-define-cols > * > [role="tabpanel"] {
+.rt-define-cols > * > [role='tabpanel'] {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.rt-define-cols > * > [role="tabpanel"] > pre {
+.rt-define-cols > * > [role='tabpanel'] > pre {
   flex: 1;
   margin: 0;
 }
@@ -603,19 +599,7 @@ h2[data-slot="title"] {
   font-size: 1.15rem;
   font-weight: 700;
   line-height: 1.2;
-  background: linear-gradient(
-    90deg,
-    #8aa85e 0%,
-    color-mix(in srgb, #8aa85e 55%, #60a5fa) 25%,
-    #bdd09d 50%,
-    color-mix(in srgb, #8aa85e 55%, #60a5fa) 75%,
-    #8aa85e 100%
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-size: 200% 100%;
-  animation: gradient-flow 12s linear infinite;
+  color: var(--ui-primary);
 }
 
 @media (max-width: 1000px) {
@@ -715,8 +699,8 @@ body.rt-flush-page :is(.prose, article) {
   max-width: none;
 }
 
-body.rt-wide-page [class~="lg:grid-cols-10"] > div[class~="lg:col-span-2"],
-body.rt-flush-page [class~="lg:grid-cols-10"] > div[class~="lg:col-span-2"] {
+body.rt-wide-page [class~='lg:grid-cols-10'] > div[class~='lg:col-span-2'],
+body.rt-flush-page [class~='lg:grid-cols-10'] > div[class~='lg:col-span-2'] {
   display: none;
 }
 
@@ -725,7 +709,7 @@ body.rt-flush-page [class~="lg:grid-cols-10"] > div[class~="lg:col-span-2"] {
    (Suites + Benchmarks) keep the grid, so content stays at its normal width — no TOC,
    but not widened. No container bump either way, so the header, sidebar and content
    left edges stay aligned across every page. */
-body.rt-wide-page [class~="lg:grid-cols-10"]:has(> div[class~="lg:col-span-2"]) {
+body.rt-wide-page [class~='lg:grid-cols-10']:has(> div[class~='lg:col-span-2']) {
   display: block;
 }
 
@@ -772,7 +756,10 @@ body.rt-wide-page [class~="lg:grid-cols-10"]:has(> div[class~="lg:col-span-2"]) 
   border: 1px solid color-mix(in srgb, var(--ui-text-highlighted, #fff) 14%, transparent);
   background: color-mix(in srgb, var(--ui-text-highlighted, #fff) 6%, transparent);
   backdrop-filter: blur(6px);
-  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .tsgo-badge:hover {
@@ -784,7 +771,7 @@ body.rt-wide-page [class~="lg:grid-cols-10"]:has(> div[class~="lg:col-span-2"]) 
 /* mini TypeScript logo square, rendered as the link's leading marker
    ("TS" tucked into the lower-right corner like the real logo) */
 .tsgo-badge::before {
-  content: "TS";
+  content: 'TS';
   display: inline-flex;
   align-items: flex-end;
   justify-content: flex-end;
@@ -823,4 +810,3 @@ body.rt-wide-page [class~="lg:grid-cols-10"]:has(> div[class~="lg:col-span-2"]) 
   line-height: 1.35;
   color: var(--ui-text-muted, var(--color-gray-400));
 }
-
