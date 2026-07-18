@@ -36,8 +36,10 @@ export interface PureFunctionData {
   readonly namespace: string;
   /** The names of the arguments of the function */
   readonly paramNames: string[];
-  /** The code of the function closure */
-  readonly code: string;
+  /** The factory body string. Present in `code`/`both` emit modes; undefined in
+   *  `functions` mode, where the live `createPureFn` ships instead (mirrors the
+   *  type-fn `code` slot — see `CompiledFnData.code`). */
+  readonly code?: string;
   /** Unique id of the function */
   readonly fnName: string;
   /** Hash of the function body for version validation */
@@ -47,7 +49,12 @@ export interface PureFunctionData {
 }
 
 export interface CompiledPureFunction extends PureFunctionData {
-  createPureFn: PureFunctionFactory;
+  /** Factory closure `(utl) => fn`. Optional: in `code` mode (default) the Go
+   *  renderer drops it and `initPureFunction` rebuilds via
+   *  `new Function(...paramNames, code)` on first lookup. `functions`/`both`
+   *  emit modes ship the live literal for runtimes that can't use `new Function`
+   *  (mirrors the type-fn `createRTFn` slot). */
+  createPureFn?: PureFunctionFactory;
   fn?: PureFunction;
 }
 

@@ -744,7 +744,7 @@ func (sess *Session) serveBuiltinPureFns(graph virtualmodules.Graph, diagSink *[
 		return
 	}
 	entries, missing := builtinpurefns.Closure(demand)
-	graph.Merge(purefunctions.CollectEntries(entries))
+	graph.Merge(purefunctions.CollectEntries(entries, sess.opts.EmitMode))
 	if diagSink == nil {
 		return
 	}
@@ -924,7 +924,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 				// out of the per-file pure-fn signals (replacements / addedPureFns)
 				// — those track registerPureFnFactory rewrites, not overrides.
 				allPureFns := append(append([]purefunctions.Entry(nil), pureFnEntries...), sess.overrideEntries...)
-				modules, modulesErr := sess.collectEntryModules(scoped, rtOpts, purefunctions.CollectEntries(allPureFns), metrics)
+				modules, modulesErr := sess.collectEntryModules(scoped, rtOpts, purefunctions.CollectEntries(allPureFns, sess.opts.EmitMode), metrics)
 				if modulesErr != nil {
 					return protocol.Response{Error: modulesErr.Error()}
 				}

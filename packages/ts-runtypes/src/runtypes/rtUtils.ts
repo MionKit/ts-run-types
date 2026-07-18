@@ -11,6 +11,7 @@ import type {
   PureFunctionsCache,
   CompiledPureFunction,
   PureFunction,
+  PureFunctionFactory,
   RunType,
   RunTypesCache,
   AnyFn,
@@ -213,10 +214,33 @@ export function getRTFnCaches() {
   };
 }
 
-/** Lazily materialize a pure function's `.fn` via its `createPureFn` closure. */
-function initPureFunction(compiled: CompiledPureFunction): asserts compiled is Required<CompiledPureFunction> {
+/** Lazily materialize a pure function's `.fn`.
+ *
+ *  Emit modes (symmetric with materializeRTFn for type fns):
+ *  - functions/both: `createPureFn` is the embedded `function(<params>){…}`
+ *    closure — invoke it with rtUtils.
+ *  - code (default): `createPureFn` is absent (dropped as a trailing hole);
+ *    rebuild it from `code` + `paramNames` via `new Function(...)` and cache it
+ *    on the entry so the reconstruction runs once. **/
+function initPureFunction(compiled: CompiledPureFunction): asserts compiled is CompiledPureFunction & {fn: PureFunction} {
   if (compiled.fn) return;
-  compiled.fn = compiled.createPureFn(rtUtils);
+  let factory = compiled.createPureFn;
+  if (!factory) {
+    factory = buildPureFnFactoryFromCode(compiled.paramNames, compiled.code ?? '');
+    (compiled as Mutable<CompiledPureFunction>).createPureFn = factory;
+  }
+  compiled.fn = factory(rtUtils);
+}
+
+/** Rebuilds a pure-fn factory from its serialized `code` body via
+ *  `new Function(...paramNames, code)` — the runtime counterpart of the emitted
+ *  `function(<paramNames>){<code>}` literal (`code`-mode reconstruction).
+ *  Forces strict mode so the reconstructed body matches the (always-strict) ESM
+ *  literal shipped in `functions`/`both` mode. Contrast `buildFactoryFromCode`
+ *  (type fns): a pure fn's params are its recorded `paramNames`, not a fixed
+ *  `utl`. **/
+export function buildPureFnFactoryFromCode(paramNames: string[], code: string): PureFunctionFactory {
+  return new Function(...paramNames, `'use strict'; ${code}`) as PureFunctionFactory;
 }
 
 /** Canonical cache key for an RT entry — `<prefix>_<id>`. The variant

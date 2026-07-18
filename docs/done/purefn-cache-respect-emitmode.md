@@ -1,9 +1,40 @@
 # Make the pure-fn cache respect `emitMode`
 
-Status: **TODO — agreed** (owner request 2026-07-18, follow-up from the
-demand-driven built-in pure-fn work,
-[docs/done/demand-driven-builtin-pure-fns.md](../done/demand-driven-builtin-pure-fns.md)).
-No code landed yet.
+Status: **DONE — shipped 2026-07-18** on branch
+`claude/purefn-cache-emitmode-iuzkpz`, follow-up from the demand-driven built-in
+pure-fn work
+([docs/done/demand-driven-builtin-pure-fns.md](./demand-driven-builtin-pure-fns.md)).
+All four rollout steps landed:
+
+1. `emitMode` threaded into `purefunctions.CollectEntries(entries, emitMode)`
+   ([purefunctions/module.go](../../ts-go-runtypes/internal/cachegen/purefunctions/module.go)),
+   gating the `code` / `createPureFn` slots via `EmitsCode()` / `EmitsFactory()`
+   (trailing `createPureFn` hole trimmed; interior `code` hole kept in place),
+   passed at all three call sites (render.go + dispatch.go's `serveBuiltinPureFns`
+   and the scanFiles path). The built-in table is unchanged — delivery flows
+   through `CollectEntries`, so built-ins inherit the gating for free.
+2. Runtime `code`-mode materializer: `initPureFunction`
+   ([rtUtils.ts](../../packages/ts-runtypes/src/runtypes/rtUtils.ts)) rebuilds the
+   factory from `code` + `paramNames` via the new exported
+   `buildPureFnFactoryFromCode` (`new Function(...paramNames, "'use strict'; " +
+   code)`) and caches it on the entry; `registerPureFnTuple`
+   ([entryTuple.ts](../../packages/ts-runtypes/src/runtypes/entryTuple.ts)) copies
+   the slot straight through (undefined in `code` mode). `CompiledPureFunction.code`
+   and `.createPureFn` are now both optional, and the pure-fn tuple type models the
+   trimmed `createPureFn` tail.
+3. Mode-parity tests: Go (`TestCollectEntries_EmitMode*` in
+   [module_test.go](../../ts-go-runtypes/internal/cachegen/purefunctions/module_test.go))
+   + JS runtime materialization
+   ([entryTuplePureFn.test.ts](../../packages/ts-runtypes/test/features/entryTuplePureFn.test.ts))
+   + FE end-to-end over the real binary, incl. the table-served `rt::findCycle`
+   built-in
+   ([pure-fns-cache.test.ts](../../packages/ts-runtypes-devtools/test/pure-fns-cache.test.ts)).
+   The two override tests that asserted the cfn body as a live literal now assert
+   the escaping-neutral `code`-string form (production default).
+4. Docs: the emitMode sections of [docs/ARCHITECTURE.md](../ARCHITECTURE.md) and
+   the CLAUDE.md built-in / emitMode bullets updated for the uniform CSP story.
+
+The original spec follows, verbatim.
 
 ## Problem — pure-fn tuples ship the body twice, ignoring `emitMode`
 

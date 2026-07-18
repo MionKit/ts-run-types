@@ -60,7 +60,7 @@ it('populates bodyHash, paramNames, and code from extracted data', () => {
   expect(compiled?.bodyHash).toMatch(BODY_HASH_REGEX);
   expect(compiled?.paramNames).toEqual([]);
   expect(typeof compiled?.code).toBe('string');
-  expect(compiled?.code.length).toBeGreaterThan(0);
+  expect(compiled?.code?.length).toBeGreaterThan(0);
   expect(compiled?.fnName).toBe('metadataTestFn');
   expect(compiled?.namespace).toBe(TEST_NAMESPACE);
 });

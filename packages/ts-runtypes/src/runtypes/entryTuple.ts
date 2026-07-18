@@ -269,10 +269,13 @@ const ENTRY_HEAD_KEYS = ['entryKind', 'deps', 'ini'] as const;
 // ends (…, code=hole, isNoop=true). When a LATER slot is non-default (the live
 // factory in `functions`/`both` mode, the alwaysThrowMessage, or the tb size
 // estimate) the interior defaults stay as holes in place rather than being
-// dropped — index-based access reads them back as undefined either way. Pure-fn,
-// bundle, facade and missing tuples are never trimmed. The REQUIRED/TRIMMED
-// splits below mirror that, so the derived tuple types accept the short forms
-// (every trimmable slot is optional, and `code` is widened to `| undefined`).
+// dropped — index-based access reads them back as undefined either way. Pure-fn
+// tuples trim ONE trailing slot — `createPureFn` is dropped in `code` mode (the
+// runtime rebuilds it from `code` + `paramNames`), and `code` holes out in place
+// in `functions` mode (createPureFn follows); bundle, facade and missing tuples
+// are never trimmed. The REQUIRED/TRIMMED splits below mirror that, so the
+// derived tuple types accept the short forms (every trimmable slot is optional,
+// and `code` is widened to `| undefined`).
 type RunTypeRowRequiredKeys = readonly ['id', 'kind'];
 type RunTypeRowTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
 
@@ -295,15 +298,11 @@ export const FN_TYPE_TUPLE_KEYS = [...FN_TYPE_REQUIRED_KEYS, ...FN_TYPE_TRIMMED_
  *  Derived from the keys array so it tracks any layout edit. **/
 const FN_TYPE_ESTIMATE_SLOT = FN_TYPE_TUPLE_KEYS.indexOf('binarySizeEstimate');
 
-export const PURE_FN_TUPLE_KEYS = [
-  ...ENTRY_HEAD_KEYS,
-  'key',
-  'bodyHash',
-  'paramNames',
-  'code',
-  'pureFnDependencies',
-  'createPureFn',
-] as const;
+const PURE_FN_REQUIRED_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'bodyHash', 'paramNames', 'code', 'pureFnDependencies'] as const;
+// createPureFn is the sole trimmable tail: dropped in `code` mode (rebuilt at
+// runtime from code + paramNames), present in `functions`/`both`.
+const PURE_FN_TRIMMED_KEYS = ['createPureFn'] as const;
+export const PURE_FN_TUPLE_KEYS = [...PURE_FN_REQUIRED_KEYS, ...PURE_FN_TRIMMED_KEYS] as const;
 
 const MISSING_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
@@ -335,8 +334,13 @@ export type FnTypeTuple = readonly [
   ...Partial<TupleFrom<FnTypeRecord, typeof FN_TYPE_TRIMMED_KEYS>>,
 ];
 
-/** Positional tuple of a pure-fn entry module — derived from PureFnRecord. **/
-export type PureFnTuple = readonly [...TupleFrom<PureFnRecord, typeof PURE_FN_TUPLE_KEYS>];
+/** Positional tuple of a pure-fn entry module — derived from PureFnRecord. The
+ *  trailing `createPureFn` is optional (dropped in `code` mode), and `code` is
+ *  `| undefined` (holed out in `functions` mode). **/
+export type PureFnTuple = readonly [
+  ...TupleFrom<PureFnRecord, typeof PURE_FN_REQUIRED_KEYS>,
+  ...Partial<TupleFrom<PureFnRecord, typeof PURE_FN_TRIMMED_KEYS>>,
+];
 
 /** Positional tuple of a KindMissing stub module — derived from MissingRecord. **/
 export type MissingTuple = readonly [...TupleFrom<MissingRecord, typeof MISSING_TUPLE_KEYS>];
@@ -702,7 +706,10 @@ function registerTypeFnTuple(utils: RTUtils, tuple: FnTypeTuple): boolean {
 
 // registerPureFnTuple builds the CompiledPureFunction the pureFnsCache
 // skeleton's `factory(…)` consumer used to construct, splitting the composite
-// `<ns>::<fn>` key into its namespace/fnName halves.
+// `<ns>::<fn>` key into its namespace/fnName halves. The `code` and
+// `createPureFn` slots vary by emit mode: in `code` mode createPureFn is absent
+// (initPureFunction rebuilds it from code + paramNames); in `functions` mode
+// code is absent (the live createPureFn ships instead).
 function registerPureFnTuple(utils: RTUtils, tuple: PureFnTuple): boolean {
   const record = tupleToRecord<PureFnRecord>(PURE_FN_TUPLE_KEYS, tuple);
   if (utils.hasPureFn(record.key)) return false;
@@ -712,8 +719,10 @@ function registerPureFnTuple(utils: RTUtils, tuple: PureFnTuple): boolean {
     fnName: separator >= 0 ? record.key.slice(separator + 2) : record.key,
     bodyHash: record.bodyHash,
     paramNames: record.paramNames,
+    // undefined in `functions` mode — nobody reads a pure fn's code at runtime.
     code: record.code,
     pureFnDependencies: record.pureFnDependencies,
+    // undefined in `code` mode — initPureFunction reconstructs via new Function.
     createPureFn: record.createPureFn,
     fn: undefined,
   };

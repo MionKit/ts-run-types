@@ -160,7 +160,7 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmo
 	// generate() emits the redirect but not the cfn module it imports, and the
 	// runtime throws "Pure function not found" at the first createX call.
 	kept = append(kept, sess.overrideEntries...)
-	return purefunctions.CollectEntries(kept), diags
+	return purefunctions.CollectEntries(kept, sess.opts.EmitMode), diags
 }
 
 // validateProgramPureFnDeps cross-checks the pure-fn dependencies aggregated
