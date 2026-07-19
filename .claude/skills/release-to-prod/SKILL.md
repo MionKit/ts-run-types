@@ -110,10 +110,14 @@ stage-publish (OIDC, unattended) → `vX.Y.Z` tag on prod → GitHub Release. Wa
 
 When it succeeds, hand the developer the finishing steps, in order:
 
-1. `pnpm rtx release stage-approve` — 2FA approval, leaves-first; packages go live.
+1. `pnpm rtx release stage-approve` — asks for the 2FA OTP once (reused while its
+   ~30s window lasts, re-prompted on expiry), approves leaves-first, then waits for
+   npm to serve the new version and **auto-dispatches the website deploy**
+   (`--no-deploy` to skip; `--deploy-only` to re-fire a skipped/failed dispatch).
 2. Optionally `pnpm rtx release e2e --backend npm` — verifies the LIVE packages.
-3. **Actions → "prod · deploy website" → Run workflow** on the **prod** ref (its
-   `verify-live` guard aborts until step 1 is done).
+3. Only if step 1 reported `DEPLOY NOT TRIGGERED`: **Actions → "prod · deploy
+   website" → Run workflow** on the **prod** ref (its `verify-live` guard aborts
+   until the packages are live).
 
 ## When things go wrong
 
