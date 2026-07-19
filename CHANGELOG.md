@@ -16,8 +16,9 @@ compile-time option (breaking: `setRejectCircularRefs` is removed) that forks th
 compiled entry and inlines a guard over a baked cycle-edge skeleton, so a plain
 cyclable type ships nothing. Built-in `rt::` pure functions are delivered on demand
 instead of riding every bundle, the pure-fn cache honors `emitMode`, wrapper
-frameworks get an anonymous pure-fn registration lane, and lint setup collapses to
-zero config under a single `genDir` convention.
+frameworks get an anonymous pure-fn registration lane plus a structured build report
+of every extracted pure fn (the cross-bundle transport surface), and lint setup
+collapses to zero config under a single `genDir` convention.
 
 ### Features
 
@@ -50,6 +51,16 @@ zero config under a single `genDir` convention.
 - **pure-fn:** Symmetric factory / direct registration (two markers, four
   registrars), plus a wrappable anonymous registration lane with runtime-key lookup
   for wrapper frameworks.
+- **pure-fn:** Structured build report of every generated pure fn — call-site span,
+  callee attribution resolved through wrappers (`calleeName` / `calleeModule`),
+  lane / form, registry key, and the self-contained `paramNames` + `code` payload
+  (shape identical across every `moduleMode`). One tri-state `pureFnReport` plugin
+  option selects delivery: `'file'` writes `<genDir>/types/pure-fns-report.json` on
+  every generate (plugin-free and CLI batch consumers included), `'callback'` fires
+  the `onPureFnReport` handler on every unplugin adapter with build + update phases.
+  This is the cross-bundle transport surface: host tooling (mion's `serverMapFrom`)
+  harvests client-authored mappers from the report and bakes them into the server
+  bundle at build time — the wire carries only the content key.
 
 ### Bug Fixes
 
@@ -58,6 +69,13 @@ zero config under a single `genDir` convention.
 - **unknown-keys:** Keep absent optional tuple slots absent in the clone.
 - **codegen:** Fix the gen-fn-hashes path and complete the devtools sub-kind +
   ReflectionKind mirrors.
+- **pure-fn:** The anonymous-lane extractor discovers the marker positions on the
+  resolved signature instead of assuming slots 0/1, so a wrapper with leading
+  non-marker parameters (`serverMapFrom(source, mapper, hash?)`) extracts: the
+  inline-fn pre-filter scans every argument, the injected hash splices at its
+  declared slot (skipped optional gaps pad with `undefined`), and overloaded
+  wrappers resolve per call site — a marker-free string overload (a name-based
+  fallback lane) never extracts.
 
 ### Performance
 
@@ -89,6 +107,9 @@ zero config under a single `genDir` convention.
 - **core:** Mirror the DAG-memo and re-entrancy guard cases into serialization.
 - **pure-fn:** Runtime and node_modules e2e for the anonymous lane through a
   wrapper.
+- **pure-fn:** Build-report attribution + update-lane coverage across both
+  moduleModes; leading-param wrapper parity, overload no-extract, and
+  optional-gap padding pins (Go + node_modules FE).
 
 ## [0.9.3] - 2026-07-15
 
