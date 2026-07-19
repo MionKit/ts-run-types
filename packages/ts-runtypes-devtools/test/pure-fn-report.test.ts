@@ -74,7 +74,7 @@ describe('pure-fn build report', () => {
   register('onPureFnReport fires on the rollup adapter with both lanes + forms; JSON file round-trips', async () => {
     const calls: Array<{phase: string; sites: PureFnSite[]}> = [];
     const plugin = makePlugin({
-      pureFnReport: true,
+      pureFnReport: 'file',
       onPureFnReport: (sites: PureFnSite[], phase: 'build' | 'update') => calls.push({phase, sites}),
     });
     try {
@@ -135,7 +135,7 @@ describe('pure-fn build report', () => {
       let captured: PureFnSite[] = [];
       const plugin = makePlugin({
         moduleMode,
-        pureFnReport: true,
+        pureFnReport: 'file',
         onPureFnReport: (sites: PureFnSite[]) => (captured = sites),
       });
       try {
@@ -183,5 +183,11 @@ describe('pure-fn build report', () => {
     expect(captured.length, 'callback receives records without a file being requested').toBe(3);
     // ...and no JSON file was written (data-only).
     expect(fs.existsSync(path.join(FIXTURE_DIR, '__runtypes', 'types', 'pure-fns-report.json'))).toBe(false);
+  });
+
+  // Validation runs at plugin construction (no binary needed), so this stays a
+  // plain `it` — an unknown tri-state value must fail loudly, not silently.
+  it('rejects an unknown pureFnReport value', () => {
+    expect(() => makePlugin({pureFnReport: 'bogus'})).toThrow(/pureFnReport/);
   });
 });

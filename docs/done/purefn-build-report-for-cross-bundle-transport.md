@@ -119,10 +119,14 @@ responsibility, not this package's.
    - Enablement follows the option-parity direction
      ([option-parity-tsconfig-plugin.md](option-parity-tsconfig-plugin.md)): one
      project-semantic option settable in BOTH the tsconfig entry and the bundler
-     plugin (+ CLI flag). SHIPPED as a plain boolean `pureFnReport: true` — the
-     `'<path>'` variant floated here was deliberately dropped: like every
-     location under `genDir`, the report path is convention, not config. It is
-     hardcoded (Go-side) at `<genDir>/types/pure-fns-report.json`.
+     plugin (+ CLI flag). SHIPPED as a tri-state on the plugin
+     (`pureFnReport: 'file' | 'callback' | false` — file, in-process-callback-
+     only, or off; the callback alone defaults to `'callback'`), resolving to two
+     low-level resolver flags `--pure-fn-report` (data) + `--pure-fn-report-file`
+     (write file); tsconfig / CLI keep the boolean `true` = file. The `'<path>'`
+     variant floated here was deliberately dropped: like every location under
+     `genDir`, the report path is convention, not config — hardcoded (Go-side) at
+     `<genDir>/types/pure-fns-report.json`.
 
 3. **Secondary delivery: unplugin-level callback for in-process consumers.** On the
    SHARED unplugin factory ([unplugin.ts](../../packages/ts-runtypes-devtools/src/unplugin.ts))

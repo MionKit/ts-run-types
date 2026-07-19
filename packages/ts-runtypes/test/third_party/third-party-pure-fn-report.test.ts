@@ -128,7 +128,7 @@ describe('third-party pure-fn report: wrapper attribution + update lane (node_mo
       cwd: FIXTURE_DIR,
       tsconfig: 'tsconfig.json',
       genDir: path.join(FIXTURE_DIR, '__runtypes'),
-      pureFnReport: true,
+      pureFnReport: 'file',
       onPureFnReport: (sites: PureFnSite[], phase: 'build' | 'update') => {
         if (phase === 'build') report = sites;
       },
@@ -180,7 +180,7 @@ describe('third-party pure-fn report: wrapper attribution + update lane (node_mo
       cwd: FIXTURE_DIR,
       tsconfig: 'tsconfig.json',
       genDir: path.join(FIXTURE_DIR, '__runtypes'),
-      pureFnReport: true,
+      pureFnReport: 'file',
       onPureFnReport: (sites: PureFnSite[], phase: 'build' | 'update') => updates.push({phase, sites}),
     }) as any;
 
