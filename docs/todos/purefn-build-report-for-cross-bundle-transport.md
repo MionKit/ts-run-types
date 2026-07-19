@@ -1,4 +1,4 @@
-# Pure-fn build report: expose generated pure-fn sites to the host plugin (cross-bundle transport)
+# Pure-fn build report: expose generated pure-fn sites to host tooling (cross-bundle transport)
 
 **Status:** todo — design agreed with mion (the motivating consumer), ready to implement.
 **Created:** 2026-07-19
@@ -18,7 +18,7 @@ which names a mion-style proxy as the motivating case) gives mion the **extracti
 half for free: at a `serverMapFrom` call site the plugin rewrites the mapper argument
 to the generated `__rt_pf…` entry binding and injects the content hash `'rt::<hash>'`.
 But registration lands only in **the bundle that builds the call site** (the client).
-There is no supported way for a host plugin to learn, in structured form, *which pure
+There is no supported way for host tooling to learn, in structured form, *which pure
 fns this build generated and from which call sites*, so mion cannot relocate the
 mapper bodies into the **server** bundle at build time.
 
@@ -28,8 +28,13 @@ client-supplied code). What ts-runtypes is missing is the **reporting surface** 
 harvest step consumes. Without it mion would have to regex-parse rewritten source for
 `serverMapFrom(__rt_pf…, 'rt::<hash>')` (couples mion to the rewrite's text format)
 or read `<genDir>/types/pf/*` module files (no call-site/callee linkage — cannot tell
-a serverMapFrom mapper from any other registered pure fn). Both are brittle; the
-resolver already holds every piece of the data.
+a serverMapFrom mapper from any other registered pure fn; and in `allSingle` module
+mode there are no per-entry pf files at all). Both are brittle; the resolver already
+holds every piece of the data.
+
+**Scope guard:** ts-runtypes provides the REPORT only. What consumers do with it
+(relocating bodies, trimming the emitting bundle, manifest formats) is their
+responsibility, not this package's.
 
 ## Verified current state (2026-07-19)
 
@@ -45,13 +50,22 @@ resolver already holds every piece of the data.
   the structured entry (key, `paramNames`, `code`, `pureFnDependencies`, emitMode
   gating), but the response ships it only as rendered ES-module text
   (`entryModules` / files under `<genDir>/types/`) — machine-hostile for a harvester.
+- **Module layout varies by `moduleMode`.** Per-entry `pf/<ns>/<fn>` modules in
+  `default`/`allModules`; ONE `pf` bundle in `allSingle` (`Site.Module` already
+  models this for fn entries). Any file-based report must be layout-independent.
 - **HMR signal exists**: `Response.addedPureFns` flips when a pure-fn body appears or
-  changes; `handleHotUpdate` already consumes it.
+  changes; the vite adapter's `handleHotUpdate` already consumes it.
 - **Callee identity is already computed Go-side.** The extractor resolves the callee
   declaration to find the marker-carrying signature; the nearest-`package.json`
   name walk already exists for marker gating
   ([marker.go](../../ts-go-runtypes/internal/compiler/marker/marker.go)). Reporting
   `calleeName` + `calleeModule` is serialization, not new analysis.
+- **Two consumption lanes exist and both must be served**: the unplugin-based
+  bundler plugin (vite/rollup/rolldown/esbuild/rspack/webpack adapters over ONE
+  [unplugin.ts](../../packages/ts-runtypes-devtools/src/unplugin.ts) factory) and
+  the CLI batch lane (`--compile`,
+  [batchcompile](../../ts-go-runtypes/internal/compiler/batchcompile/)). A
+  vite-only hook would leave every other adapter and the CLI without the feature.
 
 ## Fix plan
 
@@ -67,56 +81,91 @@ resolver already holds every piece of the data.
      calleeModule,              // nearest package.json name of the declaring file
      lane,                      // "named" | "anonymous"
      form,                      // "direct" | "factory" (wrapped vs as-is)
+     module,                    // basename of the generated module the entry rides
+                                //   in (per-entry pf/<ns>/<fn>, or the single pf
+                                //   bundle in allSingle — mirrors Site.Module)
      paramNames, code,          // entry payload (emitMode-honoring)
      pureFnDependencies,        // transitive pure-fn deps (keys)
    }]
    ```
 
    Populate from the extractor's site records joined with the purefunctions cache.
-   Mirror in the JS `protocol.ts` types.
+   Mirror in the JS `protocol.ts` types. The report is **self-contained** (`code` +
+   `paramNames` inline) precisely so consumers never read generated module files —
+   that is what makes it stable across every `moduleMode`.
 
-2. **Plugin surface.** Two consumers, one data source:
-   - `PluginOptions.onPureFnReport?: (sites: PureFnSite[], phase: 'build' | 'hmr') => void`
-     — fired once after the buildStart whole-program scan + generate, and again with
-     the delta on every `handleHotUpdate` that reports `addedPureFns`.
-   - `PluginOptions.pureFnManifest?: string` — optional path; the plugin writes the
-     full report as JSON there at buildStart (and rewrites on HMR deltas). This is
-     the cross-build channel: a separate server build (or any non-vite consumer)
-     reads the client build's manifest from disk.
+2. **Primary delivery: resolver-emitted JSON file, written with the generated
+   modules.** When enabled, the `generate` op writes the full report as ONE JSON
+   file alongside the pure-fn cache output (exact placement decided at
+   implementation: `<genDir>/pure-fns-report.json` next to `types/`, or inside
+   `types/` with a name that can never collide with a module basename). Constraints:
+   - MUST be excluded from the `generated` module manifest and never resolvable as
+     an `rtmod:/` specifier (it is data, not a module).
+   - Layout-independent by construction (self-contained records, `module` field for
+     consumers that do want the linkage) — one report shape regardless of
+     `moduleMode` per-entry vs `allSingle` bundling.
+   - Rewritten whenever generate runs (including watch-mode re-generates), so a
+     separate build (mion's server pass), a non-JS host, or the CLI batch lane
+     (`--compile`) reads it from disk with zero in-process coupling.
+   - Enablement follows the option-parity direction
+     ([option-parity-tsconfig-plugin.md](option-parity-tsconfig-plugin.md)): one
+     project-semantic option settable in BOTH the tsconfig entry and the bundler
+     plugin (+ CLI flag), e.g. `pureFnReport: true | '<path>'`.
 
-3. **Tests** (FE, [packages/ts-runtypes-devtools/test/](../../packages/ts-runtypes-devtools/test/)
+3. **Secondary delivery: unplugin-level callback for in-process consumers.** On the
+   SHARED unplugin factory ([unplugin.ts](../../packages/ts-runtypes-devtools/src/unplugin.ts))
+   — NOT a vite-only hook — so every adapter (vite/rollup/rolldown/esbuild/rspack/
+   webpack) gets it identically:
+   `onPureFnReport?: (sites: PureFnSite[], phase: 'build' | 'update') => void`,
+   fired from universal hooks: once after the buildStart whole-program scan +
+   generate, and again with the delta wherever the adapter learns of file changes
+   (vite `handleHotUpdate` via `addedPureFns`; watch-mode rebuilds elsewhere). The
+   callback receives the same records as the JSON file — one data source, two
+   delivery channels.
+
+4. **Tests** (FE, [packages/ts-runtypes-devtools/test/](../../packages/ts-runtypes-devtools/test/)
    + third-party fixtures under
    [packages/ts-runtypes/test/third_party/](../../packages/ts-runtypes/test/third_party/)):
-   - Report covers **both lanes** (named `registerPureFn*` with `mionjs::name`-style
+   - Report covers **both lanes** (named `registerPureFn*` with `ns::name`-style
      keys, anonymous with `rt::<hash>`) and **both forms** (direct wrap, factory).
    - Wrapper attribution: the `@acme/toolkit` wrapper fixture asserts
      `calleeName: 'registerAcmePureFn'`, `calleeModule: '@acme/toolkit'` — including
      the wrapper-only file that names neither the primitive nor '@ts-runtypes/core'.
-   - Manifest file round-trips (write → parse → keys match injected hashes).
-   - HMR: editing a pure-fn body re-fires the callback with the changed site only.
+   - JSON file round-trips (write → parse → keys match injected hashes) under BOTH
+     `moduleMode: 'default'` (per-entry pf modules) and `'allSingle'` (one pf
+     bundle) — identical report shape, correct `module` field in each.
+   - Report file never collides with module output nor appears in the module
+     manifest.
+   - Non-vite adapter coverage: at least one rollup-driven test consumes
+     `onPureFnReport` (the fixtures already drive the rollup adapter).
+   - Update lane: editing a pure-fn body re-fires the callback with the changed
+     site only, and the JSON file is rewritten.
 
-4. **Docs**: ARCHITECTURE.md (pure-fn section) + the website plugin-options page, per
+5. **Docs**: ARCHITECTURE.md (pure-fn section) + the website plugin-options page, per
    the PR-readiness gate.
 
-5. **Optional follow-up (separate decision, do NOT bundle into this change):** an
-   *extract-only* lane for wrappers whose host bundle never runs the body (mion's
-   client only needs the hash; today the rewrite imports the pf module into the
-   client bundle — dead bytes). Likely a marker variant or wrapper-signature option;
-   needs its own design pass.
+Out of scope here (consumer-side, deliberately NOT ts-runtypes work): relocating
+bodies between bundles, manifest formats beyond this report, and trimming the
+emitting bundle's unused pure-fn modules.
 
 ## Consumer sketch (context only — lives in mion, not here)
 
-mion's plugin: harvest via `onPureFnReport` filtered to
-`calleeModule === '@mionjs/client' && calleeName === 'serverMapFrom'` → write
-`.mion/server-mappers.json` (via `pureFnManifest` or its own writer) → server build
-exposes a virtual module that `addPureFn`s each `{key, code, paramNames}` → router
-dispatch resolves `getPureFnByKey(bodyHash)`. Wire carries only the hash; the server
-executes only functions its own build baked in.
+mion's plugin: read the report (callback under vite, or the JSON file from the
+client build's genDir) filtered to
+`calleeModule === '@mionjs/client' && calleeName === 'serverMapFrom'` → write its
+own `.mion/server-mappers.json` → server build exposes a virtual module that
+`addPureFn`s each `{key, code, paramNames}` → router dispatch resolves
+`getPureFnByKey(bodyHash)`. Wire carries only the hash; the server executes only
+functions its own build baked in.
 
 ## Acceptance criteria
 
-- A host plugin can enumerate every generated pure fn of a build with call-site file,
+- Host tooling can enumerate every generated pure fn of a build with call-site file,
   callee attribution, registry key, and entry payload — without parsing rewritten
   source or generated module text.
-- Zero cost when neither `onPureFnReport` nor `pureFnManifest` is set (flag-gated).
-- Third-party wrapper fixtures pin the attribution fields; HMR delta covered.
+- Works on EVERY consumption lane: any unplugin adapter (callback) AND plugin-free /
+  CLI-batch / separate-process consumers (the JSON file).
+- Report shape is identical across `moduleMode` settings; per-record `module` field
+  carries the actual layout.
+- Zero cost when the option is off (flag-gated end to end).
+- Third-party wrapper fixtures pin the attribution fields; update lane covered.
