@@ -389,13 +389,14 @@ If the queue can't be read automatically (not logged in, npm too old), the helpe
 
 CI runs Node 26; staged publishing needs npm **≥ 11.15.0** (OIDC needs ≥ 11.5.1). The `publish-npm` job runs `npm install -g npm@latest` to guarantee it.
 
-**Cutting a release (after the bootstrap).**
+**Cutting a release (after the bootstrap).** The whole flow is driven end-to-end by the **[release-to-prod skill](.claude/skills/release-to-prod/)** — an agent opens the PRs, watches CI, and fixes failures forward; a maintainer reviews and clicks the merges. The shape:
 
-1. Bump the lockstep version on a branch: `pnpm rtx release bump <patch|minor|major|X.Y.Z>` ([`bump-version.mjs`](scripts/release/bump-version.mjs) writes `version.json` + every `package.json`, commits `chore(release): v<version>`, and tags `v<version>` locally — don't push that tag; CI tags the `prod` commit itself, idempotently).
-2. Open a PR into `prod` ([`pre-publish.yml`](.github/workflows/pre-publish.yml) runs the full gate). The bumped `version.json` MUST be in this PR — [`publish.yml`](.github/workflows/publish.yml)'s preflight refuses to re-publish an existing version.
-3. Merge. `publish.yml` runs the gate again, then **stages** every package to npm (OIDC) and tags the release.
-4. Approve the staged packages with 2FA, leaves-first: `pnpm rtx release stage-approve`.
-5. Deploy the docs: **Actions → prod · deploy website → Run workflow**, against the **`prod`** ref (the `verify-live` guard aborts if `prod`'s version isn't live on npm yet — i.e. if step 4 hasn't completed).
+1. **Bump PR into `main`.** On a branch: `pnpm rtx release bump <patch|minor|major|X.Y.Z>` ([`bump-version.mjs`](scripts/release/bump-version.mjs) writes `version.json` + every `package.json` and commits `chore(release): v<version>`; delete the local tag it creates — CI tags the `prod` commit itself). Curate `CHANGELOG.md` into the same commit. Lands on `main` via the normal rebase-merge.
+2. **Release PR — `main` straight into `prod`, no intermediate branch:** `gh pr create --base prod --head main --title "release: vX.Y.Z"`. [`pre-publish.yml`](.github/workflows/pre-publish.yml) runs the full gate plus a PR-time `version-fresh` check (red if `version.json` is already live on npm). Because the head IS `main`, fixes merged to `main` flow into the PR automatically.
+3. **Merge with "Create a merge commit" — never rebase, never squash.** `prod` must advance only by true merge commits of `main`; a rebase/squash breaks the shared ancestry and the next release PR stops being mergeable. [`publish.yml`](.github/workflows/publish.yml)'s first job (`merge-shape`) fails fast on a wrong-method merge and prints the recovery (an empty `main → prod` re-merge PR).
+4. `publish.yml` runs the gate again, then **stages** every package to npm (OIDC) and tags the release on `prod`.
+5. Approve the staged packages with 2FA, leaves-first: `pnpm rtx release stage-approve`.
+6. Deploy the docs: **Actions → prod · deploy website → Run workflow**, against the **`prod`** ref (the `verify-live` guard aborts if `prod`'s version isn't live on npm yet — i.e. if step 5 hasn't completed).
 
 ### Pre-publish e2e — `pnpm rtx release e2e`
 

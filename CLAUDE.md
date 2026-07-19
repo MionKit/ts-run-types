@@ -109,6 +109,7 @@ Full manual steps are in [SETUP.md](SETUP.md). After touching Go sources, rebuil
 ## Git workflow
 
 - **PRs land via Rebase-and-merge — keep every branch LINEAR (no merge commits).**
+- **ONE exception — the `prod` release line.** A release PR (`main` → `prod`, head is literally `main`, no intermediate branch) is landed with **"Create a merge commit"** — never rebase, never squash ([publish.yml](.github/workflows/publish.yml)'s `merge-shape` job fails fast otherwise), and `prod` is never merged back into `main`. Whole flow: the [release-to-prod skill](.claude/skills/release-to-prod/).
 - **Integrate upstream by rebasing, never merging.** When `main` moves (it may be **force-updated** / history-rewritten), rebase onto it:
   ```
   git fetch origin main
@@ -185,6 +186,7 @@ Full rationale: [docs/ARCHITECTURE.md → Validate contract](docs/ARCHITECTURE.m
 - [README.md](README.md) — project overview, how-it-works, usage, CLI flags.
 - [SETUP.md](SETUP.md) — single setup doc: prereqs, bootstrap, build, test, lint, dev loop, containerized apps, publishing, troubleshooting.
 - [.claude/skills/ts-runtypes-setup/](.claude/skills/ts-runtypes-setup/) — automated host bootstrap + smoke verification skill.
+- [.claude/skills/release-to-prod/](.claude/skills/release-to-prod/) — agent-driven release flow: bump + changelog PR into `main`, then the `main → prod` merge-commit promotion, CI watching, and the 2FA / deploy handoff.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, sentinel markers, lossy mappings, factory reference.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — scope + known lossy mappings.
 
