@@ -147,23 +147,26 @@ export interface PluginOptions {
   // pure fn this build generated (call-site span, callee attribution, registry
   // key, and the self-contained entry payload). For host tooling that relocates
   // pure-fn bodies across bundles (mion's cross-bundle serverMapFrom transport).
-  //   - `true`      → emit the report AND write it to the HARDCODED
-  //                   `<genDir>/types/pure-fns-report.json` on every generate.
-  //                   The location is not configurable (like every path under
-  //                   genDir), so it inherits types/'s gitignore + regenerate
-  //                   lifecycle.
-  //   - unset/false → off (the callback below alone still enables the report
-  //                   DATA without writing a file).
-  // The JSON file is for plugin-free / separate-process / CLI-batch consumers;
-  // in-process consumers use `onPureFnReport`. Both channels carry identical
-  // records. Report shape is identical across every `moduleMode`.
-  pureFnReport?: boolean;
+  // One tri-state switch selects where the report goes:
+  //   - `'file'`     → write it to the HARDCODED
+  //                    `<genDir>/types/pure-fns-report.json` on every generate.
+  //                    The location is not configurable (like every path under
+  //                    genDir), so it inherits types/'s gitignore + regenerate
+  //                    lifecycle. For plugin-free / separate-process / CLI-batch
+  //                    consumers. The `onPureFnReport` handler, if set, also fires.
+  //   - `'callback'` → deliver it ONLY in-process to `onPureFnReport`, no file.
+  //   - `false` / unset → off. (Providing `onPureFnReport` without setting this
+  //                    defaults to `'callback'`, so "just add a handler" works;
+  //                    an explicit `false` wins and nothing fires.)
+  // Both channels carry identical records; the report shape is identical across
+  // every `moduleMode`.
+  pureFnReport?: 'file' | 'callback' | false;
   // In-process pure-fn report callback, fired on EVERY adapter (it rides the
   // universal buildStart hook, not a vite-only one): once after the
   // whole-program buildStart scan + generate with the full report (phase
   // 'build'), and — under Vite's HMR — again with the changed file's delta
-  // (phase 'update'). Setting it enables the report DATA even when `pureFnReport`
-  // is unset (no file is written in that case).
+  // (phase 'update'). Fires whenever the report is on ('file' or 'callback');
+  // setting it with `pureFnReport` unset implies 'callback' (data, no file).
   onPureFnReport?: (sites: PureFnSite[], phase: 'build' | 'update') => void;
 }
 
@@ -194,10 +197,20 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // Error-severity diagnostics fail the build/transform in every lane unless
   // explicitly opted out (see PluginOptions.failOnError).
   const failOnError: boolean = options.failOnError !== false;
-  // The pure-fn report is produced when a file is requested (`pureFnReport`) OR
-  // an in-process consumer registered `onPureFnReport`. Drives both the resolver
-  // flag and whether the callback fires.
-  const reportEnabled: boolean = options.pureFnReport === true || typeof options.onPureFnReport === 'function';
+  // Resolve the pure-fn report tri-state into the two low-level resolver flags.
+  // An explicit `false` wins even when a handler is set; an unset value with a
+  // handler defaults to 'callback' (data, no file). Validated at the host
+  // boundary so a config typo fails loudly.
+  const reportMode: 'file' | 'callback' | false = options.pureFnReport ?? (options.onPureFnReport ? 'callback' : false);
+  if (reportMode !== false && reportMode !== 'file' && reportMode !== 'callback') {
+    throw new Error(
+      `[@ts-runtypes/devtools] unknown pureFnReport ${JSON.stringify(options.pureFnReport)} — expected 'file' | 'callback' | false`
+    );
+  }
+  // reportEnabled turns the report DATA on (the callback source + the file's
+  // precondition); writeReportFile additionally writes the JSON.
+  const reportEnabled: boolean = reportMode !== false;
+  const writeReportFile: boolean = reportMode === 'file';
   if (transformMode !== 'go' && transformMode !== 'edits') {
     throw new Error(
       `[@ts-runtypes/devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
@@ -264,11 +277,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
-      // Enable the report DATA whenever the file is requested OR an in-process
-      // callback is registered. `pureFnReport: true` also writes the JSON file
-      // (at the hardcoded genDir/types path); the callback alone writes no file.
+      // Tri-state → the two low-level resolver flags: report data on for both
+      // 'file' and 'callback'; the JSON file written only for 'file' (at the
+      // hardcoded genDir/types path).
       ...(reportEnabled ? {pureFnReport: true} : {}),
-      ...(options.pureFnReport === true ? {pureFnReportFile: true} : {}),
+      ...(writeReportFile ? {pureFnReportFile: true} : {}),
     });
   }
 
@@ -393,7 +406,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // program's report (phase 'build'). Universal hook, so every adapter
       // (vite/rollup/rolldown/esbuild/rspack/webpack) gets it; a watch-mode
       // rebuild re-runs buildStart and re-fires 'build' with the fresh report.
-      if (options.onPureFnReport) options.onPureFnReport(gen.pureFnSites ?? [], 'build');
+      if (reportEnabled && options.onPureFnReport) options.onPureFnReport(gen.pureFnSites ?? [], 'build');
       // Adopt the whole-program scan's site-file set as the transform gate
       // (see MARKER_MODULE): exactly the files with rewritable marker sites,
       // wrapper call sites included. Rebuilt (not merged) so watch-mode
@@ -507,7 +520,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         // (the changed sites) before regenerating, so an in-process consumer
         // learns of a body edit as it happens. The JSON file is rewritten by
         // the generate() below.
-        if (options.onPureFnReport && result.pureFnSites) options.onPureFnReport(result.pureFnSites, 'update');
+        if (reportEnabled && options.onPureFnReport && result.pureFnSites) options.onPureFnReport(result.pureFnSites, 'update');
         // Regenerate so any new/changed modules hit disk; the watcher reloads
         // them (the folder lives in the project root, which Vite watches).
         try {
