@@ -117,7 +117,7 @@ type tsRuntypesPlugin struct {
 	AllowUncheckedPatterns *bool `json:"allowUncheckedPatterns"`
 	// PureFnReport is the pure-fn build report switch, a `true | "<path>"`
 	// union: `true` emits the report AND writes it to the default
-	// `<genDir>/pure-fns-report.json`; a string writes it to that path; absent /
+	// `<genDir>/types/pure-fns-report.json`; a string writes it to that path; absent /
 	// false keeps it off. Decoded as RawMessage because the value is a union
 	// (bool or string); parsePureFnReport interprets it. Build-lane project
 	// option — the host plugin forwards the equivalent CLI flags.
