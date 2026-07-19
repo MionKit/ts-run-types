@@ -29,20 +29,24 @@ const moduleFileExt = ".js"
 // markers. Their CONTENTS are never inspected — only the output root's own top
 // level is checked.
 var outputDirAllowedMembers = map[string]bool{
-	typesSubdir:          true, // "types"
-	"enriched":           true,
-	"README.md":          true,
-	".gitignore":         true,
-	".gitkeep":           true,
-	pureFnReportFileName: true, // the opt-in pure-fn build report (data, not a module)
+	typesSubdir:  true, // "types"
+	"enriched":   true,
+	"README.md":  true,
+	".gitignore": true,
+	".gitkeep":   true,
 }
 
 // pureFnReportFileName is the default basename of the pure-fn build report,
-// written at the output root (a sibling of types/) when the report's file
-// output is enabled and no explicit path was configured. It sits OUTSIDE
-// types/, so it never enters the generated module manifest, is never GC'd by
-// pruneStaleModules (which only touches *.js under types/), and can never be
-// resolved as an rtmod:/ module specifier — it is pure data.
+// written INSIDE the generated `types/` dir (alongside the pure-fn cache
+// modules) when the report's file output is enabled and no explicit path was
+// configured. Living under types/ means it inherits that dir's `.gitignore`
+// (`*`) exactly like every generated cache module — regenerated each build,
+// never committed. It is still pure DATA, not a module: pruneStaleModules only
+// touches `*.js`, the manifest is built from the module set (never this file),
+// and no `.json` basename is ever an rtmod:/ specifier — so it never enters the
+// manifest nor gets GC'd. The output-dir guard only inspects the output root's
+// top level (types/ CONTENTS are never checked), so a report file here needs no
+// allow-list entry.
 const pureFnReportFileName = "pure-fns-report.json"
 
 // outputDirSubdirs are the allowed members that must be real directories. A
@@ -220,12 +224,14 @@ func unwritableOutDirError(typesDir string, err error) error {
 
 // pureFnReportPath resolves where OpGenerate writes the pure-fn report JSON: an
 // explicit configured path (absolutized against the working dir), else the
-// default `<outDir>/pure-fns-report.json`.
+// default `<outDir>/types/pure-fns-report.json` — inside the generated cache
+// dir, so it follows the same gitignore + regenerate-every-build lifecycle as
+// the pure-fn cache modules.
 func (sess *Session) pureFnReportPath(outDir string) string {
 	if sess.opts.PureFnReportPath != "" {
 		return sess.absPath(sess.opts.PureFnReportPath)
 	}
-	return filepath.Join(outDir, pureFnReportFileName)
+	return filepath.Join(outDir, typesSubdir, pureFnReportFileName)
 }
 
 // writePureFnReport marshals the report to indented JSON and writes it to path,

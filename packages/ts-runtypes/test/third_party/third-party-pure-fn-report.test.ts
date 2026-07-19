@@ -113,7 +113,7 @@ function writeFixture() {
   fs.writeFileSync(path.join(coreDir, 'index.js'), CORE_INDEX_JS);
 }
 
-const REPORT_PATH = (): string => path.join(FIXTURE_DIR, '__runtypes', 'pure-fns-report.json');
+const REPORT_PATH = (): string => path.join(FIXTURE_DIR, '__runtypes', 'types', 'pure-fns-report.json');
 
 describe('third-party pure-fn report: wrapper attribution + update lane (node_modules)', () => {
   const register = hasBinary() ? it : it.skip;

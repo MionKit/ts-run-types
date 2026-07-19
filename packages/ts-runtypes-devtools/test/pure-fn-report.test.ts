@@ -115,15 +115,19 @@ describe('pure-fn build report', () => {
     expect(byKey.get('rep::mul')!.code, 'factory code should be present in default emit mode').toBeTruthy();
 
     // JSON file round-trips: write → parse → keys match the injected report.
-    const reportPath = path.join(FIXTURE_DIR, '__runtypes', 'pure-fns-report.json');
-    expect(fs.existsSync(reportPath), 'pure-fns-report.json must be written on generate').toBe(true);
+    // The report lives INSIDE types/, alongside the generated cache modules, so
+    // it inherits that dir's .gitignore (`*`) exactly like every cache module.
+    const typesDir = path.join(FIXTURE_DIR, '__runtypes', 'types');
+    const reportPath = path.join(typesDir, 'pure-fns-report.json');
+    expect(fs.existsSync(reportPath), 'pure-fns-report.json must be written under types/ on generate').toBe(true);
     const fromDisk = JSON.parse(fs.readFileSync(reportPath, 'utf8')) as PureFnSite[];
     expect(new Set(fromDisk.map((s) => s.key))).toEqual(new Set(sites.map((s) => s.key)));
 
-    // The report file is data, not a module: never under types/, never a module.
-    const typesDir = path.join(FIXTURE_DIR, '__runtypes', 'types');
-    const typeFiles = fs.existsSync(typesDir) ? fs.readdirSync(typesDir) : [];
-    expect(typeFiles).not.toContain('pure-fns-report.json');
+    // It is data, not a module: no `.js` module collides with it, and the
+    // generated `types/.gitignore` (`*`) covers it just like the cache modules.
+    const typeFiles = fs.readdirSync(typesDir);
+    expect(typeFiles).not.toContain('pure-fns-report.js');
+    expect(fs.readFileSync(path.join(typesDir, '.gitignore'), 'utf8')).toContain('*');
   });
 
   register('report shape is identical across moduleMode; module field carries the layout', async () => {
@@ -178,6 +182,6 @@ describe('pure-fn build report', () => {
     }
     expect(captured.length, 'callback receives records without a file being requested').toBe(3);
     // ...and no JSON file was written (data-only).
-    expect(fs.existsSync(path.join(FIXTURE_DIR, '__runtypes', 'pure-fns-report.json'))).toBe(false);
+    expect(fs.existsSync(path.join(FIXTURE_DIR, '__runtypes', 'types', 'pure-fns-report.json'))).toBe(false);
   });
 });
