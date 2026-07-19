@@ -64,7 +64,8 @@ function normalizeEntries(parsed) {
   const pushEntry = (raw, fallbackName) => {
     if (!raw || typeof raw !== 'object') return;
     const id = raw.id ?? raw.stageId ?? raw['stage-id'] ?? raw.stage_id ?? raw.stageid;
-    let name = raw.name ?? raw.package ?? fallbackName;
+    // npm 11.17 emits `packageName` (observed live); older guesses kept for safety.
+    let name = raw.name ?? raw.packageName ?? raw.package ?? fallbackName;
     let version = raw.version;
     const spec = raw.spec ?? raw.pkgid ?? raw._id;
     if ((!name || !version) && typeof spec === 'string') {
