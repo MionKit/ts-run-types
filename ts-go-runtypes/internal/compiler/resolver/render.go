@@ -9,6 +9,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
 	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
+	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
@@ -161,6 +162,47 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (entrymodu
 	// runtime throws "Pure function not found" at the first createX call.
 	kept = append(kept, sess.overrideEntries...)
 	return purefunctions.CollectEntries(kept, sess.opts.EmitMode), diags
+}
+
+// collectPureFnReport builds the whole-program pure-fn build report
+// (protocol.PureFnSite records) when Options.PureFnReport is enabled — nil
+// otherwise, so the pipeline pays nothing when the report is off. It reuses the
+// same deduped whole-program extraction as collectProgramPureFns (memoized by
+// the per-Program FileCache, so no extra walk) and drops the built-in
+// `rt::`/`rtFormats::` entries an in-repo program surfaces — a published
+// consumer never emits those, and they are not user-registered pure fns. Cfn
+// override entries are NOT in this set (they carry no registrar call site).
+func (sess *Session) collectPureFnReport(metrics *protocol.Metrics) []protocol.PureFnSite {
+	if !sess.opts.PureFnReport {
+		return nil
+	}
+	entries, _, _ := sess.extractProgramPureFns(metrics)
+	kept := make([]purefunctions.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return purefunctions.Report(kept, sess.opts.EmitMode, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
+}
+
+// pureFnReportForEntries builds the report for an already-extracted per-request
+// entry set (the OpScanFiles delta), applying the same built-in filter and
+// layout/emitMode as collectPureFnReport. Empty in / empty out; nil when the
+// report is disabled.
+func (sess *Session) pureFnReportForEntries(entries []purefunctions.Entry) []protocol.PureFnSite {
+	if !sess.opts.PureFnReport || len(entries) == 0 {
+		return nil
+	}
+	kept := make([]purefunctions.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return purefunctions.Report(kept, sess.opts.EmitMode, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
 }
 
 // validateProgramPureFnDeps cross-checks the pure-fn dependencies aggregated

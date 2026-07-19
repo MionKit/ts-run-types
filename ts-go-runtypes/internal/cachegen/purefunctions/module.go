@@ -81,6 +81,46 @@ func trimTrailingHoles(args []string) []string {
 	return args[:end]
 }
 
+// Report builds the structured pure-fn build report — one protocol.PureFnSite
+// per entry — that host tooling consumes to relocate pure-fn bodies across
+// bundles (mion's cross-bundle transport). Each record is SELF-CONTAINED (Code
+// + ParamNames inline) so a consumer never reads the generated module files;
+// that is what keeps the report shape identical across every moduleMode. The
+// `Module` field carries the per-record layout: the per-entry `pf/<ns>/<fn>`
+// basename by default, or the single `pf` bundle basename when `bundled`
+// (allSingle module mode) — mirroring how Replacements picks the import target.
+// Code honors emitMode exactly as CollectEntries does (empty when the mode ships
+// no body string). Entries arrive already deduped + sorted by Key from the
+// extractor, so the report is deterministic.
+func Report(entries []Entry, emitMode constants.EmitMode, bundled bool) []protocol.PureFnSite {
+	out := make([]protocol.PureFnSite, 0, len(entries))
+	for _, entry := range entries {
+		module := entrymodules.ModuleName(entry.Key(), entrymodules.KindPureFn)
+		if bundled {
+			module = constants.PureFnModuleDir
+		}
+		code := ""
+		if emitMode.EmitsCode() {
+			code = entry.Code
+		}
+		out = append(out, protocol.PureFnSite{
+			File:               entry.FilePath,
+			Start:              entry.FactoryArgStart,
+			End:                entry.FactoryArgEnd,
+			Key:                entry.Key(),
+			CalleeName:         entry.CalleeName,
+			CalleeModule:       entry.CalleeModule,
+			Lane:               entry.Lane,
+			Form:               entry.Form,
+			Module:             module,
+			ParamNames:         entry.ParamNames,
+			Code:               code,
+			PureFnDependencies: entry.PureFnDependencies,
+		})
+	}
+	return out
+}
+
 // Replacements builds the wire-shaped byte-range rewrites that swap the
 // factory (second) argument of every successfully-extracted
 // `registerPureFnFactory(pureFnId, factory)` call for the pure fn's

@@ -2,7 +2,17 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {Diagnostic, Metrics, Replacement, Request, Response, RunType, Site, TransformResult} from './protocol.ts';
+import type {
+  Diagnostic,
+  Metrics,
+  PureFnSite,
+  Replacement,
+  Request,
+  Response,
+  RunType,
+  Site,
+  TransformResult,
+} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // When set, the resolver is spawned with --inline-sources-stdin and the
@@ -71,6 +81,16 @@ export interface ResolverClientOptions {
   // plugin, which runs the real RegExp, owns that check. Undefined leaves the
   // binary default (off).
   allowUncheckedPatterns?: boolean;
+  // Pure-fn build report. `pureFnReport` forwards --pure-fn-report (populate
+  // Response.pureFnSites on generate/scan for the in-process callback);
+  // `pureFnReportFile` additionally forwards --pure-fn-report-file (write the
+  // JSON file to the default `<genDir>/pure-fns-report.json` on generate);
+  // `pureFnReportPath` forwards --pure-fn-report-path <path> (write to an
+  // explicit path, implying the two above). Off by default so the pipeline
+  // pays nothing.
+  pureFnReport?: boolean;
+  pureFnReportFile?: boolean;
+  pureFnReportPath?: string;
 }
 
 // WireStats is the cumulative byte + request tally of a connection's stdio
@@ -201,6 +221,10 @@ export interface ScanFilesResult {
   addedFromBinary?: boolean;
   addedFormatTransform?: boolean;
   addedPureFns?: boolean;
+  // Pure-fn build report DELTA for the rescanned files — present only when the
+  // resolver's pure-fn report is enabled. The plugin's update-lane callback
+  // source (the changed sites).
+  pureFnSites?: PureFnSite[];
   // Present only when the request set includeMetrics.
   metrics?: Metrics;
 }
@@ -231,6 +255,10 @@ export interface GenerateResult {
   outDir: string;
   siteFiles: string[];
   diagnostics?: Diagnostic[];
+  // Whole-program pure-fn build report — present only when the resolver's
+  // pure-fn report is enabled. The plugin's build-lane callback source; the
+  // same records the resolver also writes to `<genDir>/pure-fns-report.json`.
+  pureFnSites?: PureFnSite[];
 }
 
 // Common operation surface. Spawn-based and socket-based clients both
@@ -296,6 +324,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedFromBinary: resp.addedFromBinary,
       addedFormatTransform: resp.addedFormatTransform,
       addedPureFns: resp.addedPureFns,
+      pureFnSites: resp.pureFnSites,
       metrics: resp.metrics,
     };
   }
@@ -341,6 +370,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       outDir: resp.outDir ?? outDir ?? '',
       siteFiles: resp.siteFiles ?? [],
       diagnostics: resp.diagnostics,
+      pureFnSites: resp.pureFnSites,
     };
   }
 
@@ -412,6 +442,9 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   // Build-lane only. The lint worker never forwards it: the lint lane always
   // validates the samples (with the real RegExp) regardless of the flag.
   if (opts.allowUncheckedPatterns) args.push('--allow-unchecked-patterns');
+  if (opts.pureFnReport) args.push('--pure-fn-report');
+  if (opts.pureFnReportFile) args.push('--pure-fn-report-file');
+  if (opts.pureFnReportPath) args.push('--pure-fn-report-path', opts.pureFnReportPath);
   return args;
 }
 

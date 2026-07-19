@@ -74,6 +74,15 @@ Options:
                         compounds inline into their parents, named types stay
                         external) or allInternal (everything except circular
                         types inlines, names ignored)
+    --pure-fn-report    emit the structured pure-fn build report
+                        (Response.pureFnSites) on generate/scan, for host
+                        tooling that relocates pure-fn bodies across bundles;
+                        off by default. Also readable as the "pureFnReport"
+                        tsconfig key (true | "<path>")
+    --pure-fn-report-file    also write the whole-program report as JSON to
+                        <genDir>/pure-fns-report.json on generate
+    --pure-fn-report-path PATH   write the report JSON to PATH instead of the
+                        default (implies --pure-fn-report --pure-fn-report-file)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -123,6 +132,9 @@ func main() {
 		inlineMode             string
 		moduleMode             string
 		allowUncheckedPatterns bool
+		pureFnReport           bool
+		pureFnReportFile       bool
+		pureFnReportPath       string
 		sizeBias               float64
 		sizeItems              int
 		sizeStringBytes        int
@@ -167,6 +179,13 @@ func main() {
 	flag.BoolVar(&allowUncheckedPatterns, "allow-unchecked-patterns", false,
 		"silence the fail-closed FMT004 build error for format patterns whose mockSamples "+
 			"RE2 can't verify (JS-only regex features); asserts the ts-runtypes JS linter owns the check")
+	flag.BoolVar(&pureFnReport, "pure-fn-report", false,
+		"emit the structured pure-fn build report (Response.pureFnSites) on generate/scan for host tooling "+
+			"that relocates pure-fn bodies across bundles; off by default so the rewrite pipeline pays nothing")
+	flag.BoolVar(&pureFnReportFile, "pure-fn-report-file", false,
+		"also write the whole-program pure-fn report as JSON to <genDir>/pure-fns-report.json on generate (implies --pure-fn-report)")
+	flag.StringVar(&pureFnReportPath, "pure-fn-report-path", "",
+		"write the pure-fn report JSON to this explicit path instead of the default (implies --pure-fn-report --pure-fn-report-file)")
 	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,
 		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest (more grows), 1 = most generous (default 0.8)")
 	flag.IntVar(&sizeItems, "size-items", constants.DefaultSizeItems,
@@ -267,6 +286,9 @@ func main() {
 		inlineMode:             inlineMode,
 		moduleMode:             moduleMode,
 		allowUncheckedPatterns: allowUncheckedPatterns,
+		pureFnReport:           pureFnReport,
+		pureFnReportFile:       pureFnReportFile,
+		pureFnReportPath:       pureFnReportPath,
 		sizeBias:               sizeBias,
 		sizeItems:              sizeItems,
 		sizeStringBytes:        sizeStringBytes,
@@ -329,6 +351,9 @@ func main() {
 		InlineMode:              constants.InlineMode(merged.inlineMode),
 		ModuleMode:              merged.moduleMode,
 		AllowUncheckedPatterns:  merged.allowUncheckedPatterns,
+		PureFnReport:            merged.pureFnReport,
+		PureFnReportFile:        merged.pureFnReportFile,
+		PureFnReportPath:        merged.pureFnReportPath,
 		SizeBias:                merged.sizeBias,
 		SizeItems:               merged.sizeItems,
 		SizeStringBytes:         merged.sizeStringBytes,

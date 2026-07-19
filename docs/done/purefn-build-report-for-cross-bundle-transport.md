@@ -1,6 +1,15 @@
 # Pure-fn build report: expose generated pure-fn sites to host tooling (cross-bundle transport)
 
-**Status:** todo — design agreed with mion (the motivating consumer), ready to implement.
+**Status:** DONE — shipped as designed. The report is gated by the `pureFnReport`
+project option (plugin / tsconfig / `--pure-fn-report[-file|-path]` CLI flags) and
+the SHARED unplugin `onPureFnReport(sites, phase)` callback; the resolver writes
+`<genDir>/pure-fns-report.json` on generate and populates `Response.pureFnSites` on
+generate (whole program) + scanFiles (delta). See the ARCHITECTURE.md pure-fn
+section ("Pure-fn build report") and the website configuration page. Tests:
+`ts-go-runtypes/internal/cachegen/purefunctions/report_test.go`,
+`ts-go-runtypes/internal/compiler/resolver/pure_fn_report_test.go`,
+`packages/ts-runtypes-devtools/test/pure-fn-report.test.ts`,
+`packages/ts-runtypes/test/third_party/third-party-pure-fn-report.test.ts`.
 **Created:** 2026-07-19
 
 ## Motivation
