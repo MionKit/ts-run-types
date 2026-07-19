@@ -82,6 +82,17 @@ commits of `main` commits, and future promotions stay conflict-free.
       (`git merge-base --is-ancestor <head> origin/main`) — mechanically
       enforces the main-pure rule above; add it to the prod ruleset's required
       status checks.
+- [ ] **CI / workflows audit — verify the "no other changes" analysis still
+      holds.** As of 2026-07-19 the model is workflow-transparent beyond the
+      job above, because every trigger keys on `prod`, not the PR head:
+      [pre-publish.yml](../../.github/workflows/pre-publish.yml) fires on
+      `pull_request: branches: [prod]` (base branch — a `release/vX.Y.Z` head
+      triggers it unchanged), [publish.yml](../../.github/workflows/publish.yml)
+      on `push: branches: [prod]`, and website-deploy / post-publish are manual
+      dispatches against the `prod` ref. `ci.yml` (main-only) deliberately does
+      NOT run on `release/*` pushes: the branch is a frozen prefix of `main`
+      whose every commit already passed CI on `main`, and the release PR runs
+      the full gate anyway. Re-verify each of these at implementation time.
 - [ ] Decide branch lifecycle: delete after tag, or keep for hotfix lines
       (`release/vX.Y.Z` → patch releases) — likely delete until hotfixes are
       actually needed.
