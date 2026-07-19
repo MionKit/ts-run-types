@@ -77,12 +77,14 @@ commits of `main` commits, and future promotions stay conflict-free.
 - [ ] Update [SETUP.md → Cutting a release](../../SETUP.md) step 2 and
       [CLAUDE.md](../../CLAUDE.md)'s git-workflow exception wording
       (head=`release/vX.Y.Z`, still merge-commit-only into `prod`).
+- [ ] **Required gate job on release PRs** (`pre-publish.yml`, alongside
+      `version-fresh`): fail unless the head is an ancestor of `origin/main`
+      (`git merge-base --is-ancestor <head> origin/main`) — mechanically
+      enforces the main-pure rule above; add it to the prod ruleset's required
+      status checks.
 - [ ] Decide branch lifecycle: delete after tag, or keep for hotfix lines
       (`release/vX.Y.Z` → patch releases) — likely delete until hotfixes are
       actually needed.
-- [ ] Ruleset: nothing to change (`prod` rules key on the base branch), but
-      consider a `release/*` ruleset (block force pushes) if branches live
+- [ ] Ruleset: nothing else to change (`prod` rules key on the base branch),
+      but consider a `release/*` ruleset (block force pushes) if branches live
       longer than a day.
-- [ ] Optional gate job on release PRs: fail unless the head is an ancestor of
-      `origin/main` (`git merge-base --is-ancestor <head> origin/main`) —
-      mechanically enforces the main-pure rule above.
