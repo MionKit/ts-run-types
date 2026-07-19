@@ -136,9 +136,10 @@ type Options struct {
 	PureFnReport bool
 	// PureFnReportFile, when true, additionally WRITES the whole-program report
 	// as one JSON file during OpGenerate. The path is PureFnReportPath when set,
-	// else the default `<outDir>/pure-fns-report.json` (a sibling of types/, so
-	// it is never part of the module manifest nor resolvable as an rtmod:/
-	// specifier). PureFnReportPath implies file writing on its own.
+	// else the default `<outDir>/types/pure-fns-report.json` (inside the
+	// generated cache dir, so it follows types/'s .gitignore + regenerate
+	// lifecycle; still DATA, never part of the module manifest nor resolvable as
+	// an rtmod:/ specifier). PureFnReportPath implies file writing on its own.
 	PureFnReportFile bool
 	PureFnReportPath string
 }

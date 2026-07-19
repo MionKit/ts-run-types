@@ -80,7 +80,7 @@ Options:
                         off by default. Also readable as the "pureFnReport"
                         tsconfig key (true | "<path>")
     --pure-fn-report-file    also write the whole-program report as JSON to
-                        <genDir>/pure-fns-report.json on generate
+                        <genDir>/types/pure-fns-report.json on generate
     --pure-fn-report-path PATH   write the report JSON to PATH instead of the
                         default (implies --pure-fn-report --pure-fn-report-file)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
@@ -183,7 +183,7 @@ func main() {
 		"emit the structured pure-fn build report (Response.pureFnSites) on generate/scan for host tooling "+
 			"that relocates pure-fn bodies across bundles; off by default so the rewrite pipeline pays nothing")
 	flag.BoolVar(&pureFnReportFile, "pure-fn-report-file", false,
-		"also write the whole-program pure-fn report as JSON to <genDir>/pure-fns-report.json on generate (implies --pure-fn-report)")
+		"also write the whole-program pure-fn report as JSON to <genDir>/types/pure-fns-report.json on generate (implies --pure-fn-report)")
 	flag.StringVar(&pureFnReportPath, "pure-fn-report-path", "",
 		"write the pure-fn report JSON to this explicit path instead of the default (implies --pure-fn-report --pure-fn-report-file)")
 	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,

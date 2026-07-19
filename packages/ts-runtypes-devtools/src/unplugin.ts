@@ -148,7 +148,7 @@ export interface PluginOptions {
   // key, and the self-contained entry payload). For host tooling that relocates
   // pure-fn bodies across bundles (mion's cross-bundle serverMapFrom transport).
   //   - `true`      → emit the report AND write it to
-  //                   `<genDir>/pure-fns-report.json` on every generate.
+  //                   `<genDir>/types/pure-fns-report.json` on every generate.
   //   - '<path>'    → emit + write the JSON to that explicit path (relative to
   //                   cwd, or absolute).
   //   - unset/false → off (the callback below alone still enables the report

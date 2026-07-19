@@ -84,7 +84,7 @@ export interface ResolverClientOptions {
   // Pure-fn build report. `pureFnReport` forwards --pure-fn-report (populate
   // Response.pureFnSites on generate/scan for the in-process callback);
   // `pureFnReportFile` additionally forwards --pure-fn-report-file (write the
-  // JSON file to the default `<genDir>/pure-fns-report.json` on generate);
+  // JSON file to the default `<genDir>/types/pure-fns-report.json` on generate);
   // `pureFnReportPath` forwards --pure-fn-report-path <path> (write to an
   // explicit path, implying the two above). Off by default so the pipeline
   // pays nothing.
@@ -257,7 +257,7 @@ export interface GenerateResult {
   diagnostics?: Diagnostic[];
   // Whole-program pure-fn build report — present only when the resolver's
   // pure-fn report is enabled. The plugin's build-lane callback source; the
-  // same records the resolver also writes to `<genDir>/pure-fns-report.json`.
+  // same records the resolver also writes to `<genDir>/types/pure-fns-report.json`.
   pureFnSites?: PureFnSite[];
 }
 

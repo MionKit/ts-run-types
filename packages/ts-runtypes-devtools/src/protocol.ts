@@ -228,7 +228,7 @@ export interface Replacement {
 // PureFnSite mirrors Go protocol.PureFnSite — one generated pure-fn entry in the
 // structured build report. Host tooling that relocates pure-fn bodies across
 // bundles (mion's cross-bundle serverMapFrom transport) consumes it via the
-// JSON file `<genDir>/pure-fns-report.json` or the plugin's `onPureFnReport`
+// JSON file `<genDir>/types/pure-fns-report.json` or the plugin's `onPureFnReport`
 // callback. Each record is SELF-CONTAINED (`code` + `paramNames` inline) so a
 // consumer never reads the generated module files — that keeps the shape stable
 // across every `moduleMode`. Populated only when the pure-fn report is enabled
