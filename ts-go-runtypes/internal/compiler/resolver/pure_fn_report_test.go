@@ -21,14 +21,14 @@ export const ad = registerAnonymousPureFn((n: number): number => n * 2);
 `,
 }
 
-// setupReport builds a report-enabled inline resolver (PureFnReport +
+// setupReport builds a report-enabled inline resolver (PureFnReportWire +
 // PureFnReportFile), matching how the plugin forwards `pureFnReport: true`.
 func setupReport(t *testing.T, moduleMode string) *resolver.Session {
 	t.Helper()
 	return setupInlineWith(t, reportSources, func(programOpts *program.Options, resolverOpts *resolver.Options) {
 		programOpts.SingleThreaded = true
 		resolverOpts.SingleThreaded = true
-		resolverOpts.PureFnReport = true
+		resolverOpts.PureFnReportWire = true
 		resolverOpts.PureFnReportFile = true
 		resolverOpts.ModuleMode = moduleMode
 	})

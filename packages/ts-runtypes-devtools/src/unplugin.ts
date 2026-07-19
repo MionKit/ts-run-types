@@ -277,10 +277,10 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
-      // Tri-state → the two low-level resolver flags: report data on for both
-      // 'file' and 'callback'; the JSON file written only for 'file' (at the
-      // hardcoded genDir/types path).
-      ...(reportEnabled ? {pureFnReport: true} : {}),
+      // Tri-state → the two low-level resolver flags: report on the wire for
+      // both 'file' and 'callback'; the JSON file written only for 'file' (at
+      // the hardcoded genDir/types path).
+      ...(reportEnabled ? {pureFnReportWire: true} : {}),
       ...(writeReportFile ? {pureFnReportFile: true} : {}),
     });
   }

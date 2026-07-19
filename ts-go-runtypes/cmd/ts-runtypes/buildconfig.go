@@ -25,7 +25,7 @@ type buildFlags struct {
 	inlineMode             string
 	moduleMode             string
 	allowUncheckedPatterns bool
-	pureFnReport           bool
+	pureFnReportWire       bool
 	pureFnReportFile       bool
 	sizeBias               float64
 	sizeItems              int
@@ -44,7 +44,7 @@ type buildOptions struct {
 	inlineMode             string
 	moduleMode             string
 	allowUncheckedPatterns bool
-	pureFnReport           bool
+	pureFnReportWire       bool
 	pureFnReportFile       bool
 	sizeBias               float64
 	sizeItems              int
@@ -70,7 +70,7 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		inlineMode:             flags.inlineMode,
 		moduleMode:             flags.moduleMode,
 		allowUncheckedPatterns: flags.allowUncheckedPatterns,
-		pureFnReport:           flags.pureFnReport,
+		pureFnReportWire:       flags.pureFnReportWire,
 		pureFnReportFile:       flags.pureFnReportFile,
 		sizeBias:               flags.sizeBias,
 		sizeItems:              flags.sizeItems,
@@ -102,12 +102,12 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 	// the report data and writes the hardcoded-path JSON file; there is no
 	// path knob (like every location under genDir, it is convention, not config).
 	if !flags.set["pure-fn-report-wire"] && !flags.set["pure-fn-report-file"] && plugin.PureFnReport != nil && *plugin.PureFnReport {
-		out.pureFnReport = true
+		out.pureFnReportWire = true
 		out.pureFnReportFile = true
 	}
 	// A configured file always implies the report data is produced.
 	if out.pureFnReportFile {
-		out.pureFnReport = true
+		out.pureFnReportWire = true
 	}
 
 	// Size-estimate knobs: a tsconfig value fills in only when the flag was not
