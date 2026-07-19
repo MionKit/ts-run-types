@@ -1,7 +1,7 @@
 # Pure-fn build report: expose generated pure-fn sites to host tooling (cross-bundle transport)
 
 **Status:** DONE — shipped as designed. The report is gated by the `pureFnReport`
-project option (plugin / tsconfig / `--pure-fn-report[-file|-path]` CLI flags) and
+project option (plugin / tsconfig / `--pure-fn-report-wire` + `--pure-fn-report-file` CLI flags) and
 the SHARED unplugin `onPureFnReport(sites, phase)` callback; the resolver writes
 `<genDir>/types/pure-fns-report.json` on generate and populates `Response.pureFnSites` on
 generate (whole program) + scanFiles (delta). See the ARCHITECTURE.md pure-fn
@@ -122,7 +122,7 @@ responsibility, not this package's.
      plugin (+ CLI flag). SHIPPED as a tri-state on the plugin
      (`pureFnReport: 'file' | 'callback' | false` — file, in-process-callback-
      only, or off; the callback alone defaults to `'callback'`), resolving to two
-     low-level resolver flags `--pure-fn-report` (data) + `--pure-fn-report-file`
+     low-level resolver flags `--pure-fn-report-wire` (report on the wire) + `--pure-fn-report-file`
      (write file); tsconfig / CLI keep the boolean `true` = file. The `'<path>'`
      variant floated here was deliberately dropped: like every location under
      `genDir`, the report path is convention, not config — hardcoded (Go-side) at

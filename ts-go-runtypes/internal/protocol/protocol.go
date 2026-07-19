@@ -701,7 +701,7 @@ type UncheckedPattern struct {
 // consumer never has to read the generated module files, which makes the shape
 // stable across every moduleMode (per-entry pf modules vs the single pf bundle).
 // Populated only when the resolver's pure-fn report is enabled (the
-// `--pure-fn-report` flag / `pureFnReport` project option); the normal rewrite
+// `--pure-fn-report-wire` flag / `pureFnReport` project option); the normal rewrite
 // pipeline pays nothing.
 type PureFnSite struct {
 	// File / Start / End are the registrar call site's factory-argument span
