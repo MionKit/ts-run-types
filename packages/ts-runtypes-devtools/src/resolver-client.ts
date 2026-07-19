@@ -84,13 +84,11 @@ export interface ResolverClientOptions {
   // Pure-fn build report. `pureFnReport` forwards --pure-fn-report (populate
   // Response.pureFnSites on generate/scan for the in-process callback);
   // `pureFnReportFile` additionally forwards --pure-fn-report-file (write the
-  // JSON file to the default `<genDir>/types/pure-fns-report.json` on generate);
-  // `pureFnReportPath` forwards --pure-fn-report-path <path> (write to an
-  // explicit path, implying the two above). Off by default so the pipeline
+  // JSON file to the HARDCODED `<genDir>/types/pure-fns-report.json` on
+  // generate). The location is not configurable. Off by default so the pipeline
   // pays nothing.
   pureFnReport?: boolean;
   pureFnReportFile?: boolean;
-  pureFnReportPath?: string;
 }
 
 // WireStats is the cumulative byte + request tally of a connection's stdio
@@ -444,7 +442,6 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   if (opts.allowUncheckedPatterns) args.push('--allow-unchecked-patterns');
   if (opts.pureFnReport) args.push('--pure-fn-report');
   if (opts.pureFnReportFile) args.push('--pure-fn-report-file');
-  if (opts.pureFnReportPath) args.push('--pure-fn-report-path', opts.pureFnReportPath);
   return args;
 }
 

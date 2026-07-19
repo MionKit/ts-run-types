@@ -955,8 +955,8 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		// separate server build, the --compile lane) read it from disk.
 		if report := sess.collectPureFnReport(metrics); report != nil {
 			genResponse.PureFnSites = report
-			if sess.opts.PureFnReportFile || sess.opts.PureFnReportPath != "" {
-				if reportErr := writePureFnReport(sess.pureFnReportPath(outDir), report); reportErr != nil {
+			if sess.opts.PureFnReportFile {
+				if reportErr := writePureFnReport(pureFnReportPath(outDir), report); reportErr != nil {
 					return protocol.Response{Error: reportErr.Error()}
 				}
 			}
