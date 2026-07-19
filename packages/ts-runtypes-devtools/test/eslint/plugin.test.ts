@@ -7,11 +7,13 @@
 // `getRunTypeId(value)` — including the hash-equivalence assertion via the
 // sibling ResolverClient.
 
+import fs from 'node:fs';
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
-import plugin, {meta, rules} from '../../src/eslint/index.ts';
+import plugin, {meta, rules, sessionOptions} from '../../src/eslint/index.ts';
+import {ALL_RULE_NAMES, RULE_SPECS} from '../../src/eslint/diagnosticRouting.ts';
 import {resetSharedSession} from '../../src/eslint/session.ts';
 import {ResolverClient} from '../../src/resolver-client.ts';
-import {TODO_LINE, TODO_TAG} from '../../src/runtypes-constants.generated.ts';
+import {TODO_LINE, TODO_TAG} from '../../src/go-generated/runtypes-constants.generated.ts';
 import {BIN, hasBinary, makeFixtureProject, runRule, type FixtureProject, type LintReportedProblem} from './fixture.ts';
 
 const FORMS_TS = `import {getRunTypeId} from '@ts-runtypes/core';
@@ -110,6 +112,46 @@ type TypeFormat<Base, Name extends string, Params> = Base & {
 export const isCode = createValidate<TypeFormat<string, 'stringFormat', {pattern: {source: '(?<=x)y'; flags: ''; mockSamples: ['nope']}}>>();
 `;
 
+// Transparency: the plugin exposes exactly one knob. binary / cwd / socket
+// under settings.runtypes are NOT read — the resolver binary and working
+// directory are resolved automatically, like any other linter. Pure function,
+// so this runs without the resolver binary.
+describe('sessionOptions — only timeoutMs is configurable', () => {
+  it('reads timeoutMs and drops binary, cwd, and socket', () => {
+    expect(sessionOptions({runtypes: {binary: '/x', cwd: '/y', socket: '/z', timeoutMs: 5000}})).toEqual({timeoutMs: 5000});
+  });
+
+  it('is empty when settings are absent or carry no runtypes bag', () => {
+    expect(sessionOptions(undefined)).toEqual({});
+    expect(sessionOptions({other: {}})).toEqual({});
+  });
+});
+
+// recommended is what the docs tell ESLint users to spread. Guard its shape:
+// the plugin registered, and one entry per rule at its RULE_SPECS default.
+describe('configs.recommended — every rule at its family default', () => {
+  it('registers the plugin and sets each rule to its default level', () => {
+    const rec = plugin.configs['recommended'] as {plugins: Record<string, unknown>; rules: Record<string, string>};
+    expect(rec.plugins['runtypes']).toBe(plugin);
+    expect(Object.keys(rec.rules).sort()).toEqual(RULE_SPECS.map((spec) => `runtypes/${spec.name}`).sort());
+    for (const spec of RULE_SPECS) expect(rec.rules[`runtypes/${spec.name}`]).toBe(spec.default);
+  });
+});
+
+// oxlint-recommended.json is the OXlint twin of configs.recommended: oxlint has
+// no plugin-exported presets, but its `extends` takes config FILE paths, so the
+// package ships a ready-made config (jsPlugins + every rule at its default)
+// that a consumer extends with one line. Pin it against RULE_SPECS so a rule
+// rename or default change can never leave the shipped preset behind.
+describe('oxlint-recommended.json — the shipped extends preset matches RULE_SPECS', () => {
+  it('carries the dist plugin path and every rule at its default level', () => {
+    const presetPath = new URL('../../oxlint-recommended.json', import.meta.url);
+    const preset = JSON.parse(fs.readFileSync(presetPath, 'utf8')) as {jsPlugins: string[]; rules: Record<string, string>};
+    expect(preset.jsPlugins).toEqual(['./dist/eslint/index.js']);
+    expect(preset.rules).toEqual(Object.fromEntries(RULE_SPECS.map((spec) => [`runtypes/${spec.name}`, spec.default])));
+  });
+});
+
 // locate returns the report-shaped (1-based line, 0-based column) position of
 // needle in text, so expectations derive from the fixture instead of
 // hand-counted numbers.
@@ -127,6 +169,7 @@ describe.runIf(hasBinary())(
   () => {
     let project: FixtureProject;
     let settings: Record<string, unknown>;
+    let originalCwd: string;
     const abs = new Map<string, string>();
     const texts: Record<string, string> = {
       'forms.ts': FORMS_TS,
@@ -144,11 +187,19 @@ describe.runIf(hasBinary())(
     beforeAll(() => {
       project = makeFixtureProject(texts);
       for (const rel of Object.keys(texts)) abs.set(rel, `${project.dir}/${rel}`);
-      settings = {runtypes: {binary: BIN, cwd: project.dir}};
+      // The plugin roots the resolver at process.cwd() (cwd is no longer
+      // configurable), exactly like a real editor/CI run from the project
+      // root — so drive this in-process suite from the fixture dir. Restored
+      // in afterAll. No binary setting: getExePath() resolves the built
+      // bin/ts-runtypes in this repo, the same path the old `binary` pointed at.
+      originalCwd = process.cwd();
+      process.chdir(project.dir);
+      settings = {};
     });
 
     afterAll(() => {
       resetSharedSession();
+      process.chdir(originalCwd);
       project.cleanup();
     });
 
@@ -156,17 +207,20 @@ describe.runIf(hasBinary())(
       return runRule(rules[ruleName], abs.get(rel)!, texts[rel]!, settings);
     }
 
-    it('exposes the runtypes namespace and all seven rules', () => {
+    it('exposes the runtypes namespace and one rule per RULE_SPECS entry', () => {
       expect(meta.name).toBe('runtypes');
-      expect(Object.keys(rules).sort()).toEqual(
-        ['enrichment-drift', 'enrichment-field', 'error', 'info', 'no-enrichment-todo', 'no-orphan-carcass', 'warn'].sort()
-      );
+      expect(Object.keys(rules).sort()).toEqual([...ALL_RULE_NAMES].sort());
       expect(plugin.configs['recommended']).toBeDefined();
     });
 
-    describe('Family A — compiler diagnostics through the severity tiers', () => {
+    describe('Family A — compiler diagnostics grouped by family', () => {
       it('reports nothing on a clean file using BOTH getRunTypeId shapes', () => {
-        for (const ruleName of ['error', 'warn', 'info'] as const) {
+        for (const ruleName of [
+          'invalid-marker',
+          'redundant-marker',
+          'validate-non-serializable',
+          'validate-skipped-member',
+        ] as const) {
           expect(reportsFor(ruleName, 'forms.ts')).toEqual([]);
         }
       });
@@ -183,33 +237,33 @@ describe.runIf(hasBinary())(
         }
       });
 
-      it('routes a Warning-severity diagnostic (MKR001, reflection form invoking a function) to runtypes/warn', () => {
-        const reports = reportsFor('warn', 'bad-form.ts');
+      it('routes a Warning-severity marker diagnostic (MKR001, reflection form invoking a function) to runtypes/redundant-marker', () => {
+        const reports = reportsFor('redundant-marker', 'bad-form.ts');
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[MKR001]');
         expect(reports[0]!.message).toContain('load');
         expect(reports[0]!.line).toBe(locate(BAD_FORM_TS, 'getRunTypeId(load())').line);
-        expect(reportsFor('error', 'bad-form.ts')).toEqual([]);
+        expect(reportsFor('invalid-marker', 'bad-form.ts')).toEqual([]);
       });
 
-      it('routes an Error-severity diagnostic (MKR003, marker in a generic function) to runtypes/error', () => {
-        const reports = reportsFor('error', 'generic-marker.ts');
+      it('routes an Error-severity marker diagnostic (MKR003, marker in a generic function) to runtypes/invalid-marker', () => {
+        const reports = reportsFor('invalid-marker', 'generic-marker.ts');
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[MKR003]');
         expect(reports[0]!.line).toBe(locate(GENERIC_MARKER_TS, 'createValidate<T>()').line);
-        expect(reportsFor('warn', 'generic-marker.ts')).toEqual([]);
+        expect(reportsFor('redundant-marker', 'generic-marker.ts')).toEqual([]);
       });
 
-      it('surfaces RunType render diagnostics (VL011 method drop) without entry modules on the wire', () => {
-        const reports = reportsFor('warn', 'widget.ts');
+      it('surfaces RunType render diagnostics (VL011 method drop) under runtypes/validate-skipped-member without entry modules on the wire', () => {
+        const reports = reportsFor('validate-skipped-member', 'widget.ts');
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[VL011]');
         expect(reports[0]!.message).toContain('onClick');
         expect(reports[0]!.line).toBe(locate(WIDGET_TS, 'createValidate<Widget>()').line);
       });
 
-      it('validates RE2-unchecked pattern samples in JS, reporting a failing sample as FMT001 at the definition site', () => {
-        const reports = reportsFor('error', 'unchecked-pattern.ts');
+      it('validates RE2-unchecked pattern samples in JS, reporting a failing sample as FMT001 under runtypes/format at the definition site', () => {
+        const reports = reportsFor('format', 'unchecked-pattern.ts');
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[FMT001]');
         // The lint lane ran the real regex — the sample 'nope' fails the JS-only
@@ -253,8 +307,8 @@ describe.runIf(hasBinary())(
         expect(md001).toMatchObject(locate(MIRROR_DIRTY_TS, 'vanished:'));
       });
 
-      it('enrichment-drift reports GE002 on a dead breadcrumb, anchored to the import', () => {
-        const reports = reportsFor('enrichment-drift', 'mirror-drift.ts');
+      it('enrichment-broken-source reports GE002 on a dead breadcrumb, anchored to the import', () => {
+        const reports = reportsFor('enrichment-broken-source', 'mirror-drift.ts');
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[GE002]');
         expect(reports[0]!.message).toContain('./ghost');

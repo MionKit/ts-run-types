@@ -529,20 +529,16 @@ type Response struct {
 	// returns a new value. Pairs with the existing RestoreFromJson decoder
 	// (wire format identical to prepareForJson + JSON.stringify).
 	AddedPrepareForJsonSafe bool `json:"addedPrepareForJsonSafe,omitempty"`
-	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
-	// / AddedUnknownKeysToUndefined mirror AddedValidate for the
-	// unknown-keys family ported from the reference implementation's
-	// emitHasUnknownKeys / emitStripUnknownKeys / emitUnknownKeyErrors /
-	// emitUnknownKeysToUndefined methods on InterfaceRunType. Set per
-	// emitter so the Vite plugin invalidates each cache module
-	// independently on user-file changes.
-	AddedHasUnknownKeys         bool `json:"addedHasUnknownKeys,omitempty"`
-	AddedStripUnknownKeys       bool `json:"addedStripUnknownKeys,omitempty"`
-	AddedUnknownKeyErrors       bool `json:"addedUnknownKeyErrors,omitempty"`
-	AddedUnknownKeysToUndefined bool `json:"addedUnknownKeysToUndefined,omitempty"`
-	// AddedUnknownKeysToUndefinedWire — sibling of AddedUnknownKeysToUndefined
-	// for the decoder-internal ukuWire family. Same Supports surface as
-	// uku (every supported runtype yields a ukuw entry too).
+	// AddedHasUnknownKeys / AddedUnknownKeyErrors / AddedCloneExactShape
+	// mirror AddedValidate for the unknown-keys family. Set per emitter so
+	// the Vite plugin invalidates each cache module independently on
+	// user-file changes. (The mutating strip/toUndefined public families
+	// were replaced by cloneExactShape; their flags went with them.)
+	AddedHasUnknownKeys   bool `json:"addedHasUnknownKeys,omitempty"`
+	AddedUnknownKeyErrors bool `json:"addedUnknownKeyErrors,omitempty"`
+	AddedCloneExactShape  bool `json:"addedCloneExactShape,omitempty"`
+	// AddedUnknownKeysToUndefinedWire — the decoder-internal ukuWire family
+	// (the `strip` decode strategy's pre-pass).
 	AddedUnknownKeysToUndefinedWire bool `json:"addedUnknownKeysToUndefinedWire,omitempty"`
 	// AddedToBinary / AddedFromBinary mirror AddedPrepareForJson for the
 	// binary serializer pair. True when at least one newly-interned
@@ -559,9 +555,14 @@ type Response struct {
 	AddedPureFns bool          `json:"addedPureFns,omitempty"`
 	Sites        []Site        `json:"sites,omitempty"`
 	Replacements []Replacement `json:"replacements,omitempty"`
-	RunTypes     []*RunType    `json:"runTypes,omitempty"`
+	// PureFnSites is the structured pure-fn build report — one record per
+	// generated pure-fn entry — populated on OpGenerate (whole program) and
+	// OpScanFiles (the rescanned files' delta) when the resolver's pure-fn
+	// report is enabled. Empty otherwise. See PureFnSite.
+	PureFnSites []PureFnSite `json:"pureFnSites,omitempty"`
+	RunTypes    []*RunType   `json:"runTypes,omitempty"`
 	// EntryModules carries one rendered ES-module source per cache entry,
-	// keyed by module BASENAME (the `<basename>` of `virtual:rt/<basename>.js`
+	// keyed by module BASENAME (the `<basename>` of `rtmod:/<basename>.js`
 	// — the cache key for runtype / type-fn entries, the `pf/<ns>/<fn>`
 	// encoding for pure fns). The Vite plugin serves these verbatim from its
 	// virtual-module load hook. Populated on OpDump (full session) and on
@@ -654,7 +655,7 @@ type Site struct {
 	TrailingComma bool `json:"trailingComma,omitempty"`
 	// Module, when non-empty, is the bundle-module BASENAME this site's entry
 	// rides in (allSingle module mode): the rewrite imports the binding from
-	// `virtual:rt/<Module>.js` instead of the entry's own module — the clause
+	// `rtmod:/<Module>.js` instead of the entry's own module — the clause
 	// shape is identical either way (export name == the binding). Empty in
 	// default/allModules mode. Derived statically from mode + site shape, so
 	// it is present on every scanFiles response — including the plain
@@ -671,6 +672,11 @@ type SiteDemand struct {
 	VariantSuffix string   `json:"variant,omitempty"`
 	Options       []string `json:"options,omitempty"`
 	FnHash        string   `json:"fnHash,omitempty"`
+	// RejectCircular flags the armed `{rejectCircularRefs: true}` fork of a
+	// CircularGuarded family (validate / validationErrors / toBinary /
+	// jsonEncoder). The emitter renders the inline circular-reference guard for
+	// exactly these entries; it never rides a JSON primitive demand.
+	RejectCircular bool `json:"rejectCircular,omitempty"`
 }
 
 // UncheckedPattern is one format `pattern` whose mockSamples the build-time
@@ -688,6 +694,49 @@ type UncheckedPattern struct {
 	Site    diagnostics.Site `json:"site"`
 }
 
+// PureFnSite is one generated pure-fn entry a build produced, reported in
+// structured form for host tooling that relocates pure-fn bodies across bundles
+// (mion's cross-bundle serverMapFrom transport is the motivating consumer). The
+// record is SELF-CONTAINED — Code + ParamNames ride inline — precisely so a
+// consumer never has to read the generated module files, which makes the shape
+// stable across every moduleMode (per-entry pf modules vs the single pf bundle).
+// Populated only when the resolver's pure-fn report is enabled (the
+// `--pure-fn-report-wire` flag / `pureFnReport` project option); the normal rewrite
+// pipeline pays nothing.
+type PureFnSite struct {
+	// File / Start / End are the registrar call site's factory-argument span
+	// (byte offsets, exactly as the matching Replacement carries).
+	File  string `json:"file"`
+	Start int    `json:"start"`
+	End   int    `json:"end"`
+	// Key is the registry key the entry is interned under: `rt::<hash>` for the
+	// anonymous lane, `<ns>::<name>` for the named lane.
+	Key string `json:"key"`
+	// CalleeName is the identifier the site invoked — `registerAnonymousPureFn`,
+	// a framework wrapper like `serverMapFrom` / `registerAcmePureFn`, or a
+	// renamed import. CalleeModule is the nearest-package.json `"name"` of the
+	// file that DECLARES the callee (or its ambient `declare module` name), so a
+	// consumer can attribute a site to the framework that exposed the registrar
+	// (e.g. `@mionjs/client`, `@acme/toolkit`) even through a wrapper-only file.
+	CalleeName   string `json:"calleeName,omitempty"`
+	CalleeModule string `json:"calleeModule,omitempty"`
+	// Lane is "named" | "anonymous"; Form is "direct" (the arg IS the pure fn,
+	// wrapped) | "factory" (the arg is a factory, emitted as-is).
+	Lane string `json:"lane,omitempty"`
+	Form string `json:"form,omitempty"`
+	// Module is the BASENAME of the generated module this entry rides in: the
+	// per-entry `pf/<ns>/<fn>` in default/allModules mode, or the single `pf`
+	// bundle in allSingle — mirrors Site.Module. Provided for consumers that
+	// want the layout linkage; the record stays usable without reading it.
+	Module string `json:"module,omitempty"`
+	// ParamNames / Code are the entry payload, emitMode-honoring (Code is empty
+	// in an emitMode that ships no body string, matching the module render).
+	// PureFnDependencies is the entry's direct pure-fn dep keys.
+	ParamNames         []string `json:"paramNames,omitempty"`
+	Code               string   `json:"code,omitempty"`
+	PureFnDependencies []string `json:"pureFnDependencies,omitempty"`
+}
+
 // Replacement is a byte-range rewrite on a source file: replace the
 // bytes [Start, End) with Text. Used by the pure-fn extractor to swap
 // the factory argument of every `registerPureFnFactory(pureFnId,
@@ -701,7 +750,7 @@ type Replacement struct {
 	Text  string `json:"text"`
 	// ImportFrom, when non-empty, is the virtual-module specifier the Vite
 	// plugin must import for the substituted expression to resolve — e.g.
-	// `virtual:rt/pf/rt/foo.js`. Text IS the module's export name (every
+	// `rtmod:/pf/rt/foo.js`. Text IS the module's export name (every
 	// entry exports under its binding name), so the plugin imports `{<Text>}`
 	// directly. Empty for plain text substitutions.
 	ImportFrom string `json:"importFrom,omitempty"`
@@ -799,9 +848,8 @@ var responseAddedFlags = []struct {
 	{"addedStringifyJson", func(response *Response) bool { return response.AddedStringifyJson }},
 	{"addedPrepareForJsonSafe", func(response *Response) bool { return response.AddedPrepareForJsonSafe }},
 	{"addedHasUnknownKeys", func(response *Response) bool { return response.AddedHasUnknownKeys }},
-	{"addedStripUnknownKeys", func(response *Response) bool { return response.AddedStripUnknownKeys }},
 	{"addedUnknownKeyErrors", func(response *Response) bool { return response.AddedUnknownKeyErrors }},
-	{"addedUnknownKeysToUndefined", func(response *Response) bool { return response.AddedUnknownKeysToUndefined }},
+	{"addedCloneExactShape", func(response *Response) bool { return response.AddedCloneExactShape }},
 	{"addedUnknownKeysToUndefinedWire", func(response *Response) bool { return response.AddedUnknownKeysToUndefinedWire }},
 	{"addedToBinary", func(response *Response) bool { return response.AddedToBinary }},
 	{"addedFromBinary", func(response *Response) bool { return response.AddedFromBinary }},
@@ -834,6 +882,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.Replacements) > 0 {
 		out["replacements"] = response.Replacements
+	}
+	if len(response.PureFnSites) > 0 {
+		out["pureFnSites"] = response.PureFnSites
 	}
 	if len(response.RunTypes) > 0 {
 		out["runTypes"] = response.RunTypes

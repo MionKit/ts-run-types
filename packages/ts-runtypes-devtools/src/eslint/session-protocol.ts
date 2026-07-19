@@ -9,20 +9,13 @@ import type {Diagnostic} from '../protocol.ts';
 // seq into (then Atomics.notify) — the rule thread Atomics.waits on it.
 export const WAKE_INDEX = 0;
 
-// LintSessionOptions is the plugin-level configuration, read from lint
-// `settings.runtypes` (shared config, not per-rule options — every rule
-// rides the same session). Settings only become visible with the FIRST
-// linted file, so they ride each request; the worker adopts the first
-// request's options for its connection.
+// LintSessionOptions is the plugin's ONE knob, read from lint
+// `settings.runtypes.timeoutMs`. Everything else is resolved transparently so
+// linting needs no RunTypes-specific configuration: the resolver binary comes
+// from ts-runtypes-bin's getExePath() (the launcher the bundler plugins use)
+// and the working directory is process.cwd(), the directory the linter itself
+// runs in — exactly like any other linter.
 export interface LintSessionOptions {
-  // Explicit resolver binary path; defaults to ts-runtypes-bin's getExePath().
-  binary?: string;
-  // Unix-socket path of a persistent `ts-runtypes --daemon`; when set the
-  // session connects instead of spawning its own child.
-  socket?: string;
-  // Working directory file paths are relativized against (and the spawned
-  // resolver's --cwd). Defaults to process.cwd().
-  cwd?: string;
   // Per-file wait budget in milliseconds before the session reports the
   // engine unavailable. Defaults to 60s — the first file pays the child
   // spawn + Program build.
@@ -38,7 +31,6 @@ export interface LintWorkerRequest {
   seq: number;
   file: string;
   text: string;
-  options: LintSessionOptions;
 }
 
 export interface LintWorkerResponse {

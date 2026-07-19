@@ -12,7 +12,7 @@ import (
 
 // TestGenerate_WritesModulesToDisk verifies OpGenerate writes every entry
 // module the session knows to <OutDir>/types/<basename>.js (with inter-module
-// imports relativized so no virtual:rt specifier survives on disk) and returns
+// imports relativized so no rtmod: specifier survives on disk) and returns
 // the live manifest.
 func TestGenerate_WritesModulesToDisk(t *testing.T) {
 	const src = `import {getRunTypeId} from '@ts-runtypes/core';
@@ -42,8 +42,8 @@ getRunTypeId<{a: number; b: string}>();
 		if err != nil {
 			t.Fatalf("module %q not written to disk: %v", basename, err)
 		}
-		if strings.Contains(string(got), "virtual:rt/") {
-			t.Fatalf("module %q still carries a virtual:rt import on disk:\n%s", basename, got)
+		if strings.Contains(string(got), "rtmod:/") {
+			t.Fatalf("module %q still carries a rtmod: import on disk:\n%s", basename, got)
 		}
 	}
 
@@ -208,7 +208,7 @@ export const id = getRunTypeId<MapThing>();
 
 // TestTransform_FilesModeInjectsRelativeImports verifies that with an OutDir,
 // OpTransform's injected import block points at relative on-disk module paths
-// (under OutDir/types) instead of virtual:rt specifiers.
+// (under OutDir/types) instead of rtmod: specifiers.
 func TestTransform_FilesModeInjectsRelativeImports(t *testing.T) {
 	const src = `import {createValidate} from '@ts-runtypes/core';
 interface Thing { id: string }
@@ -223,8 +223,8 @@ export const isThing = createValidate<Thing>();
 	if out == "" {
 		t.Fatal("transform produced no code")
 	}
-	if strings.Contains(out, "virtual:rt/") {
-		t.Fatalf("files-mode transform still injects virtual:rt imports:\n%s", out)
+	if strings.Contains(out, "rtmod:/") {
+		t.Fatalf("files-mode transform still injects rtmod: imports:\n%s", out)
 	}
 	if !strings.Contains(out, "from './__runtypes/types/") {
 		t.Fatalf("expected a relative ./__runtypes/types/ import:\n%s", out)

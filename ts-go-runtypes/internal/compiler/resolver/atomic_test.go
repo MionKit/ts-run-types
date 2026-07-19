@@ -1118,7 +1118,7 @@ createJsonEncoder<string>(undefined, {strategy: 'direct'});
 	// across version-isolated hashes.
 	encoderOp, _ := operations.ByName("jsonEncoder")
 	for _, strategy := range []string{"clone", "mutate", "direct"} {
-		want := operations.FnHashFor(encoderOp, nil, strategy)
+		want := operations.FnHashFor(encoderOp, nil, strategy, false)
 		if !fnIDs[want] {
 			t.Errorf("expected a site with fnId %q (jsonEncoder/%s), got %v", want, strategy, fnIDs)
 		}
@@ -1630,7 +1630,7 @@ createValidate(array(string()), {noIsArrayCheck: true});
 	// noIsArrayCheck option set (NOT the readable `valNA` token). Assert equality
 	// to operations.FnHashFor so the test stays correct across versions.
 	validateOp, _ := operations.ByName("validate")
-	wantVariant := operations.FnHashFor(validateOp, []string{"noIsArrayCheck"}, "")
+	wantVariant := operations.FnHashFor(validateOp, []string{"noIsArrayCheck"}, "", false)
 	variant := resp.Sites[2]
 	if variant.FnId != wantVariant {
 		t.Errorf("schema-form options not observed: Site[2].FnId = %q, want %q (validate/noIsArrayCheck)", variant.FnId, wantVariant)

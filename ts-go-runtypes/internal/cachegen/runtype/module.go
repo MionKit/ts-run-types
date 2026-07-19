@@ -1,7 +1,7 @@
 // Package runtype is the runType cache generator: it serializes resolved
 // tsgo types into protocol.RunType records and compiles the per-entry
 // virtual-module tuples consumers import (see entries.go and the shared
-// assembler in internal/compiler/virtualmodules).
+// assembler in internal/compiler/entrymodules).
 package runtype
 
 import (

@@ -457,7 +457,7 @@ export function bootstrapI18n(fixture: ReconcileFixture, seed: number): {model: 
       {
         compilerOptions: {
           rootDir: 'src',
-          plugins: [{name: 'ts-runtypes', enrichDir: 'runtypes/generated', i18n: {sourceLocale: 'en', locales: [LOCALE]}}],
+          plugins: [{name: 'ts-runtypes', i18n: {sourceLocale: 'en', locales: [LOCALE]}}],
         },
       },
       null,

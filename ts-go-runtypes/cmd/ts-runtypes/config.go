@@ -17,9 +17,16 @@ import (
 	"strings"
 )
 
-// defaultEnrichDir is the built-in mirror root, relative to rootDir, used when
-// neither a --enrich-dir flag nor a tsconfig plugins entry supplies one.
-const defaultEnrichDir = "runtypes/generated"
+// defaultGenDirName is the conventional RunTypes output root when neither a
+// --gen-dir flag nor a tsconfig `genDir` supplies one: `__runtypes` under the
+// project's source root. EVERYTHING under genDir is convention, never
+// configuration: `types/` (regenerated, gitignored), `enriched/friendly/`,
+// `enriched/mock/`, `enriched/i18n/<locale>/` (committed).
+const defaultGenDirName = "__runtypes"
+
+// enrichedSubdir is the committed half of genDir — the enrichment mirrors live
+// at <genDir>/enriched/<family>/... by convention.
+const enrichedSubdir = "enriched"
 
 // Family path segments under the enrich root. Each enrichment family owns its
 // own mirror subtree (<EnrichDir>/<family>/<rel>), so one source file maps to
@@ -61,11 +68,6 @@ type enrichConfig struct {
 	I18nLocales  []string
 	I18nStrict   bool
 
-	// FriendlyErrors picks the `rt$errors` mode `gen` scaffolds for NEW friendly
-	// nodes: "perConstraint" (default) or "default" (the exclusive
-	// `{rt$default: ''}` catch-all). An authored node's mode is author-owned.
-	FriendlyErrors string
-
 	// The remaining plugin options are read and stored for completeness (and
 	// future use) but are not acted on by gen yet.
 	ModuleMode string
@@ -85,14 +87,13 @@ type enrichConfig struct {
 // buildconfig.go only overrides a binary default when the key is actually
 // present.
 type tsRuntypesPlugin struct {
-	Name       string `json:"name"`
-	EnrichDir  string `json:"enrichDir"`
+	Name string `json:"name"`
+	// GenDir is the RunTypes output root; every location under it is
+	// convention (types/, enriched/{friendly,mock,i18n}) and NOT configurable.
+	GenDir     string `json:"genDir"`
 	ModuleMode string `json:"moduleMode"`
-	// FriendlyErrors: "perConstraint" (default) | "default" — the `rt$errors`
-	// mode `gen` scaffolds for NEW friendly nodes.
-	FriendlyErrors string `json:"friendlyErrors"`
-	EmitMode       string `json:"emitMode"`
-	InlineMode     string `json:"inlineMode"`
+	EmitMode   string `json:"emitMode"`
+	InlineMode string `json:"inlineMode"`
 
 	// I18n is the FriendlyText translation config. A pointer so an absent key
 	// (nil) keeps every i18n default dormant.
@@ -114,18 +115,31 @@ type tsRuntypesPlugin struct {
 	// features), asserting the ts-runtypes JS linter owns that check. A pointer
 	// so an absent key falls through to the false default. Build-lane only.
 	AllowUncheckedPatterns *bool `json:"allowUncheckedPatterns"`
-	// RunTypesGenDir is where `--compile` writes the generated cache modules
-	// (the emitted .js import them by relative path). Distinct from CacheDir (the
-	// incremental artifact cache under node_modules/.cache). A pointer so an
-	// absent key falls through to the <cwd>/__runtypes default. Compile-only.
-	RunTypesGenDir *string `json:"runTypesGenDir"`
+	// PureFnReport is the pure-fn build report switch: `true` emits the report
+	// AND writes it to the HARDCODED `<genDir>/types/pure-fns-report.json`;
+	// absent (nil) / false keeps it off. A pointer so an absent key falls
+	// through to the false default. There is deliberately NO path variant — like
+	// every location under genDir, the report path is convention, not config.
+	// Build-lane project option — the host plugin forwards the equivalent CLI flag.
+	PureFnReport *bool `json:"pureFnReport"`
+	// Size groups the binary `dynamic` strategy's cold-start buffer-estimate
+	// knobs under one `size` object (like `i18n`). A nil object (absent key)
+	// keeps every binary default.
+	Size *sizePluginConfig `json:"size"`
+}
 
-	// Binary buffer size-estimate knobs (the dynamic strategy's cold-start
-	// seed). Pointers so an absent key falls through to the binary default.
-	SizeBias        *float64 `json:"sizeBias"`
-	SizeItems       *int     `json:"sizeItems"`
-	SizeStringBytes *int     `json:"sizeStringBytes"`
-	SizeMaxBytes    *int     `json:"sizeMaxBytes"`
+// sizePluginConfig is the `size` object under the ts-runtypes plugin entry:
+//
+//	{ "bias": 0.8, "items": 100, "stringBytes": 32, "maxBytes": 65536 }
+//
+// bias (0..1) tunes how generous the first buffer is; items / stringBytes are
+// the assumed magnitudes for unbounded collections and strings; maxBytes caps
+// the estimate. Pointers so an absent key falls through to the binary default.
+type sizePluginConfig struct {
+	Bias        *float64 `json:"bias"`
+	Items       *int     `json:"items"`
+	StringBytes *int     `json:"stringBytes"`
+	MaxBytes    *int     `json:"maxBytes"`
 }
 
 // i18nPluginConfig is the `i18n` object under the ts-runtypes plugin entry:
@@ -142,7 +156,6 @@ type tsRuntypesPlugin struct {
 // `check --translate` findings into errors; the runtime is always lenient.
 type i18nPluginConfig struct {
 	SourceLocale string   `json:"sourceLocale"`
-	Dir          string   `json:"dir"`
 	Locales      []string `json:"locales"`
 	Strict       bool     `json:"strict"`
 }
@@ -168,17 +181,16 @@ type tsconfigShape struct {
 //
 // A missing or malformed tsconfig falls back to the no-tsconfig defaults — it
 // never errors.
-func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
+func resolveEnrichConfig(absTargetFile, genDirFlag string) enrichConfig {
 	targetDir := filepath.Dir(absTargetFile)
 
 	config := enrichConfig{
 		ProjectRoot:  targetDir,
 		RootDir:      targetDir,
-		EnrichDir:    defaultEnrichDir,
 		SourceLocale: defaultSourceLocale,
 	}
 
-	var i18nDir string
+	genDir := ""
 	if tsconfigPath := findNearestTsconfig(targetDir); tsconfigPath != "" {
 		tsconfigDir := filepath.Dir(tsconfigPath)
 		config.ProjectRoot = tsconfigDir
@@ -189,18 +201,14 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 				config.RootDir = resolveUnder(tsconfigDir, rootDir)
 			}
 			if plugin, ok := findTsRuntypesPlugin(parsed); ok {
-				if enrichDir := strings.TrimSpace(plugin.EnrichDir); enrichDir != "" {
-					config.EnrichDir = enrichDir
-				}
+				genDir = strings.TrimSpace(plugin.GenDir)
 				config.ModuleMode = plugin.ModuleMode
-				config.FriendlyErrors = strings.TrimSpace(plugin.FriendlyErrors)
 				config.EmitMode = plugin.EmitMode
 				config.InlineMode = plugin.InlineMode
 				if plugin.I18n != nil {
 					if sourceLocale := strings.TrimSpace(plugin.I18n.SourceLocale); sourceLocale != "" {
 						config.SourceLocale = sourceLocale
 					}
-					i18nDir = strings.TrimSpace(plugin.I18n.Dir)
 					config.I18nLocales = plugin.I18n.Locales
 					config.I18nStrict = plugin.I18n.Strict
 				}
@@ -208,24 +216,51 @@ func resolveEnrichConfig(absTargetFile, enrichDirFlag string) enrichConfig {
 		}
 	}
 
-	// The flag wins over everything when set.
-	if flagValue := strings.TrimSpace(enrichDirFlag); flagValue != "" {
-		config.EnrichDir = flagValue
+	// genDir resolution: the --gen-dir flag wins, then tsconfig `genDir`, then
+	// the convention default `__runtypes` under the source root. Everything
+	// BELOW genDir is convention, never configuration: mirrors live at
+	// <genDir>/enriched/<family>/... and translations at
+	// <genDir>/enriched/i18n/<locale>/... (see mirrorPath / translationPathFor).
+	if flagValue := strings.TrimSpace(genDirFlag); flagValue != "" {
+		genDir = flagValue
 	}
-
-	// Resolve EnrichDir to an absolute path: relative values are anchored under
-	// ProjectRoot (the doc: "mirror root … relative to rootDir" — the mirror tree
-	// is laid out under projectRoot, with the per-file path computed relative to
-	// rootDir; see mirrorPath). The i18n dir resolves the same way, defaulting to
-	// the `i18n` sibling of the family subtrees under the enrich root.
-	config.EnrichDir = resolveUnder(config.ProjectRoot, config.EnrichDir)
-	if i18nDir != "" {
-		config.I18nDir = resolveUnder(config.ProjectRoot, i18nDir)
+	if genDir != "" {
+		genDir = resolveUnder(config.ProjectRoot, genDir)
 	} else {
-		config.I18nDir = filepath.Join(config.EnrichDir, defaultI18nDirName)
+		genDir = filepath.Join(config.RootDir, defaultGenDirName)
 	}
+	config.EnrichDir = filepath.Join(genDir, enrichedSubdir)
+	config.I18nDir = filepath.Join(config.EnrichDir, defaultI18nDirName)
 
 	return config
+}
+
+// ensureFamilyReadme self-documents an enrichment family dir (or the i18n
+// translation root) the moment it is created: every conventional dir under
+// genDir carries a README explaining what it is. Write-if-absent so an edit is
+// never clobbered; best-effort (a failure surfaces on the mirror write itself).
+func (config enrichConfig) ensureFamilyReadme(family string) {
+	texts := map[string][2]string{
+		familyFriendly: {filepath.Join(config.EnrichDir, familyFriendly),
+			"# FriendlyText mirrors\n\nHuman-facing labels and error messages for your types, one mirror file per\nsource file. Scaffolded and kept in sync by `ts-runtypes gen`; the values are\nyours to edit. Commit these files.\n"},
+		familyMock: {filepath.Join(config.EnrichDir, familyMock),
+			"# MockData mirrors\n\nRealistic sample pools and ranges for your types, one mirror file per source\nfile. Scaffolded and kept in sync by `ts-runtypes gen`; the values are yours\nto edit. Commit these files.\n"},
+		defaultI18nDirName: {config.I18nDir,
+			"# Translations\n\nPer-locale translations of the FriendlyText mirrors, one folder per locale.\nManaged with `ts-runtypes gen --translate`. Commit these files.\n"},
+	}
+	entry, ok := texts[family]
+	if !ok {
+		return
+	}
+	dir, text := entry[0], entry[1]
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return
+	}
+	readme := filepath.Join(dir, "README.md")
+	if _, err := os.Stat(readme); err == nil {
+		return
+	}
+	_ = os.WriteFile(readme, []byte(text), 0o644)
 }
 
 // mirrorPath computes one family's mirror file for a source file under this

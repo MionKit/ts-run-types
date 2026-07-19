@@ -1,9 +1,9 @@
 // Cross-bundler proof for the @ts-runtypes/devtools/rollup entry. This drives the
 // unplugin-generated Rollup plugin's hooks exactly as Rollup invokes them
 // (buildStart, transform) and asserts the files-mode chain: buildStart writes
-// the cache modules to real files under <outDir>/types, and the marker call is
+// the cache modules to real files under <genDir>/types, and the marker call is
 // rewritten with an injected RELATIVE import pointing at one of those real
-// files (no virtual:rt specifier, no resolveId/load hooks). Loading that file
+// files (no rtmod: specifier, no resolveId/load hooks). Loading that file
 // from disk yields the validator generated from the type. Proof that the
 // /rollup entry produces a working Rollup plugin off the shared unplugin
 // factory. The /vite entry's full real-build coverage lives in build-split +
@@ -48,7 +48,7 @@ describe('rollup build / @ts-runtypes/devtools/rollup entry', () => {
         cwd: PACKAGE_ROOT,
         // tsconfig.test.json is incremental:false → RT disk cache off.
         tsconfig: 'tsconfig.test.json',
-        outDir: OUT_DIR,
+        genDir: OUT_DIR,
         // The marker package's test program deliberately contains
         // Error-severity types (alwaysThrow suites) — same opt-out as its own
         // vitest config; see fail-on-error.test.ts for the strict default.
@@ -71,17 +71,17 @@ describe('rollup build / @ts-runtypes/devtools/rollup entry', () => {
 
         // transform: the marker call is rewritten to the entry-binding form and
         // a RELATIVE import to a real on-disk module is injected (the same
-        // rewrite /vite performs in files-mode — no virtual:rt specifier).
+        // rewrite /vite performs in files-mode — no rtmod: specifier).
         const transformed = (await callHook(plugin.transform, ctx, FIXTURE, ENTRY)) as {code: string} | null;
         expect(transformed).toBeTruthy();
         const code = transformed!.code;
-        expect(code, `files-mode must not inject virtual:rt imports:\n${code}`).not.toContain('virtual:rt/');
+        expect(code, `files-mode must not inject rtmod: imports:\n${code}`).not.toContain('rtmod:/');
         const match = code.match(/from '(\.\.?\/[^']+\.js)'/);
         expect(match, `expected an injected relative module import in:\n${code}`).toBeTruthy();
         const specifier = match![1];
 
         // The injected specifier resolves (relative to the entry file's dir) to
-        // a real file that buildStart wrote under <outDir>/types.
+        // a real file that buildStart wrote under <genDir>/types.
         const moduleFile = path.resolve(path.dirname(ENTRY), specifier);
         expect(fs.existsSync(moduleFile), `injected import ${specifier} must point at a written module`).toBe(true);
 
@@ -94,6 +94,13 @@ describe('rollup build / @ts-runtypes/devtools/rollup entry', () => {
           .map((name) => fs.readFileSync(path.join(typesDir, name), 'utf8'))
           .join('\n');
         expect(generated).toContain('rollupProp');
+
+        // VCS hygiene: every genDir folder self-documents (a README saying
+        // what it is), and the regenerated types/ dir is gitignored.
+        expect(fs.readFileSync(path.join(OUT_DIR, 'README.md'), 'utf8')).toContain('genDir');
+        expect(fs.readFileSync(path.join(typesDir, 'README.md'), 'utf8')).toContain('regenerated');
+        expect(fs.readFileSync(path.join(typesDir, '.gitignore'), 'utf8')).toContain('*');
+        expect(fs.readFileSync(path.join(OUT_DIR, 'enriched', 'README.md'), 'utf8')).toContain('Committed');
       } finally {
         try {
           await callHook(plugin.buildEnd, ctx);

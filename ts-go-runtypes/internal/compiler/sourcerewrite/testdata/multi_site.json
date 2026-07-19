@@ -18,7 +18,7 @@
     }
   ],
   "replacements": [],
-  "expectedCode": "import {__rt_Num2222} from 'virtual:rt/Num2222.js'; import {__rt_Str1111} from 'virtual:rt/Str1111.js';\nconst a = getRunTypeId<string>(undefined, __rt_Str1111); const b = getRunTypeId<number>(undefined, __rt_Num2222);\nconst c = 3;\n",
+  "expectedCode": "import {__rt_Num2222} from 'rtmod:/Num2222.js'; import {__rt_Str1111} from 'rtmod:/Str1111.js';\nconst a = getRunTypeId<string>(undefined, __rt_Str1111); const b = getRunTypeId<number>(undefined, __rt_Num2222);\nconst c = 3;\n",
   "expectedMap": {
     "version": 3,
     "sources": [

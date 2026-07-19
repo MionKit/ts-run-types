@@ -11,7 +11,7 @@ import {mockRunTypeInvalid} from '../../../src/mocking/mockInvalid.ts';
 import {defaultMockOptions} from '../../../src/mocking/constants.mock.ts';
 import type {RunTypeMockOptions} from '../../../src/mocking/mockTypes.ts';
 import type {RunType} from '../../../src/runtypes/types.ts';
-import {RunTypeKind} from '../../../src/runTypeKind.ts';
+import {RunTypeKind} from '../../../src/go-generated/runTypeKind.generated.ts';
 
 const ITERATIONS = 200;
 

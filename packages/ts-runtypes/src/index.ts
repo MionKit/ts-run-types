@@ -2,9 +2,11 @@
 export {
   type InjectRunTypeId,
   type InjectTypeFnArgs,
+  type InjectPureFnHash,
   type CompTimeArgs,
   type CompTimeFnArgs,
   type PureFunction,
+  type PureFunctionFactory,
   getRunTypeId,
 } from './markers.ts';
 
@@ -71,7 +73,13 @@ export {getFnHash, type FnHashKey, type FnHashOptions} from './fnHash.ts';
 
 // `pureFn.ts` MUST evaluate before any cache factory that references pure-fn
 // helpers (e.g. validationErrors needs `rt::newRunTypeErr`).
-export {registerPureFnFactory, type PureFnId} from './runtypes/pureFn.ts';
+export {
+  registerPureFnFactory,
+  registerPureFn,
+  registerAnonymousPureFn,
+  registerAnonymousPureFnFactory,
+  type PureFnId,
+} from './runtypes/pureFn.ts';
 // Side-effect import: the `rt::` built-in pure fns (newRunTypeErr,
 // getUnknownKeysFromArray, …) register at their own registerPureFnFactory
 // call sites now — there is no monolithic pureFnsCache module delivering
@@ -101,7 +109,7 @@ export {type FormatAnnotation} from './runtypes/formatAnnotation.ts';
 export {registerMockingFunction, type MockFormatFn} from './mocking/mockRegistry.ts';
 export {registerFormatPattern, type FormatPattern, type StringPatternArgs} from './runtypes/formatPattern.ts';
 // Reflection-kind enum mirrors (auto-generated from the Go protocol — see
-// runTypeKind.ts). Re-exported so concrete formats under `src/formats/` can
+// runTypeKind.generated.ts). Re-exported so concrete formats under `src/formats/` can
 // declare `readonly kind = RunTypeKind.string`, and so graph consumers can key
 // on kind/subKind (builtin classes project atomically: detect Date via
 // `subKind === RunTypeSubKind.date`, never via `typeName === 'Date'`, which
@@ -113,7 +121,7 @@ export {
   RunTypeSubKind,
   type RunTypeSubKindName,
   type RunTypeSubKindValue,
-} from './runTypeKind.ts';
+} from './go-generated/runTypeKind.generated.ts';
 
 // String JSON I/O is `createJsonEncoder` + `createJsonDecoder`. The VALUE-level
 // transforms they build on — the per-strategy prepareForJson / restoreFromJson
@@ -142,12 +150,11 @@ export {
   createHasUnknownKeys,
   type HasUnknownKeysFn,
   type HasUnknownKeysOptions,
-  createStripUnknownKeys,
-  type StripUnknownKeysFn,
+  type HasUnknownKeysCompileOptions,
+  createCloneExactShape,
+  type CloneExactShapeFn,
   createUnknownKeyErrors,
   type UnknownKeyErrorsFn,
-  createUnknownKeysToUndefined,
-  type UnknownKeysToUndefinedFn,
   createFormatTransform,
   type FormatTransformFn,
   createJsonEncoder,
@@ -192,9 +199,8 @@ export {
   overrideValidate,
   overrideGetValidationErrors,
   overrideHasUnknownKeys,
-  overrideStripUnknownKeys,
+  overrideCloneExactShape,
   overrideUnknownKeyErrors,
-  overrideUnknownKeysToUndefined,
   overrideFormatTransform,
   overrideBinaryEncoder,
   overrideBinaryDecoder,
@@ -232,15 +238,12 @@ export {
 } from './standard/spec.ts';
 
 // Circular-reference guard for the live-object families (validate /
-// getValidationErrors / jsonEncode / binaryEncode). Opt-in and OFF by default;
-// `setRejectCircularRefs(true)` arms it. The guard only engages for types whose
-// graph can actually cycle (the resolver links the RunType graph for those).
-export {
-  setRejectCircularRefs,
-  isRejectCircularRefsEnabled,
-  CircularReferenceError,
-  type CircularPath,
-} from './runtypes/circular.ts';
+// getValidationErrors / jsonEncode / binaryEncode). Armed per call with the
+// COMPILE-TIME option `{rejectCircularRefs: true}` (there is no global toggle —
+// it forks the factory's fnHash like any other compile flag). The encoders throw
+// this error on a cycle; validate returns false and getValidationErrors records
+// a `{expected: 'circular'}` issue.
+export {CircularReferenceError, type CircularPath} from './runtypes/circular.ts';
 
 // DataView helpers — exposed so consumers can pre-build a serializer /
 // deserializer instance and pass it to the encoder / decoder for buffer reuse.

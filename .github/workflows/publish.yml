@@ -17,6 +17,14 @@ name: prod · publish
 # VERSION MODEL: the release PR into prod MUST carry the bumped version (committed
 # version.json + package.json files, e.g. via `node scripts/release/bump-version.mjs`). CI
 # reads the version from the gate's build job output and tags exactly that.
+#
+# MERGE MODEL: prod advances ONLY by true merge commits of main (release PRs are
+# landed with "Create a merge commit" — see .claude/skills/release-to-prod/).
+# The merge-shape job below enforces it FIRST, before the expensive gate: a
+# rebase-and-merge or squash lands the same content as copied commits, main's
+# history stops being an ancestor of prod, and the NEXT release PR becomes
+# unmergeable (the pre-0.10.0 legacy conflicts). Failing fast here keeps the
+# damage to one red run and prints the recovery.
 on:
   push:
     branches: [prod]
@@ -31,7 +39,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ── merge-shape: refuse a rebased/squashed promotion, before anything runs ──
+  # Runs in seconds and gates everything else (the gate `needs` it), so a
+  # wrong-method merge dies before the 7-platform gate, npm staging, and the
+  # tag. `git cat-file -p HEAD` reads the commit object itself, so the default
+  # shallow checkout is enough to count parents.
+  merge-shape:
+    name: prod advanced by a merge commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: HEAD must be a merge commit (two parents)
+        shell: bash
+        run: |
+          parents=$(git cat-file -p HEAD | grep -c '^parent ' || true)
+          if [ "$parents" -lt 2 ]; then
+            echo "::error title=prod was rebased or squashed::The release PR was landed with 'Rebase and merge' or 'Squash and merge'. prod must advance only by true merge commits of main. Nothing was staged, tagged, or released. Fix: open a NEW pull request from main into prod (it will show zero file changes - that is expected), and merge it with 'Create a merge commit'. That empty merge reunifies the histories and this workflow re-runs on it normally. Full process: .claude/skills/release-to-prod/SKILL.md"
+            echo "" >&2
+            echo "This push to prod is a plain commit (one parent), not a merge commit," >&2
+            echo "meaning the release PR was rebase-merged or squashed." >&2
+            echo "" >&2
+            echo "Why it matters: a rebase/squash lands the same CONTENT but as copied" >&2
+            echo "commits, so main's history stops being an ancestor of prod - and the" >&2
+            echo "NEXT release PR will show conflicts GitHub cannot merge." >&2
+            echo "" >&2
+            echo "How to fix (two minutes, no force-push):" >&2
+            echo "  1. Open a NEW pull request from main into prod. It will show zero" >&2
+            echo "     file changes - that is expected; the content already landed." >&2
+            echo "  2. Merge it with 'Create a merge commit' (NOT rebase, NOT squash)." >&2
+            echo "  3. The empty merge reunifies the histories; this workflow re-runs" >&2
+            echo "     on it and proceeds normally." >&2
+            echo "" >&2
+            echo "Full process: .claude/skills/release-to-prod/SKILL.md" >&2
+            exit 1
+          fi
+          echo "OK: prod advanced by a merge commit ($parents parents)."
+
   gate:
+    needs: merge-shape
     # The reusable release gate's e2e / benchmarks / website-build jobs each
     # request `packages: read` (to pull the prebuilt GHCR image). A called
     # workflow can never exceed the CALLING job's permissions, and this

@@ -23,7 +23,7 @@ func valKey(id string) string { return operations.PlainHash("validate") + "_" + 
 // CacheModuleSettings plumbing.
 func itVariantKey(optionNames []string, id string) string {
 	itOp, _ := operations.ByName("validate")
-	return operations.FnHashFor(itOp, optionNames, "") + "_" + id
+	return operations.FnHashFor(itOp, optionNames, "", false) + "_" + id
 }
 
 // buildRefTable indexes every RunType by id so renderEntryWithDeps and the
@@ -106,7 +106,7 @@ func assertUnionCrossFamily(t *testing.T, emitter Emitter, settings constants.Ca
 	refTable := buildRefTable(runTypes)
 	prefix := innerPrefix(settings)
 
-	rendered := renderEntryWithDeps(refTable[rootID], settings, emitter, prefix, refTable, RenderOpts{}, "", nil)
+	rendered := renderEntryWithDeps(refTable[rootID], settings, emitter, prefix, refTable, RenderOpts{}, "", nil, false)
 	if rendered.argsText == "" {
 		t.Fatalf("%T: expected a non-empty entry line for the conflict-prop union", emitter)
 	}
@@ -163,7 +163,7 @@ func TestCrossFamilyDeps_ValidateSameFamilyOnly(t *testing.T) {
 	settings := constants.CacheModules["validate"]
 	prefix := innerPrefix(settings)
 
-	rendered := renderEntryWithDeps(refTable["outer"], settings, ValidateEmitter{}, prefix, refTable, RenderOpts{}, "", nil)
+	rendered := renderEntryWithDeps(refTable["outer"], settings, ValidateEmitter{}, prefix, refTable, RenderOpts{}, "", nil, false)
 	if rendered.argsText == "" {
 		t.Fatal("expected a non-empty validate entry line for the nested-object fixture")
 	}

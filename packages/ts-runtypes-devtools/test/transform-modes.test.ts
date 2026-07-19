@@ -12,7 +12,7 @@ import {ResolverClient} from '../src/resolver-client.ts';
 import {applyEdits, sourceHash} from '../src/apply-edits.ts';
 import type {SourceMap} from '../src/protocol.ts';
 import {BIN, hasBinary, RUNTYPES_DTS, runTest, withInlineSources} from './helpers/inline.ts';
-import {MODULE_MODE_ALL_SINGLE} from '../src/runtypes-constants.generated.ts';
+import {MODULE_MODE_ALL_SINGLE} from '../src/go-generated/runtypes-constants.generated.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;
@@ -143,6 +143,42 @@ export const isUser = createValidate(
     }
   );
 
+  // Armed circular-guard variant: the injected fnHash forks (`{rejectCircularRefs:
+  // true}`), and the emitted body carries the inline guard + baked skeleton. Both
+  // wire modes must reproduce that rewrite byte-for-byte. Marker rule: both call
+  // shapes.
+  runTest(
+    'armed rejectCircularRefs (static): edits mode reproduces go mode byte-for-byte',
+    {
+      'armed.ts': `import {createValidate} from '@ts-runtypes/core';
+interface Node {name: string; next?: Node}
+export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {applied} = await assertModeParity(client, 'armed.ts', sources['armed.ts']);
+        expect(applied.code).toMatch(/createValidate<Node>\(undefined, \{rejectCircularRefs: true\}, __rt_[A-Za-z0-9_]+\)/);
+      });
+    }
+  );
+
+  runTest(
+    'armed rejectCircularRefs (reflection): edits mode reproduces go mode byte-for-byte',
+    {
+      'armed-reflect.ts': `import {createValidate} from '@ts-runtypes/core';
+interface Node {name: string; next?: Node}
+const inference: Node = {name: 'a'};
+export const isNode = createValidate(inference, {rejectCircularRefs: true});
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        await assertModeParity(client, 'armed-reflect.ts', sources['armed-reflect.ts']);
+      });
+    }
+  );
+
   // Pure-fn Replacement (a span edit, not a point insertion).
   runTest(
     'pure-fn replacement: edits mode reproduces go mode byte-for-byte',
@@ -196,7 +232,7 @@ export const staticId = getRunTypeId<User>();
       const {sites, applied} = await assertModeParity(client, 'user.ts', source);
       // The bundle-stamped site imports from the runtypes bundle, not its own module.
       expect(sites[0].module).toBeTruthy();
-      expect(applied.code).toContain(`from 'virtual:rt/${sites[0].module}.js'`);
+      expect(applied.code).toContain(`from 'rtmod:/${sites[0].module}.js'`);
     } finally {
       client.close();
     }

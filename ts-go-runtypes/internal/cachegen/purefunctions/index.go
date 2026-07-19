@@ -83,9 +83,11 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 // registers itself at runtime, guaranteed present whenever the package is
 // imported:
 //
-//   - "rt"        — the core built-ins (newRunTypeErr, asJSONString,
-//     getUnknownKeysFromArray, …), registered unconditionally by the package
-//     entry's side-effect import of runtypes/pure-fns-utils.ts.
+//   - "rt"        — the core built-ins (newRunTypeErr, getUnknownKeysFromArray,
+//     hasUnknownKeysFromArray, countEnumKeys), delivered on demand from the
+//     built-in table and registered via each fn entry's deps thunk (the
+//     package entry's side-effect import of runtypes/pure-fns-utils.ts is the
+//     hollowed runtime fallback).
 //   - "rtFormats" — every format validator (isUUID, isDateString_*, …),
 //     registered when that format's runtime module loads.
 //
@@ -139,9 +141,16 @@ func ValidatePureFnDependencies(typeChecker *checker.Checker, markerOpts marker.
 	var diags []diagnostics.Diagnostic
 	seenMisses := make(map[string]bool, len(deps))
 	for _, dep := range deps {
-		// Built-in namespaces are runtime-owned and always registered — never a
-		// genuine miss. Exempt before the lookup so a .d.ts-resolved core (whose
-		// registrations aren't in the program) can't false-positive.
+		// Built-in namespaces (rt / rtFormats) are validated against the generated
+		// built-in table at SERVE time now, not here: serveBuiltinPureFns delivers
+		// each demanded built-in from builtinpurefns and raises PFE9012 for one the
+		// table lacks (the exemption "flip" — no longer taken on faith). That check
+		// is graph-based, so it also covers warm disk-cache hits this sink-based
+		// pass never sees. This pass therefore skips built-ins (they'd otherwise
+		// false-positive on a .d.ts-resolved core, whose registrations aren't in
+		// the program) and validates only USER-owned pure-fn deps. NOTE: purefunctions
+		// cannot import builtinpurefns (that package imports THIS one), which is the
+		// other reason the table check lives in the resolver, not here.
 		if IsBuiltinPureFnNamespace(dep.Namespace) {
 			continue
 		}

@@ -8,12 +8,12 @@
 //
 //  1. The ORIGINAL program (from tsconfig) is scanned for markers; OpTransform
 //     with an empty OutDir yields, per marker file, the rewritten source (still
-//     carrying `virtual:rt/…` specifiers) and map A (rewritten → original).
+//     carrying `rtmod:/…` specifiers) and map A (rewritten → original).
 //     OpGenerate writes the cache modules.
 //  2. A SECOND program is built with the rewritten sources OVERLAID at the same
 //     paths (so tsgo's real tsconfig compiler options — target/module/outDir/
 //     sourceMap — still apply), then Emit()'d. Each emitted .js has its
-//     `virtual:rt/…` imports relativized to the cache dir, and each emitted
+//     `rtmod:/…` imports relativized to the cache dir, and each emitted
 //     .js.map (map B: js → rewritten) is composed with map A into js → original.
 //
 // Emit has no custom-transformer hook, hence the two-pass + compose approach.
@@ -95,7 +95,7 @@ func Run(opts Options) (*Result, error) {
 	rewrittenByAbs := make(map[string]string, len(markerFiles))
 	mapAByAbs := make(map[string]*protocol.SourceMap, len(markerFiles))
 	if len(markerFiles) > 0 {
-		// Empty OutDir keeps the virtual:rt specifiers — we relativize the
+		// Empty OutDir keeps the rtmod: specifiers — we relativize the
 		// EMITTED .js later, against its output location, not the source.
 		tr := r1.Dispatch(protocol.Request{Op: protocol.OpTransform, Files: markerFiles})
 		if tr.Error != "" {
@@ -149,7 +149,7 @@ func Run(opts Options) (*Result, error) {
 		case strings.HasSuffix(outPath, ".js.map"):
 			final[outPath] = composeEmittedMap(text, outPath, mapAByAbs)
 		case strings.HasSuffix(outPath, ".js"):
-			// The virtual:rt specifiers survived emit unresolved; relativize them
+			// The rtmod: specifiers survived emit unresolved; relativize them
 			// against THIS output file's location to the cache dir. Same-line
 			// string edits on the import block (which maps to nothing), so the
 			// composed map stays valid.

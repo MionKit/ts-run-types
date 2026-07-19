@@ -89,9 +89,9 @@ func TestCompile_EmitsJsWithComposedMap(t *testing.T) {
 	if !strings.Contains(js, "__rt_") {
 		t.Errorf("emitted js missing the injected binding:\n%s", js)
 	}
-	// virtual:rt specifiers must be relativized to the cache dir in the OUTPUT.
-	if strings.Contains(js, "virtual:rt") {
-		t.Errorf("emitted js still has a virtual:rt specifier (not relativized):\n%s", js)
+	// rtmod: specifiers must be relativized to the cache dir in the OUTPUT.
+	if strings.Contains(js, "rtmod:") {
+		t.Errorf("emitted js still has a rtmod: specifier (not relativized):\n%s", js)
 	}
 	if !strings.Contains(js, "__runtypes/types/") {
 		t.Errorf("emitted js import not relativized to the cache dir:\n%s", js)

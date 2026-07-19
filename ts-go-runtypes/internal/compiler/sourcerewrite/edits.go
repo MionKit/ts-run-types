@@ -20,7 +20,7 @@ import (
 
 // ComputeEdits derives the same edits Apply would make, but returns them for
 // the FE to apply rather than applying them here. importBlock is the deduped
-// import statement block prepended at offset 0 (still carrying virtual:rt
+// import statement block prepended at offset 0 (still carrying rtmod:
 // specifiers — the caller relativizes it for files-mode); edits are the flat
 // point/span edits in UTF-16 code-unit offsets. Returns ("", nil) when there is
 // nothing to rewrite — matching Apply's (source, nil) short-circuit.

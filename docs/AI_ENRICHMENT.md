@@ -13,7 +13,7 @@
 >   `@rtType`/`@rtIds` markers, `@rtOrphan`/`@rtOrphanChild` carcasses), with a
 >   byte-identical idempotent re-run, and a destructive prune sweep (see
 >   [`gen` semantics → `--update`](#gen---update--reconcile-value-preserving-merge));
-> - the **per-family mirror split** (`<enrichDir>/friendly/` + `<enrichDir>/mock/`
+> - the **per-family mirror split** (`<genDir>/enriched/friendly/` + `<genDir>/enriched/mock/`
 >   subtrees, with a one-shot auto-migration of pre-split combined mirrors) and the
 >   **FriendlyText i18n layer** — per-locale translation mirrors, generator-owned
 >   plural templates (checked by **FT006 / FT007 / FT008**), `createFriendlyTextI18n`,
@@ -21,7 +21,7 @@
 >   [docs/done/friendly-type-i18n.md](./done/friendly-type-i18n.md)).
 >
 > **Storage + consumption model (this doc):** enrichment is committed to a **mirror
-> directory** (`runtypes/generated/`, configured via the tsconfig `plugins` entry;
+> directory** (`src/__runtypes/enriched/`, configured via the tsconfig `plugins` entry;
 > one subtree per artifact family — `friendly/` + `mock/`)
 > and consumed through **real, committed imports** — never plugin-injected. This
 > follows the persistence invariant ([below](#persistence-invariant--committed-artifacts-get-committed-links)):
@@ -40,8 +40,8 @@ Everything RunTypes emits today — validators, JSON/binary codecs, the reflecti
 bundle — is a **pure function of the type**: deterministic, regenerated every
 build, never committed, correct by construction. There is no "sync" problem
 because there is nothing to keep in sync; the artifact *is* the type, recomputed.
-All of it lives only as ephemeral `virtual:rt/*` modules + the gitignored
-`node_modules/.cache/ts-runtypes/` disk cache.
+All of it lives only as regenerated files under the gitignored
+`<genDir>/types/` + the `node_modules/.cache/ts-runtypes/` disk cache.
 
 `FriendlyText<T>` and `MockData<T>` are a different species:
 
@@ -69,8 +69,8 @@ linked:
 
 | | identified by | link to it |
 | --- | --- | --- |
-| Cache module (`virtual:rt/*`) | **structural id** (location-independent, recomputed) | **plugin-injected** (invisible) — there is no file to import |
-| Enrichment (`runtypes/generated/*`) | **type name + source path** (human-meaningful, committed) | **real `import`** (visible, IDE-managed, in the dep graph) |
+| Cache module (`<genDir>/types/*.js`) | **structural id** (location-independent, recomputed) | **plugin-injected** (regenerated every build — never hand-imported) |
+| Enrichment (`src/__runtypes/enriched/*`) | **type name + source path** (human-meaningful, committed) | **real `import`** (visible, IDE-managed, in the dep graph) |
 
 The rule: **a link's persistence matches its target's**. Committed artifact ⟹
 committed (visible) import; ephemeral artifact ⟹ injected (invisible) link. The
@@ -495,7 +495,7 @@ CLI (below) rather than scraping editor output.
 | `ts-runtypes check [glob]`                      | Run FT/MD validation standalone; non-zero exit on Error. CI / pre-commit.                 |
 | `ts-runtypes check --file <p> --json`           | Validate **one file**, structured JSON out. The agent's tight feedback tool.              |
 | `ts-runtypes describe <file>#<Type> --format prompt\|json` | Emit the type's shape (names, kinds, optionality, formats, literals — all already in the `RunType` struct) as LLM prompt context. |
-| `ts-runtypes gen <file> [--mock] [--friendly] [--check] [--update] [--prune]` | Generate / refresh the type's mirror file under `enrichDir`. `--check` reports breadcrumb drift; `--update` reconciles an existing mirror value-preservingly (property merge + rename + orphan); `--prune` strips `@rtOrphan`/`@rtOrphanChild` carcasses (the only destructive op). See `gen` semantics below. |
+| `ts-runtypes gen <file> [--mock] [--friendly] [--check] [--update] [--prune]` | Generate / refresh the type's mirror file under `genDir`. `--check` reports breadcrumb drift; `--update` reconciles an existing mirror value-preservingly (property merge + rename + orphan); `--prune` strips `@rtOrphan`/`@rtOrphanChild` carcasses (the only destructive op). See `gen` semantics below. |
 | `ts-runtypes gen --translate <locale>` (or `all`) `[--update] [--prune] [<src.ts>]` | Scaffold (create-only) / reconcile / prune a locale's `FriendlyText<T>` mirrors — generated from the SOURCE TYPE with the same driver as the friendly mirror (locale-parameterized); `all` fans out over tsconfig `i18n.locales`; without `<src.ts>` targets are discovered as "sources that have a friendly mirror" (path math only — the mirror is never read as an input). See [Translations (i18n)](#translations-i18n). |
 | `ts-runtypes check --translate <locale>` (or `all`) | Translation completeness gate for CI (**TR001–TR004**) — Warnings, promoted to Errors by tsconfig `i18n.strict`. |
 
@@ -531,7 +531,7 @@ wrong label for generation.
 - **The `gen` codegen emitter lives in Go.** It walks the `RunType` graph — a giant
   `switch` over `RunType.kind`, the same emitter pattern as
   [`serialize.go`](../ts-go-runtypes/internal/cachegen/runtype/serialize.go) and the typefns
-  families — and **emits new mirror files under `enrichDir` or appends to existing
+  families — and **emits new mirror files under `genDir` or appends to existing
   ones**. Keeping it Go-side reuses that walk; doing it in JS would mean shipping the graph to Node and
   re-implementing the kind-switch — duplicating the emitter for nothing. Because
   `gen` is one-shot (not a tight loop), paying the `Program` build per invocation is
@@ -559,8 +559,8 @@ reviewable diff; results are always committed and human-reviewed.
 Enrichment is stored in a committed **mirror directory** whose tree shadows your
 source tree, **one subtree per artifact family**: a type defined in
 `<rootDir>/models/user.ts` gets its friendly map in
-`<enrichDir>/friendly/models/user.ts` and its mock data in
-`<enrichDir>/mock/models/user.ts`. Storage is anchored to the **type's definition**
+`<genDir>/enriched/friendly/models/user.ts` and its mock data in
+`<genDir>/enriched/mock/models/user.ts`. Storage is anchored to the **type's definition**
 (not its call sites) — the committed analog of the cache's *one canonical entry per
 type* rule: **one enrichment home per type per family, at its definition**, however
 many files consume it. A mirror tree (rather than `.rt.ts` siblings interleaved
@@ -572,8 +572,8 @@ tree entirely.
 <rootDir>/services/userApi.ts     createMockData<User>()        ← consumer
 <rootDir>/test/fixtures.ts        createMockData<User>()        ← consumer
                                   ──────────────────────────────────
-gen ⇒  <enrichDir>/friendly/models/user.ts   export const friendlyUser: FriendlyText<User> = { … }
-       <enrichDir>/mock/models/user.ts       export const mockUser:     MockData<User>     = { … }
+gen ⇒  <genDir>/enriched/friendly/models/user.ts   export const friendlyUser: FriendlyText<User> = { … }
+       <genDir>/enriched/mock/models/user.ts       export const mockUser:     MockData<User>     = { … }
                                   (ONE mirror file per family, at the definition's mirror path)
 ```
 
@@ -589,7 +589,7 @@ tsgo already looks:
     "plugins": [
       {
         "name": "ts-runtypes",
-        "enrichDir": "runtypes/generated", // mirror root (default); the friendly/ + mock/ family subtrees live under it
+        // mirrors live by convention under <genDir>/enriched (genDir default: src/__runtypes)
         "moduleMode": "default",
         "emitMode": "code",
         "inlineMode": "default"
@@ -599,9 +599,9 @@ tsgo already looks:
 }
 ```
 
-Precedence is **CLI flag > tsconfig entry > built-in default**. `enrichDir` defaults
-to `runtypes/generated`; the mirror path for a type is
-`<enrichDir>/<family>/<declFile relative to rootDir>` with `family` = `friendly` |
+Precedence is **CLI flag > tsconfig entry > built-in default**. `genDir` defaults
+to `<genDir>/enriched`; the mirror path for a type is
+`<genDir>/enriched/<family>/<declFile relative to rootDir>` with `family` = `friendly` |
 `mock`. The optional `i18n` object under the same entry configures the translation
 layer ([Translations (i18n)](#translations-i18n)) and is dormant when absent.
 
@@ -610,7 +610,7 @@ layer ([Translations (i18n)](#translations-i18n)) and is dormant when absent.
 - **Demand discovery — global.** Scan all call sites across the project.
 - **Output location — the definition's mirror.** For each demanded *named* type `T`,
   resolve `T` to its declaration's source file `F` (following re-exports to the
-  original), compute `F`'s per-family mirror paths under `enrichDir`
+  original), compute `F`'s per-family mirror paths under `genDir`
   (`friendly/<rel>` / `mock/<rel>`), and write/refresh them.
 
 One mirror file per source file **per family** holds one export per enriched type
@@ -618,7 +618,7 @@ defined there — `friendly<Name>` consts in the `friendly/` subtree, `mock<Name
 consts in `mock/`, each family file importing only its own wrapper type:
 
 ```ts
-// runtypes/generated/friendly/models/user.ts — GENERATED, COMMITTED, hand-editable.
+// src/__runtypes/enriched/friendly/models/user.ts — GENERATED, COMMITTED, hand-editable.
 import type { User, Post } from '../../../../models/user';
 import type { FriendlyText } from '@ts-runtypes/core';
 
@@ -627,7 +627,7 @@ export const friendlyPost: FriendlyText<Post> = { /* … */ };
 ```
 
 ```ts
-// runtypes/generated/mock/models/user.ts — same source, the mock family's mirror.
+// src/__runtypes/enriched/mock/models/user.ts — same source, the mock family's mirror.
 import type { User, Post } from '../../../../models/user';
 import type { MockData } from '@ts-runtypes/core';
 
@@ -721,7 +721,7 @@ emitter and the DSL types now agree structurally for every kind.
   desired set.
 - **Stable names — `gen` never edits hand-authored source.** Once a mirror file
   exists, `gen` does not rename or relocate it on a source rename, and never touches
-  the consumer's `import`. This keeps the "`gen` only ever writes inside `enrichDir`"
+  the consumer's `import`. This keeps the "`gen` only ever writes inside `genDir`"
   property intact (itself part of the persistence invariant: the committed imports
   are the *user's* to own, not `gen`'s to rewrite).
 - **`gen --check` — drift detection via the breadcrumb.** Each mirror file's
@@ -870,7 +870,7 @@ ts-runtypes check --translate <locale|all>                   # completeness gate
 ```
 
 Without `<src.ts>`, targets are "sources that have a friendly mirror" — derived
-by path math from the files under `<enrichDir>/friendly/`; the mirror's CONTENT
+by path math from the files under `<genDir>/enriched/friendly/`; the mirror's CONTENT
 is never an input. **One driver, one desired-state source:** a locale file is
 generated by the same EmitClosure walk (over the checker Program) as the
 friendly mirror itself, parameterized by const prefix, output path, plural arm
@@ -878,7 +878,7 @@ set and sibling-reference renames — no file under `generated/` ever feeds the
 generation of another, so the generated dirs can be treated as write-only.
 
 - **Files + naming.** One translation file per friendly mirror per locale:
-  `<i18nDir>/<locale>/<rel>.ts`, `i18nDir` defaulting to `<enrichDir>/i18n`
+  `<i18nDir>/<locale>/<rel>.ts`, `i18nDir` defaulting to `<genDir>/enriched/i18n`
   (tsconfig `i18n.dir`, resolved under the project root; the locale is a PATH
   SEGMENT, so `pt-BR` works verbatim). Each source `friendly<Name>` gets a
   `<locale>_friendly<Name>` const (BCP-47 `-` becomes `_`: `pt_BR_friendlyUser`),
@@ -914,7 +914,7 @@ generation of another, so the generated dirs can be treated as write-only.
   ```jsonc
   "i18n": {
     "sourceLocale": "en",              // language the source FriendlyText maps are written in
-    "dir": "runtypes/generated/i18n",  // translation subtree root (default <enrichDir>/i18n)
+    "dir": "src/__runtypes/enriched/i18n",  // translation subtree root (default <genDir>/enriched/i18n)
     "locales": ["es", "pl", "pt-BR"],  // target locales (the source locale is NOT listed)
     "strict": false                    // check --translate gate severity (CI)
   }
@@ -944,13 +944,13 @@ translates like any other leaf) — a partial translation never throws.
 
 ### External / library types — a resolution order
 
-A type defined in `node_modules` has no mirror under your `enrichDir` (the mirror
+A type defined in `node_modules` has no mirror under your `genDir` (the mirror
 tree only shadows *your* source). And a dependency might **already ship** enrichment
 for its own types — so we must never blindly generate over it. That makes
 external-type enrichment a lookup-precedence problem. **Enrichment for `T`, first
 match wins:**
 
-1. **`T` defined in your source** → its mirror file under `enrichDir`. *(generated by `gen`)*
+1. **`T` defined in your source** → its mirror file under `genDir`. *(generated by `gen`)*
 2. **`T` from a dependency that ships enrichment** → use the library's named enrichment exports. *(read-only — we consume, never generate)*
 3. **`T` from a dependency, user opted in** via a `@rtEnrich` JSDoc tag → user-authored override in a configured dir (`rt-overrides/`). *(opt-in only)*
 4. **No match** → emit nothing; factories fall back (mock = mechanical `createMockData`; friendly = raw field names).
@@ -985,8 +985,8 @@ The consumer imports the enrichment const from its mirror file and passes it. Pl
 greppable, IDE-managed code — no injection, no id-routing, no registry:
 
 ```ts
-import { mockUser }     from 'runtypes/generated/mock/models/user';
-import { friendlyUser } from 'runtypes/generated/friendly/models/user';
+import { mockUser }     from 'src/__runtypes/enriched/mock/models/user';
+import { friendlyUser } from 'src/__runtypes/enriched/friendly/models/user';
 
 createMockData<User>({ data: mockUser });
 const friendly = createFriendlyText<User>(friendlyUser);
@@ -1061,7 +1061,7 @@ overall architecture) and documented here:
   src-derived unification in
   [docs/done/friendly-unified-src-reconcile.md](./done/friendly-unified-src-reconcile.md),
   summary in [Translations (i18n)](#translations-i18n) above). Per-locale
-  translation mirrors live under `<enrichDir>/i18n/<locale>/`, scaffolded as
+  translation mirrors live under `<genDir>/enriched/i18n/<locale>/`, scaffolded as
   blank-leaf `FriendlyText<T>` consts straight from the source type (source
   text is never copied as if translated, and no generated file feeds another);
   plural error templates are generator-owned (CLDR arms per locale,

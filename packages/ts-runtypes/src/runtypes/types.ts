@@ -17,9 +17,8 @@ import type {
   ValidateFn,
   GetValidationErrorsFn,
   HasUnknownKeysFn,
-  StripUnknownKeysFn,
+  CloneExactShapeFn,
   UnknownKeyErrorsFn,
-  UnknownKeysToUndefinedFn,
   PrepareForJsonFn,
   RestoreFromJsonFn,
   StringifyJsonFn,
@@ -37,8 +36,10 @@ export interface PureFunctionData {
   readonly namespace: string;
   /** The names of the arguments of the function */
   readonly paramNames: string[];
-  /** The code of the function closure */
-  readonly code: string;
+  /** The factory body string. Present in `code`/`both` emit modes; undefined in
+   *  `functions` mode, where the live `createPureFn` ships instead (mirrors the
+   *  type-fn `code` slot — see `CompiledFnData.code`). */
+  readonly code?: string;
   /** Unique id of the function */
   readonly fnName: string;
   /** Hash of the function body for version validation */
@@ -48,7 +49,12 @@ export interface PureFunctionData {
 }
 
 export interface CompiledPureFunction extends PureFunctionData {
-  createPureFn: PureFunctionFactory;
+  /** Factory closure `(utl) => fn`. Optional: in `code` mode (default) the Go
+   *  renderer drops it and `initPureFunction` rebuilds via
+   *  `new Function(...paramNames, code)` on first lookup. `functions`/`both`
+   *  emit modes ship the live literal for runtimes that can't use `new Function`
+   *  (mirrors the type-fn `createRTFn` slot). */
+  createPureFn?: PureFunctionFactory;
   fn?: PureFunction;
 }
 
@@ -198,10 +204,11 @@ export type InitializedTypeFn<Fn extends AnyFn = AnyFn> = CompiledTypeFn<Fn> &
 export type ValidateRTFn = CompiledTypeFn<ValidateFn>;
 export type GetValidationErrorsRTFn = CompiledTypeFn<GetValidationErrorsFn>;
 export type HasUnknownKeysRTFn = CompiledTypeFn<HasUnknownKeysFn>;
-export type StripUnknownKeysRTFn = CompiledTypeFn<StripUnknownKeysFn>;
+export type CloneExactShapeRTFn = CompiledTypeFn<CloneExactShapeFn>;
 export type UnknownKeyErrorsRTFn = CompiledTypeFn<UnknownKeyErrorsFn>;
-export type UnknownKeysToUndefinedRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
-export type UnknownKeysToUndefinedWireRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
+// ukuw is decoder-internal (the `strip` decode strategy's pre-pass); its fn
+// shape is the in-place value mutator the removed public uku family had.
+export type UnknownKeysToUndefinedWireRTFn = CompiledTypeFn<(value: unknown) => unknown>;
 export type PrepareForJsonRTFn = CompiledTypeFn<PrepareForJsonFn>;
 export type PrepareForJsonSafeRTFn = CompiledTypeFn<PrepareForJsonFn>;
 export type RestoreFromJsonRTFn = CompiledTypeFn<RestoreFromJsonFn>;

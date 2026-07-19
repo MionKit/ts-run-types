@@ -24,7 +24,7 @@ const LANE_ROOT = resolve(HERE, '../suites/enrich/.tmp/reconcile');
 const createdFixtures = new Set<string>();
 
 // A mirror family: each enrichment family owns its own mirror subtree
-// (runtypes/generated/friendly/ vs runtypes/generated/mock/).
+// (<genDir>/enriched/friendly/ vs <genDir>/enriched/mock/).
 export type MirrorFamily = 'friendly' | 'mock';
 
 // A reconcile fixture is a self-contained temp project under a unique subdir of
@@ -43,7 +43,7 @@ const TSCONFIG = JSON.stringify(
   {
     compilerOptions: {
       rootDir: 'src',
-      plugins: [{name: 'ts-runtypes', enrichDir: 'runtypes/generated'}],
+      plugins: [{name: 'ts-runtypes'}],
     },
   },
   null,
@@ -52,7 +52,7 @@ const TSCONFIG = JSON.stringify(
 
 // makeFixture lays down a temp project with one source module at src/<name>.ts
 // carrying `source`. Each family's mirror path mirrors src/ under its family
-// segment of runtypes/generated/.
+// segment of the conventional <genDir>/enriched/ (genDir defaults to src/__runtypes).
 export function makeFixture(name: string, source: string): ReconcileFixture {
   const dir = resolve(LANE_ROOT, name);
   createdFixtures.add(dir);
@@ -61,7 +61,7 @@ export function makeFixture(name: string, source: string): ReconcileFixture {
   writeFileSync(resolve(dir, 'tsconfig.json'), TSCONFIG);
   const sourcePath = resolve(dir, 'src', 'models.ts');
   writeFileSync(sourcePath, source);
-  const enrichDir = resolve(dir, 'runtypes', 'generated');
+  const enrichDir = resolve(dir, 'src', '__runtypes', 'enriched');
   const friendlyPath = resolve(enrichDir, 'friendly', 'models.ts');
   const mockPath = resolve(enrichDir, 'mock', 'models.ts');
   return {dir, sourcePath, enrichDir, friendlyPath, mockPath};

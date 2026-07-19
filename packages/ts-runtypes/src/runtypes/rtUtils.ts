@@ -11,6 +11,7 @@ import type {
   PureFunctionsCache,
   CompiledPureFunction,
   PureFunction,
+  PureFunctionFactory,
   RunType,
   RunTypesCache,
   AnyFn,
@@ -22,6 +23,8 @@ import {
   deserializeClass as deserializeClassImpl,
   classSerializerEpoch as classSerializerEpochImpl,
 } from './classSerializerRegistry.ts';
+import {CircularReferenceError} from './circular.ts';
+import type {CircularPath} from './circular.ts';
 import type {ClassSerializerEntry} from './classSerializerRegistry.ts';
 import type {DataOnly} from './dataOnly.ts';
 import type {CompTimeArgs} from '../markers.ts';
@@ -34,7 +37,7 @@ export type RTUtils = typeof rtUtils;
 
 /** Runtime guard for the value-first SCHEMA overload shared by every
  *  `createXxx` factory (`createValidate(rt)`, `createJsonEncoder(rt)`,
- *  `createStripUnknownKeys(rt)`, …): a value-first RunType schema carries both
+ *  `createCloneExactShape(rt)`, …): a value-first RunType schema carries both
  *  a string `id` and a `kind`. Plain reflected values (the value/static form)
  *  don't carry `kind`, so they fall through to the plugin-injected id. **/
 export function isRunTypeSchema(val: unknown): val is RunType {
@@ -125,6 +128,23 @@ const rtUtils = {
   hasPureFn(key: CompTimeArgs<string>): boolean {
     return !!pureFnsCache[key];
   },
+  // Runtime-key lookup — the UNTRACKED companion to usePureFn/getPureFn/hasPureFn.
+  // The `key` parameter is a plain `string` (NOT `CompTimeArgs<string>`), so the
+  // scanner never demand-checks it: this is the door for a framework dispatching
+  // on a pure-fn id received over the WIRE (e.g. a content hash from a request),
+  // which is inherently non-literal. NOT build-tracked — it drives no PFE9012
+  // "referenced but never registered" nor pure-fn dependency edges; use the
+  // CompTimeArgs forms when you want that tracking.
+  getPureFnByKey(key: string): PureFunction | undefined {
+    const compiled = pureFnsCache[key];
+    if (!compiled) return;
+    initPureFunction(compiled);
+    return compiled.fn;
+  },
+  // Untracked existence check keyed by a runtime string (see getPureFnByKey).
+  hasPureFnByKey(key: string): boolean {
+    return !!pureFnsCache[key];
+  },
   // CompTimeArgs ensures dependencies are tracked inside pure functions
   findCompiledPureFn(fnName: CompTimeArgs<string>): CompiledPureFunction | undefined {
     const suffix = '::' + fnName;
@@ -157,6 +177,13 @@ const rtUtils = {
     return () => {
       throw new Error(message);
     };
+  },
+  // Constructs the CircularReferenceError an armed encoder body throws when its
+  // inline guard (rt::findCycle) detects a reference cycle. Kept on rtUtils
+  // so the emitted factory body — rebuilt via `new Function('utl', code)` — can
+  // reach the error class without a module import.
+  circularError(path: CircularPath): CircularReferenceError {
+    return new CircularReferenceError(path);
   },
   // Custom user-class (de)serializer lookup. Emitted factory bodies for plain
   // user classes (KindClass + SubKindNone) call this with the class node's
@@ -196,10 +223,33 @@ export function getRTFnCaches() {
   };
 }
 
-/** Lazily materialize a pure function's `.fn` via its `createPureFn` closure. */
-function initPureFunction(compiled: CompiledPureFunction): asserts compiled is Required<CompiledPureFunction> {
+/** Lazily materialize a pure function's `.fn`.
+ *
+ *  Emit modes (symmetric with materializeRTFn for type fns):
+ *  - functions/both: `createPureFn` is the embedded `function(<params>){…}`
+ *    closure — invoke it with rtUtils.
+ *  - code (default): `createPureFn` is absent (dropped as a trailing hole);
+ *    rebuild it from `code` + `paramNames` via `new Function(...)` and cache it
+ *    on the entry so the reconstruction runs once. **/
+function initPureFunction(compiled: CompiledPureFunction): asserts compiled is CompiledPureFunction & {fn: PureFunction} {
   if (compiled.fn) return;
-  compiled.fn = compiled.createPureFn(rtUtils);
+  let factory = compiled.createPureFn;
+  if (!factory) {
+    factory = buildPureFnFactoryFromCode(compiled.paramNames, compiled.code ?? '');
+    (compiled as Mutable<CompiledPureFunction>).createPureFn = factory;
+  }
+  compiled.fn = factory(rtUtils);
+}
+
+/** Rebuilds a pure-fn factory from its serialized `code` body via
+ *  `new Function(...paramNames, code)` — the runtime counterpart of the emitted
+ *  `function(<paramNames>){<code>}` literal (`code`-mode reconstruction).
+ *  Forces strict mode so the reconstructed body matches the (always-strict) ESM
+ *  literal shipped in `functions`/`both` mode. Contrast `buildFactoryFromCode`
+ *  (type fns): a pure fn's params are its recorded `paramNames`, not a fixed
+ *  `utl`. **/
+export function buildPureFnFactoryFromCode(paramNames: string[], code: string): PureFunctionFactory {
+  return new Function(...paramNames, `'use strict'; ${code}`) as PureFunctionFactory;
 }
 
 /** Canonical cache key for an RT entry — `<prefix>_<id>`. The variant

@@ -277,7 +277,9 @@ export const _r = createJsonDecoder<[number, () => void]>();
       // throws at the first lookup. The fully rendered throw message rides
       // the tuple's final positional slot — verify it for the tuple entry.
       const allModules = Object.values(response.entryModules ?? {}).join('\n');
-      expect(allModules).toMatch(/'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',,,,,,'\[PJ003\] Cannot encode `Function` to JSON\./);
+      expect(allModules).toMatch(
+        /'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',,,,,,'\[PJ003\] Type `Function` can never be encoded to JSON/
+      );
     });
   });
 
@@ -298,7 +300,9 @@ export const _d = createBinaryDecoder<[string, () => number]>();
       expect(codes).toContain('FB003');
       // Entry key is the opaque `<fnHash>_<id>`, matched generically.
       const allModules = Object.values(response.entryModules ?? {}).join('\n');
-      expect(allModules).toMatch(/'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',,,,,,'\[TB003\] Cannot serialise `Function` to binary\./);
+      expect(allModules).toMatch(
+        /'[A-Za-z0-9]+_[A-Za-z0-9]+','tuple',,,,,,'\[TB003\] Type `Function` can never be serialised to binary/
+      );
     });
   });
 
@@ -357,7 +361,7 @@ export const _d = createJsonDecoder<[number, () => void]>(undefined, {strategy: 
       // The compact composite entry must wire the tuple as an alwaysThrow, so
       // calling it throws at first lookup rather than crashing on an undefined fn.
       const allModules = Object.values(response.entryModules ?? {}).join('\n');
-      expect(allModules).toMatch(/'\[PJS003\] Cannot encode `Function` to JSON\./);
+      expect(allModules).toMatch(/'\[PJS003\] Type `Function` can never be encoded to JSON/);
     });
   });
 

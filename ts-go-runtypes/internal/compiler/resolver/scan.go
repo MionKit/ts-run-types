@@ -455,7 +455,10 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok {
 				diags = append(diags, diagnostic)
 			}
-		case marker.KindPureFunction:
+		case marker.KindPureFunction, marker.KindPureFunctionFactory:
+			// Both pure-fn form markers enforce the same inline + purity rules
+			// (PFN001 / PFE9006-9011) — the direct/factory distinction is a
+			// build-time wrap concern, not a validation one.
 			if paramIndex >= argsCount {
 				continue
 			}
@@ -827,19 +830,33 @@ func computeSiteFn(typeChecker *checker.Checker, fnKey string, options validateO
 		strategy = extractStrategyOption(typeChecker, call, lastIndex, argsCount)
 	case operations.AxisValidateOptions:
 		optionNames = options.Names()
+	case operations.AxisHasUnknownKeysOptions:
+		// hasUnknownKeys options are extracted here (not threaded through the
+		// shared validateOptions bag) — same in-place pattern as the JSON
+		// strategy extraction above.
+		optionNames = extractHasUnknownKeysOptions(typeChecker, call, lastIndex, argsCount).Names()
 	}
-	fnId := operations.FnHashFor(op, options.Names(), strategy)
-	demands := operations.DemandFor(fnKey, optionNames, strategy)
+	// The circular-reference guard is a compile-time option for the four
+	// CircularGuarded families (validate / validationErrors / toBinary /
+	// jsonEncoder). It folds ORTHOGONALLY into the fnHash across every axis, so it
+	// is read here per family rather than through one axis's option bag. It is NOT
+	// normalised away for acyclic types (circularity is unknown at fnHash time —
+	// it is only projected in commitPending): an armed acyclic type gets a
+	// harmless duplicate entry, exactly like a no-op `noLiterals` variant.
+	rejectCircular := op.CircularGuarded && extractRejectCircularOption(typeChecker, call, lastIndex, argsCount)
+	fnId := operations.FnHashFor(op, optionNames, strategy, rejectCircular)
+	demands := operations.DemandFor(fnKey, optionNames, strategy, rejectCircular)
 	if len(demands) == 0 {
 		return fnId, nil
 	}
 	out := make([]protocol.SiteDemand, len(demands))
 	for index, demand := range demands {
 		out[index] = protocol.SiteDemand{
-			FamilyTag:     demand.FamilyTag,
-			VariantSuffix: demand.VariantSuffix,
-			Options:       demand.Options,
-			FnHash:        demand.FnHash,
+			FamilyTag:      demand.FamilyTag,
+			VariantSuffix:  demand.VariantSuffix,
+			Options:        demand.Options,
+			FnHash:         demand.FnHash,
+			RejectCircular: demand.RejectCircular,
 		}
 	}
 	return fnId, out
@@ -972,6 +989,30 @@ func extractStrategyOption(typeChecker *checker.Checker, call *ast.Node, lastInd
 	return strategy
 }
 
+// extractRejectCircularOption reads a literal `rejectCircularRefs: true` from the
+// call-site options object. Like extractStrategyOption it reads the options slot
+// in place rather than through the shared validateOptions bag, because the
+// circular guard is a cross-family option (validate / validationErrors /
+// toBinary / jsonEncoder) that no single option axis owns. A non-literal value or
+// an absent slot yields false (guard off), matching the compile-time-baked model.
+func extractRejectCircularOption(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int) bool {
+	armed := false
+	eachOptionProperty(typeChecker, call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		if name != "rejectCircularRefs" || initializer == nil {
+			return
+		}
+		// Last-write-wins over spreads: a later `rejectCircularRefs` (inline or a
+		// later spread) replaces an earlier one, matching `{...preset, rejectCircularRefs: …}`.
+		switch initializer.Kind {
+		case ast.KindTrueKeyword:
+			armed = true
+		case ast.KindFalseKeyword:
+			armed = false
+		}
+	})
+	return armed
+}
+
 // enclosedByInjectionMarker reports whether call sits (transitively) inside the
 // arguments of ANOTHER call whose resolved signature carries a trailing
 // InjectRunTypeId<T> slot. Used to skip injecting an id for a value-first
@@ -1074,6 +1115,57 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 			// spread-in `true`, or a later spread) disables the option. A
 			// no-op on an absent key, so the non-spread `{opt: false}` case
 			// behaves exactly as before.
+			delete(opts.enabled, name)
+		}
+	})
+	return opts
+}
+
+// hasUnknownKeysOptions mirrors validateOptions for the HasUnknownKeysOptions
+// bag (createHasUnknownKeys's compile-time options). Table-driven off
+// constants.HasUnknownKeysOptions.
+type hasUnknownKeysOptions struct {
+	enabled map[string]bool
+}
+
+// Names returns the enabled option NAMES in the canonical declaration order
+// from `constants.HasUnknownKeysOptions`. Empty when no option is set.
+func (opts hasUnknownKeysOptions) Names() []string {
+	if len(opts.enabled) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(opts.enabled))
+	for _, opt := range constants.HasUnknownKeysOptions {
+		if opts.enabled[opt.Name] {
+			names = append(names, opt.Name)
+		}
+	}
+	return names
+}
+
+// extractHasUnknownKeysOptions reads the literal `<option>: true` properties at
+// the options slot for every option declared in constants.HasUnknownKeysOptions.
+// Same literal/spread/last-write-wins semantics as extractValidateOptions.
+func extractHasUnknownKeysOptions(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int) hasUnknownKeysOptions {
+	var opts hasUnknownKeysOptions
+	eachOptionProperty(typeChecker, call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		known := false
+		for _, option := range constants.HasUnknownKeysOptions {
+			if option.Name == name {
+				known = true
+				break
+			}
+		}
+		if !known {
+			return
+		}
+		switch initializer.Kind {
+		case ast.KindTrueKeyword:
+			if opts.enabled == nil {
+				opts.enabled = make(map[string]bool, len(constants.HasUnknownKeysOptions))
+			}
+			opts.enabled[name] = true
+		case ast.KindFalseKeyword:
 			delete(opts.enabled, name)
 		}
 	})

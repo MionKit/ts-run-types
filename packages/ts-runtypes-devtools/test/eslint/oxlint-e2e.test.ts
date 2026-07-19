@@ -10,8 +10,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {promisify} from 'node:util';
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
-import {TODO_LINE} from '../../src/runtypes-constants.generated.ts';
-import {BIN, hasBinary, makeFixtureProject, type FixtureProject} from './fixture.ts';
+import {TODO_LINE} from '../../src/go-generated/runtypes-constants.generated.ts';
+import {hasBinary, makeFixtureProject, type FixtureProject} from './fixture.ts';
 
 const execFileAsync = promisify(execFile);
 const ROOT = path.resolve(__dirname, '../../../..');
@@ -46,15 +46,19 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
         {
           categories: {correctness: 'off'},
           jsPlugins: [PLUGIN_DIST],
-          settings: {runtypes: {binary: BIN, cwd: project.dir}},
+          // Transparency: a bogus `binary` under settings.runtypes MUST be
+          // ignored — the plugin always resolves the host binary via
+          // @ts-runtypes/bin and runs in oxlint's own cwd. If it were honoured
+          // the spawn would fail and the run would surface an engine error
+          // instead of the findings asserted below.
+          settings: {runtypes: {binary: '/nonexistent/ts-runtypes-bogus'}},
           rules: {
-            'runtypes/error': 'error',
-            'runtypes/warn': 'warn',
-            'runtypes/info': 'off',
+            'runtypes/validate-non-serializable': 'error',
+            'runtypes/validate-skipped-member': 'warn',
             'runtypes/no-enrichment-todo': 'error',
             'runtypes/no-orphan-carcass': 'error',
             'runtypes/enrichment-field': 'error',
-            'runtypes/enrichment-drift': 'error',
+            'runtypes/enrichment-broken-source': 'error',
           },
           ignorePatterns: ['node_modules/**'],
         },
@@ -86,11 +90,53 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
     expect(stdout).toContain('[FT020]');
     expect(stdout).toContain('runtypes(enrichment-field)');
     expect(stdout).toContain('[FT002]');
-    // Family A rides the same run: the VL011 warning from the widget file.
-    expect(stdout).toContain('runtypes(warn)');
+    // Family A rides the same run: the VL011 method-drop warning from the widget
+    // file lands under the validate family's skipped-member rule.
+    expect(stdout).toContain('runtypes(validate-skipped-member)');
     expect(stdout).toContain('[VL011]');
     // The engine itself must not have failed.
     expect(stdout).not.toContain('resolver failed');
     expect(stdout).not.toContain('resolver unavailable');
+  });
+
+  it('the shipped oxlint-recommended.json works as a one-line extends from node_modules', {timeout: 120_000}, async () => {
+    // The documented consumer layout: the package installed under
+    // node_modules/@ts-runtypes/devtools (symlinked to this repo's package), the
+    // user config a single `extends` of the shipped preset. The preset's own
+    // jsPlugins path ("./dist/eslint/index.js") must resolve relative to the
+    // preset file, and every rule rides at its RULE_SPECS default.
+    fs.mkdirSync(path.join(project.dir, 'node_modules', '@ts-runtypes'), {recursive: true});
+    fs.symlinkSync(path.resolve(__dirname, '../..'), path.join(project.dir, 'node_modules', '@ts-runtypes', 'devtools'));
+    project.write(
+      '.oxlintrc.extends.json',
+      JSON.stringify(
+        {
+          categories: {correctness: 'off'},
+          extends: ['./node_modules/@ts-runtypes/devtools/oxlint-recommended.json'],
+          ignorePatterns: ['node_modules/**'],
+        },
+        null,
+        2
+      )
+    );
+
+    let stdout = '';
+    let exitCode = 0;
+    try {
+      const result = await execFileAsync(OXLINT, ['-c', '.oxlintrc.extends.json', '.'], {cwd: project.dir});
+      stdout = result.stdout;
+    } catch (error) {
+      const failed = error as {stdout?: string; code?: number};
+      stdout = failed.stdout ?? '';
+      exitCode = failed.code ?? 1;
+    }
+
+    // Same findings as the hand-written config: error-severity gates fail the
+    // run, the validate advisory rides at its default warn level.
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('runtypes(no-enrichment-todo)');
+    expect(stdout).toContain('runtypes(validate-skipped-member)');
+    expect(stdout).toContain('[VL011]');
+    expect(stdout).not.toContain('resolver failed');
   });
 });

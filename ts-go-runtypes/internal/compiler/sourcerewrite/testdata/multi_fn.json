@@ -16,7 +16,7 @@
     }
   ],
   "replacements": [],
-  "expectedCode": "import {__rt_val_Usr9999} from 'virtual:rt/val_Usr9999.js'; import {__rt_verr_Usr9999} from 'virtual:rt/verr_Usr9999.js';\nconst schema = createStandardSchema<User>(undefined, undefined, [__rt_val_Usr9999, __rt_verr_Usr9999]);\n",
+  "expectedCode": "import {__rt_val_Usr9999} from 'rtmod:/val_Usr9999.js'; import {__rt_verr_Usr9999} from 'rtmod:/verr_Usr9999.js';\nconst schema = createStandardSchema<User>(undefined, undefined, [__rt_val_Usr9999, __rt_verr_Usr9999]);\n",
   "expectedMap": {
     "version": 3,
     "sources": [

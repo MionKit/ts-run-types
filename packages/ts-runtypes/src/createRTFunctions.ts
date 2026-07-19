@@ -30,11 +30,12 @@ export interface ValidateOptions {
    *  The variant cache key changes (e.g. `val_<id>` → `valNA_<id>`) so
    *  the same type id can serve both the guarded and unguarded factory. **/
   noIsArrayCheck?: boolean;
-  /** Per-call circular-reference guard — overrides the global `setRejectCircularRefs`
-   *  for THIS validator (`true` arms, `false` disables). Runtime-only: it is
-   *  deliberately NOT one of the Go scanner's `ValidateOptions`, so it never
-   *  folds into the fnHash / cache key (a circular-checking and a plain
-   *  validator for the same `T` share one compiled entry). **/
+  /** Arms the circular-reference guard for THIS validator: a value containing a
+   *  reference cycle makes `createValidate` return false and
+   *  `createGetValidationErrors` record a `{expected: 'circular'}` entry.
+   *  COMPILE-TIME (like `noLiterals`): it forks the injected fnHash, so an armed
+   *  and a plain validator for the same `T` compile to distinct entries — the
+   *  armed one bakes the cycle check into its body (pay-for-use). **/
   rejectCircularRefs?: boolean;
 }
 
@@ -101,12 +102,49 @@ export interface HasUnknownKeysOptions {
   checkNonRTProps?: boolean;
 }
 
+/** COMPILE-TIME options for `createHasUnknownKeys<T>(val?, options?, id?)` —
+ *  baked into the emitted variant at build time (like `ValidateOptions`),
+ *  never read at runtime.
+ *
+ *  `runsAfterValidation` declares the caller's precondition that every value
+ *  passed to the returned predicate already PASSED this type's `validate`.
+ *  That makes two emit optimisations sound: the per-object `typeof` guards
+ *  are dropped, and all-required object nodes replace the O(props×keys)
+ *  key-array scan with a key-count compare (`countEnumKeys(v) !== N`) —
+ *  measured ~3x on a 7-prop shape and ~44x at 30 props. Standalone the count
+ *  check is WRONG in both directions (`{a,b,x}` vs declared `{a,b,c}` slips
+ *  through; `{a,b}` false-positives on a merely-missing prop), which is why
+ *  this is an explicit opt-in: calling the variant on non-validated input is
+ *  undefined behavior. Count checks assume JSON-like own-enumerable data —
+ *  validated props living on a prototype can fool them. **/
+export interface HasUnknownKeysCompileOptions {
+  runsAfterValidation?: boolean;
+}
+
 /** Predicate returned by `createHasUnknownKeys<T>()`. **/
 export type HasUnknownKeysFn = (value: unknown, options?: HasUnknownKeysOptions) => boolean;
 
-/** Mutator returned by `createStripUnknownKeys<T>()`. Deletes properties
- *  not declared in the schema and returns the same value reference. **/
-export type StripUnknownKeysFn = (value: unknown) => unknown;
+/** Clone returned by `createCloneExactShape<T>()`: a PROPER deep clone of the
+ *  DECLARED shape. Unknown/undeclared keys are dropped by construction (the
+ *  clone is built from the type, never `{...v}`), the input is never mutated
+ *  (frozen inputs work), and `clone(x) !== x` holds for EVERY object-typed
+ *  position: objects rebuild, class instances rebuild keeping their
+ *  prototype (`instanceof` and methods hold), arrays/tuples/Map/Set are
+ *  fresh containers, Dates re-wrap, RegExps re-compile (flags + lastIndex
+ *  kept), Temporal instances re-materialize via their static `from()`.
+ *  DECLARED members are never dropped — only undeclared keys are. Two kinds
+ *  of values pass through by reference: PRIMITIVES (compare by value, so a
+ *  "fresh" primitive is meaningless) and OPAQUE values the emitter cannot
+ *  rebuild (`any`/`unknown`/bare `object`, functions, symbols, promises,
+ *  non-serializable natives — copying a resource handle would be wrong).
+ *  A declared member holding such a value is KEPT on the clone, shared by
+ *  reference, and the build says so (CES010/CES015);
+ *  `overrideCloneExactShape<T>()` is the escape hatch for custom copying.
+ *  Replaces the removed mutating `stripUnknownKeys` /
+ *  `unknownKeysToUndefined` (measured 3–24x faster, no delete-induced
+ *  dictionary-mode deopt). Intended use: stripping validated parse output —
+ *  and any place a schema-shaped deep clone is wanted. **/
+export type CloneExactShapeFn<T = unknown> = (value: T) => T;
 
 /** Validator returned by `createUnknownKeyErrors<T>()`. Each unknown key
  *  produces one `{path, expected: 'never'}` entry. **/
@@ -115,10 +153,6 @@ export type UnknownKeyErrorsFn = (
   path?: RTValidationErrorPathSegment[],
   errors?: RTValidationError[]
 ) => RTValidationError[];
-
-/** Mutator returned by `createUnknownKeysToUndefined<T>()`. Sets every
- *  unknown property to `undefined` instead of removing it. **/
-export type UnknownKeysToUndefinedFn = (value: unknown) => unknown;
 
 /** FormatTransformValue<T> reduces a type to the plain runtime value the format
  *  transform operates on: TypeFormat brands collapse to their base
@@ -177,8 +211,9 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  *    ends must share the type, like the binary codec.
  */
 export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct' | 'compact';
-// `rejectCircularRefs` is the per-call circular-reference override (see ValidateOptions);
-// runtime-only — the JSON axis hashes only `strategy`, so it never forks the cache.
+// Both options are COMPILE-TIME (see ValidateOptions.rejectCircularRefs): `strategy`
+// selects the composite, and `rejectCircularRefs` forks it into an armed variant
+// whose body throws a CircularReferenceError on a reference cycle.
 export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; rejectCircularRefs?: boolean};
 
 /** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
@@ -202,40 +237,29 @@ export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
  *  build time). Slot 0 (`val`) may be a value-first schema whose runtime
  *  `.id` overrides the injected typeId (correct even for recursive schemas);
  *  the family fnHash still comes from the injected tuple's key. **/
-function resolveTupleEntry<F extends AnyFn>(
-  fnName: string,
-  identityFn: F,
-  val: unknown,
-  args: unknown,
-  rejectCircularRefs?: boolean
-): F {
+function resolveTupleEntry<F extends AnyFn>(fnName: string, identityFn: F, val: unknown, args: unknown): F {
   const schemaId = isRunTypeSchema(val) ? val.id : undefined;
-  return resolveEntryTupleFn(fnName, identityFn, schemaId, args, rejectCircularRefs);
-}
-
-/** Reads the per-call `rejectCircularRefs` override off a createX options bag
- *  (undefined when no options / not set → the global flag decides). **/
-function readRejectCircularRefs(options: unknown): boolean | undefined {
-  return (options as {rejectCircularRefs?: boolean} | undefined)?.rejectCircularRefs;
+  return resolveEntryTupleFn(fnName, identityFn, schemaId, args);
 }
 
 /** Returns the compiled closure for an option-carrying createX factory
  *  (`createValidate` / `createGetValidationErrors`, 3-arg `(val, options, args)`). The
- *  injected entry tuple sits at the trailing slot; options @slot1 are baked
- *  into the tuple's key at build time so the runtime ignores them. **/
+ *  injected entry tuple sits at the trailing slot; options @slot1 (including
+ *  `rejectCircularRefs`) are compile-time — baked into the tuple's key at build
+ *  time, so the runtime ignores them. **/
 function createTypeFnArgsFunction<F extends AnyFn>(
   fnName: string,
   identityFn: F
 ): (val?: unknown, options?: unknown, args?: unknown) => F {
-  return (val, options, args) => resolveTupleEntry(fnName, identityFn, val, args, readRejectCircularRefs(options));
+  return (val, _options, args) => resolveTupleEntry(fnName, identityFn, val, args);
 }
 
 /** Returns the compiled closure for a leaf family that does NOT honour
  *  `ValidateOptions` — every non-validator factory (`createHasUnknownKeys`,
- *  `createStripUnknownKeys`, `createUnknownKeyErrors`,
- *  `createUnknownKeysToUndefined`, `createFormatTransform`). The injected
+ *  `createCloneExactShape`, `createUnknownKeyErrors`,
+ *  `createFormatTransform`). The injected
  *  entry tuple sits at slot 1. Slot 0 may be a value-first schema
- *  (`createStripUnknownKeys(rt)`) whose `.id` overrides the injected typeId. **/
+ *  (`createCloneExactShape(rt)`) whose `.id` overrides the injected typeId. **/
 function createRTFunction<F extends AnyFn>(fnName: string, identityFn: F): (val?: unknown, args?: unknown) => F {
   return (val, args) => resolveTupleEntry(fnName, identityFn, val, args);
 }
@@ -285,35 +309,34 @@ export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationE
 ) => GetValidationErrorsFn) &
   (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>) => GetValidationErrorsFn);
 
-// ValidateOptions does not affect these families' validators — the
-// options bag is exclusive to `createValidate` / `createGetValidationErrors`.
-// Leaving the slot here would let callers pass values that the Go
-// emitter silently ignores; dropping it surfaces the limitation at
-// the type-checker level.
+// `ValidateOptions` stays exclusive to `createValidate` /
+// `createGetValidationErrors`; `createHasUnknownKeys` carries its OWN
+// compile-time bag (`HasUnknownKeysCompileOptions`, options @slot1 baked into
+// the variant fnHash exactly like the validate options). The remaining leaf
+// families take no options — leaving a slot there would let callers pass
+// values the Go emitter silently ignores.
 
-export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', () => false) as unknown as (<T>(
+export const createHasUnknownKeys = createTypeFnArgsFunction<HasUnknownKeysFn>(
+  'createHasUnknownKeys',
+  () => false
+) as unknown as (<T>(
   schema: RunType<T>,
+  options?: CompTimeFnArgs<HasUnknownKeysCompileOptions>,
   id?: InjectTypeFnArgs<T, 'huk'>
 ) => HasUnknownKeysFn) &
-  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn);
+  (<T>(val?: T, options?: CompTimeFnArgs<HasUnknownKeysCompileOptions>, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn);
 
-export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
-  'createStripUnknownKeys',
+export const createCloneExactShape = createRTFunction<CloneExactShapeFn>(
+  'createCloneExactShape',
   identityValueFn
-) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn) &
-  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn);
+) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'ces'>) => CloneExactShapeFn<T>) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'ces'>) => CloneExactShapeFn<T>);
 
 export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
   unknownKeyErrorsIdentity
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn);
-
-export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefinedFn>(
-  'createUnknownKeysToUndefined',
-  identityValueFn
-) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn) &
-  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn);
 
 // The VALUE-level JSON transforms — `prepareForJson` (maps a typed value to a
 // JSON-safe value: bigint to string, Date preserved, undeclared keys stripped, …)
@@ -373,16 +396,12 @@ export function createJsonEncoder<T>(
 ): JsonEncoderFn;
 export function createJsonEncoder<T>(
   valOrSchema?: T | RunType<T>,
-  options?: CompTimeFnArgs<JsonEncoderOptions>,
+  _options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
-  return resolveTupleEntry<JsonEncoderFn>(
-    'createJsonEncoder',
-    jsonStringifyFallback,
-    valOrSchema,
-    id,
-    options?.rejectCircularRefs
-  );
+  // `strategy` + `rejectCircularRefs` are compile-time — the plugin baked both
+  // into `id`'s fnHash, so the runtime just resolves the injected tuple.
+  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', jsonStringifyFallback, valOrSchema, id);
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
@@ -438,9 +457,8 @@ export interface RTFunctionByKey {
   verr: GetValidationErrorsFn;
   // Unknown-keys group.
   huk: HasUnknownKeysFn;
-  suk: StripUnknownKeysFn;
+  ces: CloneExactShapeFn;
   uke: UnknownKeyErrorsFn;
-  uku: UnknownKeysToUndefinedFn;
   // Format transform.
   fmt: FormatTransformFn<unknown>;
   // JSON string I/O.

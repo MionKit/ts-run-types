@@ -96,9 +96,9 @@ annotation.
 
 **`rt$default` — the exclusive catch-all mode.** `rt$errors: {rt$default: '…'}` renders that
 ONE message for every failure of the field. It never mixes with per-constraint keys
-(TS union + FT009 Error). Each node picks its own mode; which mode `gen` scaffolds for
-a NEW node is the tsconfig `friendlyErrors` knob (`"perConstraint"` default |
-`"default"`), and once a node exists its authored mode is followed by every sync.
+(TS union + FT009 Error). Each node picks its own mode; `gen` always scaffolds NEW
+nodes per-constraint (switch a node to `rt$default` by hand), and once a node
+exists its authored mode is followed by every sync.
 
 Errors **accumulate** — a value violating `minLength` _and_ `pattern` yields two
 messages (a list), one per violated constraint (a `rt$default` node yields its one
@@ -179,17 +179,17 @@ name: {
 
 Enrichment is committed to a **mirror directory** whose tree shadows your source, one
 file per family, anchored at the file where the **type is defined**, not where it's
-consumed: `src/models/user.ts` → `<enrichDir>/friendly/models/user.ts` (default
-`enrichDir`: `runtypes/generated`, so `runtypes/generated/friendly/models/user.ts`),
+consumed: `src/models/user.ts` → `<genDir>/enriched/friendly/models/user.ts` (default
+`genDir`: `<genDir>/enriched`, so `src/__runtypes/enriched/friendly/models/user.ts`),
 holding `friendly<Name>` consts. `MockData<T>` consts live separately under
-`<enrichDir>/mock/…` — the two families never share a file. One mirror file per source
+`<genDir>/enriched/mock/…` — the two families never share a file. One mirror file per source
 file, one `export` per enriched type defined there. This mirrors the cache's "one
 canonical entry per structural id, app-wide" rule — **one enrichment home per type, at
 its definition**, however many files consume it. It is the first committed RunTypes
 artifact (every other output is gitignored cache) and is hand-editable.
 
 ```ts
-// runtypes/generated/friendly/models/user.ts — committed, hand-editable
+// src/__runtypes/enriched/friendly/models/user.ts — committed, hand-editable
 import type {FriendlyText} from 'ts-runtypes';
 import type {User} from '../../../../src/models/user';
 
@@ -227,7 +227,7 @@ These catch drift: rename a field and `FT002` flags the now-stale entry.
 
 ```ts
 import {createGetValidationErrors, createFriendlyText} from 'ts-runtypes';
-import {friendlyUser} from 'runtypes/generated/friendly/models/user';
+import {friendlyUser} from 'src/__runtypes/enriched/friendly/models/user';
 import type {User} from '../models/user';
 
 const getUserErrors = createGetValidationErrors<User>();
@@ -246,7 +246,7 @@ friendly.label('profile.email'); // → 'Email'  (falls back to the raw field na
   one message per failure). Returns `FriendlyMessage[]` (`{ path, label, message }`).
 - `label(path)` — the friendly label for a dotted path or a raw path-segment array.
 
-## Translations — per-locale `FriendlyText<T>` files under `<enrichDir>/i18n`
+## Translations — per-locale `FriendlyText<T>` files under `<genDir>/enriched/i18n`
 
 The friendly map you authored IS the source language (tsconfig `i18n.sourceLocale`,
 default `en`) — there is no separate default catalog and no separate translation type.
@@ -257,7 +257,7 @@ feeds the generation of another). Translation is optional per leaf; anything unf
 falls back to the source at render time.
 
 - One committed file per locale per source mirror: `<i18nDir>/<locale>/<rel>.ts`
-  (default `i18nDir`: `<enrichDir>/i18n`, e.g. `runtypes/generated/i18n/pl/models/user.ts`;
+  (default `i18nDir`: `<genDir>/enriched/i18n`, e.g. `src/__runtypes/enriched/i18n/pl/models/user.ts`;
   the locale is a path segment, so `pt-BR` works verbatim).
 - The const per type is `<locale>_friendly<Name>` — BCP-47 `-` becomes `_`
   (`pt_BR_friendlyUser`) — annotated `FriendlyText<Name>`, carrying the SAME
@@ -280,7 +280,7 @@ reconciles (only the mandatory `other` is ever re-inserted). A `rt$default`-mode
 has exactly one string to translate and is never descended.
 
 ```ts
-// runtypes/generated/i18n/pl/models/user.ts — committed, filled by a translator/agent
+// src/__runtypes/enriched/i18n/pl/models/user.ts — committed, filled by a translator/agent
 import type {FriendlyText} from 'ts-runtypes';
 import type {User} from '../../../../../src/models/user';
 
@@ -297,9 +297,9 @@ export const pl_friendlyUser: FriendlyText<User> = {
 
 ```ts
 import {createFriendlyTextI18n} from 'ts-runtypes';
-import {friendlyUser} from 'runtypes/generated/friendly/models/user';
-import {es_friendlyUser} from 'runtypes/generated/i18n/es/models/user';
-import {pl_friendlyUser} from 'runtypes/generated/i18n/pl/models/user';
+import {friendlyUser} from 'src/__runtypes/enriched/friendly/models/user';
+import {es_friendlyUser} from 'src/__runtypes/enriched/i18n/es/models/user';
+import {pl_friendlyUser} from 'src/__runtypes/enriched/i18n/pl/models/user';
 
 const friendly = createFriendlyTextI18n(friendlyUser, {
   locale: currentLocale, // string | {value: string} — a {value} ref (e.g. a Vue Ref)
@@ -354,7 +354,7 @@ export interface User {
 ```
 
 ```ts
-// runtypes/generated/friendly/models/user.ts — the committed friendly mirror
+// src/__runtypes/enriched/friendly/models/user.ts — the committed friendly mirror
 import type {FriendlyText} from 'ts-runtypes';
 import type {User} from '../../../../src/models/user';
 
@@ -399,7 +399,7 @@ export const friendlyUser: FriendlyText<User> = {
 ```ts
 // src/services/userForm.ts — the CONSUMER
 import {createGetValidationErrors, createFriendlyText} from 'ts-runtypes';
-import {friendlyUser} from 'runtypes/generated/friendly/models/user';
+import {friendlyUser} from 'src/__runtypes/enriched/friendly/models/user';
 import type {User} from '../models/user';
 
 const getUserErrors = createGetValidationErrors<User>();
@@ -414,7 +414,7 @@ const messages = friendly.errors(getUserErrors({name: 'A', age: 200, profile: {e
 ## Authoring checklist
 
 - Put the map in the **definition's friendly mirror file**
-  (`<enrichDir>/friendly/<rel>.ts`), not the consumer's file.
+  (`<genDir>/enriched/friendly/<rel>.ts`), not the consumer's file.
 - Type it `FriendlyText<T>` so structure is checked against `T`. The map is TOTAL:
   every field present, `rt$label` + `rt$errors` on every node. Blank `''` = no custom
   text (FT001 Info nudges unlabeled fields); never delete a key — it re-scaffolds.
@@ -422,8 +422,8 @@ const messages = friendly.errors(getUserErrors({name: 'A', age: 200, profile: {e
   plus `type` — the mapped type requires each and rejects any other. A bare `string`
   takes `type` only.
 - Want one sentence per field? Use `rt$errors: {rt$default: '…'}` — exclusive, never mixed
-  with per-constraint keys (FT009). Scaffold mode for new nodes: tsconfig
-  `friendlyErrors`.
+  with per-constraint keys (FT009). Scaffolds are always per-constraint; switch a
+  node by hand.
 - On count-bearing constraints, fill the scaffolded plural arms in place — never
   restructure the object; keep `other` (FT006), prune unused arms; remember the count is
   the violated bound, not the received value's length.

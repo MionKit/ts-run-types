@@ -1,5 +1,8 @@
-// Wire types mirroring internal/protocol/protocol.go. Hand-maintained rather
-// than code-generated to keep the plugin dep-free.
+// Wire types mirroring internal/protocol/protocol.go. The interfaces below are
+// hand-maintained (to keep the plugin dep-free); the ReflectionKind enum,
+// KIND_REF sentinel, and REFLECTION_SUB_KIND map are code-generated from the same
+// Go source (reflectionKind.generated.ts) so the kind/sub-kind discriminators can
+// never drift.
 //
 // The shape is the canonical runtypes reflection `RunType` discriminated
 // union. Child RunType slots in the JSON wire format are sentinels
@@ -7,48 +10,12 @@
 // import the generated runtypes-cache.ts module which contains a fully-knotted
 // graph.
 
-export enum ReflectionKind {
-  never = 0,
-  any = 1,
-  unknown = 2,
-  void = 3,
-  object = 4,
-  string = 5,
-  number = 6,
-  boolean = 7,
-  symbol = 8,
-  bigint = 9,
-  null = 10,
-  undefined = 11,
-  regexp = 12,
-  literal = 13,
-  templateLiteral = 14,
-  property = 15,
-  method = 16,
-  function = 17,
-  parameter = 18,
-  promise = 19,
-  class = 20,
-  typeParameter = 21,
-  enum = 22,
-  union = 23,
-  intersection = 24,
-  array = 25,
-  tuple = 26,
-  tupleMember = 27,
-  enumMember = 28,
-  rest = 29,
-  objectLiteral = 30,
-  indexSignature = 31,
-  propertySignature = 32,
-  methodSignature = 33,
-  infer = 34,
-  callSignature = 35,
-}
-
-// kindRef is our sentinel — not a reflection kind. Used in JSON to point at
-// another type by id without inlining the referenced node.
-export const KIND_REF = -1;
+// ReflectionKind + KIND_REF + REFLECTION_SUB_KIND are GENERATED from
+// internal/protocol/{protocol,subkind}.go (the same source as @ts-runtypes/core's
+// RunTypeKind / RunTypeSubKind), re-exported here so existing
+// `import {ReflectionKind} from './protocol.ts'` sites are unchanged.
+import {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind} from './go-generated/reflectionKind.generated.ts';
+export {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind};
 
 // Re-export the cache-module settings generated from
 // internal/constants/constants.go so callers have a single place to import
@@ -61,7 +28,7 @@ export {
   VALIDATE_VAR_PREFIX,
   VALIDATE_MODULE_NAME,
   type CacheModuleSettings,
-} from './runtypes-constants.generated.ts';
+} from './go-generated/runtypes-constants.generated.ts';
 
 export interface ClassRef {
   // builtin: "Date" | "Map" | "Set" | "RegExp" — footer wires
@@ -227,7 +194,7 @@ export interface Site {
   trailingComma?: boolean;
   // module, when present, is the bundle-module BASENAME this site's entry
   // rides in (allSingle module mode): the rewrite imports the binding from
-  // `virtual:rt/<module>.js` instead of the entry's own module. The clause
+  // `rtmod:/<module>.js` instead of the entry's own module. The clause
   // shape is identical either way (export name == the binding).
   module?: string;
 }
@@ -252,10 +219,44 @@ export interface Replacement {
   end: number;
   text: string;
   // When non-empty, the virtual-module specifier the rewrite must import for
-  // the substituted expression to resolve — e.g. `virtual:rt/pf/rt/foo.js`.
+  // the substituted expression to resolve — e.g. `rtmod:/pf/rt/foo.js`.
   // `text` IS the module's export name (every entry exports under its binding
   // name), so the rewrite imports `{<text>}` directly.
   importFrom?: string;
+}
+
+// PureFnSite mirrors Go protocol.PureFnSite — one generated pure-fn entry in the
+// structured build report. Host tooling that relocates pure-fn bodies across
+// bundles (mion's cross-bundle serverMapFrom transport) consumes it via the
+// JSON file `<genDir>/types/pure-fns-report.json` or the plugin's `onPureFnReport`
+// callback. Each record is SELF-CONTAINED (`code` + `paramNames` inline) so a
+// consumer never reads the generated module files — that keeps the shape stable
+// across every `moduleMode`. Populated only when the pure-fn report is enabled
+// (`pureFnReport` option / `onPureFnReport` callback).
+export interface PureFnSite {
+  // The registrar call site's factory-argument span (byte offsets).
+  file: string;
+  start: number;
+  end: number;
+  // Registry key: `rt::<hash>` (anonymous lane) | `<ns>::<name>` (named lane).
+  key: string;
+  // The identifier the site invoked (a primitive registrar, a framework wrapper
+  // like `serverMapFrom` / `registerAcmePureFn`, or a renamed import) and the
+  // nearest-package.json / ambient-module name of the file that DECLARES it — so
+  // a consumer can attribute a site to the framework that exposed the registrar
+  // (`@mionjs/client`, `@acme/toolkit`), even through a wrapper-only file.
+  calleeName?: string;
+  calleeModule?: string;
+  // `named` | `anonymous`; `direct` (arg IS the pure fn, wrapped) | `factory`.
+  lane?: string;
+  form?: string;
+  // Basename of the generated module this entry rides in: per-entry `pf/<ns>/<fn>`
+  // in default/allModules mode, or the single `pf` bundle in allSingle.
+  module?: string;
+  // Entry payload — emitMode-honoring (`code` empty when the mode ships no body).
+  paramNames?: string[];
+  code?: string;
+  pureFnDependencies?: string[];
 }
 
 // TransformResult mirrors Go protocol.TransformResult — the per-file output of
@@ -417,9 +418,8 @@ export interface Response {
   // the reference emitHasUnknownKeys et al. Set when at least one newly-interned
   // RunType has a supported emit arm in the matching emitter.
   addedHasUnknownKeys?: boolean;
-  addedStripUnknownKeys?: boolean;
+  addedCloneExactShape?: boolean;
   addedUnknownKeyErrors?: boolean;
-  addedUnknownKeysToUndefined?: boolean;
   addedUnknownKeysToUndefinedWire?: boolean;
   // Siblings of addedValidate for the binary serializer pair. Set when at
   // least one newly-interned RunType has a supported emit arm in the
@@ -438,9 +438,13 @@ export interface Response {
   // import binding (importFrom carries the specifier) so the canonical
   // fn body lives only in the emitted entry module.
   replacements?: Replacement[];
+  // The structured pure-fn build report — one record per generated pure-fn
+  // entry — populated on `generate` (whole program) and `scanFiles` (the
+  // rescanned files' delta) when the resolver's pure-fn report is enabled.
+  pureFnSites?: PureFnSite[];
   runTypes?: RunType[];
   // One rendered ES-module source per cache entry, keyed by module
-  // BASENAME (the `<basename>` of `virtual:rt/<basename>.js` — the cache
+  // BASENAME (the `<basename>` of `rtmod:/<basename>.js` — the cache
   // key for runtype / type-fn entries, the `pf/<ns>/<fn>` encoding for
   // pure fns). In files-mode the resolver writes these to disk under
   // `<outDir>/types/` via the `generate` op; this wire field is the

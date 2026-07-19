@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
-import catalog from './diagnostics-catalog.json';
+import catalog from './go-generated/diagnostics-catalog.json';
 
 interface CodeEntry {
   code: string;

@@ -1,17 +1,16 @@
 import path from 'node:path';
-import fs from 'node:fs';
 import {createUnplugin} from 'unplugin';
 import {getExePath} from '@ts-runtypes/bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
 import {applyEdits, sourceHash} from './apply-edits.ts';
-import {Family, Severity, type Diagnostic} from './protocol.ts';
+import {Family, Severity, type Diagnostic, type PureFnSite} from './protocol.ts';
 import {
   MODULE_MODE_ALL_MODULES,
   MODULE_MODE_ALL_SINGLE,
   MODULE_MODE_DEFAULT,
   type ModuleMode,
-} from './runtypes-constants.generated.ts';
+} from './go-generated/runtypes-constants.generated.ts';
 
 // PluginOptions is the host-plugin surface. The CANONICAL place to configure
 // the compiler's PROJECT knobs (emitMode, moduleMode, inlineMode, cacheDir,
@@ -19,7 +18,7 @@ import {
 // under compilerOptions.plugins in tsconfig.json — see the Configuration guide.
 // Those keys are accepted here too as a per-build OVERRIDE (forwarded as a flag,
 // so they win over tsconfig, tsc-style); reach for them only when one build
-// must differ. `binary` / `cwd` / `tsconfig` / `outDir` are genuinely
+// must differ. `binary` / `cwd` / `tsconfig` / `genDir` are genuinely
 // host-specific and have no tsconfig equivalent.
 export interface PluginOptions {
   // Absolute path to the compiled ts-runtypes binary. Optional: when omitted,
@@ -33,13 +32,14 @@ export interface PluginOptions {
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
   tsconfig?: string;
-  // RunTypes output root, resolved relative to cwd. The build writes the
-  // generated cache modules under `<outDir>/types/` (gitignored) and the
-  // committed enrichment under `<outDir>/enriched/`. When omitted, the
-  // resolver infers `<srcDir>/__runtypes` from the tsconfig (rootDir →
-  // common-ancestor of the program's files → baseUrl → cwd). The folder lives
-  // in the project (not node_modules) so a dev watcher sees regenerated modules.
-  outDir?: string;
+  // RunTypes generated-output root, resolved relative to cwd. The build writes
+  // the generated cache modules under `<genDir>/types/` (gitignored) and the
+  // committed enrichment under `<genDir>/enriched/`; each folder gets a README
+  // saying what it is. When omitted, the resolver infers `<srcDir>/__runtypes`
+  // from the tsconfig (rootDir → common-ancestor of the program's files →
+  // baseUrl → cwd). The folder lives in the project (not node_modules) so a
+  // dev watcher sees regenerated modules.
+  genDir?: string;
   // What the Go binary ships in each RT cache entry's code/factory slots:
   //   - 'code' (default): only the body `code` string; the JS-side
   //     `materializeRTFn` rebuilds the factory via `new Function('utl', code)`
@@ -62,13 +62,12 @@ export interface PluginOptions {
   //   - sizeStringBytes (default 32): assumed byte length of an unbounded string.
   //   - sizeMaxBytes (default 65536): per-type cap so a huge declared bound
   //     never seeds a multi-MB cold buffer.
-  sizeBias?: number;
-  sizeItems?: number;
-  sizeStringBytes?: number;
-  sizeMaxBytes?: number;
+  //   All four ride the single `size` object (like the tsconfig `size` key):
+  //   {bias, items, stringBytes, maxBytes}.
+  size?: {bias?: number; items?: number; stringBytes?: number; maxBytes?: number};
   // NB: there is deliberately NO cacheDir option. The on-disk RT artifact cache
   // (the incremental build cache under node_modules/.cache/ts-runtypes, separate
-  // from `outDir`) follows TypeScript's own `incremental` / `composite` switch —
+  // from `genDir`) follows TypeScript's own `incremental` / `composite` switch —
   // on when the project's tsconfig is incremental, off otherwise. There is no
   // knob to set here; align it with tsc by toggling `incremental` in tsconfig.
   // (The internal RT_CACHE_DIR env var overrides it for tests / direct use.)
@@ -144,6 +143,31 @@ export interface PluginOptions {
   // linter into your editor + CI when you enable it. Build-lane only: the lint
   // plugin validates those samples regardless of this option.
   allowUncheckedPatterns?: boolean;
+  // Pure-fn build report — the structured, layout-independent record of every
+  // pure fn this build generated (call-site span, callee attribution, registry
+  // key, and the self-contained entry payload). For host tooling that relocates
+  // pure-fn bodies across bundles (mion's cross-bundle serverMapFrom transport).
+  // One tri-state switch selects where the report goes:
+  //   - `'file'`     → write it to the HARDCODED
+  //                    `<genDir>/types/pure-fns-report.json` on every generate.
+  //                    The location is not configurable (like every path under
+  //                    genDir), so it inherits types/'s gitignore + regenerate
+  //                    lifecycle. For plugin-free / separate-process / CLI-batch
+  //                    consumers. The `onPureFnReport` handler, if set, also fires.
+  //   - `'callback'` → deliver it ONLY in-process to `onPureFnReport`, no file.
+  //   - `false` / unset → off. (Providing `onPureFnReport` without setting this
+  //                    defaults to `'callback'`, so "just add a handler" works;
+  //                    an explicit `false` wins and nothing fires.)
+  // Both channels carry identical records; the report shape is identical across
+  // every `moduleMode`.
+  pureFnReport?: 'file' | 'callback' | false;
+  // In-process pure-fn report callback, fired on EVERY adapter (it rides the
+  // universal buildStart hook, not a vite-only one): once after the
+  // whole-program buildStart scan + generate with the full report (phase
+  // 'build'), and — under Vite's HMR — again with the changed file's delta
+  // (phase 'update'). Fires whenever the report is on ('file' or 'callback');
+  // setting it with `pureFnReport` unset implies 'callback' (data, no file).
+  onPureFnReport?: (sites: PureFnSite[], phase: 'build' | 'update') => void;
 }
 
 // MARKER_MODULE backs the transform's textual FALLBACK pre-filter. The primary
@@ -160,7 +184,7 @@ const MARKER_MODULE = '@ts-runtypes/core';
 // @ts-runtypes/devtools is built on unplugin: ONE factory, many bundler entry
 // points (@ts-runtypes/devtools/vite, /rollup, /webpack, /rspack, /esbuild are
 // `unplugin.<bundler>` from this instance). Files-mode: the resolver writes
-// the cache modules to real files under <outDir>/types/ at buildStart and the
+// the cache modules to real files under <genDir>/types/ at buildStart and the
 // transform injects relative imports to them, so every bundler resolves them
 // natively — no virtual-module hooks. The Vite-only config + HMR hooks ride
 // the `vite` escape hatch.
@@ -173,6 +197,20 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // Error-severity diagnostics fail the build/transform in every lane unless
   // explicitly opted out (see PluginOptions.failOnError).
   const failOnError: boolean = options.failOnError !== false;
+  // Resolve the pure-fn report tri-state into the two low-level resolver flags.
+  // An explicit `false` wins even when a handler is set; an unset value with a
+  // handler defaults to 'callback' (data, no file). Validated at the host
+  // boundary so a config typo fails loudly.
+  const reportMode: 'file' | 'callback' | false = options.pureFnReport ?? (options.onPureFnReport ? 'callback' : false);
+  if (reportMode !== false && reportMode !== 'file' && reportMode !== 'callback') {
+    throw new Error(
+      `[@ts-runtypes/devtools] unknown pureFnReport ${JSON.stringify(options.pureFnReport)} — expected 'file' | 'callback' | false`
+    );
+  }
+  // reportEnabled turns the report DATA on (the callback source + the file's
+  // precondition); writeReportFile additionally writes the JSON.
+  const reportEnabled: boolean = reportMode !== false;
+  const writeReportFile: boolean = reportMode === 'file';
   if (transformMode !== 'go' && transformMode !== 'edits') {
     throw new Error(
       `[@ts-runtypes/devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
@@ -185,8 +223,8 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   let siteFiles = new Set<string>();
   let cwdAbs = '';
   // The resolved RunTypes output root (<cwd>/__runtypes by default). Set by
-  // ensureResolver once cwdAbs is known; modules land under <outDirAbs>/types.
-  let outDirAbs = '';
+  // ensureResolver once cwdAbs is known; modules land under <genDirAbs>/types.
+  let genDirAbs = '';
   // Vite's resolved root, captured in configResolved. Stays empty under every
   // other bundler (no equivalent hook), where ensureResolver falls back to
   // options.cwd ?? process.cwd().
@@ -200,11 +238,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   function ensureResolver() {
     if (resolver) return;
     cwdAbs = path.resolve(options.cwd ?? (viteRoot || process.cwd()));
-    // Explicit outDir is resolved up front; otherwise leave it empty and let
+    // Explicit genDir is resolved up front; otherwise leave it empty and let
     // the resolver infer <srcDir>/__runtypes from the tsconfig at buildStart —
     // the plugin can't parse tsconfig without a dep, so the Go side owns the
     // default and echoes the resolved path back from generate().
-    outDirAbs = options.outDir ? path.resolve(cwdAbs, options.outDir) : '';
+    genDirAbs = options.genDir ? path.resolve(cwdAbs, options.genDir) : '';
     // tsconfig is the canonical config surface for the Go compiler's project
     // knobs (emitMode, moduleMode, inlineMode, hashLength, …). The plugin
     // forwards a flag ONLY for an option set explicitly here, so an unset
@@ -230,33 +268,21 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     const binaryPath = options.binary ?? getExePath();
     resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
       ...(options.emitMode ? {emitMode: options.emitMode} : {}),
-      ...(options.sizeBias !== undefined ? {sizeBias: options.sizeBias} : {}),
-      ...(options.sizeItems !== undefined ? {sizeItems: options.sizeItems} : {}),
-      ...(options.sizeStringBytes !== undefined ? {sizeStringBytes: options.sizeStringBytes} : {}),
-      ...(options.sizeMaxBytes !== undefined ? {sizeMaxBytes: options.sizeMaxBytes} : {}),
+      ...(options.size?.bias !== undefined ? {sizeBias: options.size.bias} : {}),
+      ...(options.size?.items !== undefined ? {sizeItems: options.size.items} : {}),
+      ...(options.size?.stringBytes !== undefined ? {sizeStringBytes: options.size.stringBytes} : {}),
+      ...(options.size?.maxBytes !== undefined ? {sizeMaxBytes: options.size.maxBytes} : {}),
       ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
+      // Tri-state → the two low-level resolver flags: report on the wire for
+      // both 'file' and 'callback'; the JSON file written only for 'file' (at
+      // the hardcoded genDir/types path).
+      ...(reportEnabled ? {pureFnReportWire: true} : {}),
+      ...(writeReportFile ? {pureFnReportFile: true} : {}),
     });
-  }
-
-  // ensureOutputDirs writes the VCS-hygiene files once. <outDir>/types holds
-  // the generated cache modules (gitignored); <outDir>/enriched holds the
-  // committed enrichment (kept). Write-if-absent so we never churn a watched
-  // file or clobber a user's edits.
-  function ensureOutputDirs() {
-    const typesDir = path.join(outDirAbs, 'types');
-    const enrichedDir = path.join(outDirAbs, 'enriched');
-    fs.mkdirSync(typesDir, {recursive: true});
-    fs.mkdirSync(enrichedDir, {recursive: true});
-    const gitignore = path.join(typesDir, '.gitignore');
-    if (!fs.existsSync(gitignore)) {
-      fs.writeFileSync(gitignore, '# Generated by @ts-runtypes/devtools — do not edit or commit.\n*\n');
-    }
-    const gitkeep = path.join(enrichedDir, '.gitkeep');
-    if (!fs.existsSync(gitkeep)) fs.writeFileSync(gitkeep, '');
   }
 
   // siteKey canonicalizes a source path for the siteFiles set. The resolver
@@ -282,11 +308,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // Default keeps self-contained maps; an explicit `sourcesContent: false`
     // trims the embedded original source from the map.
     const goOpts = options.sourcesContent === false ? {omitSourcesContent: true} : undefined;
-    const result = await resolver!.transform([rel], outDirAbs, goOpts);
+    const result = await resolver!.transform([rel], genDirAbs, goOpts);
     // A file outside the buildStart Program may surface new types / pure fns;
     // regenerate so the modules its injected imports point at exist on disk
     // before the bundler resolves them. (write-only-on-change keeps it cheap.)
-    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(genDirAbs);
     // A file the buildStart scan couldn't have seen can introduce NEW
     // Error-severity diagnostics — surface them here so the transform fails
     // per the failOnError contract (warnings already surfaced program-wide).
@@ -314,8 +340,8 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // we fall back to 'go' mode so a build is never broken by this optimization.
   async function transformViaEdits(ctx: any, rel: string, code: string) {
     const incomingHash = sourceHash(code);
-    let result = await resolver!.transform([rel], outDirAbs, {emitEdits: true});
-    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+    let result = await resolver!.transform([rel], genDirAbs, {emitEdits: true});
+    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(genDirAbs);
     // New Error-severity diagnostics from a file the buildStart scan couldn't
     // have seen — fail the transform per the failOnError contract.
     surfaceDiagnostics(ctx, result.diagnostics ?? [], (d) => d.severity === Severity.Error, {halt: failOnError});
@@ -330,8 +356,8 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       );
       try {
         await resolver!.setSources({[rel]: code});
-        result = await resolver!.transform([rel], outDirAbs, {emitEdits: true});
-        if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(outDirAbs);
+        result = await resolver!.transform([rel], genDirAbs, {emitEdits: true});
+        if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(genDirAbs);
         if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
         fileResult = result.transformed[rel];
       } catch {
@@ -369,18 +395,23 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // ensureResolver call here is then a no-op.
     async buildStart(this: any) {
       ensureResolver();
-      // generate writes the modules and, when outDirAbs is empty, returns the
-      // resolver-inferred <srcDir>/__runtypes. Adopt that resolved path before
-      // ensuring the VCS-hygiene files so .gitignore/.gitkeep land in the
-      // right tree and every later transform/HMR call reuses it.
-      const gen = await resolver!.generate(outDirAbs || undefined);
-      if (gen.outDir) outDirAbs = gen.outDir;
+      // generate writes the modules and, when genDirAbs is empty, returns the
+      // resolver-inferred <srcDir>/__runtypes. Adopt that resolved path so
+      // every later transform/HMR call reuses it. The VCS-hygiene files
+      // (per-folder READMEs, the types/.gitignore) are written by the Go side
+      // inside generate, so the CLI --compile lane gets them too.
+      const gen = await resolver!.generate(genDirAbs || undefined);
+      if (gen.outDir) genDirAbs = gen.outDir;
+      // Pure-fn build report — fire the in-process callback with the whole
+      // program's report (phase 'build'). Universal hook, so every adapter
+      // (vite/rollup/rolldown/esbuild/rspack/webpack) gets it; a watch-mode
+      // rebuild re-runs buildStart and re-fires 'build' with the fresh report.
+      if (reportEnabled && options.onPureFnReport) options.onPureFnReport(gen.pureFnSites ?? [], 'build');
       // Adopt the whole-program scan's site-file set as the transform gate
       // (see MARKER_MODULE): exactly the files with rewritable marker sites,
       // wrapper call sites included. Rebuilt (not merged) so watch-mode
       // rebuilds drop files whose sites are gone.
       siteFiles = new Set(gen.siteFiles.map(siteKey));
-      ensureOutputDirs();
       // Pure-fn extraction errors ALWAYS halt the build (files-mode has no
       // virtual fallback, so a generation error is fatal). Every other family
       // (the RT render diagnostics — FMT002 param contradictions, root-position
@@ -409,13 +440,19 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // subpaths) — a bare `includes(...)` also fires on path mentions in
       // comments (e.g. `packages/ts-runtypes/…`), which would force the
       // resolver to scan files that never import the markers.
-      // `registerPureFnFactory` is checked separately because the marker
-      // package's OWN sources call it via relative imports (no package-name
-      // string in the file).
+      // The pure-fn registrars are checked separately because the marker
+      // package's OWN sources call them via relative imports (no package-name
+      // string in the file). `registerPureFn` catches both named registrars
+      // (`registerPureFn` + `registerPureFnFactory`) and `registerAnonymousPureFn`
+      // catches both anonymous ones (`registerAnonymousPureFn` +
+      // `registerAnonymousPureFnFactory`) — a substring probe over all four. Both
+      // pure-fn lanes emit Replacements, not Sites, so a file created mid-session
+      // (before its first HMR scan lands it in siteFiles) needs this textual catch.
       const inSiteSet = siteFiles.has(siteKey(rel));
       if (!inSiteSet) {
         const importsMarkerModule = code.includes(`'${MARKER_MODULE}`) || code.includes(`"${MARKER_MODULE}`);
-        if (!importsMarkerModule && !code.includes('registerPureFnFactory')) return null;
+        const callsPureFnRegistrar = code.includes('registerPureFn') || code.includes('registerAnonymousPureFn');
+        if (!importsMarkerModule && !callsPureFnRegistrar) return null;
       }
 
       try {
@@ -479,10 +516,15 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         // set here) or removed its last one.
         if (result.sites.length > 0) siteFiles.add(siteKey(rel));
         else siteFiles.delete(siteKey(rel));
+        // Pure-fn report update lane: fire the callback with THIS file's delta
+        // (the changed sites) before regenerating, so an in-process consumer
+        // learns of a body edit as it happens. The JSON file is rewritten by
+        // the generate() below.
+        if (reportEnabled && options.onPureFnReport && result.pureFnSites) options.onPureFnReport(result.pureFnSites, 'update');
         // Regenerate so any new/changed modules hit disk; the watcher reloads
         // them (the folder lives in the project root, which Vite watches).
         try {
-          await resolver.generate(outDirAbs);
+          await resolver.generate(genDirAbs);
         } catch {
           // A regenerate failure shouldn't tear down the dev server mid-edit.
         }
@@ -570,10 +612,11 @@ function severityLabel(s: Severity): string {
 }
 
 export type {PluginOptions as Options};
+export type {PureFnSite} from './protocol.ts';
 export {
-  VIRTUAL_MODULE_PREFIX,
+  ENTRY_MODULE_PREFIX,
   ENTRY_MODULE_SUFFIX,
   ENTRY_BINDING_PREFIX,
   CACHE_MODULES,
   type CacheModuleSettings,
-} from './runtypes-constants.generated.ts';
+} from './go-generated/runtypes-constants.generated.ts';

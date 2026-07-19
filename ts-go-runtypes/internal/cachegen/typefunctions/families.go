@@ -1,7 +1,7 @@
 package typefunctions
 
 import (
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -45,13 +45,20 @@ var Families = []FamilySpec{
 	// on decode. See json_compact.go / json_compact_restore.go.
 	family("compactForJson", CompactForJsonEmitter{}),
 	family("compactFromJson", CompactFromJsonEmitter{}),
-	// The unknown-keys group: boolean probe, deleting/undefining mutators,
-	// error accumulator, and the decoder-internal wire-aware variant.
+	// The unknown-keys group: boolean probe, error accumulator, and the
+	// decoder-internal wire-aware to-undefined variant. The public deleting/
+	// undefining mutators (stripUnknownKeys / unknownKeysToUndefined) were
+	// removed in favor of cloneExactShape — measured 3–24x faster and free of
+	// the delete-induced dictionary-mode deopt; the to-undefined EMITTER stays
+	// (unknownkeys_to_undefined.go) because the wire variant delegates to it.
 	family("hasUnknownKeys", HasUnknownKeysEmitter{}),
-	family("stripUnknownKeys", StripUnknownKeysEmitter{}),
 	family("unknownKeyErrors", UnknownKeyErrorsEmitter{}),
-	family("unknownKeysToUndefined", UnknownKeysToUndefinedEmitter{}),
 	family("unknownKeysToUndefinedWire", UnknownKeysToUndefinedWireEmitter{}),
+	// cloneExactShape: a proper deep clone of the DECLARED shape — unknown
+	// keys dropped by construction, nothing mutable shared with the input
+	// (only immutables and opaque handles pass through). The clone-based
+	// replacement for the removed mutating strip family.
+	family("cloneExactShape", CloneExactShapeEmitter{}),
 	// toBinary / fromBinary: DataViewSerializer (little-endian) round-trip
 	// pair; unions emit the flat-prop wire shape (see union_flat_binary.go).
 	family("toBinary", ToBinaryEmitter{}),
@@ -82,7 +89,7 @@ func FamilyByKey(key string) FamilySpec {
 // Collect compiles the family's demanded entries into per-entry virtual-module
 // records (see CollectFamilyEntries). extraRoots seed plain roots beyond the
 // family's own call-site demand — the resolver's cross-family fixpoint path.
-func (spec FamilySpec) Collect(dump protocol.Dump, opts RenderOpts, extraRoots []string) virtualmodules.Graph {
+func (spec FamilySpec) Collect(dump protocol.Dump, opts RenderOpts, extraRoots []string) entrymodules.Graph {
 	return CollectFamilyEntries(dump, spec.Settings, spec.Emitter, innerPrefix(spec.Settings), opts, extraRoots)
 }
 

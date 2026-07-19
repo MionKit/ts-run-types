@@ -7,7 +7,7 @@
 // convention).
 
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
-import type {RunTypeKindValue} from '../runTypeKind.ts';
+import type {RunTypeKindValue} from '../go-generated/runTypeKind.generated.ts';
 
 /** Produces a base mock value for a format-branded runtype. Returns
  *  `undefined` to defer to the kind-default mock (e.g. an unknown format

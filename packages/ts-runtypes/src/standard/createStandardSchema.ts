@@ -52,10 +52,6 @@ export interface RTStandardSchemaV1<Input = unknown, Output = Input> {
 const validateFallback = (() => true) as unknown as ValidateFn;
 const errorsFallback: GetValidationErrorsFn = () => [];
 
-function readRejectCircularRefs(options: unknown): boolean | undefined {
-  return (options as {rejectCircularRefs?: boolean} | undefined)?.rejectCircularRefs;
-}
-
 /** Returns a Standard Schema v1 object for `T`. `validate` returns `{value}` on
  *  success (the input, narrowed to `DataOnly<T>` — RunTypes validates the
  *  serialisable projection) or the richer `{issues}` on failure. Synchronous,
@@ -76,7 +72,6 @@ export function createStandardSchema<T>(
   options?: CompTimeFnArgs<ValidateOptions>,
   ids?: InjectTypeFnArgs<T, 'val', 'verr'>
 ): RTStandardSchemaV1<DataOnly<T>> {
-  const reject = readRejectCircularRefs(options);
   // A value-first schema's runtime `.id` overrides the injected type id for both
   // lookups (correct even for recursive schemas).
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
@@ -84,22 +79,16 @@ export function createStandardSchema<T>(
   const injected = ids as unknown as readonly EntryTuple[] | undefined;
   const valInjected = injected ? injected[0] : undefined;
   const verrInjected = injected ? injected[1] : undefined;
-  // Resolve each under its own family fnName so the per-family circular-reference
-  // guards + identity fallbacks engage correctly (validate -> false on a cycle;
+  // Resolve each under its own family fnName. The circular-reference guard is
+  // compile-time: `{rejectCircularRefs: true}` forked each family's fnHash, so
+  // the armed tuples self-guard (validate -> false on a cycle;
   // getValidationErrors -> a `{expected:'circular'}` issue).
-  const validate = resolveEntryTupleFn<ValidateFn<T>>(
-    'createValidate',
-    validateFallback as ValidateFn<T>,
-    schemaId,
-    valInjected,
-    reject
-  );
+  const validate = resolveEntryTupleFn<ValidateFn<T>>('createValidate', validateFallback as ValidateFn<T>, schemaId, valInjected);
   const getErrors = resolveEntryTupleFn<GetValidationErrorsFn>(
     'createGetValidationErrors',
     errorsFallback,
     schemaId,
-    verrInjected,
-    reject
+    verrInjected
   );
   const props: RTStandardSchemaV1<DataOnly<T>>['~standard'] = {
     version: 1,

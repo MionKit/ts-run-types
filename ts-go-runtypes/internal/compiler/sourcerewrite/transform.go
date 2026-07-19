@@ -204,7 +204,7 @@ func buildImportBlock(sites []protocol.Site, replacements []protocol.Replacement
 			if basename == "" {
 				basename = entryBasename(site.ID, fnId)
 			}
-			specifier := constants.VirtualModulePrefix + basename + constants.EntryModuleSuffix
+			specifier := constants.EntryModulePrefix + basename + constants.EntryModuleSuffix
 			addClause(specifier, entryBinding(site.ID, fnId))
 		}
 	}

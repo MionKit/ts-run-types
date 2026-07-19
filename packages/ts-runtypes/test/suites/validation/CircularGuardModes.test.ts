@@ -1,11 +1,12 @@
-// validation / CircularGuard modes — the cross-cutting arming behaviour the
-// per-vector CircularGuard cases don't cover: the global `setRejectCircularRefs`
-// toggle, the per-call `{rejectCircularRefs:false}` opt-out overriding an armed
-// global, and the no-op on a non-circular type while armed. The per-vector
-// cases (CircularGuard.ts) all arm per-call; these pin the global flag and the
-// override precedence. afterEach disarms so the global flag never leaks.
-import {afterEach, describe, expect, it} from 'vitest';
-import {createValidate, setRejectCircularRefs} from '@ts-runtypes/core';
+// validation / CircularGuard modes — the arming edge cases the per-vector
+// CircularGuard cases don't cover, now that `rejectCircularRefs` is a COMPILE-TIME
+// option (there is no global toggle): the default (unarmed) validator, the
+// explicit `{rejectCircularRefs:false}` which is just the default, and the armed
+// guard as a no-op over a non-circular type. Per the marker test-coverage rule,
+// each arming assertion is paired across both `createValidate` call shapes —
+// static `createValidate<T>()` and reflection `createValidate(value)`.
+import {describe, expect, it} from 'vitest';
+import {createValidate} from '@ts-runtypes/core';
 
 interface Node {
   name: string;
@@ -18,37 +19,51 @@ function selfCycle(): Node {
   return node;
 }
 
-afterEach(() => setRejectCircularRefs(false));
-
-describe('validation / CircularGuard modes', () => {
-  it('global setRejectCircularRefs(true) arms the guard without a per-call option', () => {
-    setRejectCircularRefs(true);
-    const isNode = createValidate<Node>();
-    expect(isNode(selfCycle())).toBe(false);
-    expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
-  });
-
-  it('disarmed by default — per-call {rejectCircularRefs:true} still arms', () => {
+describe('validation / CircularGuard modes (compile-time option)', () => {
+  it('per-call {rejectCircularRefs:true} arms — static form', () => {
     const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
     expect(isNode(selfCycle())).toBe(false);
-  });
-
-  it('per-call {rejectCircularRefs:false} overrides an armed global', () => {
-    setRejectCircularRefs(true);
-    const isNode = createValidate<Node>(undefined, {rejectCircularRefs: false});
-    // Guard disabled for this validator → an acyclic value validates as usual.
-    // (A cyclic value would overflow, exactly as an unguarded validator does.)
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
   });
 
-  it('armed global is a no-op for a non-circular type', () => {
-    setRejectCircularRefs(true);
+  it('per-call {rejectCircularRefs:true} arms — reflection form', () => {
+    const inference: Node = {name: 'a'};
+    const isNode = createValidate(inference, {rejectCircularRefs: true});
+    expect(isNode(selfCycle())).toBe(false);
+    expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
+  });
+
+  it('unarmed by default — the plain validator has no cycle guard (static form)', () => {
+    const isNode = createValidate<Node>();
+    // No guard: an acyclic value validates exactly as without the feature.
+    // (A cyclic value would recurse forever — that is the unguarded contract.)
+    expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
+  });
+
+  it('explicit {rejectCircularRefs:false} is just the default (reflection form)', () => {
+    const inference: Node = {name: 'a'};
+    const isNode = createValidate(inference, {rejectCircularRefs: false});
+    expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
+  });
+
+  it('armed guard is a no-op for a non-circular type — static form', () => {
     interface Plain {
       id: number;
       label: string;
     }
-    const isPlain = createValidate<Plain>();
+    const isPlain = createValidate<Plain>(undefined, {rejectCircularRefs: true});
     expect(isPlain({id: 1, label: 'x'})).toBe(true);
-    expect(isPlain({id: 'no', label: 'x'})).toBe(false);
+    expect(isPlain({id: 'no', label: 'x'} as unknown)).toBe(false);
+  });
+
+  it('armed guard is a no-op for a non-circular type — reflection form', () => {
+    interface Plain {
+      id: number;
+      label: string;
+    }
+    const inference: Plain = {id: 1, label: 'x'};
+    const isPlain = createValidate(inference, {rejectCircularRefs: true});
+    expect(isPlain({id: 1, label: 'x'})).toBe(true);
+    expect(isPlain({id: 'no', label: 'x'} as unknown)).toBe(false);
   });
 });

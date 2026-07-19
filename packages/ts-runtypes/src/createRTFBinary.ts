@@ -68,9 +68,10 @@ export interface BinaryEncoderOptions {
   /** Stable string used to bucket adaptive-sizing history. Defaults to the
    *  runtype hash so every encoder for the same `T` shares size history. **/
   cacheKey?: string;
-  /** Per-call circular-reference guard — overrides the global `setRejectCircularRefs`
-   *  for THIS encoder (`true` arms, `false` disables). Runtime-only (binary
-   *  options are not compile-time args), so it never affects the cache key. **/
+  /** Arms the circular-reference guard for THIS encoder: a value containing a
+   *  reference cycle throws a `CircularReferenceError` before any bytes are
+   *  written. COMPILE-TIME — it forks the injected fnHash, so the armed encoder
+   *  bakes the cycle check into its body (pay-for-use). **/
   rejectCircularRefs?: boolean;
   /** How the encoder's buffer is sized + what happens on overflow. A STATIC
    *  literal: it specialises the returned function's signature (per-strategy
@@ -176,13 +177,10 @@ export function createBinaryEncoder<T>(
 ): BinaryEncoderFn | BinaryEncoderSizeFn | BinaryEncoderIntoFn {
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
   const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
-  const encodeFn = resolveEntryTupleFn<ToBinaryFn>(
-    'createBinaryEncoder',
-    noopToBinaryFn,
-    schemaId,
-    id,
-    options?.rejectCircularRefs
-  );
+  // `rejectCircularRefs` is compile-time (the plugin baked it into `id`'s fnHash,
+  // arming the encoder body's inline guard); the runtime resolves the injected
+  // tuple. `cacheKey` / `sizeStrategy` below stay runtime.
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id);
   const sizeStrategy = options?.sizeStrategy ?? 'dynamic';
 
   // 'precalculate': measure pass over the SAME body → allocate exactly, growth OFF.

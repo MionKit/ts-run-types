@@ -60,7 +60,7 @@ inputs.push({
     const inner = '(x) => x /* — */';
     const start = byteIndexOf(code, inner);
     const end = start + Buffer.byteLength(inner, 'utf8');
-    return [[], [{file: 'a.ts', start, end, text: '__rt_pf_ns_f', importFrom: 'virtual:rt/pf/ns/f.js'}]];
+    return [[], [{file: 'a.ts', start, end, text: '__rt_pf_ns_f', importFrom: 'rtmod:/pf/ns/f.js'}]];
   },
 });
 
@@ -92,8 +92,8 @@ inputs.push({
     const s2 = byteIndexOf(code, 'BBB');
     const e2 = s2 + 3;
     return [[], [
-      {file: 'a.ts', start: s1, end: e1, text: '__rt_shared_a', importFrom: 'virtual:rt/shared.js'},
-      {file: 'a.ts', start: s2, end: e2, text: '__rt_shared_b', importFrom: 'virtual:rt/shared.js'},
+      {file: 'a.ts', start: s1, end: e1, text: '__rt_shared_a', importFrom: 'rtmod:/shared.js'},
+      {file: 'a.ts', start: s2, end: e2, text: '__rt_shared_b', importFrom: 'rtmod:/shared.js'},
     ]];
   },
 });

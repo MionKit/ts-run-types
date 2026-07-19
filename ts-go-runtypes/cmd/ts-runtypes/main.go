@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"sync"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
@@ -50,9 +51,9 @@ Options:
                         emit .js via tsgo with source maps composed back to the
                         ORIGINAL source, and write the generated cache modules
                         to disk. Emits to the tsconfig outDir; no stdio protocol.
-    --run-types-gen-dir DIR  where --compile writes the cache modules
+    --gen-dir DIR  where --compile writes the cache modules
                         (default <cwd>/__runtypes). Also readable as the
-                        "runTypesGenDir" key in the tsconfig ts-runtypes
+                        "genDir" key in the tsconfig ts-runtypes
                         plugin entry (the flag overrides it, tsc-style).
     --hash-length N     short-id length for type hashes (default 7)
     --single-threaded   force single-checker mode (useful for tests);
@@ -73,6 +74,14 @@ Options:
                         compounds inline into their parents, named types stay
                         external) or allInternal (everything except circular
                         types inlines, names ignored)
+    --pure-fn-report-wire    emit the structured pure-fn build report ON THE
+                        WIRE (Response.pureFnSites) on generate/scan, for host
+                        tooling that relocates pure-fn bodies across bundles;
+                        off by default. Also enabled by the "pureFnReport": true
+                        tsconfig key (which additionally writes the file below)
+    --pure-fn-report-file    also write the whole-program report as JSON to
+                        <genDir>/types/pure-fns-report.json (hardcoded location)
+                        on generate
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -111,7 +120,7 @@ func main() {
 		outJSON                string
 		outModulesDir          string
 		compileMode            bool
-		runTypesGenDir         string
+		genDir                 string
 		hashLength             int
 		singleThreaded         bool
 		noParallelScan         bool
@@ -122,6 +131,8 @@ func main() {
 		inlineMode             string
 		moduleMode             string
 		allowUncheckedPatterns bool
+		pureFnReportWire       bool
+		pureFnReportFile       bool
 		sizeBias               float64
 		sizeItems              int
 		sizeStringBytes        int
@@ -140,7 +151,7 @@ func main() {
 	flag.StringVar(&outModulesDir, "out-modules", "", "write per-entry virtual modules to DIR after stdin EOF")
 	flag.BoolVar(&compileMode, "compile", false,
 		"compile mode: transform + emit .js with composed source maps + generated caches to disk (tsc-like); uses the tsconfig outDir")
-	flag.StringVar(&runTypesGenDir, "run-types-gen-dir", "",
+	flag.StringVar(&genDir, "gen-dir", "",
 		"where compile writes the generated cache modules (default <cwd>/__runtypes); the emitted .js import them by relative path")
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 7)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
@@ -166,6 +177,11 @@ func main() {
 	flag.BoolVar(&allowUncheckedPatterns, "allow-unchecked-patterns", false,
 		"silence the fail-closed FMT004 build error for format patterns whose mockSamples "+
 			"RE2 can't verify (JS-only regex features); asserts the ts-runtypes JS linter owns the check")
+	flag.BoolVar(&pureFnReportWire, "pure-fn-report-wire", false,
+		"emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan for host tooling "+
+			"that relocates pure-fn bodies across bundles; off by default so the rewrite pipeline pays nothing")
+	flag.BoolVar(&pureFnReportFile, "pure-fn-report-file", false,
+		"also write the whole-program pure-fn report as JSON to the hardcoded <genDir>/types/pure-fns-report.json on generate (implies --pure-fn-report-wire)")
 	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,
 		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest (more grows), 1 = most generous (default 0.8)")
 	flag.IntVar(&sizeItems, "size-items", constants.DefaultSizeItems,
@@ -261,11 +277,13 @@ func main() {
 		singleThreaded:         singleThreaded,
 		noParallelScan:         noParallelScan,
 		noParallelRender:       noParallelRender,
-		runTypesGenDir:         runTypesGenDir,
+		genDir:                 genDir,
 		emitMode:               emitMode,
 		inlineMode:             inlineMode,
 		moduleMode:             moduleMode,
 		allowUncheckedPatterns: allowUncheckedPatterns,
+		pureFnReportWire:       pureFnReportWire,
+		pureFnReportFile:       pureFnReportFile,
 		sizeBias:               sizeBias,
 		sizeItems:              sizeItems,
 		sizeStringBytes:        sizeStringBytes,
@@ -307,10 +325,18 @@ func main() {
 	// path → force the cache on at that path; set to "" → force it off.
 	cacheDirOverride, cacheDirSet := os.LookupEnv("RT_CACHE_DIR")
 
+	// tsconfig `genDir` (raw, pre-default) rides into the resolver so the
+	// build lane's resolveOutDir agrees with the CLI lanes; when unset the
+	// resolver keeps its <srcDir>/__runtypes inference.
+	tsconfigGenDir := strings.TrimSpace(plugin.GenDir)
+	if tsconfigGenDir != "" && !filepath.IsAbs(tsconfigGenDir) {
+		tsconfigGenDir = filepath.Join(absCwd, tsconfigGenDir)
+	}
 	resolverOpts := resolver.Options{
 		HashLength:              merged.hashLength,
 		Marker:                  marker.Options{},
 		Cwd:                     absCwd,
+		TsconfigGenDir:          tsconfigGenDir,
 		SingleThreaded:          merged.singleThreaded,
 		DisableParallelScan:     merged.disableParallelScan,
 		DisableParallelRender:   merged.disableParallelRender,
@@ -320,6 +346,8 @@ func main() {
 		InlineMode:              constants.InlineMode(merged.inlineMode),
 		ModuleMode:              merged.moduleMode,
 		AllowUncheckedPatterns:  merged.allowUncheckedPatterns,
+		PureFnReportWire:        merged.pureFnReportWire,
+		PureFnReportFile:        merged.pureFnReportFile,
 		SizeBias:                merged.sizeBias,
 		SizeItems:               merged.sizeItems,
 		SizeStringBytes:         merged.sizeStringBytes,
@@ -336,9 +364,9 @@ func main() {
 		compileResult, compileErr := batchcompile.Run(batchcompile.Options{
 			Cwd:          absCwd,
 			TsconfigPath: tsconfigPath,
-			// merged.runTypesGenDir layers the flag over the tsconfig
-			// `runTypesGenDir` entry over the <cwd>/__runtypes default.
-			GenDir:       merged.runTypesGenDir,
+			// merged.genDir layers the flag over the tsconfig
+			// `genDir` entry over the <cwd>/__runtypes default.
+			GenDir:       merged.genDir,
 			ResolverOpts: resolverOpts,
 		})
 		if compileErr != nil {

@@ -10,7 +10,7 @@
 // past the budget; an array-count overshoot is best-effort (an array of zero-byte
 // elements may not), which the caller's size oracle confirms.
 
-import {RunTypeKind} from '../runTypeKind.ts';
+import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import {mockRunType} from './mockType.ts';

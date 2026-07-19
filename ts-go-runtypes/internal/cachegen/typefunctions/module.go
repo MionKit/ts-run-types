@@ -9,7 +9,7 @@ import (
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/diskcache"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -158,20 +158,20 @@ func innerPrefix(settings constants.CacheModuleSettings) string {
 // for a non-empty suffix it's `<variantFhash>_<id>` — the variant fhash folds
 // the option NAMES (carried in `options`) into the hash, so e.g. the
 // noIsArrayCheck variant of validate is keyed by FnHashFor(validate, [noIsArrayCheck]).
-func variantKey(settings constants.CacheModuleSettings, suffix string, options []string, id string) string {
+func variantKey(settings constants.CacheModuleSettings, suffix string, options []string, id string, rejectCircular bool) string {
 	op := familyOp(settings)
-	if suffix == "" {
+	if suffix == "" && !rejectCircular {
 		return operations.PlainHash(op.Name) + "_" + id
 	}
-	return operations.FnHashFor(op, options, "") + "_" + id
+	return operations.FnHashFor(op, options, "", rejectCircular) + "_" + id
 }
 
 // variantFactoryName builds the outer factory's printed name —
 // `g_<variantFhash>_<id>`. The plain branch reduces to `g_<plainFhash>_<id>`
 // (= `settings.VarPrefix + id`). Wrapping `variantKey` with the `g_` prefix
 // keeps the factory and cache-key shapes in lockstep.
-func variantFactoryName(settings constants.CacheModuleSettings, suffix string, options []string, id string) string {
-	return "g_" + variantKey(settings, suffix, options, id)
+func variantFactoryName(settings constants.CacheModuleSettings, suffix string, options []string, id string, rejectCircular bool) string {
+	return "g_" + variantKey(settings, suffix, options, id, rejectCircular)
 }
 
 // CollectFamilyEntries compiles one family's demanded cache entries into
@@ -196,7 +196,7 @@ func variantFactoryName(settings constants.CacheModuleSettings, suffix string, o
 // reaches register themselves at their own `registerPureFnFactory` call sites
 // (binding-injected by the plugin, or live factories without it) when the
 // defining module is imported — always before any factory materializes.
-func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, opts RenderOpts, extraRoots []string) virtualmodules.Graph {
+func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, opts RenderOpts, extraRoots []string) entrymodules.Graph {
 	// Single-pass id→RunType index used by the walker to deref
 	// KindRef sentinels at descent time. Cache entries store every
 	// child slot as a ref (`{kind: -1, id: …}`) per protocol.go;
@@ -215,7 +215,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 		}
 	}
 
-	graph := make(virtualmodules.Graph, len(dump.RunTypes))
+	graph := make(entrymodules.Graph, len(dump.RunTypes))
 
 	// renderEntry compiles one (RunType, variant) into the graph and returns
 	// its discovered same-family child dependencies. Idempotent via the graph
@@ -223,11 +223,11 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 	// CompileChild; the compile pass returns CodeNS from any leaf with no emit,
 	// compound parents propagate it, and the walker's IsUnsupported flag drops
 	// the factory — see codetype.go's CodeNS contract.
-	renderEntry := func(runType *protocol.RunType, suffix string, options []string) ([]string, bool) {
+	renderEntry := func(runType *protocol.RunType, suffix string, options []string, rejectCircular bool) ([]string, bool) {
 		if runType == nil || !emitter.Supports(runType) {
 			return nil, false
 		}
-		entryID := variantKey(settings, suffix, options, runType.ID)
+		entryID := variantKey(settings, suffix, options, runType.ID, rejectCircular)
 		if existing, exists := graph[entryID]; exists {
 			return existing.Deps, true
 		}
@@ -242,29 +242,32 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 		}
 		// Override: a custom function registered for this (family, type) replaces
 		// the structural body with a cfn redirect. Only the PLAIN variant is
-		// overridden — option variants (valNL, …) change behaviour the single
-		// override fn can't express, so they fall through to structural emit.
-		if suffix == "" {
+		// overridden — option variants (valNL, …) and the armed circular-guard
+		// variant change behaviour the single override fn can't express, so they
+		// fall through to structural emit.
+		if suffix == "" && !rejectCircular {
 			if cfnHash := overrideHashForTag(runType, settings.Tag); cfnHash != "" {
 				graph.Add(buildRedirectEntry(entryID, settings.Tag, runType, cfnHash, opts))
 				return nil, true // a redirect has no same-family child deps
 			}
 		}
-		rendered := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options)
+		rendered := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options, rejectCircular)
 		if rendered.argsText == "" {
 			return nil, false
 		}
-		graph.Add(&virtualmodules.Entry{
+		graph.Add(&entrymodules.Entry{
 			Key:       entryID,
-			Kind:      virtualmodules.KindTypeFn,
+			Kind:      entrymodules.KindTypeFn,
 			FamilyTag: settings.Tag,
 			ArgsText:  rendered.argsText,
 			// Same-family deps are HARD (body calls `<dep>.fn(…)`
-			// unconditionally → cascade on absence); cross-family edges are
-			// SOFT (bodies guard them with `?.fn(…) ?? true`, so a missing
-			// foreign entry degrades to a stub at runtime).
+			// unconditionally → cascade on absence); cross-family edges AND
+			// pure-fn edges are SOFT (bodies guard cross-family with
+			// `?.fn(…) ?? true`; a pure-fn module registers its own tuple via the
+			// deps thunk before the body's `utl.getPureFn(...)` runs). Both ride
+			// SoftDeps so the module imports and its deps thunk binds them.
 			Deps:     append([]string(nil), rendered.deps...),
-			SoftDeps: append([]string(nil), rendered.crossFamilyDeps...),
+			SoftDeps: append(append([]string(nil), rendered.crossFamilyDeps...), rendered.pureFnDeps...),
 			IsNoop:   rendered.isNoop,
 		})
 		return rendered.deps, true
@@ -309,10 +312,14 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			}
 			demands := demand[rootID]
 			sort.Slice(demands, func(i, j int) bool {
-				return demands[i].VariantSuffix < demands[j].VariantSuffix
+				if demands[i].VariantSuffix != demands[j].VariantSuffix {
+					return demands[i].VariantSuffix < demands[j].VariantSuffix
+				}
+				// Plain before armed for a stable, deterministic emit order.
+				return !demands[i].RejectCircular && demands[j].RejectCircular
 			})
 			for _, demanded := range demands {
-				if deps, ok := renderEntry(root, demanded.VariantSuffix, demanded.Options); ok {
+				if deps, ok := renderEntry(root, demanded.VariantSuffix, demanded.Options, demanded.RejectCircular); ok {
 					enqueueChildren(deps)
 				}
 			}
@@ -332,7 +339,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			if root == nil {
 				continue
 			}
-			if deps, ok := renderEntry(root, "", nil); ok {
+			if deps, ok := renderEntry(root, "", nil, false); ok {
 				enqueueChildren(deps)
 			}
 		}
@@ -343,7 +350,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			if child == nil {
 				continue
 			}
-			if deps, ok := renderEntry(child, "", nil); ok {
+			if deps, ok := renderEntry(child, "", nil, false); ok {
 				enqueueChildren(deps)
 			}
 		}
@@ -356,7 +363,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			if runType == nil || !emitter.Supports(runType) {
 				continue
 			}
-			renderEntry(runType, "", nil)
+			renderEntry(runType, "", nil, false)
 		}
 	}
 
@@ -370,6 +377,15 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 // same type requested with the same options at N call sites yields one entry.
 func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]protocol.SiteDemand {
 	bySuffix := make(map[string]map[string]protocol.SiteDemand)
+	// Dedup key folds RejectCircular in so the armed variant is distinct from the
+	// plain one even when they share an (empty) VariantSuffix — otherwise the
+	// armed entry would collapse into the plain one and lose its guard.
+	dedupKey := func(demanded protocol.SiteDemand) string {
+		if demanded.RejectCircular {
+			return demanded.VariantSuffix + "~C"
+		}
+		return demanded.VariantSuffix
+	}
 	for _, site := range sites {
 		if site.ID == "" || len(site.Demand) == 0 {
 			continue
@@ -381,7 +397,7 @@ func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]p
 			if bySuffix[site.ID] == nil {
 				bySuffix[site.ID] = make(map[string]protocol.SiteDemand)
 			}
-			bySuffix[site.ID][demanded.VariantSuffix] = demanded
+			bySuffix[site.ID][dedupKey(demanded)] = demanded
 		}
 	}
 	out := make(map[string][]protocol.SiteDemand, len(bySuffix))
@@ -410,9 +426,18 @@ type entryRender struct {
 	argsText        string
 	deps            []string
 	crossFamilyDeps []string
+	// pureFnDeps is the entry's pure-fn dependency KEYS (walker.PureFnDependencies
+	// projected to `<ns>::<fn>`, e.g. "rt::newRunTypeErr"). These land on the
+	// emitted module's SoftDeps so the built-in (or user) pure-fn module is
+	// imported and its tuple registered by the deps thunk before the body runs —
+	// the delivery half of demand-driven built-in pure fns. Persisted as
+	// diskcache.PureFnRefs and rebuilt on a warm hit (stable string keys, no hash
+	// translation). Populated only on the live path; noop / alwaysThrow / redirect
+	// entries reach no pure fn.
+	pureFnDeps []string
 	// isNoop mirrors the walker's Finalize verdict (the short-form tuple
 	// whose runtime fn is the family identity). Landed on
-	// virtualmodules.Entry.IsNoop so downstream consumers (the JSON composite
+	// entrymodules.Entry.IsNoop so downstream consumers (the JSON composite
 	// collector) can elide references to identity entries.
 	isNoop bool
 }
@@ -438,11 +463,14 @@ type entryRender struct {
 // a miss; we then fall through to the walker as usual and write the
 // fresh result back. Read/write errors are non-fatal — the collector
 // always produces output even when the cache is broken.
-func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string) entryRender {
-	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID)
-	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID)
+func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string, rejectCircular bool) entryRender {
+	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID, rejectCircular)
+	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID, rejectCircular)
 
-	if variantSuffix == "" {
+	// The armed circular variant renders a distinct body but shares the plain
+	// entry's on-disk cache path (keyed by runType.ID + tag), so it must never
+	// read or write that cache — session-rendered like the option variants.
+	if variantSuffix == "" && !rejectCircular {
 		if cached, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
 			// Disk-cache hit: the walker never runs, but the entry's
 			// cross-family edges were persisted as CrossFamilyRefs and
@@ -468,6 +496,16 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		for _, name := range variantOptions {
 			walker.VariantOptions[name] = true
 		}
+	}
+	// Prime the walker for the armed circular-guard variant: compute the baked
+	// skeleton (nil for an acyclic type, where the guard is a no-op) and Compile
+	// prepends the inline guard. A non-nil skeleton also forces the entry
+	// non-noop below so the guarded body always ships.
+	var circularSkeleton *CircularSkeleton
+	if rejectCircular {
+		circularSkeleton = BuildCircularSkeleton(runType, refTable)
+		walker.RejectCircular = true
+		walker.CircularSkeleton = circularSkeleton
 	}
 	// Wire diagnostic emission for this walk. EmitDiagnostic fans each
 	// recorded code out across every call site referencing this RT.
@@ -508,10 +546,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 				kindLabel := leafKindLabel(diagLeaf)
 				walker.EmitDiagnostic(diagCode, kindLabel)
 				argsText := renderAlwaysThrowEntry(runType, innerName, diagCode, kindLabel, walker.rootProvenance)
-				if variantSuffix == "" {
+				if variantSuffix == "" && !rejectCircular {
 					// alwaysThrow entries emit no dep calls — no same-family
 					// or cross-family edges to persist.
-					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, false, opts)
+					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, nil, false, opts)
 				}
 				return entryRender{argsText: argsText}
 			}
@@ -528,7 +566,12 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// noop→live; text never produces a noop verdict. (Hand-built test
 	// emitters without a predicate keep the shape verdict.)
 	isNoop := shapeNoop
-	if predicate, ok := emitter.(NoopTypePredicate); ok {
+	if circularSkeleton != nil {
+		// Armed circular entry: it always ships the full guarded body, never the
+		// noop short-form (the guard prologue must run). Skip the noop predicate
+		// so the (possibly identity) underlying transform can't collapse it.
+		isNoop = false
+	} else if predicate, ok := emitter.(NoopTypePredicate); ok {
 		predicateCtx := walker.getEmitContext(walker.Vλl)
 		isNoop = predicate.IsNoopType(runType, predicateCtx)
 		walker.putEmitContext(predicateCtx)
@@ -557,10 +600,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			"true",      // isNoop — kept: the signal that selects the noop fn
 		}
 		argsText := joinArgs(holeifyArgs(args))
-		if variantSuffix == "" {
+		if variantSuffix == "" && !rejectCircular {
 			// A noop body emits no dep calls, so no same-family or
 			// cross-family lookups are registered.
-			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, true, opts)
+			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, nil, true, opts)
 		}
 		return entryRender{argsText: argsText, isNoop: true}
 	}
@@ -641,11 +684,26 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			})
 		}
 	}
+	pureFnDeps := pureFnDepKeys(walker.PureFnDependencies)
 	argsText := joinArgs(args)
-	if variantSuffix == "" {
-		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, false, opts)
+	if variantSuffix == "" && !rejectCircular {
+		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, pureFnDeps, false, opts)
 	}
-	return entryRender{argsText: argsText, deps: deps, crossFamilyDeps: crossFamilyDeps}
+	return entryRender{argsText: argsText, deps: deps, crossFamilyDeps: crossFamilyDeps, pureFnDeps: pureFnDeps}
+}
+
+// pureFnDepKeys projects the walker's recorded PureFnDep triples down to the
+// `<ns>::<fn>` graph keys the SoftDeps / disk cache carry (FilePath is a Go-only
+// validation hint, dropped here exactly like pureFnDepsJS drops it).
+func pureFnDepKeys(deps []protocol.PureFnDep) []string {
+	if len(deps) == 0 {
+		return nil
+	}
+	keys := make([]string, len(deps))
+	for i, dep := range deps {
+		keys[i] = dep.Namespace + "::" + dep.FunctionName
+	}
+	return keys
 }
 
 // tryReadCachedEntry attempts to load a previously cached entryRender
@@ -702,7 +760,10 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 		}
 		crossFamilyDeps = append(crossFamilyDeps, ref.Prefix+currentHash)
 	}
-	return entryRender{argsText: entry.ArgsText, deps: deps, crossFamilyDeps: crossFamilyDeps, isNoop: entry.IsNoop}, true
+	// Pure-fn edges rebuild verbatim from the persisted stable keys — no hash
+	// drift to check (the delivery target is content-addressed by key, not id).
+	pureFnDeps := append([]string(nil), entry.PureFnRefs...)
+	return entryRender{argsText: entry.ArgsText, deps: deps, crossFamilyDeps: crossFamilyDeps, pureFnDeps: pureFnDeps, isNoop: entry.IsNoop}, true
 }
 
 // splitNamespacedHash splits a namespaced cache hash into its family
@@ -734,7 +795,7 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 // structural id, and store the triple as a CrossFamilyRef. As with
 // ChildRefs, an unresolvable ref aborts the write cleanly rather than
 // persisting a record the reader can't verify.
-func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, isNoop bool, opts RenderOpts) {
+func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, pureFnDeps []string, isNoop bool, opts RenderOpts) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return
 	}
@@ -785,6 +846,9 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 		IsNoop:          isNoop,
 		ChildRefs:       childRefs,
 		CrossFamilyRefs: crossFamilyRefs,
+		// Pure-fn keys are stable strings — persist verbatim, no structural-id
+		// translation (contrast ChildRefs / CrossFamilyRefs).
+		PureFnRefs: append([]string(nil), pureFnDeps...),
 	}
 	if err := opts.Store.WriteRT(runType.ID, settings.Tag, entry); err != nil {
 		// Best-effort: report once per session would be ideal, but

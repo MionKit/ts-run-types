@@ -4,7 +4,7 @@
 // and a `undefined` return defers to the kind-default `mockNumber`.
 // Ports the reference NumberRunTypeFormat._mock (numberFormat.runtype.ts:193-232)
 // as a pure function (the project's class→switch convention).
-import {RunTypeKind} from '../runTypeKind.ts';
+import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import {registerMockingFunction} from './mockRegistry.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';

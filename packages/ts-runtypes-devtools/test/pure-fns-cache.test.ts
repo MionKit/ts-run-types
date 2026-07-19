@@ -12,10 +12,15 @@
 //   4. The diagnostic wire format renders via formatTscDiagnostic into
 //      VS Code's `$tsc` problem-matcher line shape.
 
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {describe, expect, it} from 'vitest';
 import {formatTscDiagnostic} from '../src/index.ts';
 import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
-import {hasBinary, withInlineSources, evalEntryModules} from './helpers/inline.ts';
+import {ResolverClient} from '../src/resolver-client.ts';
+import {BIN, hasBinary, withInlineSources, evalEntryModules, RUNTYPES_DTS} from './helpers/inline.ts';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 function pureFnDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
   return (response.diagnostics ?? []).filter((d) => d.family === Family.PureFn);
@@ -116,7 +121,7 @@ export const _ = registerPureFnFactory('rt::foo', function () {
       const reps = response.replacements ?? [];
       expect(reps.length).toBe(1);
       expect(reps[0].text).toBe('__rt_pf$2Frt$2Ffoo');
-      expect(reps[0].importFrom).toBe('virtual:rt/pf/rt/foo.js');
+      expect(reps[0].importFrom).toBe('rtmod:/pf/rt/foo.js');
       expect(reps[0].end).toBeGreaterThan(reps[0].start);
       // Verify the rewrite produces a syntactically clean binding-swapped
       // call form when applied to the source.
@@ -316,6 +321,99 @@ export const x = registerPureFnFactory('rt::rounder', function () {
     expect(line).toContain('rt::collideFn');
     // VS Code's built-in $tsc problem matcher regex:
     expect(line).toMatch(/^[^(]+\(\d+,\d+\):\s+(error|warning)\s+[A-Z]+\d+:\s+.+$/);
+  });
+
+  // --- emitMode gating of pure-fn tuples (code | functions | both) ----------
+  //
+  // The default shared client runs in `both` mode; these spin up one-shot
+  // clients per mode to prove purefunctions.CollectEntries gates the pure-fn
+  // tuple's `code` and `createPureFn` slots end to end through the real binary
+  // — for BOTH a user pure fn (registerPureFnFactory) and a table-served
+  // built-in (rt::findCycle, demanded by a circular createValidate).
+  async function withEmitMode<T>(
+    emitMode: 'code' | 'functions' | 'both',
+    sources: Record<string, string>,
+    fn: (client: ResolverClient) => Promise<T>
+  ): Promise<T> {
+    const client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode});
+    try {
+      await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
+      return await fn(client);
+    } finally {
+      client.close();
+    }
+  }
+
+  const USER_PURE_FN = {
+    'pf.ts': `import {registerPureFnFactory} from '@ts-runtypes/core';
+export const a = registerPureFnFactory('app::answer', function () {
+  return function _answer(): number { return 42; };
+});
+`,
+  };
+  // An ARMED (`{rejectCircularRefs: true}`) validator over a self-referential
+  // type demands the built-in circular walker rt::findCycle by body reference
+  // (the inline guard calls it), served from the built-in table — the same
+  // CollectEntries gating path as a user pure fn. A plain (unarmed) cyclable
+  // validate ships no walker at all (the compile-time-option model).
+  const CIRCULAR_VALIDATE = {
+    'circ.ts': `import {createValidate} from '@ts-runtypes/core';
+interface Node { next?: Node; val: number; }
+export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
+`,
+  };
+
+  async function pureFnEntry(client: ResolverClient, file: string, key: string): Promise<PureFnEntry> {
+    const response = await client.scanFiles([file], {includeEntryModules: true});
+    const entry = evalPureFnEntries(response.entryModules!)[key];
+    if (!entry) throw new Error(`no pure-fn entry ${key} in ${Object.keys(response.entryModules ?? {}).join(', ')}`);
+    return entry;
+  }
+
+  register('code mode: user pure fn ships the code string, drops createPureFn, and reconstructs a working fn', async () => {
+    await withEmitMode('code', USER_PURE_FN, async (client) => {
+      const entry = await pureFnEntry(client, 'pf.ts', 'app::answer');
+      expect(typeof entry.code).toBe('string');
+      expect(entry.code).toContain('return 42');
+      expect(entry.createPureFn).toBeUndefined(); // trailing hole trimmed
+      // The code slot alone rebuilds the factory (what initPureFunction does).
+      const factory = new Function(...entry.paramNames, entry.code) as (utl: unknown) => () => number;
+      expect(factory({})()).toBe(42);
+    });
+  });
+
+  register('functions mode: user pure fn ships the live closure, drops the code string', async () => {
+    await withEmitMode('functions', USER_PURE_FN, async (client) => {
+      const entry = await pureFnEntry(client, 'pf.ts', 'app::answer');
+      expect(entry.code).toBeUndefined(); // code holed out in place
+      expect(typeof entry.createPureFn).toBe('function');
+      const inner = (entry.createPureFn as (utl: unknown) => () => number)({});
+      expect(inner()).toBe(42);
+    });
+  });
+
+  register('both mode: user pure fn ships BOTH the code string and the live closure', async () => {
+    await withEmitMode('both', USER_PURE_FN, async (client) => {
+      const entry = await pureFnEntry(client, 'pf.ts', 'app::answer');
+      expect(typeof entry.code).toBe('string');
+      expect(typeof entry.createPureFn).toBe('function');
+    });
+  });
+
+  register('table-served built-in rt::findCycle honors code mode (string, no live closure)', async () => {
+    await withEmitMode('code', CIRCULAR_VALIDATE, async (client) => {
+      const entry = await pureFnEntry(client, 'circ.ts', 'rt::findCycle');
+      expect(typeof entry.code).toBe('string');
+      expect(entry.createPureFn).toBeUndefined();
+    });
+  });
+
+  register('table-served built-in rt::findCycle honors functions mode (live closure, no string)', async () => {
+    await withEmitMode('functions', CIRCULAR_VALIDATE, async (client) => {
+      const entry = await pureFnEntry(client, 'circ.ts', 'rt::findCycle');
+      expect(entry.code).toBeUndefined();
+      expect(typeof entry.createPureFn).toBe('function');
+    });
   });
 
   register('formatTscDiagnostic includes Related sites on continuation lines', () => {

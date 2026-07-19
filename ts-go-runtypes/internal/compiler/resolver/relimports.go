@@ -10,15 +10,15 @@ import (
 )
 
 // virtualImportRE matches an entry-module import specifier in generated code —
-// `from 'virtual:rt/<basename>.js'` — capturing the basename. Both the
+// `from 'rtmod:/<basename>.js'` — capturing the basename. Both the
 // inter-module imports baked into generated module sources and the import block
 // the transform injects into user files use this exact single-quoted shape, so
 // one pattern relativizes both.
 var virtualImportRE = regexp.MustCompile(
-	`from '` + regexp.QuoteMeta(constants.VirtualModulePrefix) + `([^']+)` + regexp.QuoteMeta(constants.EntryModuleSuffix) + `'`,
+	`from '` + regexp.QuoteMeta(constants.EntryModulePrefix) + `([^']+)` + regexp.QuoteMeta(constants.EntryModuleSuffix) + `'`,
 )
 
-// relativizeModuleImports rewrites every virtual:rt import inside a generated
+// relativizeModuleImports rewrites every rtmod: import inside a generated
 // module's source into a path relative to that module. Both modules live under
 // <outDir>/types, so this is pure basename arithmetic — no outDir / filesystem
 // access needed. Applied when materializing modules to disk so the files
@@ -30,16 +30,16 @@ func relativizeModuleImports(moduleBasename, source string) string {
 	})
 }
 
-// RelativizeUserImports rewrites the virtual:rt specifiers in `code` into paths
+// RelativizeUserImports rewrites the rtmod: specifiers in `code` into paths
 // relative to filePath, pointing at <outDir>/types/<basename>.js. Exported for
 // the compile CLI ([internal/compile]), which relativizes the EMITTED .js
 // against its OUTPUT location (not the source location the plugin uses); the
-// virtual:rt specifiers survive tsgo emit unresolved, so one pass fixes them.
+// rtmod: specifiers survive tsgo emit unresolved, so one pass fixes them.
 func RelativizeUserImports(filePath, outDir, code string) string {
 	return relativizeUserImports(filePath, outDir, code)
 }
 
-// relativizeUserImports rewrites the virtual:rt specifiers in a transformed
+// relativizeUserImports rewrites the rtmod: specifiers in a transformed
 // USER file's injected import block into paths relative to that file, pointing
 // at <outDir>/types/<basename>.js. The import block is a single physical line,
 // so rewriting only the specifier text (never adding newlines) keeps the source
