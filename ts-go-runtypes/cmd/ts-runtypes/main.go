@@ -74,11 +74,11 @@ Options:
                         compounds inline into their parents, named types stay
                         external) or allInternal (everything except circular
                         types inlines, names ignored)
-    --pure-fn-report    emit the structured pure-fn build report
-                        (Response.pureFnSites) on generate/scan, for host
+    --pure-fn-report-wire    emit the structured pure-fn build report ON THE
+                        WIRE (Response.pureFnSites) on generate/scan, for host
                         tooling that relocates pure-fn bodies across bundles;
-                        off by default. Also readable as the "pureFnReport"
-                        tsconfig key (true | "<path>")
+                        off by default. Also enabled by the "pureFnReport": true
+                        tsconfig key (which additionally writes the file below)
     --pure-fn-report-file    also write the whole-program report as JSON to
                         <genDir>/types/pure-fns-report.json (hardcoded location)
                         on generate
@@ -177,11 +177,11 @@ func main() {
 	flag.BoolVar(&allowUncheckedPatterns, "allow-unchecked-patterns", false,
 		"silence the fail-closed FMT004 build error for format patterns whose mockSamples "+
 			"RE2 can't verify (JS-only regex features); asserts the ts-runtypes JS linter owns the check")
-	flag.BoolVar(&pureFnReport, "pure-fn-report", false,
-		"emit the structured pure-fn build report (Response.pureFnSites) on generate/scan for host tooling "+
+	flag.BoolVar(&pureFnReport, "pure-fn-report-wire", false,
+		"emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan for host tooling "+
 			"that relocates pure-fn bodies across bundles; off by default so the rewrite pipeline pays nothing")
 	flag.BoolVar(&pureFnReportFile, "pure-fn-report-file", false,
-		"also write the whole-program pure-fn report as JSON to the hardcoded <genDir>/types/pure-fns-report.json on generate (implies --pure-fn-report)")
+		"also write the whole-program pure-fn report as JSON to the hardcoded <genDir>/types/pure-fns-report.json on generate (implies --pure-fn-report-wire)")
 	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,
 		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest (more grows), 1 = most generous (default 0.8)")
 	flag.IntVar(&sizeItems, "size-items", constants.DefaultSizeItems,

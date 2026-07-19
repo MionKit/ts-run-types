@@ -101,7 +101,7 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 	// report flag was passed on the command line, tsc-style. `true` both emits
 	// the report data and writes the hardcoded-path JSON file; there is no
 	// path knob (like every location under genDir, it is convention, not config).
-	if !flags.set["pure-fn-report"] && !flags.set["pure-fn-report-file"] && plugin.PureFnReport != nil && *plugin.PureFnReport {
+	if !flags.set["pure-fn-report-wire"] && !flags.set["pure-fn-report-file"] && plugin.PureFnReport != nil && *plugin.PureFnReport {
 		out.pureFnReport = true
 		out.pureFnReportFile = true
 	}
