@@ -49,7 +49,9 @@ func TestPureFnReport_GenerateWritesJsonAndResponse(t *testing.T) {
 		t.Fatalf("expected 2 report records on the response, got %d: %+v", len(gen.PureFnSites), gen.PureFnSites)
 	}
 
-	reportPath := filepath.Join(outDir, "pure-fns-report.json")
+	// The report lives INSIDE types/, alongside the generated cache modules, so
+	// it inherits that dir's .gitignore like every other regenerated artifact.
+	reportPath := filepath.Join(outDir, "types", "pure-fns-report.json")
 	raw, err := os.ReadFile(reportPath)
 	if err != nil {
 		t.Fatalf("report file not written: %v", err)
@@ -80,22 +82,25 @@ func TestPureFnReport_GenerateWritesJsonAndResponse(t *testing.T) {
 		t.Errorf("named entry acme::mul missing from report keys %v", diskKeys)
 	}
 
-	// The report file is NOT a generated module — never in the manifest, never
-	// written under types/, never resolvable as an rtmod:/ specifier.
+	// The report file is DATA, not a generated module — even though it sits
+	// inside types/, it never enters the module manifest and is never a `.js`
+	// module (so never resolvable as an rtmod:/ specifier nor GC'd by the
+	// stale-module prune, which only touches *.js).
 	for _, basename := range gen.Generated {
 		if basename == "pure-fns-report" || filepath.Base(basename) == "pure-fns-report.json" {
 			t.Fatalf("report file leaked into the module manifest: %q", basename)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(outDir, "types", "pure-fns-report.json")); err == nil {
-		t.Fatalf("report file must not be written under types/")
-	}
 
-	// A second generate must not trip the output-dir guard (the report file is
-	// an allowed member) and must rewrite the report.
+	// A second generate must succeed (the report file inside types/ is never
+	// inspected by the output-dir guard, and the stale-module prune skips it)
+	// and rewrite the report.
 	gen2 := r.Dispatch(protocol.Request{Op: protocol.OpGenerate, OutDir: outDir})
 	if gen2.Error != "" {
 		t.Fatalf("second generate must succeed with the report file present, got: %s", gen2.Error)
+	}
+	if _, err := os.Stat(reportPath); err != nil {
+		t.Fatalf("report file must survive a second generate (stale-module prune must skip it): %v", err)
 	}
 }
 
@@ -153,7 +158,7 @@ func TestPureFnReport_OffByDefault(t *testing.T) {
 	if len(gen.PureFnSites) != 0 {
 		t.Fatalf("report disabled but response carried %d records", len(gen.PureFnSites))
 	}
-	if _, err := os.Stat(filepath.Join(outDir, "pure-fns-report.json")); err == nil {
+	if _, err := os.Stat(filepath.Join(outDir, "types", "pure-fns-report.json")); err == nil {
 		t.Fatalf("report disabled but file was written")
 	}
 }
