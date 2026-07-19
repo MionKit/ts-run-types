@@ -25,6 +25,9 @@ type buildFlags struct {
 	inlineMode             string
 	moduleMode             string
 	allowUncheckedPatterns bool
+	pureFnReport           bool
+	pureFnReportFile       bool
+	pureFnReportPath       string
 	sizeBias               float64
 	sizeItems              int
 	sizeStringBytes        int
@@ -42,6 +45,9 @@ type buildOptions struct {
 	inlineMode             string
 	moduleMode             string
 	allowUncheckedPatterns bool
+	pureFnReport           bool
+	pureFnReportFile       bool
+	pureFnReportPath       string
 	sizeBias               float64
 	sizeItems              int
 	sizeStringBytes        int
@@ -66,6 +72,9 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		inlineMode:             flags.inlineMode,
 		moduleMode:             flags.moduleMode,
 		allowUncheckedPatterns: flags.allowUncheckedPatterns,
+		pureFnReport:           flags.pureFnReport,
+		pureFnReportFile:       flags.pureFnReportFile,
+		pureFnReportPath:       strings.TrimSpace(flags.pureFnReportPath),
 		sizeBias:               flags.sizeBias,
 		sizeItems:              flags.sizeItems,
 		sizeStringBytes:        flags.sizeStringBytes,
@@ -89,6 +98,21 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 	}
 	if !flags.set["allow-unchecked-patterns"] && plugin.AllowUncheckedPatterns != nil {
 		out.allowUncheckedPatterns = *plugin.AllowUncheckedPatterns
+	}
+
+	// Pure-fn report: the tsconfig `pureFnReport` union (true | "<path>") fills
+	// in only when NO report flag was passed on the command line, tsc-style. A
+	// `true` value writes the default-path file; a string writes that path.
+	if !flags.set["pure-fn-report"] && !flags.set["pure-fn-report-file"] && !flags.set["pure-fn-report-path"] {
+		if enabled, file, path := parsePureFnReport(plugin.PureFnReport); enabled {
+			out.pureFnReport = true
+			out.pureFnReportFile = file
+			out.pureFnReportPath = path
+		}
+	}
+	// A configured file/path always implies the report data is produced.
+	if out.pureFnReportFile || out.pureFnReportPath != "" {
+		out.pureFnReport = true
 	}
 
 	// Size-estimate knobs: a tsconfig value fills in only when the flag was not

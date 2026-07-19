@@ -53,6 +53,17 @@ type Entry struct {
 	// named lane, which injects nothing.
 	HashInjectPos  int
 	HashInjectText string
+	// CalleeName / CalleeModule / Lane / Form are report-only attribution
+	// fields, populated by extractOne and surfaced through the pure-fn build
+	// report (protocol.PureFnSite) — never used by the module render or the
+	// rewrite. CalleeName is the identifier the site invoked (a primitive
+	// registrar, a framework wrapper, or a renamed import); CalleeModule is the
+	// nearest-package.json / ambient-module name of the file declaring that
+	// callee. Lane is "named" | "anonymous"; Form is "direct" | "factory".
+	CalleeName   string
+	CalleeModule string
+	Lane         string
+	Form         string
 
 	sourceFile *ast.SourceFile
 	callPos    int
@@ -433,12 +444,59 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 		return nil, nil
 	}
 	if matched, wrap := isNamedPureFnCall(typeChecker, markerOpts, call); matched {
-		return extractNamed(typeChecker, markerOpts, sourceFile, call, callExpr, wrap)
+		entry, diags := extractNamed(typeChecker, markerOpts, sourceFile, call, callExpr, wrap)
+		attachCallee(entry, "named", typeChecker, markerOpts, call, callExpr)
+		return entry, diags
 	}
 	if matched, wrap := isAnonymousPureFnCall(typeChecker, markerOpts, call); matched {
-		return extractAnonymous(typeChecker, markerOpts, sourceFile, call, callExpr, wrap)
+		entry, diags := extractAnonymous(typeChecker, markerOpts, sourceFile, call, callExpr, wrap)
+		attachCallee(entry, "anonymous", typeChecker, markerOpts, call, callExpr)
+		return entry, diags
 	}
 	return nil, nil
+}
+
+// attachCallee records the report-only callee attribution on a freshly
+// extracted entry (lane, plus the callee identifier the site invoked and the
+// module that declares it). A nil entry (the call resolved to no entry) is a
+// no-op. The callee NAME is read syntactically off the call — `f(...)` or
+// `ns.f(...)` — so it names exactly what the source wrote (a primitive
+// registrar, a framework wrapper, or a renamed import). The callee MODULE comes
+// from the resolved signature's declaration, so a wrapper resolves to the
+// package that declares the wrapper (e.g. `@acme/toolkit`), not to
+// `@ts-runtypes/core`. Both are cheap add-ons over data extraction already
+// touched, so they only run when the report is being built.
+func attachCallee(entry *Entry, lane string, typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node, callExpr *ast.CallExpression) {
+	if entry == nil {
+		return
+	}
+	entry.Lane = lane
+	entry.CalleeName = calleeIdentifierName(callExpr)
+	signature := checker.Checker_getResolvedSignature(typeChecker, call, nil, 0)
+	if signature == nil {
+		return
+	}
+	entry.CalleeModule = marker.DeclaringModuleOfNode(checker.Signature_declaration(signature), marker.WithDefaults(markerOpts).FS)
+}
+
+// calleeIdentifierName returns the text of the call's callee identifier —
+// `f(...)` yields "f", `ns.f(...)` yields "f" (the accessed member). Anything
+// else (a computed / complex callee) yields "".
+func calleeIdentifierName(callExpr *ast.CallExpression) string {
+	if callExpr == nil || callExpr.Expression == nil {
+		return ""
+	}
+	expr := callExpr.Expression
+	switch expr.Kind {
+	case ast.KindIdentifier:
+		return expr.Text()
+	case ast.KindPropertyAccessExpression:
+		name := expr.AsPropertyAccessExpression().Name()
+		if name != nil {
+			return name.Text()
+		}
+	}
+	return ""
 }
 
 // extractNamed handles the developer-named lane:
@@ -631,6 +689,10 @@ func buildPureFnEntry(typeChecker *checker.Checker, markerOpts marker.Options, s
 	// pure fn itself for BOTH forms — a captured variable is unsafe either way.
 	diags = append(diags, checkPurity(sourceFile, fnNode)...)
 
+	form := "factory"
+	if wrap {
+		form = "direct"
+	}
 	entry := &Entry{
 		Namespace:          namespace,
 		FunctionName:       functionName,
@@ -641,6 +703,7 @@ func buildPureFnEntry(typeChecker *checker.Checker, markerOpts marker.Options, s
 		FactoryArgStart:    fnArg.Pos(),
 		FactoryArgEnd:      fnArg.End(),
 		FilePath:           sourceFile.FileName(),
+		Form:               form,
 		sourceFile:         sourceFile,
 		callPos:            call.Pos(),
 	}

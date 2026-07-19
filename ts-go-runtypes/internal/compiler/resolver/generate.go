@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -8,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
 // typesSubdir is the child of the RunTypes output root that holds the
@@ -26,12 +29,21 @@ const moduleFileExt = ".js"
 // markers. Their CONTENTS are never inspected — only the output root's own top
 // level is checked.
 var outputDirAllowedMembers = map[string]bool{
-	typesSubdir:  true, // "types"
-	"enriched":   true,
-	"README.md":  true,
-	".gitignore": true,
-	".gitkeep":   true,
+	typesSubdir:          true, // "types"
+	"enriched":           true,
+	"README.md":          true,
+	".gitignore":         true,
+	".gitkeep":           true,
+	pureFnReportFileName: true, // the opt-in pure-fn build report (data, not a module)
 }
+
+// pureFnReportFileName is the default basename of the pure-fn build report,
+// written at the output root (a sibling of types/) when the report's file
+// output is enabled and no explicit path was configured. It sits OUTSIDE
+// types/, so it never enters the generated module manifest, is never GC'd by
+// pruneStaleModules (which only touches *.js under types/), and can never be
+// resolved as an rtmod:/ module specifier — it is pure data.
+const pureFnReportFileName = "pure-fns-report.json"
 
 // outputDirSubdirs are the allowed members that must be real directories. A
 // regular file named `types`/`enriched` is foreign: it would slip past the
@@ -204,6 +216,44 @@ func unwritableOutDirError(typesDir string, err error) error {
 		return fmt.Errorf("cannot write generated RunTypes modules under %s: %w — files-mode needs a writable output dir; set the plugin's `genDir` to a writable path or build where the project tree is writable", typesDir, err)
 	}
 	return fmt.Errorf("writing generated RunTypes modules under %s: %w", typesDir, err)
+}
+
+// pureFnReportPath resolves where OpGenerate writes the pure-fn report JSON: an
+// explicit configured path (absolutized against the working dir), else the
+// default `<outDir>/pure-fns-report.json`.
+func (sess *Session) pureFnReportPath(outDir string) string {
+	if sess.opts.PureFnReportPath != "" {
+		return sess.absPath(sess.opts.PureFnReportPath)
+	}
+	return filepath.Join(outDir, pureFnReportFileName)
+}
+
+// writePureFnReport marshals the report to indented JSON and writes it to path,
+// write-only-on-change (so a dev watcher isn't retriggered when the report is
+// byte-identical) and creating the parent dir for a custom out-of-tree path. An
+// empty report still writes `[]` so a stale file from a prior build never
+// misleads a consumer into thinking nothing changed. Fatal on write error —
+// files-mode has no fallback and a configured report the consumer's build
+// depends on must not silently go missing.
+func writePureFnReport(path string, report []protocol.PureFnSite) error {
+	if report == nil {
+		report = []protocol.PureFnSite{}
+	}
+	payload, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding pure-fn report: %w", err)
+	}
+	payload = append(payload, '\n')
+	if existing, readErr := os.ReadFile(path); readErr == nil && string(existing) == string(payload) {
+		return nil
+	}
+	if mkErr := os.MkdirAll(filepath.Dir(path), 0o755); mkErr != nil {
+		return unwritableOutDirError(path, mkErr)
+	}
+	if writeErr := os.WriteFile(path, payload, 0o644); writeErr != nil {
+		return unwritableOutDirError(path, writeErr)
+	}
+	return nil
 }
 
 // workingDir is the resolver's configured cwd — the base every relative file

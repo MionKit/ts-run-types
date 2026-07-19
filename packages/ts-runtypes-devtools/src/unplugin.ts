@@ -4,7 +4,7 @@ import {getExePath} from '@ts-runtypes/bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
 import {applyEdits, sourceHash} from './apply-edits.ts';
-import {Family, Severity, type Diagnostic} from './protocol.ts';
+import {Family, Severity, type Diagnostic, type PureFnSite} from './protocol.ts';
 import {
   MODULE_MODE_ALL_MODULES,
   MODULE_MODE_ALL_SINGLE,
@@ -143,6 +143,27 @@ export interface PluginOptions {
   // linter into your editor + CI when you enable it. Build-lane only: the lint
   // plugin validates those samples regardless of this option.
   allowUncheckedPatterns?: boolean;
+  // Pure-fn build report — the structured, layout-independent record of every
+  // pure fn this build generated (call-site span, callee attribution, registry
+  // key, and the self-contained entry payload). For host tooling that relocates
+  // pure-fn bodies across bundles (mion's cross-bundle serverMapFrom transport).
+  //   - `true`      → emit the report AND write it to
+  //                   `<genDir>/pure-fns-report.json` on every generate.
+  //   - '<path>'    → emit + write the JSON to that explicit path (relative to
+  //                   cwd, or absolute).
+  //   - unset/false → off (the callback below alone still enables the report
+  //                   DATA without writing a file).
+  // The JSON file is for plugin-free / separate-process / CLI-batch consumers;
+  // in-process consumers use `onPureFnReport`. Both channels carry identical
+  // records. Report shape is identical across every `moduleMode`.
+  pureFnReport?: boolean | string;
+  // In-process pure-fn report callback, fired on EVERY adapter (it rides the
+  // universal buildStart hook, not a vite-only one): once after the
+  // whole-program buildStart scan + generate with the full report (phase
+  // 'build'), and — under Vite's HMR — again with the changed file's delta
+  // (phase 'update'). Setting it enables the report DATA even when `pureFnReport`
+  // is unset (no file is written in that case).
+  onPureFnReport?: (sites: PureFnSite[], phase: 'build' | 'update') => void;
 }
 
 // MARKER_MODULE backs the transform's textual FALLBACK pre-filter. The primary
@@ -172,6 +193,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // Error-severity diagnostics fail the build/transform in every lane unless
   // explicitly opted out (see PluginOptions.failOnError).
   const failOnError: boolean = options.failOnError !== false;
+  // The pure-fn report is produced when a file is requested (`pureFnReport`) OR
+  // an in-process consumer registered `onPureFnReport`. Drives both the resolver
+  // flag and whether the callback fires.
+  const reportEnabled: boolean =
+    options.pureFnReport === true || typeof options.pureFnReport === 'string' || typeof options.onPureFnReport === 'function';
   if (transformMode !== 'go' && transformMode !== 'edits') {
     throw new Error(
       `[@ts-runtypes/devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
@@ -238,6 +264,15 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
+      // Enable the report DATA whenever a file is requested OR an in-process
+      // callback is registered. A string `pureFnReport` writes to that path; a
+      // `true` writes the default-path file; the callback alone writes no file.
+      ...(reportEnabled ? {pureFnReport: true} : {}),
+      ...(typeof options.pureFnReport === 'string'
+        ? {pureFnReportPath: options.pureFnReport}
+        : options.pureFnReport === true
+          ? {pureFnReportFile: true}
+          : {}),
     });
   }
 
@@ -358,6 +393,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // inside generate, so the CLI --compile lane gets them too.
       const gen = await resolver!.generate(genDirAbs || undefined);
       if (gen.outDir) genDirAbs = gen.outDir;
+      // Pure-fn build report — fire the in-process callback with the whole
+      // program's report (phase 'build'). Universal hook, so every adapter
+      // (vite/rollup/rolldown/esbuild/rspack/webpack) gets it; a watch-mode
+      // rebuild re-runs buildStart and re-fires 'build' with the fresh report.
+      if (options.onPureFnReport) options.onPureFnReport(gen.pureFnSites ?? [], 'build');
       // Adopt the whole-program scan's site-file set as the transform gate
       // (see MARKER_MODULE): exactly the files with rewritable marker sites,
       // wrapper call sites included. Rebuilt (not merged) so watch-mode
@@ -467,6 +507,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         // set here) or removed its last one.
         if (result.sites.length > 0) siteFiles.add(siteKey(rel));
         else siteFiles.delete(siteKey(rel));
+        // Pure-fn report update lane: fire the callback with THIS file's delta
+        // (the changed sites) before regenerating, so an in-process consumer
+        // learns of a body edit as it happens. The JSON file is rewritten by
+        // the generate() below.
+        if (options.onPureFnReport && result.pureFnSites) options.onPureFnReport(result.pureFnSites, 'update');
         // Regenerate so any new/changed modules hit disk; the watcher reloads
         // them (the folder lives in the project root, which Vite watches).
         try {
@@ -558,6 +603,7 @@ function severityLabel(s: Severity): string {
 }
 
 export type {PluginOptions as Options};
+export type {PureFnSite} from './protocol.ts';
 export {
   ENTRY_MODULE_PREFIX,
   ENTRY_MODULE_SUFFIX,

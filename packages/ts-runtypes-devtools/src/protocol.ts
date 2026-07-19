@@ -225,6 +225,40 @@ export interface Replacement {
   importFrom?: string;
 }
 
+// PureFnSite mirrors Go protocol.PureFnSite — one generated pure-fn entry in the
+// structured build report. Host tooling that relocates pure-fn bodies across
+// bundles (mion's cross-bundle serverMapFrom transport) consumes it via the
+// JSON file `<genDir>/pure-fns-report.json` or the plugin's `onPureFnReport`
+// callback. Each record is SELF-CONTAINED (`code` + `paramNames` inline) so a
+// consumer never reads the generated module files — that keeps the shape stable
+// across every `moduleMode`. Populated only when the pure-fn report is enabled
+// (`pureFnReport` option / `onPureFnReport` callback).
+export interface PureFnSite {
+  // The registrar call site's factory-argument span (byte offsets).
+  file: string;
+  start: number;
+  end: number;
+  // Registry key: `rt::<hash>` (anonymous lane) | `<ns>::<name>` (named lane).
+  key: string;
+  // The identifier the site invoked (a primitive registrar, a framework wrapper
+  // like `serverMapFrom` / `registerAcmePureFn`, or a renamed import) and the
+  // nearest-package.json / ambient-module name of the file that DECLARES it — so
+  // a consumer can attribute a site to the framework that exposed the registrar
+  // (`@mionjs/client`, `@acme/toolkit`), even through a wrapper-only file.
+  calleeName?: string;
+  calleeModule?: string;
+  // `named` | `anonymous`; `direct` (arg IS the pure fn, wrapped) | `factory`.
+  lane?: string;
+  form?: string;
+  // Basename of the generated module this entry rides in: per-entry `pf/<ns>/<fn>`
+  // in default/allModules mode, or the single `pf` bundle in allSingle.
+  module?: string;
+  // Entry payload — emitMode-honoring (`code` empty when the mode ships no body).
+  paramNames?: string[];
+  code?: string;
+  pureFnDependencies?: string[];
+}
+
 // TransformResult mirrors Go protocol.TransformResult — the per-file output of
 // the `transform` op. Two wire shapes selected by Request.emitEdits:
 //   - 'go' mode (emitEdits unset): `code` is the fully rewritten source, `map`
@@ -404,6 +438,10 @@ export interface Response {
   // import binding (importFrom carries the specifier) so the canonical
   // fn body lives only in the emitted entry module.
   replacements?: Replacement[];
+  // The structured pure-fn build report — one record per generated pure-fn
+  // entry — populated on `generate` (whole program) and `scanFiles` (the
+  // rescanned files' delta) when the resolver's pure-fn report is enabled.
+  pureFnSites?: PureFnSite[];
   runTypes?: RunType[];
   // One rendered ES-module source per cache entry, keyed by module
   // BASENAME (the `<basename>` of `rtmod:/<basename>.js` — the cache

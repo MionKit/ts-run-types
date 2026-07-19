@@ -128,6 +128,19 @@ type Options struct {
 	// lane always validates regardless. Not a disk-fingerprint input (it
 	// changes only which diagnostics surface, never the emitted artifacts).
 	AllowUncheckedPatterns bool
+	// PureFnReport enables the structured pure-fn build report: OpGenerate and
+	// OpScanFiles populate Response.PureFnSites (whole program on generate, the
+	// rescanned files' delta on scan). Off by default, so the normal rewrite
+	// pipeline pays nothing. Not a disk-fingerprint input (report-only; it never
+	// changes the emitted artifacts).
+	PureFnReport bool
+	// PureFnReportFile, when true, additionally WRITES the whole-program report
+	// as one JSON file during OpGenerate. The path is PureFnReportPath when set,
+	// else the default `<outDir>/pure-fns-report.json` (a sibling of types/, so
+	// it is never part of the module manifest nor resolvable as an rtmod:/
+	// specifier). PureFnReportPath implies file writing on its own.
+	PureFnReportFile bool
+	PureFnReportPath string
 }
 
 // Session owns a Program and answers type queries against it. The serializer

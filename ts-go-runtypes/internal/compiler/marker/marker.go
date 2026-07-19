@@ -404,6 +404,28 @@ func DeclaredInModule(symbol *ast.Symbol, module string, fs vfspkg.FS) bool {
 	return false
 }
 
+// DeclaringModuleOfNode returns the module a declaration node belongs to: the
+// nearest enclosing ambient `declare module "<name>"` wrapper (the synthetic
+// test-fixture form), else the `"name"` of the nearest package.json walking up
+// from the node's source file. "" when neither is found. It is the read
+// counterpart of DeclaredInModule (which checks a KNOWN module) — callers that
+// need to REPORT which module a callee was declared in (the pure-fn build
+// report's calleeModule) use this. `fs` is the resolver's virtual filesystem
+// (overlay / in-memory packages); nil falls back to os.ReadFile.
+func DeclaringModuleOfNode(node *ast.Node, fs vfspkg.FS) string {
+	if node == nil {
+		return ""
+	}
+	if name := findAmbientModuleName(node); name != "" {
+		return name
+	}
+	sourceFile := ast.GetSourceFileOfNode(node)
+	if sourceFile == nil {
+		return ""
+	}
+	return packageNameForFile(sourceFile.FileName(), fs)
+}
+
 // packageNameCache memoises directory→package-name results for the on-disk
 // (os.ReadFile) walk across the life of a resolver process. The on-disk
 // package.json for any given directory doesn't change mid-run, so caching is

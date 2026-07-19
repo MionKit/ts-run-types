@@ -778,6 +778,10 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			AddedPureFns:  addedPureFns,
 			Diagnostics:   combinedDiagnostics,
 		}
+		// Pure-fn build report (opt-in) — the DELTA for the rescanned files, so
+		// the plugin's update-lane callback fires with just the changed sites.
+		// nil when the report is off, so a normal HMR scan pays nothing.
+		response.PureFnSites = sess.pureFnReportForEntries(pureFnEntries)
 		// Per-family added flags, one shallow Supports pass each (the
 		// addedRunTypes short-circuit skips all passes on no-change scans).
 		for _, family := range familyAddedFlags {
@@ -945,6 +949,18 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			return protocol.Response{Error: genErr.Error()}
 		}
 		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites, sess.pureFnReplacementFiles(metrics))}
+		// Pure-fn build report (opt-in): populate the structured records for the
+		// in-process callback, and — when file output is enabled — write the JSON
+		// file alongside the generated modules so out-of-process consumers (a
+		// separate server build, the --compile lane) read it from disk.
+		if report := sess.collectPureFnReport(metrics); report != nil {
+			genResponse.PureFnSites = report
+			if sess.opts.PureFnReportFile || sess.opts.PureFnReportPath != "" {
+				if reportErr := writePureFnReport(sess.pureFnReportPath(outDir), report); reportErr != nil {
+					return protocol.Response{Error: reportErr.Error()}
+				}
+			}
+		}
 		// Marker diagnostics from the eager whole-program scan (MKR/CTA/TMP…)
 		// — persisted by scanAllProgramFiles; without this, buildStart (which
 		// consumes THIS response) never sees them.
