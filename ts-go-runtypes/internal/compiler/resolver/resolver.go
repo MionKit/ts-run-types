@@ -128,12 +128,12 @@ type Options struct {
 	// lane always validates regardless. Not a disk-fingerprint input (it
 	// changes only which diagnostics surface, never the emitted artifacts).
 	AllowUncheckedPatterns bool
-	// PureFnReport enables the structured pure-fn build report: OpGenerate and
+	// PureFnReportWire enables the structured pure-fn build report: OpGenerate and
 	// OpScanFiles populate Response.PureFnSites (whole program on generate, the
 	// rescanned files' delta on scan). Off by default, so the normal rewrite
 	// pipeline pays nothing. Not a disk-fingerprint input (report-only; it never
 	// changes the emitted artifacts).
-	PureFnReport bool
+	PureFnReportWire bool
 	// PureFnReportFile, when true, additionally WRITES the whole-program report
 	// as one JSON file during OpGenerate. The location is HARDCODED at
 	// `<outDir>/types/pure-fns-report.json` (inside the generated cache dir, so

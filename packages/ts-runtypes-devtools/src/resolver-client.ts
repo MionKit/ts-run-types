@@ -81,13 +81,14 @@ export interface ResolverClientOptions {
   // plugin, which runs the real RegExp, owns that check. Undefined leaves the
   // binary default (off).
   allowUncheckedPatterns?: boolean;
-  // Pure-fn build report. `pureFnReport` forwards --pure-fn-report-wire (populate
-  // Response.pureFnSites on generate/scan for the in-process callback);
+  // Pure-fn build report. `pureFnReportWire` forwards --pure-fn-report-wire
+  // (populate Response.pureFnSites on generate/scan for the in-process callback);
   // `pureFnReportFile` additionally forwards --pure-fn-report-file (write the
   // JSON file to the HARDCODED `<genDir>/types/pure-fns-report.json` on
   // generate). The location is not configurable. Off by default so the pipeline
-  // pays nothing.
-  pureFnReport?: boolean;
+  // pays nothing. These are the low-level flags the plugin's `pureFnReport`
+  // tri-state resolves into (same name as the CLI flag, for greppability).
+  pureFnReportWire?: boolean;
   pureFnReportFile?: boolean;
 }
 
@@ -440,7 +441,7 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   // Build-lane only. The lint worker never forwards it: the lint lane always
   // validates the samples (with the real RegExp) regardless of the flag.
   if (opts.allowUncheckedPatterns) args.push('--allow-unchecked-patterns');
-  if (opts.pureFnReport) args.push('--pure-fn-report-wire');
+  if (opts.pureFnReportWire) args.push('--pure-fn-report-wire');
   if (opts.pureFnReportFile) args.push('--pure-fn-report-file');
   return args;
 }

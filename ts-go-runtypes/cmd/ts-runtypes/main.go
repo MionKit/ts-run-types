@@ -131,7 +131,7 @@ func main() {
 		inlineMode             string
 		moduleMode             string
 		allowUncheckedPatterns bool
-		pureFnReport           bool
+		pureFnReportWire       bool
 		pureFnReportFile       bool
 		sizeBias               float64
 		sizeItems              int
@@ -177,7 +177,7 @@ func main() {
 	flag.BoolVar(&allowUncheckedPatterns, "allow-unchecked-patterns", false,
 		"silence the fail-closed FMT004 build error for format patterns whose mockSamples "+
 			"RE2 can't verify (JS-only regex features); asserts the ts-runtypes JS linter owns the check")
-	flag.BoolVar(&pureFnReport, "pure-fn-report-wire", false,
+	flag.BoolVar(&pureFnReportWire, "pure-fn-report-wire", false,
 		"emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan for host tooling "+
 			"that relocates pure-fn bodies across bundles; off by default so the rewrite pipeline pays nothing")
 	flag.BoolVar(&pureFnReportFile, "pure-fn-report-file", false,
@@ -282,7 +282,7 @@ func main() {
 		inlineMode:             inlineMode,
 		moduleMode:             moduleMode,
 		allowUncheckedPatterns: allowUncheckedPatterns,
-		pureFnReport:           pureFnReport,
+		pureFnReportWire:       pureFnReportWire,
 		pureFnReportFile:       pureFnReportFile,
 		sizeBias:               sizeBias,
 		sizeItems:              sizeItems,
@@ -346,7 +346,7 @@ func main() {
 		InlineMode:              constants.InlineMode(merged.inlineMode),
 		ModuleMode:              merged.moduleMode,
 		AllowUncheckedPatterns:  merged.allowUncheckedPatterns,
-		PureFnReport:            merged.pureFnReport,
+		PureFnReportWire:        merged.pureFnReportWire,
 		PureFnReportFile:        merged.pureFnReportFile,
 		SizeBias:                merged.sizeBias,
 		SizeItems:               merged.sizeItems,

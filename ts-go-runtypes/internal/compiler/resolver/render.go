@@ -165,7 +165,7 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (entrymodu
 }
 
 // collectPureFnReport builds the whole-program pure-fn build report
-// (protocol.PureFnSite records) when Options.PureFnReport is enabled — nil
+// (protocol.PureFnSite records) when Options.PureFnReportWire is enabled — nil
 // otherwise, so the pipeline pays nothing when the report is off. It reuses the
 // same deduped whole-program extraction as collectProgramPureFns (memoized by
 // the per-Program FileCache, so no extra walk) and drops the built-in
@@ -173,7 +173,7 @@ func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (entrymodu
 // consumer never emits those, and they are not user-registered pure fns. Cfn
 // override entries are NOT in this set (they carry no registrar call site).
 func (sess *Session) collectPureFnReport(metrics *protocol.Metrics) []protocol.PureFnSite {
-	if !sess.opts.PureFnReport {
+	if !sess.opts.PureFnReportWire {
 		return nil
 	}
 	entries, _, _ := sess.extractProgramPureFns(metrics)
@@ -192,7 +192,7 @@ func (sess *Session) collectPureFnReport(metrics *protocol.Metrics) []protocol.P
 // layout/emitMode as collectPureFnReport. Empty in / empty out; nil when the
 // report is disabled.
 func (sess *Session) pureFnReportForEntries(entries []purefunctions.Entry) []protocol.PureFnSite {
-	if !sess.opts.PureFnReport || len(entries) == 0 {
+	if !sess.opts.PureFnReportWire || len(entries) == 0 {
 		return nil
 	}
 	kept := make([]purefunctions.Entry, 0, len(entries))
