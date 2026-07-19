@@ -21,6 +21,15 @@ const wrapperDts = `declare module '@acme/toolkit' {
     pureFnId: CompTimeArgs<PureFnId>,
     createPureFn: PureFunctionFactory<(utl: RTUtils) => any> | null,
   ): unknown;
+  // Leading non-marker param + overloaded name lane — the mion serverMapFrom
+  // shape. The marker pair sits at slots 1/2; the string overload carries no
+  // markers so name-lane calls never extract.
+  export function mapAcmeFrom<Source, MappedInput>(source: Source, fnName: string): unknown;
+  export function mapAcmeFrom<Source, MappedInput>(
+    source: Source,
+    mapper: PureFunction<(value: Source) => MappedInput>,
+    hash?: InjectPureFnHash<(value: Source) => MappedInput>,
+  ): unknown;
 }
 `
 
@@ -48,7 +57,7 @@ func reportFixtures(t *testing.T, emitMode constants.EmitMode, bundled bool) []P
 		"acme.d.ts": wrapperDts,
 		"a.ts": `
 import {registerPureFnFactory, registerPureFn, registerAnonymousPureFn} from '@ts-runtypes/core';
-import {registerAcmePureFn, registerAcmeNamed} from '@acme/toolkit';
+import {registerAcmePureFn, registerAcmeNamed, mapAcmeFrom} from '@acme/toolkit';
 
 // named + factory (primitive)
 export const nf = registerPureFnFactory('acme::mul', (utl) => function _mul(x: number, y: number) { return x * y; });
@@ -60,6 +69,11 @@ export const ad = registerAnonymousPureFn(function _double(n: number): number { 
 export const wf = registerAcmeNamed('acme::wrapped', (utl) => function _w(s: string) { return s; });
 // anonymous + direct through a framework wrapper (@acme/toolkit)
 export const wd = registerAcmePureFn(function _triple(n: number): number { return n * 3; });
+// anonymous + direct through a LEADING-PARAM wrapper (mion serverMapFrom shape):
+// the marker pair sits at slots 1/2, discovered by position scan.
+export const lm = mapAcmeFrom({id: 4}, (customer: {id: number}): number => customer.id * 4);
+// the marker-free string overload of the same wrapper must NOT extract.
+export const ln = mapAcmeFrom({id: 5}, 'namedMapper');
 `,
 	})
 	if len(diags) != 0 {
@@ -78,8 +92,8 @@ export const wd = registerAcmePureFn(function _triple(n: number): number { retur
 
 func TestReport_LanesFormsAndCalleeAttribution(t *testing.T) {
 	sites := reportFixtures(t, constants.EmitCode, false)
-	if len(sites) != 5 {
-		t.Fatalf("expected 5 report records, got %d: %+v", len(sites), sites)
+	if len(sites) != 6 {
+		t.Fatalf("expected 6 report records, got %d: %+v", len(sites), sites)
 	}
 
 	// Named + factory, primitive registrar.
@@ -117,8 +131,8 @@ func TestReport_LanesFormsAndCalleeAttribution(t *testing.T) {
 			}
 		}
 	}
-	if anon != 2 {
-		t.Errorf("expected 2 anonymous records (direct + wrapper), got %d", anon)
+	if anon != 3 {
+		t.Errorf("expected 3 anonymous records (direct + wrapper + leading-param wrapper), got %d", anon)
 	}
 
 	// Wrapper attribution: the framework wrapper resolves to @acme/toolkit, NOT
@@ -140,6 +154,22 @@ func TestReport_LanesFormsAndCalleeAttribution(t *testing.T) {
 	}
 	if !foundAcmeWrapper {
 		t.Errorf("no report record attributed to registerAcmePureFn wrapper")
+	}
+
+	// Leading-param wrapper (mion serverMapFrom shape): the mapper at slot 1 is
+	// extracted and attributed to mapAcmeFrom@@acme/toolkit; the string-overload
+	// call (ln) contributed NO record (the 6-count above pins that).
+	foundLeadingParamWrapper := false
+	for _, s := range sites {
+		if s.CalleeName == "mapAcmeFrom" {
+			foundLeadingParamWrapper = true
+			if s.CalleeModule != "@acme/toolkit" || s.Lane != "anonymous" || s.Form != "direct" {
+				t.Errorf("mapAcmeFrom site = %q lane %q form %q, want @acme/toolkit anonymous direct", s.CalleeModule, s.Lane, s.Form)
+			}
+		}
+	}
+	if !foundLeadingParamWrapper {
+		t.Errorf("no report record attributed to the leading-param mapAcmeFrom wrapper")
 	}
 }
 

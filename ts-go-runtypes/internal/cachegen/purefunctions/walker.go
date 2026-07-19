@@ -448,8 +448,8 @@ func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceF
 		attachCallee(entry, "named", typeChecker, markerOpts, call, callExpr)
 		return entry, diags
 	}
-	if matched, wrap := isAnonymousPureFnCall(typeChecker, markerOpts, call); matched {
-		entry, diags := extractAnonymous(typeChecker, markerOpts, sourceFile, call, callExpr, wrap)
+	if matched, wrap, fnParamIndex, hashParamIndex := isAnonymousPureFnCall(typeChecker, markerOpts, call); matched {
+		entry, diags := extractAnonymous(typeChecker, markerOpts, sourceFile, call, callExpr, wrap, fnParamIndex, hashParamIndex)
 		attachCallee(entry, "anonymous", typeChecker, markerOpts, call, callExpr)
 		return entry, diags
 	}
@@ -552,13 +552,13 @@ func extractNamed(typeChecker *checker.Checker, markerOpts marker.Options, sourc
 // tuple, and the empty trailing `hash?` slot is spliced with `"rt::<bodyHash>"` —
 // the same content hash the entry is keyed under, so a library wrapper injects an
 // identity that matches a direct call byte-for-byte.
-func extractAnonymous(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node, callExpr *ast.CallExpression, wrap bool) (*Entry, []diagnostics.Diagnostic) {
-	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) < 1 {
+func extractAnonymous(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node, callExpr *ast.CallExpression, wrap bool, fnParamIndex, hashParamIndex int) (*Entry, []diagnostics.Diagnostic) {
+	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) <= fnParamIndex {
 		return nil, nil
 	}
 	args := callExpr.Arguments.Nodes
 
-	fnNode, fnResult := comptimeargs.CheckLiteralFunction(typeChecker, args[0])
+	fnNode, fnResult := comptimeargs.CheckLiteralFunction(typeChecker, args[fnParamIndex])
 	// Non-inline arg (a forwarded wrapper param, or a re-scanned rewritten
 	// `__rt_pf…` binding): PFN001 is the resolver's job — bail quietly, so the
 	// rewrite is idempotent and wrapper bodies forwarding `fn` don't extract.
@@ -575,30 +575,34 @@ func extractAnonymous(typeChecker *checker.Checker, markerOpts marker.Options, s
 	// collide — regardless of signature. The direct and factory forms hash
 	// different code (`return <fn>;` vs the factory body), so they never alias.
 	hash := CodeHash(code)
-	entry, diags := buildPureFnEntry(typeChecker, markerOpts, sourceFile, call, fnNode, args[0], AnonymousNamespace, hash, code, wrap)
+	entry, diags := buildPureFnEntry(typeChecker, markerOpts, sourceFile, call, fnNode, args[fnParamIndex], AnonymousNamespace, hash, code, wrap)
 	if entry == nil {
 		return nil, diags
 	}
-	// Inject the hash only when the trailing slot is genuinely empty. A caller
-	// that already wrote it (an explicitly forwarded handle, or re-scanned
-	// rewritten source) is a pass-through — a second splice would duplicate it.
-	if len(args) < 2 {
+	// Inject the hash only when its slot is genuinely empty. A caller that
+	// already wrote it (an explicitly forwarded handle, or re-scanned rewritten
+	// source) is a pass-through — a second splice would duplicate it. Optional
+	// non-marker gaps between the last written argument and the hash slot are
+	// padded with `undefined` so the id lands at its declared parameter index.
+	if len(args) <= hashParamIndex {
 		entry.HashInjectPos = call.End() - 1
-		entry.HashInjectText = anonymousHashArgText(entry.Key(), callExpr.Arguments.HasTrailingComma())
+		entry.HashInjectText = anonymousHashArgText(entry.Key(), callExpr.Arguments.HasTrailingComma(), hashParamIndex-len(args))
 	}
 	return entry, diags
 }
 
-// anonymousHashArgText renders the spliced trailing argument for the anonymous
-// lane — the quoted `"rt::<hash>"` id preceded by `, ` unless the call already
-// ends with a trailing comma (in which case the position sits right after a
-// separator and a leading comma would produce an empty `f(a,, …)` argument).
-func anonymousHashArgText(key string, trailingComma bool) string {
-	quoted := jsquote.Single(key)
+// anonymousHashArgText renders the spliced trailing argument(s) for the
+// anonymous lane — the quoted `"rt::<hash>"` id, preceded by one `undefined`
+// per skipped optional slot (`undefinedPadding`) and by `, ` unless the call
+// already ends with a trailing comma (in which case the position sits right
+// after a separator and a leading comma would produce an empty `f(a,, …)`
+// argument).
+func anonymousHashArgText(key string, trailingComma bool, undefinedPadding int) string {
+	text := strings.Repeat("undefined, ", undefinedPadding) + jsquote.Single(key)
 	if trailingComma {
-		return quoted
+		return text
 	}
-	return ", " + quoted
+	return ", " + text
 }
 
 // pureFnCode returns the type-stripped code for a pure-fn argument, honoring the
