@@ -136,7 +136,7 @@ func runGen(args []string) {
 	mock := fs.Bool("mock", false, "emit a MockData<T> skeleton")
 	friendly := fs.Bool("friendly", false, "emit a FriendlyText<T> skeleton")
 	out := fs.String("out", "", "explicit single mirror file path (overrides the computed mirror path; forces a single file)")
-	enrichDirFlag := fs.String("enrich-dir", "", "mirror root override (precedence: this flag > tsconfig plugins entry > default runtypes/generated)")
+	genDirFlag := fs.String("gen-dir", "", "RunTypes output root override (precedence: this flag > tsconfig genDir > default __runtypes); mirrors live under <genDir>/enriched")
 	check := fs.Bool("check", false, "drift check: validate mirror-file breadcrumbs instead of generating")
 	jsonFlag := fs.Bool("json", false, "with --check: emit findings as a JSON array")
 	files := fs.String("files", "", "batch mode: comma-separated files; resolve --type in each, print JSON skeletons to stdout (no writes)")
@@ -145,7 +145,7 @@ func runGen(args []string) {
 	prune := fs.Bool("prune", false, "destructive: remove every comment block/line tagged @rtOrphan / @rtOrphanChild")
 	translate := fs.String("translate", "", "i18n: scaffold/reconcile per-locale FriendlyText translation files (a locale tag, or 'all' for every tsconfig i18n.locales entry)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--enrich-dir <dir>] [--out <path>]")
+		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--gen-dir <dir>] [--out <path>]")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen <file.ts> <TypeName> --update   (reconcile an existing mirror)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --prune [<mirror-file-or-dir>]   (strip @rtOrphan carcasses)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --check [<mirror-file-or-dir>]   (breadcrumb drift)")
@@ -163,9 +163,9 @@ func runGen(args []string) {
 	// mirror, never the type graph — so it excludes the type-driven modes.
 	if *translate != "" {
 		if *check || *files != "" || *mock || *friendly || *out != "" {
-			fatal("gen: --translate can only combine with --update / --prune / --enrich-dir")
+			fatal("gen: --translate can only combine with --update / --prune / --gen-dir")
 		}
-		runGenTranslate(*translate, positional, *update, *prune, *enrichDirFlag)
+		runGenTranslate(*translate, positional, *update, *prune, *genDirFlag)
 		return
 	}
 
@@ -190,7 +190,7 @@ func runGen(args []string) {
 		if *files != "" {
 			fatal("gen: --prune cannot be combined with --files")
 		}
-		runGenPrune(positional, *enrichDirFlag)
+		runGenPrune(positional, *genDirFlag)
 		return
 	}
 
@@ -202,7 +202,7 @@ func runGen(args []string) {
 		return
 	}
 	if *check {
-		runGenCheck(positional, *enrichDirFlag, *jsonFlag)
+		runGenCheck(positional, *genDirFlag, *jsonFlag)
 		return
 	}
 	if len(positional) < 2 {
@@ -218,7 +218,16 @@ func runGen(args []string) {
 		wantFriendly, wantMock = true, true
 	}
 
-	config := resolveEnrichConfig(absPath, *enrichDirFlag)
+	config := resolveEnrichConfig(absPath, *genDirFlag)
+
+	// Self-document the genDir tree even when gen runs before any build: the
+	// root + enriched READMEs (shared with the generate lane) and a README in
+	// each family dir this run writes into.
+	genRoot := filepath.Dir(config.EnrichDir)
+	_ = resolver.EnsureOutputHygiene(genRoot, filepath.Join(genRoot, "types"))
+	for _, family := range wantedFamilies(*mock, *friendly) {
+		config.ensureFamilyReadme(family)
+	}
 
 	// Named-type-driven emission: resolve the RAW (non-inlined) graph so the
 	// closure walk can tell a named-type reference from an anonymous inline shape,
@@ -240,11 +249,10 @@ func runGen(args []string) {
 	}
 
 	closure := enrichment.EmitClosure(resolved.Node, enrichment.ClosureOptions{
-		TypeName:       typeName,
-		Resolve:        resolved.Resolve,
-		DeclFiles:      resolved.DeclFiles,
-		SourceLocale:   config.SourceLocale,
-		FriendlyErrors: config.FriendlyErrors,
+		TypeName:     typeName,
+		Resolve:      resolved.Resolve,
+		DeclFiles:    resolved.DeclFiles,
+		SourceLocale: config.SourceLocale,
 	})
 
 	// Group the closure by declaration source file → one mirror file per group.
@@ -459,7 +467,7 @@ var valueFlags = map[string]bool{
 	"--out": true, "-out": true,
 	"--files": true, "-files": true,
 	"--type": true, "-type": true,
-	"--enrich-dir": true, "-enrich-dir": true,
+	"--gen-dir": true, "-gen-dir": true,
 	"--translate": true, "-translate": true,
 }
 

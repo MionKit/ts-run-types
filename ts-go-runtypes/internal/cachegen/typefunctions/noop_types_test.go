@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -270,25 +270,25 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	pjKey := operations.PlainHash("prepareForJson") + "_obj1"
 	runType := &protocol.RunType{ID: "obj1", Kind: protocol.KindObjectLiteral}
 
-	render := func(tag string, rendered virtualmodules.Graph) *virtualmodules.Entry {
+	render := func(tag string, rendered entrymodules.Graph) *entrymodules.Entry {
 		t.Helper()
 		composite, ok := constants.JsonCompositeByTag(tag)
 		if !ok {
 			t.Fatalf("unknown composite tag %q", tag)
 		}
-		entry := collectJsonCompositeEntry(runType, tag, composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+		entry := collectJsonCompositeEntry(runType, tag, composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered, nil, false)
 		if entry == nil {
 			t.Fatalf("no composite entry for %q", tag)
 		}
 		return entry
 	}
-	noopGraph := virtualmodules.Graph{}
-	noopGraph.Add(&virtualmodules.Entry{Key: rjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'", IsNoop: true})
-	noopGraph.Add(&virtualmodules.Entry{Key: pjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
-	noopGraph.Add(&virtualmodules.Entry{Key: ukuwKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "ukuw", ArgsText: "'" + ukuwKey + "'"})
+	noopGraph := entrymodules.Graph{}
+	noopGraph.Add(&entrymodules.Entry{Key: rjKey, Kind: entrymodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'", IsNoop: true})
+	noopGraph.Add(&entrymodules.Entry{Key: pjKey, Kind: entrymodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
+	noopGraph.Add(&entrymodules.Entry{Key: ukuwKey, Kind: entrymodules.KindTypeFn, FamilyTag: "ukuw", ArgsText: "'" + ukuwKey + "'"})
 
-	jdPRKey := operations.FnHashFor(mustOp(t, "jsonDecoder"), nil, "preserve") + "_obj1"
-	jeMUKey := operations.FnHashFor(mustOp(t, "jsonEncoder"), nil, "mutate") + "_obj1"
+	jdPRKey := operations.FnHashFor(mustOp(t, "jsonDecoder"), nil, "preserve", false) + "_obj1"
+	jeMUKey := operations.FnHashFor(mustOp(t, "jsonEncoder"), nil, "mutate", false) + "_obj1"
 
 	// jdPR: rj noop → every binding elided → the noop short form; no body,
 	// no factory, no deps. The bare JSON.parse moved into the runtime noop.
@@ -325,8 +325,8 @@ func TestJsonComposite_ElidesNoopPrimitives(t *testing.T) {
 	}
 
 	// Control: a live (non-noop) rj keeps today's binding shape.
-	liveGraph := virtualmodules.Graph{}
-	liveGraph.Add(&virtualmodules.Entry{Key: rjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'"})
+	liveGraph := entrymodules.Graph{}
+	liveGraph.Add(&entrymodules.Entry{Key: rjKey, Kind: entrymodules.KindTypeFn, FamilyTag: "rj", ArgsText: "'" + rjKey + "'"})
 	entry = render("jdPR", liveGraph)
 	if !strings.Contains(entry.ArgsText, "return rjFn(JSON.parse(s));") {
 		t.Errorf("jdPR with live rj must keep the binding:\n%s", entry.ArgsText)
@@ -457,6 +457,39 @@ func TestNoopType_ToBinary(t *testing.T) {
 	}
 }
 
+// TestNoopType_CloneExactShape pins the family's dedicated isolation-aware
+// predicate: identity only for fully immutable/opaque subtrees. Any mutable
+// position — object, class, Date, RegExp, array, tuple, Map/Set, index
+// signature — forces a live clone body (sharing it would leak mutable state
+// between input and "clone").
+func TestNoopType_CloneExactShape(t *testing.T) {
+	ctx, types := noopPredicateTypes(t)
+	rows := map[string]bool{
+		"str":       true,  // immutable primitive
+		"big":       true,  // immutable primitive
+		"fn":        true,  // opaque — passthrough, overrideCloneExactShape is the escape hatch
+		"uAt":       true,  // string | number — every member immutable
+		"dat":       false, // Date is mutable (setTime) — re-wrapped
+		"mp":        false, // Map is a mutable container — always fresh
+		"arrStr":    false, // arrays are mutable containers — fresh via slice
+		"arrDat":    false,
+		"objCompat": false, // objects always rebuild (that IS the strip)
+		"objFn":     false, // declared shape {} — clone is a fresh {}
+		"recA":      false, // index-signature object — fresh copy walk
+		"uDat":      false, // string | Date — Date member needs a dispatch arm
+		"uObj":      false, // object-bearing union — CES001 alwaysThrow, never identity
+		"ncls":      false, // class instances rebuild (prototype-preserving)
+		"tupObj":    false,
+	}
+	for id, want := range rows {
+		t.Run(id, func(t *testing.T) {
+			if got := isNoopForCloneExactShape(types[id], ctx); got != want {
+				t.Errorf("isNoopForCloneExactShape(%s) = %v, want %v", id, got, want)
+			}
+		})
+	}
+}
+
 // TestNoopType_UnknownKeys pins the shared five-family arm table plus the two
 // per-family divergences: uku/ukuw no-op at tuples by design, and ukuw keeps
 // the Map/Set arm noop on the wire side.
@@ -464,7 +497,6 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 	ctx, types := noopPredicateTypes(t)
 	specs := map[string]unknownKeysNoopSpec{
 		"huk":  hasUnknownKeysNoopSpec,
-		"suk":  stripUnknownKeysNoopSpec,
 		"uke":  unknownKeyErrorsNoopSpec,
 		"uku":  unknownKeysToUndefinedNoopSpec,
 		"ukuw": unknownKeysToUndefinedWireSpec,
@@ -474,7 +506,7 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 		want map[string]bool
 	}
 	same := func(want bool) map[string]bool {
-		return map[string]bool{"huk": want, "suk": want, "uke": want, "uku": want, "ukuw": want}
+		return map[string]bool{"huk": want, "uke": want, "uku": want, "ukuw": want}
 	}
 	rows := []row{
 		{"str", same(true)},
@@ -485,9 +517,9 @@ func TestNoopType_UnknownKeys(t *testing.T) {
 		{"arrCO", same(false)}, // array of keyed objects
 		{"uAt", same(true)},    // atomic-only union — nothing to sweep
 		{"uObj", same(false)},  // merged allowlist over the object members
-		// The tuple divergence: has/strip/errors recurse into slots; uku and
+		// The tuple divergence: has/errors recurse into slots; uku and
 		// ukuw no-op at tuples by design (emitTupleUnknownKeysToUndefined).
-		{"tupObj", map[string]bool{"huk": false, "suk": false, "uke": false, "uku": true, "ukuw": true}},
+		{"tupObj", map[string]bool{"huk": false, "uke": false, "uku": true, "ukuw": true}},
 	}
 	for _, r := range rows {
 		for familyTag, spec := range specs {
@@ -532,7 +564,7 @@ func TestNoopVerdict_TripwireDemotesLyingPredicate(t *testing.T) {
 	// A registered tag is required for key derivation; the emitter under test
 	// is still the lying fake — the real fmt emitter is never consulted.
 	settings := constants.CacheModuleSettings{Name: "lying", VarPrefix: "fmt", Tag: "fmt"}
-	rendered := renderEntryWithDeps(runType, settings, lyingNoopEmitter{}, "fmt_", refTable, RenderOpts{EmitMode: constants.EmitBoth}, "", nil)
+	rendered := renderEntryWithDeps(runType, settings, lyingNoopEmitter{}, "fmt_", refTable, RenderOpts{EmitMode: constants.EmitBoth}, "", nil, false)
 	if rendered.isNoop {
 		t.Fatal("tripwire must demote a lying predicate's verdict to live")
 	}
@@ -697,7 +729,7 @@ func TestJsonComposite_DirectStrategyTwoLayerCollapse(t *testing.T) {
 		t.Fatal("unknown composite tag jeDI")
 	}
 
-	entry := collectJsonCompositeEntry(types["str"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+	entry := collectJsonCompositeEntry(types["str"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered, nil, false)
 	if entry == nil {
 		t.Fatal("no jeDI entry for str")
 	}
@@ -708,7 +740,7 @@ func TestJsonComposite_DirectStrategyTwoLayerCollapse(t *testing.T) {
 		t.Errorf("collapsed jeDI must carry no primitive deps, got %v", entry.SoftDeps)
 	}
 
-	objEntry := collectJsonCompositeEntry(types["objCompat"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered)
+	objEntry := collectJsonCompositeEntry(types["objCompat"], "jeDI", composite, RenderOpts{EmitMode: constants.EmitBoth}, rendered, nil, false)
 	if objEntry == nil {
 		t.Fatal("no jeDI entry for objCompat")
 	}
@@ -730,9 +762,9 @@ func TestJsonComposite_WrapRootNeverNoop(t *testing.T) {
 	if !ok {
 		t.Fatal("unknown composite tag jeMU")
 	}
-	noopGraph := virtualmodules.Graph{}
-	noopGraph.Add(&virtualmodules.Entry{Key: pjKey, Kind: virtualmodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
-	entry := collectJsonCompositeEntry(runType, "jeMU", composite, RenderOpts{EmitMode: constants.EmitBoth}, noopGraph)
+	noopGraph := entrymodules.Graph{}
+	noopGraph.Add(&entrymodules.Entry{Key: pjKey, Kind: entrymodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + pjKey + "'", IsNoop: true})
+	entry := collectJsonCompositeEntry(runType, "jeMU", composite, RenderOpts{EmitMode: constants.EmitBoth}, noopGraph, nil, false)
 	if entry == nil {
 		t.Fatal("no composite entry for jeMU")
 	}

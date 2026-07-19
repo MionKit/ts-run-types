@@ -33,7 +33,7 @@ func TestStripJSONC(t *testing.T) {
 }
 
 // TestResolveEnrichConfig_NoTsconfig: with no tsconfig anywhere up the tree,
-// projectRoot and rootDir both fall back to the file's dir and enrichDir to the
+// projectRoot and rootDir both fall back to the file's dir and the enrich root to the
 // default (resolved under the file's dir).
 func TestResolveEnrichConfig_NoTsconfig(t *testing.T) {
 	dir := t.TempDir()
@@ -47,14 +47,14 @@ func TestResolveEnrichConfig_NoTsconfig(t *testing.T) {
 	if config.RootDir != filepath.Join(dir, "models") {
 		t.Errorf("RootDir = %q, want %q", config.RootDir, filepath.Join(dir, "models"))
 	}
-	wantEnrich := filepath.Join(dir, "models", defaultEnrichDir)
+	wantEnrich := filepath.Join(dir, "models", defaultGenDirName, enrichedSubdir)
 	if config.EnrichDir != wantEnrich {
 		t.Errorf("EnrichDir = %q, want %q", config.EnrichDir, wantEnrich)
 	}
 }
 
 // TestResolveEnrichConfig_TsconfigPlugin: the plugins[name=ts-runtypes] entry
-// supplies enrichDir; rootDir comes from compilerOptions.rootDir; projectRoot is
+// supplies genDir; rootDir comes from compilerOptions.rootDir; projectRoot is
 // the tsconfig dir.
 func TestResolveEnrichConfig_TsconfigPlugin(t *testing.T) {
 	dir := t.TempDir()
@@ -66,7 +66,7 @@ func TestResolveEnrichConfig_TsconfigPlugin(t *testing.T) {
       { "name": "other" },
       {
         "name": "ts-runtypes",
-        "enrichDir": "rt/gen",
+        "genDir": "rt/gen",
         "moduleMode": "allSingle",
         "emitMode": "both",
         "inlineMode": "allInternal",
@@ -84,26 +84,26 @@ func TestResolveEnrichConfig_TsconfigPlugin(t *testing.T) {
 	if config.RootDir != filepath.Join(dir, "src") {
 		t.Errorf("RootDir = %q, want %q", config.RootDir, filepath.Join(dir, "src"))
 	}
-	if config.EnrichDir != filepath.Join(dir, "rt/gen") {
-		t.Errorf("EnrichDir = %q, want %q", config.EnrichDir, filepath.Join(dir, "rt/gen"))
+	if config.EnrichDir != filepath.Join(dir, "rt/gen", enrichedSubdir) {
+		t.Errorf("EnrichDir = %q, want %q", config.EnrichDir, filepath.Join(dir, "rt/gen", enrichedSubdir))
 	}
 	if config.ModuleMode != "allSingle" || config.EmitMode != "both" || config.InlineMode != "allInternal" {
 		t.Errorf("plugin modes not stored: %+v", config)
 	}
 }
 
-// TestResolveEnrichConfig_FlagWins: --enrich-dir overrides both tsconfig and
+// TestResolveEnrichConfig_FlagWins: --gen-dir overrides both tsconfig and
 // default.
 func TestResolveEnrichConfig_FlagWins(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{
-  "compilerOptions": { "plugins": [ { "name": "ts-runtypes", "enrichDir": "rt/gen" } ] }
+  "compilerOptions": { "plugins": [ { "name": "ts-runtypes", "genDir": "rt/gen" } ] }
 }`)
 	target := filepath.Join(dir, "user.ts")
 
 	config := resolveEnrichConfig(target, "flag/dir")
-	if config.EnrichDir != filepath.Join(dir, "flag/dir") {
-		t.Errorf("EnrichDir = %q, want %q (flag should win)", config.EnrichDir, filepath.Join(dir, "flag/dir"))
+	if config.EnrichDir != filepath.Join(dir, "flag/dir", enrichedSubdir) {
+		t.Errorf("EnrichDir = %q, want %q (flag should win)", config.EnrichDir, filepath.Join(dir, "flag/dir", enrichedSubdir))
 	}
 }
 
@@ -118,7 +118,7 @@ func TestResolveEnrichConfig_GarbageTsconfig(t *testing.T) {
 	if config.ProjectRoot != dir || config.RootDir != dir {
 		t.Errorf("garbage tsconfig should fall back to tsconfig dir; got %+v", config)
 	}
-	if config.EnrichDir != filepath.Join(dir, defaultEnrichDir) {
+	if config.EnrichDir != filepath.Join(dir, defaultGenDirName, enrichedSubdir) {
 		t.Errorf("EnrichDir = %q, want default", config.EnrichDir)
 	}
 }
@@ -196,7 +196,7 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
     "rootDir": "src",
     "plugins": [{
       "name": "ts-runtypes",
-      "enrichDir": "runtypes/generated",
+      "genDir": "rt",
       "i18n": {
         "sourceLocale": "pl",
         "locales": ["es", "pt-BR"],
@@ -211,7 +211,7 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
 	if config.SourceLocale != "pl" {
 		t.Errorf("SourceLocale = %q, want pl", config.SourceLocale)
 	}
-	if want := filepath.Join(dir, "runtypes/generated/i18n"); config.I18nDir != want {
+	if want := filepath.Join(dir, "rt", enrichedSubdir, "i18n"); config.I18nDir != want {
 		t.Errorf("I18nDir = %q, want default %q", config.I18nDir, want)
 	}
 	if len(config.I18nLocales) != 2 || config.I18nLocales[0] != "es" || config.I18nLocales[1] != "pt-BR" {
@@ -228,16 +228,17 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
 	if dormant.SourceLocale != "en" || len(dormant.I18nLocales) != 0 || dormant.I18nStrict {
 		t.Errorf("dormant i18n defaults wrong: %+v", dormant)
 	}
-	if want := filepath.Join(dir, defaultEnrichDir, "i18n"); dormant.I18nDir != want {
+	if want := filepath.Join(dir, defaultGenDirName, enrichedSubdir, "i18n"); dormant.I18nDir != want {
 		t.Errorf("dormant I18nDir = %q, want %q", dormant.I18nDir, want)
 	}
 
-	// A custom i18n.dir resolves under the project root.
+	// The i18n location is CONVENTION: a legacy `i18n.dir` key is ignored and
+	// translations stay at <genDir>/enriched/i18n.
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
 		`{ "compilerOptions": { "plugins": [{ "name": "ts-runtypes", "i18n": { "dir": "translations" } }] } }`)
 	custom := resolveEnrichConfig(target, "")
-	if want := filepath.Join(dir, "translations"); custom.I18nDir != want {
-		t.Errorf("custom I18nDir = %q, want %q", custom.I18nDir, want)
+	if want := filepath.Join(dir, defaultGenDirName, enrichedSubdir, "i18n"); custom.I18nDir != want {
+		t.Errorf("legacy i18n.dir must be ignored; I18nDir = %q, want %q", custom.I18nDir, want)
 	}
 }
 

@@ -21,21 +21,6 @@ interface RTValidationError {
   format?: TypeFormatError;
 }
 
-export const pf_asJSONString = registerPureFnFactory('rt::asJSONString', function () {
-  // @ts-expect-error 2867
-  if (typeof Bun !== 'undefined') return JSON.stringify; // bun has a faster JSON.stringify
-  // eslint-disable-next-line no-control-regex
-  const STR_ESCAPE = /[\u0000-\u001f\u0022\u005c\ud800-\udfff]/;
-  const MAX_SCAPE_TEST_LENGTH = 1000;
-  return function _asJSONStringRegexOnly(str) {
-    if (str.length < MAX_SCAPE_TEST_LENGTH && STR_ESCAPE.test(str) === false) {
-      return '"' + str + '"';
-    } else {
-      return JSON.stringify(str);
-    }
-  };
-});
-
 export const pf_getUnknownKeysFromArray = registerPureFnFactory('rt::getUnknownKeysFromArray', function () {
   const MAX_UNKNOWN_KEYS = 10;
   return function _getUnknownKeysFromArray(obj: Record<StrNumber, any>, keys: StrNumber[]): StrNumber[] {
@@ -54,6 +39,20 @@ export const pf_getUnknownKeysFromArray = registerPureFnFactory('rt::getUnknownK
       }
     }
     return unknownKeys;
+  };
+});
+
+export const pf_countEnumKeys = registerPureFnFactory('rt::countEnumKeys', function () {
+  // Counts enumerable keys via for-in: no array allocation (beats
+  // `Object.keys(obj).length` ~1.4x on V8) and the same enumeration semantics
+  // the hasUnknownKeysFromArray scan uses. Backs the `runsAfterValidation`
+  // key-count fast path — after validation an all-required object is clean
+  // iff its key count equals the declared prop count.
+  return function _countEnumKeys(obj: Record<StrNumber, any>): number {
+    let count = 0;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for (const _key in obj) count++;
+    return count;
   };
 });
 
@@ -83,36 +82,5 @@ export const pf_newRunTypeErr = registerPureFnFactory('rt::newRunTypeErr', funct
     const path = accessPath?.length ? [...pλth, ...accessPath] : [...pλth];
     const runTypeErr: RTValidationError = {expected, path};
     εrr.push(runTypeErr);
-  };
-});
-
-export const pf_formatErr = registerPureFnFactory('rt::formatErr', function () {
-  return function _formatErr(
-    pλth: StrNumber[],
-    εrr: RTValidationError[],
-    expected: string,
-    fmtName: string,
-    paramName: string,
-    paramVal: string | number | boolean | bigint,
-    fmtPath: StrNumber[],
-    accessPath?: StrNumber[],
-    fmtAccessPath?: StrNumber[]
-  ): void {
-    const path = accessPath?.length ? [...pλth, ...accessPath] : [...pλth];
-    const formatPath = fmtAccessPath?.length ? [...fmtPath, ...fmtAccessPath, paramName] : [...fmtPath, paramName];
-    const format: TypeFormatError = {name: fmtName, formatPath: formatPath, val: paramVal};
-    const runTypeErr: Required<RTValidationError> = {expected, path, format};
-    εrr.push(runTypeErr);
-  };
-});
-
-/** @reflection never */
-export const pf_sanitizeCompiledFn = registerPureFnFactory('rt::sanitizeCompiledFn', function () {
-  const anonymousRegex = /^\s*function\s+anonymous\s*\(/;
-  return function sanitizeCompiled(fnCode: string): string {
-    if (anonymousRegex.test(fnCode)) {
-      return fnCode.replace(anonymousRegex, 'function (');
-    }
-    return fnCode;
   };
 });

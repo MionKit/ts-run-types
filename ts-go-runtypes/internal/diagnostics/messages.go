@@ -7,7 +7,7 @@ package diagnostics
 // and verbose logs). The wire never carries this text — the binary ships
 // code + args only; `pnpm run gen:diag-catalog` exports this map into the
 // GENERATED front-end dictionary
-// (packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts) that the
+// (packages/ts-runtypes-devtools/src/go-generated/diagnosticCatalog.generated.ts) that the
 // bundler plugin, the lint plugin, and the runtime alwaysThrow factory all
 // render from. Every registered code MUST have a Headline
 // (TestEveryCodeHasHeadline pins it); an entry for an unregistered code
@@ -149,147 +149,147 @@ var messagesByCode = map[string]message{
 		Detail:   "`utl.usePureFn` / `utl.getPureFn` need a static key so the build can\nverify the referenced pure-fn is registered.\n\nFix:\n  -  const key = buildKey();\n-  return utl.usePureFn(key)(input);\n+  return utl.usePureFn('rt::myFn')(input);",
 	},
 	"PJ001": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
 	},
 	"PJ002": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"PJ003": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
 	},
 	"PJ004": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
 	},
 	"PJ005": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"PJS001": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
 	},
 	"PJS002": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"PJS003": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
 	},
 	"PJS004": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
 	},
 	"PJS005": {
-		Headline: "Cannot encode `{0}` to JSON.",
+		Headline: "Type `{0}` can never be encoded to JSON — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"RJ001": {
-		Headline: "Cannot decode `{0}` from JSON.",
+		Headline: "Type `{0}` can never be decoded from JSON — the generated function will always fail.",
 		Detail:   "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
 	},
 	"RJ002": {
-		Headline: "Cannot decode `{0}` from JSON.",
+		Headline: "Type `{0}` can never be decoded from JSON — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"RJ003": {
-		Headline: "Cannot decode `{0}` from JSON.",
+		Headline: "Type `{0}` can never be decoded from JSON — the generated function will always fail.",
 		Detail:   "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
 	},
 	"RJ004": {
-		Headline: "Cannot decode `{0}` from JSON.",
+		Headline: "Type `{0}` can never be decoded from JSON — the generated function will always fail.",
 		Detail:   "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
 	},
 	"RJ005": {
-		Headline: "Cannot decode `{0}` from JSON.",
+		Headline: "Type `{0}` can never be decoded from JSON — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"SJ001": {
-		Headline: "Cannot stringify `{0}` to a JSON string.",
+		Headline: "Type `{0}` can never be stringified to JSON — the generated function will always fail.",
 		Detail:   "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
 	},
 	"SJ002": {
-		Headline: "Cannot stringify `{0}` to a JSON string.",
+		Headline: "Type `{0}` can never be stringified to JSON — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"SJ003": {
-		Headline: "Cannot stringify `{0}` to a JSON string.",
+		Headline: "Type `{0}` can never be stringified to JSON — the generated function will always fail.",
 		Detail:   "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
 	},
 	"SJ004": {
-		Headline: "Cannot stringify `{0}` to a JSON string.",
+		Headline: "Type `{0}` can never be stringified to JSON — the generated function will always fail.",
 		Detail:   "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
 	},
 	"SJ005": {
-		Headline: "Cannot stringify `{0}` to a JSON string.",
+		Headline: "Type `{0}` can never be stringified to JSON — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"TB001": {
-		Headline: "Cannot serialise `{0}` to binary.",
+		Headline: "Type `{0}` can never be serialised to binary — the generated function will always fail.",
 		Detail:   "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
 	},
 	"TB002": {
-		Headline: "Cannot serialise `{0}` to binary.",
+		Headline: "Type `{0}` can never be serialised to binary — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"TB003": {
-		Headline: "Cannot serialise `{0}` to binary.",
+		Headline: "Type `{0}` can never be serialised to binary — the generated function will always fail.",
 		Detail:   "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
 	},
 	"TB004": {
-		Headline: "Cannot serialise `{0}` to binary.",
+		Headline: "Type `{0}` can never be serialised to binary — the generated function will always fail.",
 		Detail:   "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
 	},
 	"TB005": {
-		Headline: "Cannot serialise `{0}` to binary.",
+		Headline: "Type `{0}` can never be serialised to binary — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"TB006": {
-		Headline: "Cannot serialise `{0}` to binary.",
+		Headline: "Type `{0}` can never be serialised to binary — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"FB001": {
-		Headline: "Cannot deserialise `{0}` from binary.",
+		Headline: "Type `{0}` can never be deserialised from binary — the generated function will always fail.",
 		Detail:   "`never` is the empty type — no value can ever inhabit it. A field\ntyped `never` cannot carry a runtime value, so there is nothing to\nencode/decode/validate.\n\nFix — use `unknown` if you really want to accept any value:\n  interface User {\n-   tag: never;\n+   tag: unknown;  // narrow before use\n  }\n\nFix — pick a concrete type matching your real data:\n  interface User {\n-   tag: never;\n+   tag: 'pending' | 'active' | 'done';\n  }",
 	},
 	"FB002": {
-		Headline: "Cannot deserialise `{0}` from binary.",
+		Headline: "Type `{0}` can never be deserialised from binary — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"FB003": {
-		Headline: "Cannot deserialise `{0}` from binary.",
+		Headline: "Type `{0}` can never be deserialised from binary — the generated function will always fail.",
 		Detail:   "Functions have no value form to serialise — their closure, prototype,\nand bound state aren't representable in JSON or binary.\n\nFix — drop the function from your type, or replace it with the data the\nfunction would produce:\n  interface User {\n-   getName: () => string;\n+   name: string;\n  }",
 	},
 	"FB004": {
-		Headline: "Cannot deserialise `{0}` from binary.",
+		Headline: "Type `{0}` can never be deserialised from binary — the generated function will always fail.",
 		Detail:   "Arrays of un-serialisable elements (`symbol[]`, `(() => void)[]`,\n`Map<K, V>[]`, etc.) can't be encoded — every element would need to be\nrepresentable, and these aren't. Dropping individual elements would\nchange the array length, so the encoder refuses rather than silently\nshipping a different shape.\n\nFix — change the element type to something serialisable:\n  -  type Items = (() => void)[];\n+  type Items = string[];",
 	},
 	"FB005": {
-		Headline: "Cannot deserialise `{0}` from binary.",
+		Headline: "Type `{0}` can never be deserialised from binary — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"FB006": {
-		Headline: "Cannot deserialise `{0}` from binary.",
+		Headline: "Type `{0}` can never be deserialised from binary — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"VL001": {
-		Headline: "Cannot validate `{0}`.",
+		Headline: "Type `{0}` can never be validated — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"VL002": {
-		Headline: "Cannot validate `{0}`.",
+		Headline: "Type `{0}` can never be validated — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"VE001": {
-		Headline: "Cannot validate `{0}`.",
+		Headline: "Type `{0}` can never be validated — the generated function will always fail.",
 		Detail:   "Built-in classes like `Map`, `Set`, `WeakMap`, `WeakSet`, `Int8Array`,\n`Uint8Array`, `Buffer`, and `Promise` carry runtime state that doesn't\nsurvive a JSON or binary round-trip. Their instance identity is lost the\nmoment they're serialised.\n\nFix — convert to a plain object/array before serialising:\n  // for Map<K, V>:\n  const data = Object.fromEntries(yourMap);\n  // for Set<T>:\n  const data = [...yourSet];\n  // for typed arrays:\n  const data = Array.from(yourBuffer);\n\nFix — change the field type to a serialisable shape:\n  interface User {\n-   tags: Set<string>;\n+   tags: string[];\n  }",
 	},
 	"VE002": {
-		Headline: "Cannot validate `{0}`.",
+		Headline: "Type `{0}` can never be validated — the generated function will always fail.",
 		Detail:   "Every `symbol` value carries a unique runtime identity (`Symbol() !==\nSymbol()` even with the same description). That identity disappears the\nmoment it's serialised, and two symbols can't be compared across realms,\nworkers, or process boundaries. A validator that asserts \"this is a\nsymbol\" gives a false sense of safety — the value can't actually\nround-trip.\n\nFix — use a stable string key (often a literal union):\n  -  type Status = symbol;\n+  type Status = 'pending' | 'active' | 'done';",
 	},
 	"VL010": {
@@ -328,9 +328,29 @@ var messagesByCode = map[string]message{
 		Headline: "Property `{0}` is a function — `hasUnknownKeys` does not handle function values, so this property is silently not checked.",
 		Detail:   "`hasUnknownKeys` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
 	},
-	"SUK010": {
-		Headline: "Property `{0}` is a function — `stripUnknownKeys` does not handle function values, so this property is silently not stripped.",
-		Detail:   "`stripUnknownKeys` works on JSON-shaped data; functions don't survive JSON, so\nthe emitter drops them. The rest of the object's behaviour is unaffected.\n\nThis is by design — see the \"validate contract — serializable data only\"\nsection in CLAUDE.md. If you need a stricter checker that fails on\nmissing/extra function-typed members, watch the project roadmap.",
+	"CES001": {
+		Headline: "`cloneExactShape` does not support unions with object members — the emitter cannot know which declared shape to rebuild at runtime.",
+		Detail:   "A clone built from the declared shape needs to know WHICH union arm the\nruntime value matches; v1 has no arm discrimination, and silently keeping\nunknown keys would defeat the strip guarantee, so the build fails instead.\n\nWorkarounds: narrow the value to one arm before cloning (one\n`createCloneExactShape<Arm>()` per arm), or restructure the union into a\nsingle object with optional properties.",
+	},
+	"CES003": {
+		Headline: "`cloneExactShape` cannot clone a function-typed value.",
+		Detail:   "Functions aren't data — there is no declared shape to rebuild. Function-typed\nPROPERTIES are dropped from the clone (CES010/CES011); a function at the root\nor a propagating position fails the build.",
+	},
+	"CES010": {
+		Headline: "Property `{0}` is a function — `cloneExactShape` cannot rebuild it, so it is kept on the clone, SHARED BY REFERENCE.",
+		Detail:   "Declared members are never dropped (only UNDECLARED keys are — that is the\nstrip guarantee). Functions cannot be rebuilt from a declared shape, so the\nclone's property points at the SAME function as the input's. Class METHODS\ndiffer: they ride the shared prototype and are not copied as own props\n(CES011).",
+	},
+	"CES011": {
+		Headline: "Method `{0}` is not copied onto the clone's own properties — methods ride the prototype.",
+		Detail:   "For a plain class instance the clone preserves the PROTOTYPE\n(`Object.create(Object.getPrototypeOf(v))`), so methods keep working via the\nprototype chain; they are simply not copied as own properties. For object\nliterals a method-typed member is omitted like any function value.",
+	},
+	"CES015": {
+		Headline: "Property `{0}` has a value type `cloneExactShape` cannot rebuild (symbol, Promise, or a non-serialisable built-in) — it is kept on the clone, SHARED BY REFERENCE.",
+		Detail:   "Declared members are never dropped (only UNDECLARED keys are — that is the\nstrip guarantee). A value the emitter cannot rebuild passes through by\nreference instead: the clone's property points at the SAME handle as the\ninput's, so mutations through it are visible on both sides. Register\n`overrideCloneExactShape<T>()` if this type needs custom copying.",
+	},
+	"CES012": {
+		Headline: "Static member `{0}` is not part of instance data — `cloneExactShape` skips it.",
+		Detail:   "Statics live on the class, not the instance; the clone rebuilds instance\ndata only.",
 	},
 	"UKE010": {
 		Headline: "Property `{0}` is a function — `unknownKeyErrors` does not handle function values, so this property is silently not checked.",

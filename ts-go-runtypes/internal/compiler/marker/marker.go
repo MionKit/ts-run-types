@@ -54,6 +54,22 @@ const (
 	// KindCompTimeArgs, but it ALSO tells the scanner which parameter to read
 	// when computing the injected fnHash.
 	KindCompTimeFnArgs
+	// KindInjectPureFnHash is the anonymous pure-fn injection marker
+	// (InjectPureFnHash<F>). Like KindInjectRunTypeId it rides the callee
+	// signature so it propagates through wrappers, but the injected value is a
+	// content hash of the sibling PureFunction<F> factory BODY — `"rt::<fnHash>"`.
+	// The purefunctions extractor recognises the registerAnonymousPureFn call
+	// shape by this brand and splices the hash in; the resolver's marker walk
+	// does not inject for it (no createX id/fnId), so it carries no scanCall case.
+	KindInjectPureFnHash
+	// KindPureFunctionFactory brands a function argument as a FACTORY
+	// `(utl) => fn` (the registerPureFnFactory / registerAnonymousPureFnFactory
+	// lanes). Same inline + purity rules as KindPureFunction, but it tells the
+	// extractor to emit the factory AS-IS. The plain KindPureFunction is the
+	// DIRECT form — the argument is the pure fn itself, wrapped into `() => fn`.
+	// The marker on the pure-fn parameter is what carries the factory-vs-direct
+	// intent through a wrapper.
+	KindPureFunctionFactory
 )
 
 // DefaultName is the symbol name the resolver looks for for the
@@ -72,8 +88,17 @@ const DefaultCompTimeArgsName = "CompTimeArgs"
 // the fn-selecting variant of CompTimeArgs used by the createX factories.
 const DefaultCompTimeFnArgsName = "CompTimeFnArgs"
 
-// DefaultPureFunctionName is the symbol name for the PureFunction brand.
+// DefaultPureFunctionName is the symbol name for the PureFunction brand (the
+// DIRECT form — the argument is the pure fn itself).
 const DefaultPureFunctionName = "PureFunction"
+
+// DefaultPureFunctionFactoryName is the symbol name for the PureFunctionFactory
+// brand (the FACTORY form — the argument is a `(utl) => fn` factory).
+const DefaultPureFunctionFactoryName = "PureFunctionFactory"
+
+// DefaultInjectPureFnHashName is the symbol name for the anonymous pure-fn
+// injection marker (InjectPureFnHash<F>).
+const DefaultInjectPureFnHashName = "InjectPureFnHash"
 
 // DefaultModule is the package the marker types must be declared in.
 const DefaultModule = "@ts-runtypes/core"
@@ -102,11 +127,13 @@ type Spec struct {
 // public TypeScript declarations in
 // packages/ts-runtypes/src/markers.ts.
 const (
-	BrandInjectRunTypeId  = "__rtInjectRunTypeIdBrand"
-	BrandCompTimeArgs     = "__rtCompTimeArgsBrand"
-	BrandCompTimeFnArgs   = "__rtCompTimeFnArgsBrand"
-	BrandPureFunction     = "__rtPureFunctionBrand"
-	BrandInjectTypeFnArgs = "__rtInjectTypeFnArgsBrand"
+	BrandInjectRunTypeId     = "__rtInjectRunTypeIdBrand"
+	BrandCompTimeArgs        = "__rtCompTimeArgsBrand"
+	BrandCompTimeFnArgs      = "__rtCompTimeFnArgsBrand"
+	BrandPureFunction        = "__rtPureFunctionBrand"
+	BrandPureFunctionFactory = "__rtPureFunctionFactoryBrand"
+	BrandInjectTypeFnArgs    = "__rtInjectTypeFnArgsBrand"
+	BrandInjectPureFnHash    = "__rtInjectPureFnHashBrand"
 )
 
 // DefaultSpecs returns the canonical marker set: one spec per supported
@@ -117,7 +144,9 @@ func DefaultSpecs() []Spec {
 		{Name: DefaultCompTimeArgsName, Module: DefaultModule, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
 		{Name: DefaultCompTimeFnArgsName, Module: DefaultModule, Kind: KindCompTimeFnArgs, BrandProperty: BrandCompTimeFnArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
+		{Name: DefaultPureFunctionFactoryName, Module: DefaultModule, Kind: KindPureFunctionFactory, BrandProperty: BrandPureFunctionFactory},
 		{Name: DefaultInjectTypeFnArgsName, Module: DefaultModule, Kind: KindInjectTypeFnArgs, BrandProperty: BrandInjectTypeFnArgs},
+		{Name: DefaultInjectPureFnHashName, Module: DefaultModule, Kind: KindInjectPureFnHash, BrandProperty: BrandInjectPureFnHash},
 	}
 }
 
@@ -373,6 +402,28 @@ func DeclaredInModule(symbol *ast.Symbol, module string, fs vfspkg.FS) bool {
 		}
 	}
 	return false
+}
+
+// DeclaringModuleOfNode returns the module a declaration node belongs to: the
+// nearest enclosing ambient `declare module "<name>"` wrapper (the synthetic
+// test-fixture form), else the `"name"` of the nearest package.json walking up
+// from the node's source file. "" when neither is found. It is the read
+// counterpart of DeclaredInModule (which checks a KNOWN module) — callers that
+// need to REPORT which module a callee was declared in (the pure-fn build
+// report's calleeModule) use this. `fs` is the resolver's virtual filesystem
+// (overlay / in-memory packages); nil falls back to os.ReadFile.
+func DeclaringModuleOfNode(node *ast.Node, fs vfspkg.FS) string {
+	if node == nil {
+		return ""
+	}
+	if name := findAmbientModuleName(node); name != "" {
+		return name
+	}
+	sourceFile := ast.GetSourceFileOfNode(node)
+	if sourceFile == nil {
+		return ""
+	}
+	return packageNameForFile(sourceFile.FileName(), fs)
 }
 
 // packageNameCache memoises directory→package-name results for the on-disk

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/hashid"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -15,9 +15,9 @@ import (
 const bundleKeyLength = 10
 
 // CollectEntries builds the runtype side of the entry-module graph: ONE data
-// bundle (`virtual:rt/runtypes.js`) carrying every reflection-demanded node
+// bundle (`rtmod:/runtypes.js`) carrying every reflection-demanded node
 // as a headless tuple row with a single combined footer initializer, plus one
-// facade module per reflection ROOT (`virtual:rt/<rootId>.js` — the module
+// facade module per reflection ROOT (`rtmod:/<rootId>.js` — the module
 // the rewrite's binding-only injection already imports at getRunTypeId /
 // builder / mock sites). Function-family modules never
 // import runtype modules, so the runtype graph is self-contained: the bundle
@@ -32,15 +32,15 @@ const bundleKeyLength = 10
 // the bundle content does and the runtime's processed-keys guard re-registers
 // an evolved bundle after an HMR reload (the module NAME stays fixed; the
 // Vite plugin invalidates it on addedRunTypes).
-func CollectEntries(dump protocol.Dump) virtualmodules.Graph {
-	graph := virtualmodules.Graph{}
+func CollectEntries(dump protocol.Dump) entrymodules.Graph {
+	graph := entrymodules.Graph{}
 	nodes := indexNodes(dump.RunTypes)
-	// Facades are emitted for reflection-only roots; circular createX types
-	// contribute their graph as bundle ROWS (so the circular-reference guard
-	// can walk a value at runtime) but get no facade — their fn entry imports
-	// the bundle directly via the dep wired in wireCircularRunTypeDeps.
+	// Bundle rows are the reflection-only roots' graphs. Circular createX types
+	// no longer contribute rows: the circular-reference guard became a
+	// compile-time option that bakes a path skeleton into the armed factory, so
+	// it needs no RunType graph at runtime (a plain cyclable type ships nothing).
 	facadeRoots := reflectionRoots(dump.Sites)
-	rowRoots := unionRoots(facadeRoots, circularGuardTypeIDs(dump.Sites, nodes))
+	rowRoots := facadeRoots
 	if len(rowRoots) == 0 {
 		return graph
 	}
@@ -79,9 +79,9 @@ func CollectEntries(dump protocol.Dump) virtualmodules.Graph {
 		relEnd--
 	}
 	bundleKey := "rts_" + hashid.QuickHash(strings.Join(rows, ","), bundleKeyLength, "")
-	graph.Add(&virtualmodules.Entry{
+	graph.Add(&entrymodules.Entry{
 		Key:      bundleKey,
-		Kind:     virtualmodules.KindRunTypeBundle,
+		Kind:     entrymodules.KindRunTypeBundle,
 		ArgsText: quoteJS(bundleKey) + ",[" + rowsText.String() + "],[" + strings.Join(relRows[:relEnd], ",") + "]",
 		InitBody: footer.String(),
 	})
@@ -89,9 +89,9 @@ func CollectEntries(dump protocol.Dump) virtualmodules.Graph {
 	// made it into the dump (defensive): the injected import must resolve, and
 	// the runtime degrades to a registry miss exactly as before.
 	for _, root := range facadeRoots {
-		graph.Add(&virtualmodules.Entry{
+		graph.Add(&entrymodules.Entry{
 			Key:      root,
-			Kind:     virtualmodules.KindRunTypeFacade,
+			Kind:     entrymodules.KindRunTypeFacade,
 			ArgsText: quoteJS(root),
 			Deps:     []string{bundleKey},
 		})
@@ -110,87 +110,7 @@ func indexNodes(runTypes []*protocol.RunType) map[string]*protocol.RunType {
 	return nodes
 }
 
-// unionRoots merges reflection facade roots with the circular createX type-id
-// set into one deduped, sorted row-root list.
-func unionRoots(facadeRoots []string, circular map[string]bool) []string {
-	set := make(map[string]bool, len(facadeRoots)+len(circular))
-	for _, root := range facadeRoots {
-		set[root] = true
-	}
-	for id := range circular {
-		set[id] = true
-	}
-	out := make([]string, 0, len(set))
-	for id := range set {
-		out = append(out, id)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// CircularGuardTypeIDs returns the set of type ids referenced by a createX
-// (function-cache) site whose reflected graph contains a circular node. These
-// types get their RunType graph emitted into the data bundle AND (by the
-// resolver) linked into the guarded fn entries' dep closure, so the runtime
-// circular-reference guard can walk values of cyclic types. Single source of
-// truth shared by CollectEntries (bundle rows) and the resolver's dep wiring.
-func CircularGuardTypeIDs(dump protocol.Dump) map[string]bool {
-	return circularGuardTypeIDs(dump.Sites, indexNodes(dump.RunTypes))
-}
-
-// circularGuardTypeIDs collects the createX (FnId-bearing) site type ids whose
-// reflected closure contains at least one circular node. Reflection-only sites
-// (FnId empty) are excluded — their graph already ships via reflectionRoots.
-func circularGuardTypeIDs(sites []protocol.Site, nodes map[string]*protocol.RunType) map[string]bool {
-	out := map[string]bool{}
-	memo := map[string]bool{}
-	for _, site := range sites {
-		if site.ID == "" || site.FnId == "" || out[site.ID] {
-			continue
-		}
-		if closureHasCircular(site.ID, nodes, memo) {
-			out[site.ID] = true
-		}
-	}
-	return out
-}
-
-// closureHasCircular reports whether any node reachable from rootID over the
-// ref-bearing slots is flagged circular by the serializer (RunType.IsCircular).
-// Memoised by root id across one collection pass.
-func closureHasCircular(rootID string, nodes map[string]*protocol.RunType, memo map[string]bool) bool {
-	if cached, ok := memo[rootID]; ok {
-		return cached
-	}
-	visited := make(map[string]bool)
-	queue := []string{rootID}
-	found := false
-	for len(queue) > 0 {
-		id := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		if visited[id] {
-			continue
-		}
-		visited[id] = true
-		node := nodes[id]
-		if node == nil {
-			continue
-		}
-		if node.IsCircular {
-			found = true
-			break
-		}
-		for _, dep := range collectRefDeps(node) {
-			if !visited[dep] {
-				queue = append(queue, dep)
-			}
-		}
-	}
-	memo[rootID] = found
-	return found
-}
-
-// CollectEntriesPerNode is the allModules-mode collector: one virtualmodules.Entry
+// CollectEntriesPerNode is the allModules-mode collector: one entrymodules.Entry
 // per cached RunType (the pre-bundle layout). Tuple args reuse
 // renderFactoryArgs verbatim, the per-entry init body reuses writeFooter, and
 // Deps collects the KindRef ids the footer references so the assembler
@@ -198,8 +118,8 @@ func closureHasCircular(rootID string, nodes map[string]*protocol.RunType, memo 
 // scoping happens at the dump layer (scopedDump for scanFiles, full cache for
 // dump). Measured slower than the bundle on dense reflection graphs (the
 // reason the bundle replaced it) — kept as the allModules escape hatch.
-func CollectEntriesPerNode(dump protocol.Dump) virtualmodules.Graph {
-	graph := make(virtualmodules.Graph, len(dump.RunTypes))
+func CollectEntriesPerNode(dump protocol.Dump) entrymodules.Graph {
+	graph := make(entrymodules.Graph, len(dump.RunTypes))
 	for _, runType := range dump.RunTypes {
 		if runType == nil || runType.ID == "" {
 			continue
@@ -209,9 +129,9 @@ func CollectEntriesPerNode(dump protocol.Dump) virtualmodules.Graph {
 		// (each child rides its own module dep), unlike the data bundle which
 		// uses row indices.
 		writeFooter(&footer, runType)
-		graph.Add(&virtualmodules.Entry{
+		graph.Add(&entrymodules.Entry{
 			Key:      runType.ID,
-			Kind:     virtualmodules.KindRunType,
+			Kind:     entrymodules.KindRunType,
 			ArgsText: strings.Join(renderFactoryArgs(runType), ","),
 			InitBody: footer.String(),
 			Deps:     collectRefDeps(runType),

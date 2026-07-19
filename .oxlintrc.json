@@ -9,16 +9,11 @@
     "runtypes/no-enrichment-todo": "error",
     "runtypes/no-orphan-carcass": "error",
     "runtypes/enrichment-field": "error",
-    "runtypes/enrichment-drift": "error",
+    "runtypes/enrichment-broken-source": "error",
     "no-empty-function": "off",
     "typescript/no-empty-function": "off",
     "typescript/no-explicit-any": "off",
     "typescript/no-empty-object-type": "error"
-  },
-  "settings": {
-    "runtypes": {
-      "binary": "./bin/ts-runtypes"
-    }
   },
   "ignorePatterns": [
     "node_modules/**",

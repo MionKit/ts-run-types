@@ -10,10 +10,9 @@
 // pre-spawns the generic launcher (spawn-shim.ts) while the host process is
 // still small — lint hosts that embed the Rust linter in-process (oxlint)
 // balloon to tens of GB of reserved address space once linting starts, after
-// which fork() fails with ENOMEM on Linux. When the first request arrives
-// (bringing settings), the worker hands the shim the real binary + argv and
-// speaks the resolver protocol over the shim's pipes. A socket option skips
-// all of that and connects to a persistent daemon instead.
+// which fork() fails with ENOMEM on Linux. On the first request the worker
+// hands the shim the real binary + argv and speaks the resolver protocol over
+// the shim's pipes.
 //
 // Per request the worker mirrors the unplugin's HMR pivot: push the file's
 // buffer text (`setSources` — an inferred Program rooted at the file, its
@@ -27,20 +26,8 @@ import {fileURLToPath} from 'node:url';
 import {parentPort, workerData} from 'node:worker_threads';
 import {getExePath} from '@ts-runtypes/bin';
 import {Family, Severity, type Diagnostic, type UncheckedPattern} from '../protocol.ts';
-import {
-  buildResolverArgs,
-  ResolverClient,
-  ResolverSocketClient,
-  ResolverStreamClient,
-  type ResolverConnection,
-} from '../resolver-client.ts';
-import {
-  WAKE_INDEX,
-  type LintWorkerData,
-  type LintWorkerRequest,
-  type LintWorkerResponse,
-  type LintSessionOptions,
-} from './session-protocol.ts';
+import {buildResolverArgs, ResolverClient, ResolverStreamClient, type ResolverConnection} from '../resolver-client.ts';
+import {WAKE_INDEX, type LintWorkerData, type LintWorkerRequest, type LintWorkerResponse} from './session-protocol.ts';
 
 const data = workerData as LintWorkerData;
 const requests = data.port;
@@ -72,30 +59,19 @@ if (process.env['RT_LINT_PRESPAWN'] !== '0') {
 parentPort?.postMessage({shimReady: true});
 
 let connection: ResolverConnection | null = null;
-// The first request's options win for the connection's lifetime (settings
-// are config-global; they can't change mid-run without a host restart).
-let adopted: LintSessionOptions | null = null;
 
 // ensureConnection lazily opens the resolver on the first request, preferring
-// the daemon socket, then the pre-spawned shim, then a direct spawn.
-async function ensureConnection(options: LintSessionOptions): Promise<ResolverConnection> {
+// the pre-spawned shim, then a direct spawn.
+async function ensureConnection(): Promise<ResolverConnection> {
   if (connection) return connection;
-  adopted = options;
-  const cwd = options.cwd ?? process.cwd();
-  if (options.socket) {
-    // Daemon mode needs no child at all — the shim can retire.
-    shim?.kill();
-    shim = null;
-    connection = await ResolverSocketClient.connect(options.socket);
-    return connection;
-  }
-  // Explicit path wins; otherwise resolve the host-platform binary from the
-  // ts-runtypes-bin launcher (throws with a clear message if none is
-  // installed) — the same resolution the bundler plugin uses. Single-threaded:
-  // the session lints one file at a time, and a light child keeps editor/CI
-  // hosts well under process/memory limits.
-  const binaryPath = options.binary ?? getExePath();
-  const args = buildResolverArgs(cwd, '', {serverMode: true, singleThreaded: true});
+  // No configuration: resolve the host-platform binary from the ts-runtypes-bin
+  // launcher (the same resolution the bundler plugins use; throws with a clear
+  // message if none is installed), rooted at process.cwd() — the directory the
+  // linter itself runs in, like any other linter. Single-threaded: the session
+  // lints one file at a time, and a light child keeps editor/CI hosts well
+  // under process/memory limits.
+  const binaryPath = getExePath();
+  const args = buildResolverArgs(process.cwd(), '', {serverMode: true, singleThreaded: true});
   if (shim?.stdin && shim.stdout && shim.exitCode === null) {
     const launcher = shim;
     launcher.stdin!.write(JSON.stringify({exec: binaryPath, args}) + '\n');
@@ -104,7 +80,7 @@ async function ensureConnection(options: LintSessionOptions): Promise<ResolverCo
     connection = stream;
     return connection;
   }
-  connection = new ResolverClient(binaryPath, cwd, '', {serverMode: true, singleThreaded: true});
+  connection = new ResolverClient(binaryPath, process.cwd(), '', {serverMode: true, singleThreaded: true});
   return connection;
 }
 
@@ -150,11 +126,9 @@ async function lintOne(request: LintWorkerRequest): Promise<LintWorkerResponse> 
   for (let attempt = 0; ; attempt++) {
     let stage: 'connect' | 'scan' = 'connect';
     try {
-      const options = adopted ?? request.options;
-      const resolver = await ensureConnection(options);
+      const resolver = await ensureConnection();
       stage = 'scan';
-      const cwd = options.cwd ?? process.cwd();
-      const rel = path.relative(cwd, request.file) || request.file;
+      const rel = path.relative(process.cwd(), request.file) || request.file;
       await resolver.setSources({[rel]: request.text});
       const result = await resolver.scanFiles([rel], {checkEnrich: true, includeRtDiagnostics: true});
       // The resolver ships format patterns RE2 couldn't verify (JS-only regex

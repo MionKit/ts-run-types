@@ -11,15 +11,40 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/constants"
 )
 
-// repoRoot is the ts-go-runtypes module root (two dirs up from this file).
-func repoRoot() string {
+// monorepoRoot is the repository root — three dirs up from this file (cmd/
+// gen-fn-hashes → cmd → ts-go-runtypes → repo root). The `packages/` workspaces
+// live here, NOT under the Go module: a past migration moved the Go tree into
+// ts-go-runtypes/ but left packages/ at the repo root (see
+// docs/done/go-tree-subdir-migration.md), so the output path is one level above
+// the Go module.
+func monorepoRoot() string {
 	_, thisFile, _, _ := runtime.Caller(0)
-	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
 }
 
 // fnHashesOutputPath is the absolute path of the TS file we emit.
 func fnHashesOutputPath() string {
-	return filepath.Join(repoRoot(), "packages", "ts-runtypes", "src", "fnHashes.generated.ts")
+	return filepath.Join(monorepoRoot(), "packages", "ts-runtypes", "src", "go-generated", "fnHashes.generated.ts")
+}
+
+// jsStr renders a single-quoted JS/TS string literal, matching oxfmt's quote
+// style so the generator's raw output is byte-identical to the committed
+// (oxfmt-formatted) file — which lets gen_test.go compare them directly and keeps
+// `pnpm rtx core codegen fnhashes --check` a no-op after formatting. The values
+// here are operation keys / fnHashes / option letters (plain identifiers), so the
+// escaping only ever matters defensively.
+func jsStr(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 2)
+	b.WriteByte('\'')
+	for _, r := range s {
+		if r == '\'' || r == '\\' {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	b.WriteByte('\'')
+	return b.String()
 }
 
 // axisToken maps an operation Axis onto its TS discriminator string.
@@ -29,26 +54,36 @@ func axisToken(axis operations.Axis) string {
 		return "validateOptions"
 	case operations.AxisJsonStrategy:
 		return "jsonStrategy"
+	case operations.AxisHasUnknownKeysOptions:
+		return "hasUnknownKeysOptions"
 	default:
 		return "none"
 	}
 }
 
 // fnHashEntry is one operation's rendered TS entry: its axis, the optional
-// default variant (JSON strategy families only), and every variant token → hash.
+// default variant (JSON strategy families only), whether it forks on the
+// rejectCircular compile option, and every variant token → hash.
 type fnHashEntry struct {
-	fnKey          string
-	axis           string
-	defaultVariant string
-	variants       map[string]string
+	fnKey           string
+	axis            string
+	defaultVariant  string
+	circularGuarded bool
+	variants        map[string]string
 }
 
-// validateSubsets returns the power set of ValidateOptions NAMES — every subset
-// an it/te call site can request. Mirrors operations.validateOptionSubsets (kept
-// local so the generator doesn't need an exported view of that internal helper).
-func validateSubsets() [][]string {
-	names := make([]string, 0, len(constants.ValidateOptions))
-	for _, opt := range constants.ValidateOptions {
+// circularVariantLetter is appended to a CircularGuarded op's base variant token
+// for its armed (rejectCircularRefs) fork — the JS-side mirror of the Go
+// operations.circularCanonicalSuffix. getFnHash appends the same letter.
+const circularVariantLetter = "C"
+
+// optionSubsets returns the power set of an option table's NAMES — every subset
+// a call site can request. Mirrors operations.optionSubsets (kept local so the
+// generator doesn't need an exported view of that internal helper). Shared by
+// the validateOptions and hasUnknownKeysOptions axes.
+func optionSubsets(table []constants.ValidateOption) [][]string {
+	names := make([]string, 0, len(table))
+	for _, opt := range table {
 		names = append(names, opt.Name)
 	}
 	subsets := make([][]string, 0, 1<<len(names))
@@ -74,20 +109,39 @@ func collectEntries() []fnHashEntry {
 		if op.FnKey == "" {
 			continue
 		}
-		entry := fnHashEntry{fnKey: op.FnKey, axis: axisToken(op.Axis), variants: map[string]string{}}
-		switch op.Axis {
-		case operations.AxisValidateOptions:
-			for _, subset := range validateSubsets() {
-				token := constants.ValidateVariantSuffix(subset)
-				entry.variants[token] = operations.FnHashFor(op, subset, "")
+		entry := fnHashEntry{fnKey: op.FnKey, axis: axisToken(op.Axis), circularGuarded: op.CircularGuarded, variants: map[string]string{}}
+		// CircularGuarded ops emit each base variant twice: plain, and armed with
+		// the "C" letter appended (getFnHash mirrors the append). Non-guarded ops
+		// emit only the plain lane.
+		circularForks := []bool{false}
+		if op.CircularGuarded {
+			circularForks = []bool{false, true}
+		}
+		addVariant := func(baseToken string, rejectCircular bool, hash string) {
+			token := baseToken
+			if rejectCircular {
+				token += circularVariantLetter
 			}
-		case operations.AxisJsonStrategy:
-			entry.defaultVariant = op.DefaultStrategy
-			for _, strategy := range op.Strategies {
-				entry.variants[strategy] = operations.FnHashFor(op, nil, strategy)
+			entry.variants[token] = hash
+		}
+		for _, rejectCircular := range circularForks {
+			switch op.Axis {
+			case operations.AxisValidateOptions:
+				for _, subset := range optionSubsets(constants.ValidateOptions) {
+					addVariant(constants.ValidateVariantSuffix(subset), rejectCircular, operations.FnHashFor(op, subset, "", rejectCircular))
+				}
+			case operations.AxisHasUnknownKeysOptions:
+				for _, subset := range optionSubsets(constants.HasUnknownKeysOptions) {
+					addVariant(constants.HasUnknownKeysVariantSuffix(subset), rejectCircular, operations.FnHashFor(op, subset, "", rejectCircular))
+				}
+			case operations.AxisJsonStrategy:
+				entry.defaultVariant = op.DefaultStrategy
+				for _, strategy := range op.Strategies {
+					addVariant(strategy, rejectCircular, operations.FnHashFor(op, nil, strategy, rejectCircular))
+				}
+			default:
+				addVariant("", rejectCircular, operations.FnHashFor(op, nil, "", rejectCircular))
 			}
-		default:
-			entry.variants[""] = operations.FnHashFor(op, nil, "")
 		}
 		entries = append(entries, entry)
 	}
@@ -101,7 +155,7 @@ func tsKey(key string) string {
 	if key != "" && isIdent(key) {
 		return key
 	}
-	return fmt.Sprintf("%q", key)
+	return jsStr(key)
 }
 
 func isIdent(s string) bool {
@@ -128,7 +182,7 @@ func renderVariants(variants map[string]string) string {
 	sort.Strings(tokens)
 	parts := make([]string, 0, len(tokens))
 	for _, token := range tokens {
-		parts = append(parts, fmt.Sprintf("%s: %q", tsKey(token), variants[token]))
+		parts = append(parts, fmt.Sprintf("%s: %s", tsKey(token), jsStr(variants[token])))
 	}
 	return "{" + strings.Join(parts, ", ") + "}"
 }
@@ -140,7 +194,7 @@ func Generate() string {
 	out := &strings.Builder{}
 	out.WriteString("// Code generated by cmd/gen-fn-hashes. DO NOT EDIT.\n")
 	out.WriteString("// Source: internal/cachegen/operations (the registry + fnhash.go salt).\n")
-	out.WriteString("// Regenerate via `pnpm run gen:fn-hashes` after changing an operation, a\n")
+	out.WriteString("// Regenerate via `pnpm rtx core codegen fnhashes` after changing an operation, a\n")
 	out.WriteString("// validate option, a JSON strategy, or the fnHash salt.\n")
 	out.WriteString("//\n")
 	out.WriteString("// Every fnHash here is VERSION-INDEPENDENT (operations.fnHashSalt no longer\n")
@@ -150,23 +204,33 @@ func Generate() string {
 	out.WriteString("// its typeId half (injected by the plugin) still carries the version.\n")
 	out.WriteString("\n")
 
-	out.WriteString("export type FnHashAxis = 'none' | 'validateOptions' | 'jsonStrategy';\n")
+	out.WriteString("export type FnHashAxis = 'none' | 'validateOptions' | 'jsonStrategy' | 'hasUnknownKeysOptions';\n")
 	out.WriteString("\n")
 	out.WriteString("export interface FnHashEntry {\n")
 	out.WriteString("  readonly axis: FnHashAxis;\n")
 	out.WriteString("  /** jsonStrategy only: the strategy token applied when options omit `strategy`. */\n")
 	out.WriteString("  readonly defaultVariant?: string;\n")
+	out.WriteString("  /** CircularGuarded families (validate / validationErrors / toBinary /\n")
+	out.WriteString("   *  jsonEncoder) fork on the rejectCircularRefs compile option: each base\n")
+	out.WriteString("   *  variant token also has a 'C'-suffixed armed twin. getFnHash appends 'C'\n")
+	out.WriteString("   *  when options.rejectCircularRefs is set on such a family. */\n")
+	out.WriteString("  readonly circularGuarded?: true;\n")
 	out.WriteString("  /** Variant token → fnHash. Token is '' for option-less families, the validate\n")
-	out.WriteString("   *  variant suffix ('', 'NL', 'NA', 'NLA'), or the JSON strategy name. */\n")
+	out.WriteString("   *  variant suffix ('', 'NL', 'NA', 'NLA'), the hasUnknownKeys variant suffix\n")
+	out.WriteString("   *  ('', 'OV'), or the JSON strategy name — each optionally with a trailing\n")
+	out.WriteString("   *  'C' for the rejectCircularRefs fork on a CircularGuarded family. */\n")
 	out.WriteString("  readonly variants: Readonly<Record<string, string>>;\n")
 	out.WriteString("}\n")
 	out.WriteString("\n")
 
 	out.WriteString("export const FN_HASHES = {\n")
 	for _, entry := range collectEntries() {
-		fields := []string{fmt.Sprintf("axis: %q", entry.axis)}
+		fields := []string{"axis: " + jsStr(entry.axis)}
 		if entry.defaultVariant != "" {
-			fields = append(fields, fmt.Sprintf("defaultVariant: %q", entry.defaultVariant))
+			fields = append(fields, "defaultVariant: "+jsStr(entry.defaultVariant))
+		}
+		if entry.circularGuarded {
+			fields = append(fields, "circularGuarded: true")
 		}
 		fields = append(fields, "variants: "+renderVariants(entry.variants))
 		out.WriteString(fmt.Sprintf("  %s: {%s},\n", tsKey(entry.fnKey), strings.Join(fields, ", ")))
@@ -179,7 +243,17 @@ func Generate() string {
 	out.WriteString(" *  the letters of the present options concatenated in THIS order. */\n")
 	out.WriteString("export const VALIDATE_OPTION_LETTERS = [\n")
 	for _, opt := range constants.ValidateOptions {
-		out.WriteString(fmt.Sprintf("  [%q, %q],\n", opt.Name, opt.Letter))
+		out.WriteString(fmt.Sprintf("  [%s, %s],\n", jsStr(opt.Name), jsStr(opt.Letter)))
+	}
+	out.WriteString("] as const satisfies ReadonlyArray<readonly [string, string]>;\n")
+	out.WriteString("\n")
+
+	out.WriteString("/** HasUnknownKeysOptions name → single-letter token, in Go declaration order\n")
+	out.WriteString(" *  (constants.HasUnknownKeysOptions). The hasUnknownKeys variant suffix is 'O'\n")
+	out.WriteString(" *  followed by the letters of the present options concatenated in THIS order. */\n")
+	out.WriteString("export const HAS_UNKNOWN_KEYS_OPTION_LETTERS = [\n")
+	for _, opt := range constants.HasUnknownKeysOptions {
+		out.WriteString(fmt.Sprintf("  [%s, %s],\n", jsStr(opt.Name), jsStr(opt.Letter)))
 	}
 	out.WriteString("] as const satisfies ReadonlyArray<readonly [string, string]>;\n")
 

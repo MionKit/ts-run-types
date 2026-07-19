@@ -118,7 +118,17 @@ package diskcache
 // the v2→v3 fnHash naming flip: v13 payloads bake the old keys, so they must
 // miss. (The disk-cache FINGERPRINT is unchanged — the version was never in it,
 // by design; this is a payload-shape bump, which is what FormatVersion guards.)
-const FormatVersion = 14
+//
+// v15 adds PureFnRefs so a cache hit reconstructs the entry's pure-fn edges. The
+// built-in pure-fn bodies (`rt::…` / `rtFormats::…`) are now delivered on demand
+// through the module graph (a SoftDep + the tuple deps thunk) instead of a
+// blanket side-effect import, and those edges ride each fn entry's PureFnRefs.
+// Without persisting them a warm entry would rebuild empty SoftDeps and drop its
+// pure-fn imports — a runtime `getPureFn(...) === undefined`. Unlike ChildRefs /
+// CrossFamilyRefs the keys are stable `<ns>::<fn>` strings (not structural-id
+// derived), so no drift check is needed; v14 payloads simply lack the field and
+// must miss so the walk re-derives it. ArgsText is unchanged.
+const FormatVersion = 15
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
@@ -183,4 +193,11 @@ type RTEntry struct {
 	// an empty set on a hit and miss the val_<member> roots. Empty for
 	// entries with no cross-family edges.
 	CrossFamilyRefs []CrossFamilyRef `json:"crossFamilyRefs,omitempty"`
+	// PureFnRefs is one entry per pure-fn dependency the body reaches
+	// (walker.PureFnDependencies rendered as `<ns>::<fn>` keys, e.g.
+	// `rt::newRunTypeErr`). Persisted so a cache hit rebuilds the entry's
+	// SoftDeps pure-fn edges — the demand-driven built-in delivery imports the
+	// pure-fn module off these. The keys are stable strings (no structural-id
+	// translation, no drift check). Empty for entries that reach no pure fn.
+	PureFnRefs []string `json:"pureFnRefs,omitempty"`
 }

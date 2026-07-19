@@ -49,7 +49,7 @@ func compositeEntryKeys(t *testing.T, resp protocol.Response, opName, strategy s
 	if !ok {
 		t.Fatalf("unknown operation %q", opName)
 	}
-	prefix := operations.FnHashFor(op, nil, strategy) + "_"
+	prefix := operations.FnHashFor(op, nil, strategy, false) + "_"
 	var keys []string
 	for basename := range resp.EntryModules {
 		if strings.HasPrefix(basename, prefix) {

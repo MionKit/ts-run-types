@@ -3,7 +3,7 @@ package resolver
 import (
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 )
 
 // White-box unit coverage for pruneUnreachableTypeFnEntries — the e2e tests
@@ -11,15 +11,15 @@ import (
 // the graph semantics the helper must hold under shapes the demand machinery
 // doesn't produce today (so a future producer can't silently regress them).
 
-func typeFnEntry(key string, deps, softDeps []string) *virtualmodules.Entry {
-	return &virtualmodules.Entry{Key: key, Kind: virtualmodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + key + "'", Deps: deps, SoftDeps: softDeps}
+func typeFnEntry(key string, deps, softDeps []string) *entrymodules.Entry {
+	return &entrymodules.Entry{Key: key, Kind: entrymodules.KindTypeFn, FamilyTag: "pj", ArgsText: "'" + key + "'", Deps: deps, SoftDeps: softDeps}
 }
 
 // TestPruneUnit_DropsOrphanChainsTransitively — an unreferenced entry takes
 // its whole private dependency chain with it, while a demanded root keeps its
 // own chain alive through the same edge kinds.
 func TestPruneUnit_DropsOrphanChainsTransitively(t *testing.T) {
-	graph := virtualmodules.Graph{}
+	graph := entrymodules.Graph{}
 	graph.Add(typeFnEntry("root", []string{"childA"}, nil))
 	graph.Add(typeFnEntry("childA", []string{"childB"}, nil))
 	graph.Add(typeFnEntry("childB", nil, nil))
@@ -44,7 +44,7 @@ func TestPruneUnit_DropsOrphanChainsTransitively(t *testing.T) {
 // lookups, composite→primitive refs) keep their targets emitted exactly like
 // hard deps: the module closure must load them.
 func TestPruneUnit_SoftDepsCarryLiveness(t *testing.T) {
-	graph := virtualmodules.Graph{}
+	graph := entrymodules.Graph{}
 	graph.Add(typeFnEntry("decoder", nil, []string{"val_member"}))
 	graph.Add(typeFnEntry("val_member", nil, nil))
 	graph.Add(typeFnEntry("val_orphan", nil, nil))
@@ -64,11 +64,11 @@ func TestPruneUnit_SoftDepsCarryLiveness(t *testing.T) {
 // the fn-site demand list), and a type-fn entry reachable only through a
 // non-typefn root's edges stays live.
 func TestPruneUnit_NonTypeFnKindsAreRoots(t *testing.T) {
-	graph := virtualmodules.Graph{}
-	graph.Add(&virtualmodules.Entry{Key: "runtypes", Kind: virtualmodules.KindRunTypeBundle, ArgsText: "'runtypes'"})
-	graph.Add(&virtualmodules.Entry{Key: "facade1", Kind: virtualmodules.KindRunTypeFacade, Deps: []string{"runtypes"}})
-	graph.Add(&virtualmodules.Entry{Key: "pf/ns/fn", Kind: virtualmodules.KindPureFn, ArgsText: "'pf/ns/fn'", Deps: []string{"viaPureFn"}})
-	graph.Add(&virtualmodules.Entry{Key: "stub1", Kind: virtualmodules.KindMissing})
+	graph := entrymodules.Graph{}
+	graph.Add(&entrymodules.Entry{Key: "runtypes", Kind: entrymodules.KindRunTypeBundle, ArgsText: "'runtypes'"})
+	graph.Add(&entrymodules.Entry{Key: "facade1", Kind: entrymodules.KindRunTypeFacade, Deps: []string{"runtypes"}})
+	graph.Add(&entrymodules.Entry{Key: "pf/ns/fn", Kind: entrymodules.KindPureFn, ArgsText: "'pf/ns/fn'", Deps: []string{"viaPureFn"}})
+	graph.Add(&entrymodules.Entry{Key: "stub1", Kind: entrymodules.KindMissing})
 	graph.Add(typeFnEntry("viaPureFn", nil, nil))
 
 	pruneUnreachableTypeFnEntries(graph, nil)
@@ -83,7 +83,7 @@ func TestPruneUnit_NonTypeFnKindsAreRoots(t *testing.T) {
 // TestPruneUnit_DemandedOrphanSurvives — a rewrite-injected binding resolves
 // even when nothing else references it (the createValidate<any> shape).
 func TestPruneUnit_DemandedOrphanSurvives(t *testing.T) {
-	graph := virtualmodules.Graph{}
+	graph := entrymodules.Graph{}
 	graph.Add(typeFnEntry("demandedNoop", nil, nil))
 	graph.Add(typeFnEntry("orphanNoop", nil, nil))
 

@@ -38,7 +38,7 @@ function i18nFixture(name: string, source: string, locales: string[], strict = f
       {
         compilerOptions: {
           rootDir: 'src',
-          plugins: [{name: 'ts-runtypes', enrichDir: 'runtypes/generated', i18n: {sourceLocale: 'en', locales, strict}}],
+          plugins: [{name: 'ts-runtypes', i18n: {sourceLocale: 'en', locales, strict}}],
         },
       },
       null,
@@ -83,7 +83,7 @@ describe('enrichment i18n — gen --translate', () => {
       'export const pl_friendlyUser: FriendlyText<User>'
     );
     expect(translation).toContain("import type { FriendlyText } from '@ts-runtypes/core'");
-    expect(translation, 'breadcrumb is the ordinary src type import').toContain("from '../../../../src/models'");
+    expect(translation, 'breadcrumb is the ordinary src type import').toContain("from '../../../../models'");
     expect(translation, 'plural keys carry the TARGET locale arms').toContain(
       "minLength: {one: '', few: '', many: '', other: ''}"
     );

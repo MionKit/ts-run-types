@@ -33,6 +33,9 @@ const (
 	// AxisJsonStrategy — refined by the JSON strategy token (jsonEncoder /
 	// jsonDecoder); the operation is composite (one emitted entry per strategy).
 	AxisJsonStrategy
+	// AxisHasUnknownKeysOptions — refined by the HasUnknownKeysOptions bag
+	// (hasUnknownKeys's `runsAfterValidation`).
+	AxisHasUnknownKeysOptions
 )
 
 // Operation describes one renderable RT operation.
@@ -63,31 +66,41 @@ type Operation struct {
 	// Strategies is the full set of valid strategy tokens for an AxisJsonStrategy
 	// operation. Empty otherwise. Drives the collision-guard enumeration.
 	Strategies []string
+	// CircularGuarded marks an operation whose runtime factory can inline the
+	// circular-reference guard: validate, validationErrors, toBinary, jsonEncoder.
+	// When a call site arms `{rejectCircularRefs: true}` on one of these, the
+	// option folds ORTHOGONALLY into the fnHash (circularCanonicalSuffix) — an
+	// armed factory and a plain one for the same T compile to distinct entries,
+	// pay-for-use exactly like noLiterals. The suffix is independent of the
+	// operation's Axis (it applies across the validate-options, json-strategy, and
+	// none axes uniformly), so it is a bool here rather than a fourth Axis value.
+	CircularGuarded bool
 }
 
-// registry is the complete operation set: 11 createX-backed operations plus the
+// registry is the complete operation set: 10 createX-backed operations plus the
 // 7 JSON value-level primitives the composites and cross-family edges reference.
 // All are Public (marker-recoverable) — the primitives via getRTFunction rather
 // than a dedicated factory. Order is not load-bearing (keyed by Name / FnKey).
 var registry = []Operation{
-	// Public — validators (ValidateOptions axis).
-	{Name: "validate", FamilyTag: "val", Axis: AxisValidateOptions, Public: true, FnKey: "val"},
-	{Name: "validationErrors", FamilyTag: "verr", Axis: AxisValidateOptions, Public: true, FnKey: "verr"},
+	// Public — validators (ValidateOptions axis). Both guard circular refs.
+	{Name: "validate", FamilyTag: "val", Axis: AxisValidateOptions, Public: true, FnKey: "val", CircularGuarded: true},
+	{Name: "validationErrors", FamilyTag: "verr", Axis: AxisValidateOptions, Public: true, FnKey: "verr", CircularGuarded: true},
+
+	// Public — hasUnknownKeys (HasUnknownKeysOptions axis: `runsAfterValidation`).
+	{Name: "hasUnknownKeys", FamilyTag: "huk", Axis: AxisHasUnknownKeysOptions, Public: true, FnKey: "huk"},
 
 	// Public — option-less leaf families.
-	{Name: "hasUnknownKeys", FamilyTag: "huk", Axis: AxisNone, Public: true, FnKey: "huk"},
-	{Name: "stripUnknownKeys", FamilyTag: "suk", Axis: AxisNone, Public: true, FnKey: "suk"},
 	{Name: "unknownKeyErrors", FamilyTag: "uke", Axis: AxisNone, Public: true, FnKey: "uke"},
-	{Name: "unknownKeysToUndefined", FamilyTag: "uku", Axis: AxisNone, Public: true, FnKey: "uku"},
+	{Name: "cloneExactShape", FamilyTag: "ces", Axis: AxisNone, Public: true, FnKey: "ces"},
 	{Name: "formatTransform", FamilyTag: "fmt", Axis: AxisNone, Public: true, FnKey: "fmt"},
-	{Name: "toBinary", FamilyTag: "tb", Axis: AxisNone, Public: true, FnKey: "tb"},
+	{Name: "toBinary", FamilyTag: "tb", Axis: AxisNone, Public: true, FnKey: "tb", CircularGuarded: true},
 	{Name: "fromBinary", FamilyTag: "fb", Axis: AxisNone, Public: true, FnKey: "fb"},
 
 	// Public — composite JSON encoder / decoder (JsonStrategy axis). FamilyTag is
 	// empty; each strategy renders its own entry (per-strategy tags added to
 	// constants.CacheModules in the JSON-composite slice).
 	{
-		Name: "jsonEncoder", Axis: AxisJsonStrategy, Public: true, FnKey: "jsonEncoder",
+		Name: "jsonEncoder", Axis: AxisJsonStrategy, Public: true, FnKey: "jsonEncoder", CircularGuarded: true,
 		// `clone` is the default and is shape-derived: it builds a NEW value from
 		// the declared type shape (never `{...v}`), so undeclared keys are dropped
 		// for free — a clone is stripped by construction. That makes a separate

@@ -12,13 +12,14 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/cachegen/builtinpurefns"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/sourcerewrite"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -56,15 +57,12 @@ var familyAddedFlags = []familyAddedFlag{
 	{key: "hasUnknownKeys",
 		anySupported: typefunctions.FamilyByKey("hasUnknownKeys").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedHasUnknownKeys = added }},
-	{key: "stripUnknownKeys",
-		anySupported: typefunctions.FamilyByKey("stripUnknownKeys").AnySupported,
-		setAdded:     func(response *protocol.Response, added bool) { response.AddedStripUnknownKeys = added }},
+	{key: "cloneExactShape",
+		anySupported: typefunctions.FamilyByKey("cloneExactShape").AnySupported,
+		setAdded:     func(response *protocol.Response, added bool) { response.AddedCloneExactShape = added }},
 	{key: "unknownKeyErrors",
 		anySupported: typefunctions.FamilyByKey("unknownKeyErrors").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeyErrors = added }},
-	{key: "unknownKeysToUndefined",
-		anySupported: typefunctions.FamilyByKey("unknownKeysToUndefined").AnySupported,
-		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefined = added }},
 	{key: "unknownKeysToUndefinedWire",
 		anySupported: typefunctions.FamilyByKey("unknownKeysToUndefinedWire").AnySupported,
 		setAdded:     func(response *protocol.Response, added bool) { response.AddedUnknownKeysToUndefinedWire = added }},
@@ -136,8 +134,8 @@ func elapsedMs(start time.Time) float64 {
 // fan-out preserved), JSON composites, pure fns, the cross-family fixpoint,
 // the global dangling-dep cascade, and missing stubs for demanded keys that
 // didn't survive. Returns the rendered modules keyed by module BASENAME.
-func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph virtualmodules.Graph, metrics *protocol.Metrics) (map[string]string, error) {
-	var graph virtualmodules.Graph
+func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunctions.RenderOpts, pureFnGraph entrymodules.Graph, metrics *protocol.Metrics) (map[string]string, error) {
+	var graph entrymodules.Graph
 	if sess.opts.ModuleMode == constants.ModuleModeAllModules {
 		graph = runtype.CollectEntriesPerNode(dump)
 	} else {
@@ -156,9 +154,11 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	graph.Merge(typefunctions.CollectJsonCompositeEntries(dump, rtOpts, graph))
 	graph.Merge(pureFnGraph)
 
-	// Link the reflection RunType bundle into the guarded fn entries of
-	// circular types so the runtime circular-reference guard can walk values.
-	sess.wireCircularRunTypeDeps(graph, dump)
+	// The circular-reference guard is now a compile-time option: an armed
+	// (`{rejectCircularRefs: true}`) guarded entry inlines the guard with a baked
+	// skeleton and demands rt::findCycle by body reference (served like any
+	// built-in), so there is no type-shape wiring or RunType-bundle linking left
+	// to do here — a plain (unarmed) cyclable type ships neither.
 
 	sess.resolveCrossFamilyEdges(graph, dump, rtOpts)
 	// Composite prologues bind primitives with an unguarded
@@ -178,6 +178,11 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	// KindMissing stubs so the imports the plugin injected still resolve, and
 	// the runtime degrades to the family identity fn exactly as before.
 	graph.Cascade()
+	// Deliver the demanded package-owned pure-fn bodies from the built-in table,
+	// after Cascade (demand reflects only surviving entries) and before
+	// AddMissingStubs (a served built-in must be present so it never degrades to a
+	// KindMissing stub). A demanded built-in absent from the table is a PFE9012.
+	sess.serveBuiltinPureFns(graph, rtOpts.DiagSink)
 	demanded, demandTags := demandedEntryKeys(dump.Sites)
 	graph.AddMissingStubs(demanded)
 	// allSingle: a dropped demanded key must stay importable at the bundle
@@ -186,7 +191,7 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	// fallbacks no site demanded) keep their own per-entry module.
 	if sess.opts.ModuleMode == constants.ModuleModeAllSingle {
 		for key, entry := range graph {
-			if entry.Kind == virtualmodules.KindMissing && entry.FamilyTag == "" {
+			if entry.Kind == entrymodules.KindMissing && entry.FamilyTag == "" {
 				entry.FamilyTag = demandTags[key]
 			}
 		}
@@ -194,7 +199,7 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	pruneUnreachableTypeFnEntries(graph, demanded)
 
 	renderStart := time.Now()
-	modules, err := virtualmodules.RenderGrouped(graph, sess.moduleGrouping())
+	modules, err := entrymodules.RenderGrouped(graph, sess.moduleGrouping())
 	if metrics != nil {
 		metrics.RenderMs["entryModules"] = elapsedMs(renderStart)
 	}
@@ -209,9 +214,9 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 // registry order: first error wins, RenderMs recorded (values overlap
 // wall-clock; their sum exceeds elapsed time), shard diagnostics appended
 // (== the sequential order), and Facts shards merged into the dispatch opts.
-func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]virtualmodules.Graph, error) {
+func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.RenderOpts, metrics *protocol.Metrics) ([]entrymodules.Graph, error) {
 	families := typefunctions.Families
-	graphs := make([]virtualmodules.Graph, len(families))
+	graphs := make([]entrymodules.Graph, len(families))
 	if !sess.parallelRenderEnabled() || len(families) < 2 {
 		for familyIndex, spec := range families {
 			collectStart := time.Now()
@@ -342,12 +347,12 @@ var familyByPlainHash = func() map[string]typefunctions.FamilySpec {
 // rendered set grows monotonically toward the (finite) session type set. The
 // guard cap is defensive — hitting it leaves the remaining edges to the stub
 // pass, which preserves the build (runtime degrades to identity fallback).
-func (sess *Session) resolveCrossFamilyEdges(graph virtualmodules.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
+func (sess *Session) resolveCrossFamilyEdges(graph entrymodules.Graph, dump protocol.Dump, rtOpts typefunctions.RenderOpts) {
 	seedDump := protocol.Dump{RunTypes: dump.RunTypes}
 	for iteration := 0; iteration < 8; iteration++ {
 		missingByFamily := map[string]map[string]bool{}
 		for _, entry := range graph {
-			if entry.Kind != virtualmodules.KindTypeFn {
+			if entry.Kind != entrymodules.KindTypeFn {
 				continue
 			}
 			// Cross-family edges ride SoftDeps (hard Deps are same-family and
@@ -447,22 +452,55 @@ func demandedEntryKeys(sites []protocol.Site) ([]string, map[string]string) {
 	return keys, tags
 }
 
-// uniqueSiteFiles lists the source files carrying at least one marker site,
-// sorted and deduplicated. OpGenerate returns it as Response.SiteFiles so the
-// plugin can gate its per-file transform on real scan results instead of
-// textual import sniffing — wrapper call sites (markers forwarded by another
-// package, node_modules included) are covered with zero configuration.
-func uniqueSiteFiles(sites []protocol.Site) []string {
+// uniqueSiteFiles lists the source files carrying at least one marker site OR an
+// extracted pure-fn registration (extraFiles), sorted and deduplicated.
+// OpGenerate returns it as Response.SiteFiles so the plugin can gate its per-file
+// transform on real scan results instead of textual import sniffing — wrapper
+// call sites (markers forwarded by another package, node_modules included) are
+// covered with zero configuration. A pure fn is a Replacement, not a Site, so its
+// file never appears in `sites`; extraFiles folds those in so both the named
+// (`registerPureFnFactory`) and anonymous (`registerAnonymousPureFn`) lanes —
+// including calls behind a library wrapper — are transformed.
+func uniqueSiteFiles(sites []protocol.Site, extraFiles []string) []string {
 	seen := map[string]bool{}
 	var files []string
-	for _, site := range sites {
-		if site.File == "" || seen[site.File] {
-			continue
+	add := func(file string) {
+		if file == "" || seen[file] {
+			return
 		}
-		seen[site.File] = true
-		files = append(files, site.File)
+		seen[file] = true
+		files = append(files, file)
+	}
+	for _, site := range sites {
+		add(site.File)
+	}
+	for _, file := range extraFiles {
+		add(file)
 	}
 	sort.Strings(files)
+	return files
+}
+
+// pureFnReplacementFiles returns the sorted unique source files that carry an
+// extracted pure-fn registration whose factory argument gets rewritten (both the
+// named and anonymous lanes). These files need the per-file transform even
+// though a pure fn is a Replacement and never a marker Site, so they never land
+// in the Site-derived file set — including WRAPPED registrations, whose consumer
+// files import neither the marker package by name nor call the primitive
+// textually. Folded into OpGenerate's SiteFiles so the plugin's transform gate
+// covers them with zero configuration. Extraction is memoised (pureFnFileCache),
+// so re-running it here is cheap.
+func (sess *Session) pureFnReplacementFiles(metrics *protocol.Metrics) []string {
+	entries, _, _ := sess.extractProgramPureFns(metrics)
+	seen := map[string]bool{}
+	var files []string
+	for _, entry := range entries {
+		if entry.FilePath == "" || entry.FactoryArgEnd <= entry.FactoryArgStart || seen[entry.FilePath] {
+			continue
+		}
+		seen[entry.FilePath] = true
+		files = append(files, entry.FilePath)
+	}
 	return files
 }
 
@@ -480,7 +518,7 @@ func uniqueSiteFiles(sites []protocol.Site) []string {
 // via reflection-site bindings and pure-fn modules via their own injected
 // registration sites — neither rides the fn-site demand list, so reachability
 // over it would under-approximate their liveness.
-func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string) {
+func pruneUnreachableTypeFnEntries(graph entrymodules.Graph, demanded []string) {
 	live := make(map[string]bool, len(graph))
 	stack := make([]string, 0, len(graph))
 	enqueue := func(key string) {
@@ -490,7 +528,7 @@ func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string
 		}
 	}
 	for key, entry := range graph {
-		if entry != nil && entry.Kind != virtualmodules.KindTypeFn {
+		if entry != nil && entry.Kind != entrymodules.KindTypeFn {
 			enqueue(key)
 		}
 	}
@@ -512,35 +550,35 @@ func pruneUnreachableTypeFnEntries(graph virtualmodules.Graph, demanded []string
 		}
 	}
 	for key, entry := range graph {
-		if entry != nil && entry.Kind == virtualmodules.KindTypeFn && !live[key] {
+		if entry != nil && entry.Kind == entrymodules.KindTypeFn && !live[key] {
 			delete(graph, key)
 		}
 	}
 }
 
-// moduleGrouping returns the virtualmodules.Grouping for the resolver's module
+// moduleGrouping returns the entrymodules.Grouping for the resolver's module
 // mode. Nil (everything per-entry, the runtype bundle shaping its own module
 // via CollectEntries) for default/allModules; the allSingle partition
 // otherwise: fn/composite entries ride `fns/<familyTag>` bundles, pure fns
 // the `pf` bundle, the reflection facades fold into the runtypes bundle, and
 // missing stubs follow their demanding site's family (per-entry when no site
 // demanded them — soft-dep stubs keep their own resolvable module).
-func (sess *Session) moduleGrouping() virtualmodules.Grouping {
+func (sess *Session) moduleGrouping() entrymodules.Grouping {
 	if sess.opts.ModuleMode != constants.ModuleModeAllSingle {
 		return nil
 	}
-	return func(entry *virtualmodules.Entry) string {
+	return func(entry *entrymodules.Entry) string {
 		switch entry.Kind {
-		case virtualmodules.KindTypeFn:
+		case entrymodules.KindTypeFn:
 			return constants.FnsBundleDir + "/" + entry.FamilyTag
-		case virtualmodules.KindMissing:
+		case entrymodules.KindMissing:
 			if entry.FamilyTag != "" {
 				return constants.FnsBundleDir + "/" + entry.FamilyTag
 			}
 			return ""
-		case virtualmodules.KindPureFn:
+		case entrymodules.KindPureFn:
 			return constants.PureFnModuleDir
-		case virtualmodules.KindRunTypeBundle, virtualmodules.KindRunTypeFacade:
+		case entrymodules.KindRunTypeBundle, entrymodules.KindRunTypeFacade:
 			return constants.RunTypesBundleBasename
 		}
 		return ""
@@ -577,68 +615,82 @@ func (sess *Session) stampSiteModules(sites []protocol.Site) []protocol.Site {
 	return out
 }
 
-// circularGuardedFamilyTags are the family tags whose runtime factory applies
-// the circular-reference guard: createValidate ('val'),
-// createGetValidationErrors ('verr'), createBinaryEncoder ('tb'), and the four
-// createJsonEncoder composites ('jeCL'/'jeMU'/'jeDI'/'jeCO'). Only these entries
-// get the reflection RunType bundle linked into their dep closure; every other
-// family of a circular type pays nothing (decoders take serialized input that
-// cannot cycle; the leaf families never guard).
-var circularGuardedFamilyTags = map[string]bool{
-	"val":  true,
-	"verr": true,
-	"tb":   true,
-	"jeCL": true,
-	"jeMU": true,
-	"jeDI": true,
-	"jeCO": true,
-}
-
-// wireCircularRunTypeDeps links the reflection RunType graph into the dep
-// closure of every guarded fn entry whose type can cycle, so the runtime guard
-// (setRejectCircularRefs) can walk the value against its RunType. The graph rides as
-// a SOFT dep — imported and registered by initFromTuple, but never cascaded
-// (the fn body never references it; only the runtime wrapper does). In the
-// default / allSingle bundle modes the dep is the single data bundle; in
-// allModules mode it is the type's own per-node module (key == typeId).
-func (sess *Session) wireCircularRunTypeDeps(graph virtualmodules.Graph, dump protocol.Dump) {
-	circular := runtype.CircularGuardTypeIDs(dump)
-	if len(circular) == 0 {
-		return
+// serveBuiltinPureFns delivers the package-owned pure-fn bodies (`rt::…` /
+// `rtFormats::…`) demanded by the surviving graph, straight from the generated
+// table (builtinpurefns) — the mechanism that lets a published consumer, whose
+// program has only a .d.ts, receive built-in bodies at all. Demand is (a) every
+// soft dep the table recognises (covers user-pure-fn → built-in edges) plus
+// (b) every `rt::`/`rtFormats::` soft dep on a TYPE-FN entry, whose bodies reach
+// only built-ins (never the anonymous `rt::<hash>` lane, so no false demand). The
+// table's transitive closure is pulled too (isDateString_YMD → isDateString).
+//
+// A (b)-demanded key the table does NOT carry is a genuine build error: once
+// delivery is build-owned there is no runtime registration lane left to cover a
+// built-in the resolver emitted a reference to but the table never generated
+// (a stale table, or a new built-in in a source file the generator does not
+// list). It surfaces as PFE9012 — the same "RT depends on missing pure-fn" code,
+// now validated against the table instead of taken on faith (the exemption flip).
+// Runs post-Cascade so demand reflects only entries that will ship, and
+// pre-AddMissingStubs so a served built-in never degrades to a KindMissing stub.
+func (sess *Session) serveBuiltinPureFns(graph entrymodules.Graph, diagSink *[]diagnostics.Diagnostic) {
+	keys := make([]string, 0, len(graph))
+	for key := range graph {
+		keys = append(keys, key)
 	}
-	perNode := sess.opts.ModuleMode == constants.ModuleModeAllModules
-	bundleKey := ""
-	if !perNode {
-		for key, entry := range graph {
-			if entry.Kind == virtualmodules.KindRunTypeBundle {
-				bundleKey = key
-				break
-			}
-		}
-		if bundleKey == "" {
-			return
+	sort.Strings(keys)
+	demandSet := make(map[string]bool)
+	var demand []string
+	addDemand := func(dep string) {
+		if !demandSet[dep] {
+			demandSet[dep] = true
+			demand = append(demand, dep)
 		}
 	}
-	for _, entry := range graph {
-		if entry.Kind != virtualmodules.KindTypeFn || !circularGuardedFamilyTags[entry.FamilyTag] {
-			continue
-		}
-		typeID := typeIDFromEntryKey(entry.Key)
-		if typeID == "" || !circular[typeID] {
-			continue
-		}
-		dep := bundleKey
-		if perNode {
-			if _, ok := graph[typeID]; !ok {
+	for _, key := range keys {
+		entry := graph[key]
+		for _, dep := range entry.SoftDeps {
+			if builtinpurefns.Has(dep) {
+				addDemand(dep)
 				continue
 			}
-			dep = typeID
+			// A `rt::`/`rtFormats::` edge on a type-fn entry that the table does
+			// not carry: demand it so Closure reports it as missing (a build
+			// error). Restricted to type-fn entries — only their bodies reach
+			// built-ins, so the anonymous `rt::<hash>` user lane (which shares the
+			// `rt` namespace but lives only on pure-fn entries) is never misread.
+			if entry.Kind == entrymodules.KindTypeFn && isBuiltinPureFnKey(dep) {
+				addDemand(dep)
+			}
 		}
-		if dep == "" || dep == entry.Key || containsString(entry.SoftDeps, dep) {
-			continue
-		}
-		entry.SoftDeps = append(entry.SoftDeps, dep)
 	}
+	if len(demand) == 0 {
+		return
+	}
+	entries, missing := builtinpurefns.Closure(demand)
+	graph.Merge(purefunctions.CollectEntries(entries, sess.opts.EmitMode))
+	if diagSink == nil {
+		return
+	}
+	for _, key := range missing {
+		namespace, fnName := splitBuiltinPureFnKey(key)
+		*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeMissingPureFnDep, diagnostics.Site{}, key, namespace, fnName, ""))
+	}
+}
+
+// isBuiltinPureFnKey reports whether dep is in a package-owned pure-fn namespace
+// (`rt` / `rtFormats`). It matches the anonymous `rt::<hash>` lane too, so callers
+// gate on entry kind — type-fn bodies never reference anonymous pure fns.
+func isBuiltinPureFnKey(dep string) bool {
+	namespace, _ := splitBuiltinPureFnKey(dep)
+	return namespace == "rt" || namespace == "rtFormats"
+}
+
+// splitBuiltinPureFnKey splits a `<ns>::<fn>` key at the first `::`.
+func splitBuiltinPureFnKey(key string) (namespace, fnName string) {
+	if idx := strings.Index(key, "::"); idx >= 0 {
+		return key[:idx], key[idx+2:]
+	}
+	return key, ""
 }
 
 // typeIDFromEntryKey splits a `<fnHash>_<typeId>` fn-entry key at the first
@@ -726,6 +778,10 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			AddedPureFns:  addedPureFns,
 			Diagnostics:   combinedDiagnostics,
 		}
+		// Pure-fn build report (opt-in) — the DELTA for the rescanned files, so
+		// the plugin's update-lane callback fires with just the changed sites.
+		// nil when the report is off, so a normal HMR scan pays nothing.
+		response.PureFnSites = sess.pureFnReportForEntries(pureFnEntries)
 		// Per-family added flags, one shallow Supports pass each (the
 		// addedRunTypes short-circuit skips all passes on no-change scans).
 		for _, family := range familyAddedFlags {
@@ -795,7 +851,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 				// out of the per-file pure-fn signals (replacements / addedPureFns)
 				// — those track registerPureFnFactory rewrites, not overrides.
 				allPureFns := append(append([]purefunctions.Entry(nil), pureFnEntries...), sess.overrideEntries...)
-				modules, modulesErr := sess.collectEntryModules(scoped, rtOpts, purefunctions.CollectEntries(allPureFns), metrics)
+				modules, modulesErr := sess.collectEntryModules(scoped, rtOpts, purefunctions.CollectEntries(allPureFns, sess.opts.EmitMode), metrics)
 				if modulesErr != nil {
 					return protocol.Response{Error: modulesErr.Error()}
 				}
@@ -892,7 +948,19 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		if genErr != nil {
 			return protocol.Response{Error: genErr.Error()}
 		}
-		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites)}
+		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites, sess.pureFnReplacementFiles(metrics))}
+		// Pure-fn build report (opt-in): populate the structured records for the
+		// in-process callback, and — when file output is enabled — write the JSON
+		// file alongside the generated modules so out-of-process consumers (a
+		// separate server build, the --compile lane) read it from disk.
+		if report := sess.collectPureFnReport(metrics); report != nil {
+			genResponse.PureFnSites = report
+			if sess.opts.PureFnReportFile {
+				if reportErr := writePureFnReport(pureFnReportPath(outDir), report); reportErr != nil {
+					return protocol.Response{Error: reportErr.Error()}
+				}
+			}
+		}
 		// Marker diagnostics from the eager whole-program scan (MKR/CTA/TMP…)
 		// — persisted by scanAllProgramFiles; without this, buildStart (which
 		// consumes THIS response) never sees them.
@@ -989,7 +1057,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 				// edited the source out from under the resolver's byte offsets.
 				importBlock, edits := sourcerewrite.ComputeEdits(source, fileSites, fileReplacements)
 				if importBlock != "" && request.OutDir != "" {
-					// Files-mode: relativize the injected block's virtual:rt
+					// Files-mode: relativize the injected block's rtmod:
 					// specifiers exactly as 'go' mode does to the whole file —
 					// the block is the only place those specifiers appear.
 					importBlock = relativizeUserImports(sess.absPath(file), sess.absPath(request.OutDir), importBlock)
@@ -1003,7 +1071,7 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			}
 			code, sourceMap := sourcerewrite.Apply(file, source, fileSites, fileReplacements)
 			if request.OutDir != "" {
-				// Files-mode: rewrite the injected import block's virtual:rt
+				// Files-mode: rewrite the injected import block's rtmod:
 				// specifiers to paths relative to this file (the generated
 				// modules live on disk under OutDir/types). Both bases are
 				// absolutized against the resolver cwd so filepath.Rel always
@@ -1111,7 +1179,29 @@ func (sess *Session) extractPureFnsForScan(files []string) (entries []purefuncti
 			changed = true
 		}
 	}
-	replacements = purefunctions.Replacements(entries, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
+	// Replacements are per CALL SITE, not per deduped entry: every registration
+	// site is rewritten (factory → binding, plus the anonymous lane's hash
+	// splice), including two same-file calls that share a body. RawEntries keeps
+	// those duplicate sites the entry dedup drops. `entries` (deduped) still drives
+	// pureFnHashes + diagnostics above.
+	rawEntries := purefunctions.RawEntries(sess.checker, sess.marker, sess.Program, files, sess.pureFnFileCache)
+	// Do NOT rewrite built-in (`rt::`/`rtFormats::`) registration call sites. The
+	// table (builtinpurefns) is the SOLE producer of built-in pure-fn MODULES,
+	// served on demand only when a fn body reaches one. An in-repo build resolves
+	// the package via `src/`, so the extractor sees the built-in registrations in
+	// pure-fns-utils.ts / *-pure-fns.ts; rewriting those factory args to
+	// `import 'rtmod:/pf/rt/…'` would DANGLE whenever the module isn't demanded
+	// (e.g. a file that imports the marker but calls no createX). Leaving them as
+	// plain `registerPureFnFactory(key, factory)` calls keeps the harmless runtime
+	// fallback registration (idempotent with the table's tuple; hollowed in dist).
+	userRaw := rawEntries[:0]
+	for _, entry := range rawEntries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		userRaw = append(userRaw, entry)
+	}
+	replacements = purefunctions.Replacements(userRaw, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
 	return entries, diagnostics, replacements, changed
 }
 

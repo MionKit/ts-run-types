@@ -11,12 +11,12 @@ func TestRootThrowHeadline_PerFamily(t *testing.T) {
 	cases := []struct {
 		code, kind, want string
 	}{
-		{diagnostics.CodePJNeverRoot, "Never", "Cannot encode `Never` to JSON."},
-		{diagnostics.CodeRJSymbolRoot, "Symbol", "Cannot decode `Symbol` from JSON."},
-		{diagnostics.CodeSJFunctionRoot, "Function", "Cannot stringify `Function` to a JSON string."},
-		{diagnostics.CodeTBNonSerializableRoot, "Map", "Cannot serialise `Map` to binary."},
-		{diagnostics.CodeFBArrayElement, "Function", "Cannot deserialise `Function` from binary."},
-		{diagnostics.CodeVLSymbolRoot, "Symbol", "Cannot validate `Symbol`."},
+		{diagnostics.CodePJNeverRoot, "Never", "Type `Never` can never be encoded to JSON — the generated function will always fail."},
+		{diagnostics.CodeRJSymbolRoot, "Symbol", "Type `Symbol` can never be decoded from JSON — the generated function will always fail."},
+		{diagnostics.CodeSJFunctionRoot, "Function", "Type `Function` can never be stringified to JSON — the generated function will always fail."},
+		{diagnostics.CodeTBNonSerializableRoot, "Map", "Type `Map` can never be serialised to binary — the generated function will always fail."},
+		{diagnostics.CodeFBArrayElement, "Function", "Type `Function` can never be deserialised from binary — the generated function will always fail."},
+		{diagnostics.CodeVLSymbolRoot, "Symbol", "Type `Symbol` can never be validated — the generated function will always fail."},
 	}
 	for _, c := range cases {
 		if got := rootThrowHeadline(c.code, c.kind); got != c.want {
@@ -47,7 +47,7 @@ func TestRootThrowWording_CoversEveryAlwaysThrowCode(t *testing.T) {
 
 func TestBuildAlwaysThrowMessage_WithProvenance(t *testing.T) {
 	msg := buildAlwaysThrowMessage(diagnostics.CodeTBFunctionRoot, "Function", []diagnostics.Site{{FilePath: "src/a.ts", StartLine: 7, StartCol: 3}})
-	if !strings.HasPrefix(msg, "[TB003] Cannot serialise `Function` to binary.") {
+	if !strings.HasPrefix(msg, "[TB003] Type `Function` can never be serialised to binary — the generated function will always fail.") {
 		t.Errorf("unexpected message prefix: %q", msg)
 	}
 	if !strings.Contains(msg, "(at src/a.ts:7:3)") {

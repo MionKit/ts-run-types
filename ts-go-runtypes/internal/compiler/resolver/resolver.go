@@ -44,6 +44,12 @@ type Options struct {
 	// is supplied to New(). When unset, SetSources falls back to the
 	// existing Program's GetCurrentDirectory.
 	Cwd string
+	// TsconfigGenDir is the tsconfig `genDir` value (absolute; empty when the
+	// tsconfig sets none). resolveOutDir prefers it over the inferred
+	// <srcDir>/__runtypes default, so every lane (bundler plugin, --compile,
+	// enrich CLI) agrees on the output root; an explicit per-request outDir
+	// (the plugin's own genDir option) still wins.
+	TsconfigGenDir string
 	// SingleThreaded forces single-checker mode on Programs built by
 	// SetSources. Mirrors program.Options.SingleThreaded. Also forces the
 	// serial scan path (a one-checker pool has nothing to fan out over).
@@ -122,6 +128,19 @@ type Options struct {
 	// lane always validates regardless. Not a disk-fingerprint input (it
 	// changes only which diagnostics surface, never the emitted artifacts).
 	AllowUncheckedPatterns bool
+	// PureFnReportWire enables the structured pure-fn build report: OpGenerate and
+	// OpScanFiles populate Response.PureFnSites (whole program on generate, the
+	// rescanned files' delta on scan). Off by default, so the normal rewrite
+	// pipeline pays nothing. Not a disk-fingerprint input (report-only; it never
+	// changes the emitted artifacts).
+	PureFnReportWire bool
+	// PureFnReportFile, when true, additionally WRITES the whole-program report
+	// as one JSON file during OpGenerate. The location is HARDCODED at
+	// `<outDir>/types/pure-fns-report.json` (inside the generated cache dir, so
+	// it follows types/'s .gitignore + regenerate lifecycle; still DATA, never
+	// part of the module manifest nor resolvable as an rtmod:/ specifier) — it is
+	// not configurable, matching every other path under the output root.
+	PureFnReportFile bool
 }
 
 // Session owns a Program and answers type queries against it. The serializer

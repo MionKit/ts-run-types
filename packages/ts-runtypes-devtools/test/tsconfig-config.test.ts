@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import {ResolverClient} from '../src/resolver-client.ts';
 import {BIN, runIfBinary, RUNTYPES_DTS} from './helpers/inline.ts';
-import {MODULE_MODE_ALL_SINGLE, RUNTYPES_BUNDLE_BASENAME} from '../src/runtypes-constants.generated.ts';
+import {MODULE_MODE_ALL_SINGLE, RUNTYPES_BUNDLE_BASENAME} from '../src/go-generated/runtypes-constants.generated.ts';
 
 const register = runIfBinary(it);
 

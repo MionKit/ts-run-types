@@ -20,7 +20,7 @@ import {mockRunType} from '../../../src/mocking/mockType.ts';
 import {defaultMockOptions} from '../../../src/mocking/constants.mock.ts';
 import type {RunTypeMockOptions, MockOptions} from '../../../src/mocking/mockTypes.ts';
 import type {RunType} from '../../../src/runtypes/types.ts';
-import {RunTypeKind, RunTypeSubKind} from '../../../src/runTypeKind.ts';
+import {RunTypeKind, RunTypeSubKind} from '../../../src/go-generated/runTypeKind.generated.ts';
 
 const K = RunTypeKind;
 

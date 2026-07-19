@@ -53,6 +53,14 @@ func (ToBinaryEmitter) Args() []ArgSpec {
 	}
 }
 
+// EmitCircularGuard renders the inline circular-reference guard for the armed
+// toBinary variant: a detected cycle throws a CircularReferenceError (via
+// utl.circularError) before any bytes are written, matching JSON.stringify and
+// the old encoder guard.
+func (ToBinaryEmitter) EmitCircularGuard(fcpAlias, skeletonConst string) string {
+	return "const cyR=" + fcpAlias + "(v," + skeletonConst + ");if(cyR)throw utl.circularError(cyR);"
+}
+
 // Supports gates the renderer's top-level loop. Phase 1: returns false
 // for every kind so no factory is emitted. Phase 2+ flip kinds on
 // incrementally — see the matching FromBinaryEmitter for the symmetric

@@ -33,7 +33,7 @@ import {createServer} from 'vite';
 // default is the constants object); matches the package's "./vite" export.
 import runtypesPlugin from '../../../packages/ts-runtypes-devtools/dist/vite.js';
 import {ResolverClient} from '../../../packages/ts-runtypes-devtools/dist/resolver-client.js';
-import {CACHE_MODULES} from '../../../packages/ts-runtypes-devtools/dist/runtypes-constants.generated.js';
+import {CACHE_MODULES} from '../../../packages/ts-runtypes-devtools/dist/go-generated/runtypes-constants.generated.js';
 import {loadEnv} from '../../lib/env.mjs';
 
 loadEnv(); // load .env (dev) so RT_BENCH_* knobs apply when run directly
@@ -428,7 +428,7 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
     modules.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const parts = [];
     for (const [basename, source] of modules) {
-      parts.push(`// === virtual:rt/${basename}.js ===`);
+      parts.push(`// === rtmod:/${basename}.js ===`);
       parts.push(source.endsWith('\n') ? source.slice(0, -1) : source);
       parts.push('');
     }

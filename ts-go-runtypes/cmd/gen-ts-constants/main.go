@@ -8,7 +8,7 @@
 //
 // Output:
 //
-//   - packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts
+//   - packages/ts-runtypes-devtools/src/go-generated/runtypes-constants.generated.ts
 //     The registry consumed by the Vite plugin (cache modules, reflection
 //     sub kinds, non-serializable globals).
 //
@@ -30,7 +30,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-const vitePluginConstantsPath = "packages/ts-runtypes-devtools/src/runtypes-constants.generated.ts"
+const vitePluginConstantsPath = "packages/ts-runtypes-devtools/src/go-generated/runtypes-constants.generated.ts"
 
 func main() {
 	if err := writeFile(filepath.Join(repoRoot(), vitePluginConstantsPath), buildVitePluginConstants()); err != nil {
@@ -109,8 +109,10 @@ func buildVitePluginConstants() string {
 	out.WriteString("\n")
 	writeEntryModuleConstants(out)
 	out.WriteString("\n")
-	writeReflectionSubKind(out)
-	out.WriteString("\n")
+	// REFLECTION_SUB_KIND / ReflectionSubKind moved to cmd/gen-run-type-kind's
+	// devtools mirror (reflectionKind.generated.ts), generated from the FULL
+	// internal/protocol/subkind.go parse so it can't drift (the old hand-list here
+	// was a partial subset that silently omitted the Temporal sub-kinds).
 	writeNonSerializableGlobals(out)
 	out.WriteString("\n")
 	writeEnrichmentTagConstants(out)
@@ -120,12 +122,12 @@ func buildVitePluginConstants() string {
 
 // writeEntryModuleConstants emits the internal render-format names. In
 // files-mode they key the entry modules the resolver writes to disk and the
-// rewrite's import injection consumes; virtual:rt/ survives only as the
+// rewrite's import injection consumes; rtmod:/ survives only as the
 // render specifier, relativized to on-disk paths at the resolver boundary.
 func writeEntryModuleConstants(out *strings.Builder) {
-	out.WriteString("// Internal render-format names (virtual:rt/<basename>.js) the resolver\n")
-	out.WriteString("// writes to disk and relativizes to on-disk paths — see internal/compiler/virtualmodules.\n")
-	fmt.Fprintf(out, "export const VIRTUAL_MODULE_PREFIX = %q;\n", constants.VirtualModulePrefix)
+	out.WriteString("// Internal render-format names (rtmod:/<basename>.js) the resolver\n")
+	out.WriteString("// writes to disk and relativizes to on-disk paths — see internal/compiler/entrymodules.\n")
+	fmt.Fprintf(out, "export const ENTRY_MODULE_PREFIX = %q;\n", constants.EntryModulePrefix)
 	fmt.Fprintf(out, "export const ENTRY_MODULE_SUFFIX = %q;\n", constants.EntryModuleSuffix)
 	fmt.Fprintf(out, "export const ENTRY_BINDING_PREFIX = %q;\n", constants.EntryBindingPrefix)
 	fmt.Fprintf(out, "export const PURE_FN_MODULE_DIR = %q;\n", constants.PureFnModuleDir)
@@ -136,31 +138,6 @@ func writeEntryModuleConstants(out *strings.Builder) {
 	fmt.Fprintf(out, "export const MODULE_MODE_ALL_SINGLE = %q;\n", constants.ModuleModeAllSingle)
 	fmt.Fprintf(out, "export const MODULE_MODE_ALL_MODULES = %q;\n", constants.ModuleModeAllModules)
 	out.WriteString("export type ModuleMode = typeof MODULE_MODE_DEFAULT | typeof MODULE_MODE_ALL_SINGLE | typeof MODULE_MODE_ALL_MODULES;\n")
-}
-
-// writeReflectionSubKind emits a TS `as const` map mirroring
-// internal/protocol/subkind.go's ReflectionSubKind enum. The numeric
-// values must match the reference ReflectionSubKind exactly so structural
-// ids agree byte-for-byte across the Go and TS halves.
-func writeReflectionSubKind(out *strings.Builder) {
-	entries := []struct {
-		name  string
-		value protocol.ReflectionSubKind
-	}{
-		{"mapKey", protocol.SubKindMapKey},
-		{"mapValue", protocol.SubKindMapValue},
-		{"setItem", protocol.SubKindSetItem},
-		{"date", protocol.SubKindDate},
-		{"map", protocol.SubKindMap},
-		{"set", protocol.SubKindSet},
-		{"nonSerializable", protocol.SubKindNonSerializable},
-	}
-	out.WriteString("export const REFLECTION_SUB_KIND = {\n")
-	for _, entry := range entries {
-		out.WriteString(fmt.Sprintf("  %s: %d,\n", entry.name, entry.value))
-	}
-	out.WriteString("} as const;\n")
-	out.WriteString("export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];\n")
 }
 
 // writeNonSerializableGlobals emits the symbol-name list used by both

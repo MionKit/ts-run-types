@@ -45,6 +45,16 @@ func (ValidationErrorsEmitter) Args() []ArgSpec {
 	}
 }
 
+// EmitCircularGuard renders the inline circular-reference guard for the armed
+// validationErrors variant: a detected cycle records a `{expected:'circular'}`
+// entry at the current path (prefixed by the incoming `pth`) and returns early —
+// descending into the base body would recurse forever on the cyclic value.
+// Mirrors the old runtime guard's short-circuit in entryTuple.ts.
+func (ValidationErrorsEmitter) EmitCircularGuard(fcpAlias, skeletonConst string) string {
+	return "const cyR=" + fcpAlias + "(v," + skeletonConst + ");" +
+		"if(cyR){er.push({path:pth.length?pth.concat(cyR):cyR,expected:'circular'});return er;}"
+}
+
 // Supports — the shared validate/validationErrors kind set
 // (validationSupports in validate.go).
 func (ValidationErrorsEmitter) Supports(rt *protocol.RunType) bool {
@@ -459,20 +469,14 @@ func (ValidationErrorsEmitter) Finalize(rawCode string) (string, bool) {
 // path but should appear in the error). Empty `extra` → no trailing
 // segment, AccessPathLiteral handles the empty-array short-circuit.
 func callRTErr(ctx *EmitContext, expected string, extra string) string {
-	ctx.AddPureFnDependency("rt", "newRunTypeErr", validationErrorsPureFnFilePath)
-	key := pureFnAlias("newRunTypeErr")
-	if !ctx.HasContextItem(key) {
-		// rtUtils.getPureFn takes a single composite key
-		// `<namespace>::<fnName>` (see pureFnKey helper in
-		// packages/ts-runtypes/src/runtypes/rtUtils.ts:45). The literal
-		// is duplicated in both the body STRING and the createRTFn
-		// closure because the body is also evaluated through
-		// `new Function('utl', code)` where module-level consts like
-		// `k_nRT` are not in scope — only pureFnDependencies (which
-		// lives outside the body string) gets to reference the hoisted
-		// const directly. See purefn_aliases.go for the alias table.
-		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('rt::newRunTypeErr')")
-	}
+	// UsePureFn records the dep, hoists the deduped
+	// `const nRT = utl.getPureFn('rt::newRunTypeErr')` prologue line, and
+	// returns the alias. rtUtils.getPureFn takes a single composite key
+	// `<namespace>::<fnName>` (see pureFnKey helper in
+	// packages/ts-runtypes/src/runtypes/rtUtils.ts:45); the literal is fully
+	// spelled out because the body is also evaluated through
+	// `new Function('utl', code)` where module-level consts are not in scope.
+	key := ctx.UsePureFn(corePureFnNamespace, "newRunTypeErr", validationErrorsPureFnFilePath)
 	pthArg := ctx.ArgName("pλth")
 	errArg := ctx.ArgName("εrr")
 	args := []string{pthArg, errArg, quoteJS(expected)}

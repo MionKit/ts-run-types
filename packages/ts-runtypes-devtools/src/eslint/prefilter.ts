@@ -3,19 +3,25 @@
 // like an enrichment mirror can produce no RunTypes diagnostics, so the
 // rules skip it entirely — the common case for most files in a lint run.
 
-import {FRIENDLY_TEXT_NAME, FRIENDLY_TYPE_NAME, MARKER_COMMENT_PREFIX, MOCK_DATA_NAME} from '../runtypes-constants.generated.ts';
+import {
+  FRIENDLY_TEXT_NAME,
+  FRIENDLY_TYPE_NAME,
+  MARKER_COMMENT_PREFIX,
+  MOCK_DATA_NAME,
+} from '../go-generated/runtypes-constants.generated.ts';
 
 // MARKER_MODULE mirrors the unplugin's short-circuit: match the package only
 // as a quoted import specifier (`'@ts-runtypes/core`, `"@ts-runtypes/core`, incl.
 // subpaths) so a path mention in a comment never forces a scan.
-// `registerPureFnFactory` is checked separately because the marker package's
-// OWN sources call it via relative imports.
+// The pure-fn registrars are checked separately because the marker package's
+// OWN sources call them via relative imports. `registerPureFn` is a substring
+// of `registerPureFnFactory`, so probing it covers both named registrars.
 const MARKER_MODULE = '@ts-runtypes/core';
 
 // referencesMarkerModule gates the compiler-diagnostics pass (severity-tier
 // rules): only files that can contain marker call sites go to the resolver.
 export function referencesMarkerModule(text: string): boolean {
-  return text.includes(`'${MARKER_MODULE}`) || text.includes(`"${MARKER_MODULE}`) || text.includes('registerPureFnFactory');
+  return text.includes(`'${MARKER_MODULE}`) || text.includes(`"${MARKER_MODULE}`) || text.includes('registerPureFn');
 }
 
 // enrichConstAnnotationPattern mirrors the Go-side guard's structural probe: a

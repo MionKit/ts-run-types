@@ -12,7 +12,7 @@
     }
   ],
   "replacements": [],
-  "expectedCode": "import {__rt_val_Bar3333} from 'virtual:rt/val_Bar3333.js';\n// header comment\nimport {createValidate} from 'ts-runtypes';\n\nconst v = createValidate<Bar>(opts, __rt_val_Bar3333);\nexport {v};\n",
+  "expectedCode": "import {__rt_val_Bar3333} from 'rtmod:/val_Bar3333.js';\n// header comment\nimport {createValidate} from 'ts-runtypes';\n\nconst v = createValidate<Bar>(opts, __rt_val_Bar3333);\nexport {v};\n",
   "expectedMap": {
     "version": 3,
     "sources": [

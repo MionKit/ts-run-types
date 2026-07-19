@@ -596,7 +596,7 @@ function writeCaseDump(casesDir, category, caseKey, resp) {
   fs.mkdirSync(dir, {recursive: true});
   const parts = [];
   for (const [basename, source] of entries) {
-    parts.push(`// === virtual:rt/${basename}.js ===`);
+    parts.push(`// === rtmod:/${basename}.js ===`);
     parts.push(source.endsWith('\n') ? source.slice(0, -1) : source);
     parts.push('');
   }

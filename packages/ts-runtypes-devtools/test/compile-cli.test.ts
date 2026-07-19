@@ -52,14 +52,14 @@ describe('ts-runtypes --compile (tsc-like CLI)', () => {
 
       const run = spawnSync(
         BIN,
-        ['--compile', '--cwd', dir, '--tsconfig', 'tsconfig.json', '--run-types-gen-dir', path.join(dir, '__runtypes')],
+        ['--compile', '--cwd', dir, '--tsconfig', 'tsconfig.json', '--gen-dir', path.join(dir, '__runtypes')],
         {encoding: 'utf8'}
       );
       expect(run.status, run.stderr).toBe(0);
 
       // (1) Emitted .js: types stripped, binding import relativized, call rewritten.
       const js = fs.readFileSync(path.join(dir, 'dist', 'user.js'), 'utf8');
-      expect(js).not.toContain('virtual:rt');
+      expect(js).not.toContain('rtmod:');
       expect(js).toMatch(/import \{\s*__rt_[A-Za-z0-9_$]+\s*\} from '\.\.\/__runtypes\/types\/[A-Za-z0-9_$]+\.js'/);
       expect(js).toMatch(/createValidate\(undefined, undefined, __rt_[A-Za-z0-9_$]+\)/);
 
@@ -87,6 +87,14 @@ describe('ts-runtypes --compile (tsc-like CLI)', () => {
       expect(validate({id: 1, name: 'mario'})).toBe(true);
       expect(validate({id: 'not-a-number', name: 'mario'})).toBe(false);
       expect(validate({id: 1})).toBe(false);
+
+      // (4) VCS hygiene rides the CLI lane too (written Go-side inside
+      // generate): every output folder self-documents, types/ is gitignored.
+      const genRoot = path.join(dir, '__runtypes');
+      expect(fs.readFileSync(path.join(genRoot, 'README.md'), 'utf8')).toContain('genDir');
+      expect(fs.readFileSync(path.join(cacheDir, 'README.md'), 'utf8')).toContain('regenerated');
+      expect(fs.readFileSync(path.join(cacheDir, '.gitignore'), 'utf8')).toContain('*');
+      expect(fs.readFileSync(path.join(genRoot, 'enriched', 'README.md'), 'utf8')).toContain('Committed');
     } finally {
       fs.rmSync(dir, {recursive: true, force: true});
     }

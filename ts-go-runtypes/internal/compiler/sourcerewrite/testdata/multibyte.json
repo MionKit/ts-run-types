@@ -11,7 +11,7 @@
     }
   ],
   "replacements": [],
-  "expectedCode": "import {__rt_Uni4444} from 'virtual:rt/Uni4444.js';\n// note — about unicorns 🦄 here\nconst id = getRunTypeId<string>(undefined, __rt_Uni4444);\n",
+  "expectedCode": "import {__rt_Uni4444} from 'rtmod:/Uni4444.js';\n// note — about unicorns 🦄 here\nconst id = getRunTypeId<string>(undefined, __rt_Uni4444);\n",
   "expectedMap": {
     "version": 3,
     "sources": [

@@ -97,10 +97,6 @@ func emitFriendlyNode(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, de
 		return
 	}
 	if rt.FormatAnnotation != nil {
-		if ctx.defaultErrors {
-			b.WriteString(ctx.bareMeta())
-			return
-		}
 		b.WriteString("{rt$label: '', rt$errors: {type: ''")
 		for _, key := range formatConstraintKeys(rt.FormatAnnotation) {
 			b.WriteString(", ")
@@ -145,11 +141,7 @@ func emitFriendlyObject(b *strings.Builder, ctx *walkCtx, rt *protocol.RunType, 
 	b.WriteString(inner)
 	b.WriteString("rt$label: '',\n")
 	b.WriteString(inner)
-	if ctx.defaultErrors {
-		b.WriteString("rt$errors: {rt$default: ''},\n")
-	} else {
-		b.WriteString("rt$errors: {type: ''},\n")
-	}
+	b.WriteString("rt$errors: {type: ''},\n")
 	for _, prop := range props {
 		b.WriteString(inner)
 		b.WriteString(propKey(prop))

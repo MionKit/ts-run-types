@@ -20,7 +20,7 @@ const CORE_EXTERNAL = /^@ts-runtypes\/core(\/.*)?$/;
 // Enrichment preflight — AUTOGENERATE the shared app's FriendlyText/MockData
 // mirrors via the PUBLISHED `ts-runtypes` CLI before any app that imports them
 // builds. In a real project these mirrors are committed; this fixture regenerates
-// them each run (they're gitignored — see apps/shared/runtypes/generated/.gitkeep)
+// them each run (they're gitignored — see the CLI-created src/__runtypes tree)
 // so the e2e exercises the generator + its `gen --check` validator against the
 // published package. Uses the launcher (@ts-runtypes/bin's ts-runtypes-bin);
 // RT_E2E_BINARY overrides it for host iteration.
@@ -28,7 +28,7 @@ function ensureEnrichment() {
   const sharedDir = path.join(APPS, 'shared');
   const rtCli = process.env.RT_E2E_BINARY || path.join(HERE, 'node_modules/.bin/ts-runtypes-bin');
   const model = 'src/models/enriched-user.ts';
-  const genDir = path.join(sharedDir, 'runtypes/generated');
+  const genDir = path.join(sharedDir, 'src/__runtypes/enriched');
   for (const sub of ['friendly', 'mock', 'i18n']) rmSync(path.join(genDir, sub), {recursive: true, force: true});
   const cli = (args) => execFileSync(rtCli, args, {cwd: sharedDir, stdio: 'inherit'});
   console.log('enrichment: `ts-runtypes gen` (autogenerate FriendlyText + MockData mirrors)');
@@ -44,7 +44,7 @@ function rtOptions(appDir) {
     ...(process.env.RT_E2E_BINARY ? {binary: process.env.RT_E2E_BINARY} : {}),
     cwd: appDir,
     tsconfig: 'tsconfig.json',
-    outDir: path.join(appDir, '.rt'),
+    genDir: path.join(appDir, '.rt'),
   };
 }
 

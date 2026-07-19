@@ -170,7 +170,7 @@ func TestNoopPredicate_SoundAgainstEmitters(t *testing.T) {
 		"toBinary":                   typefunctions.ToBinaryEmitter{},
 		"fromBinary":                 typefunctions.FromBinaryEmitter{},
 		"hasUnknownKeys":             typefunctions.HasUnknownKeysEmitter{},
-		"stripUnknownKeys":           typefunctions.StripUnknownKeysEmitter{},
+		"cloneExactShape":            typefunctions.CloneExactShapeEmitter{},
 		"unknownKeyErrors":           typefunctions.UnknownKeyErrorsEmitter{},
 		"unknownKeysToUndefined":     typefunctions.UnknownKeysToUndefinedEmitter{},
 		"unknownKeysToUndefinedWire": typefunctions.UnknownKeysToUndefinedWireEmitter{},

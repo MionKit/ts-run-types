@@ -5,9 +5,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/mionkit/ts-runtypes/internal/cachegen/builtinpurefns"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
+	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
@@ -135,15 +137,72 @@ func (sess *Session) extractProgramPureFns(metrics *protocol.Metrics) (entries [
 // extractor and returns the per-entry graph (the OpDump path; OpScanFiles
 // reuses its own per-request extraction instead). Returns the wire-shaped
 // diagnostics from the in-place extraction alongside.
-func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (virtualmodules.Graph, []diagnostics.Diagnostic) {
+func (sess *Session) collectProgramPureFns(metrics *protocol.Metrics) (entrymodules.Graph, []diagnostics.Diagnostic) {
 	entries, _, diags := sess.extractProgramPureFns(metrics)
+	// Precedence: the built-in pure-fn table is the SINGLE producer of every
+	// `rt::`/`rtFormats::` body. An IN-REPO program resolves the package via `src/`
+	// (the `source` condition), so the extractor would ALSO find the built-in
+	// registrations and serve a second, clashing producer for the same key. Drop
+	// those program entries — the table wins on key clash — so there is exactly one
+	// pure-fn module per built-in key regardless of how the package resolved. (A
+	// published consumer never hits this: its program has only a .d.ts, nothing to
+	// extract.) User keys, including the anonymous lane's `rt::<hash>`, are not in
+	// the table and pass through untouched.
+	kept := entries[:0]
+	for _, entry := range entries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		kept = append(kept, entry)
+	}
 	// Override cfn entries (whole-program) join the program pure-fn graph so the
 	// type-fn redirects resolve their `cfn::` dep modules on the OpDump /
 	// OpGenerate paths too — not just OpScanFiles. Without this the plugin's
 	// generate() emits the redirect but not the cfn module it imports, and the
 	// runtime throws "Pure function not found" at the first createX call.
-	entries = append(entries, sess.overrideEntries...)
-	return purefunctions.CollectEntries(entries), diags
+	kept = append(kept, sess.overrideEntries...)
+	return purefunctions.CollectEntries(kept, sess.opts.EmitMode), diags
+}
+
+// collectPureFnReport builds the whole-program pure-fn build report
+// (protocol.PureFnSite records) when Options.PureFnReportWire is enabled — nil
+// otherwise, so the pipeline pays nothing when the report is off. It reuses the
+// same deduped whole-program extraction as collectProgramPureFns (memoized by
+// the per-Program FileCache, so no extra walk) and drops the built-in
+// `rt::`/`rtFormats::` entries an in-repo program surfaces — a published
+// consumer never emits those, and they are not user-registered pure fns. Cfn
+// override entries are NOT in this set (they carry no registrar call site).
+func (sess *Session) collectPureFnReport(metrics *protocol.Metrics) []protocol.PureFnSite {
+	if !sess.opts.PureFnReportWire {
+		return nil
+	}
+	entries, _, _ := sess.extractProgramPureFns(metrics)
+	kept := make([]purefunctions.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return purefunctions.Report(kept, sess.opts.EmitMode, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
+}
+
+// pureFnReportForEntries builds the report for an already-extracted per-request
+// entry set (the OpScanFiles delta), applying the same built-in filter and
+// layout/emitMode as collectPureFnReport. Empty in / empty out; nil when the
+// report is disabled.
+func (sess *Session) pureFnReportForEntries(entries []purefunctions.Entry) []protocol.PureFnSite {
+	if !sess.opts.PureFnReportWire || len(entries) == 0 {
+		return nil
+	}
+	kept := make([]purefunctions.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if builtinpurefns.Has(entry.Key()) {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return purefunctions.Report(kept, sess.opts.EmitMode, sess.opts.ModuleMode == constants.ModuleModeAllSingle)
 }
 
 // validateProgramPureFnDeps cross-checks the pure-fn dependencies aggregated

@@ -270,6 +270,88 @@ export const CIRCULAR_GUARD = {
     expectThrows: false,
   },
 
+  dag_multi_level_shared: {
+    title: 'Deep diamond DAG (shared, multi-level) encodes without throwing',
+    description:
+      'Each level references the same child twice (`a === b`); acyclic, so both encoders must succeed. Pins the fully-explored memo — without it the guard re-walks each shared subtree per path (exponential).',
+    jsonEncoder: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+    },
+    binaryEncoder: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+    },
+    getValue: () => {
+      // A diamond DAG: every node's `a` and `b` point at the SAME next node, so
+      // the guard reaches each node by 2^depth paths. Kept shallow (the emitted
+      // encoder that runs after the guard also re-serializes shared subtrees).
+      let head: {name: string; a?: unknown; b?: unknown} = {name: 'leaf'};
+      for (let i = 0; i < 5; i++) head = {name: 'n' + i, a: head, b: head};
+      return head;
+    },
+    expectThrows: false,
+  },
+
+  reentrant_getter_walk: {
+    title: 'A getter that re-enters another armed encoder cannot corrupt the walk',
+    description:
+      'Reading `a` runs a getter that synchronously encodes a DIFFERENT cyclic value with its own armed encoder (which throws, swallowed here); the outer cycle (via `b`) must still be caught. Pins the per-call walk state — shared closure state would let the inner walk clobber the outer stack/skeleton and miss the cycle (→ the real encoder recurses forever / throws the wrong error).',
+    jsonEncoder: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+    },
+    binaryEncoder: () => {
+      interface Node {
+        name: string;
+        a?: Node;
+        b?: Node;
+      }
+      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+    },
+    getValue: () => {
+      // A separate armed encoder over its own cyclic value, invoked from a getter
+      // DURING the outer walk (walk order visits `a` before `b`). Its guard
+      // detects the inner cycle and throws — swallowed here so only the isolation
+      // of the outer walk state is under test.
+      interface Inner {
+        label: string;
+        next?: Inner;
+      }
+      const innerCyclic: {label: string; next?: unknown} = {label: 'i'};
+      innerCyclic.next = innerCyclic;
+      const encodeInner = createJsonEncoder<Inner>(undefined, {rejectCircularRefs: true});
+      const outer: {name: string; a?: unknown; b?: unknown} = {name: 'o'};
+      Object.defineProperty(outer, 'a', {
+        enumerable: true,
+        get() {
+          try {
+            encodeInner(innerCyclic as Inner); // re-entrant armed walk (throws on its cycle)
+          } catch {
+            // the inner armed encoder throws CircularReferenceError on its own
+            // cycle; swallow it so only the OUTER guard's correctness is asserted
+          }
+          return undefined; // `a` contributes nothing to the outer walk
+        },
+      });
+      outer.b = outer; // the REAL cycle the outer guard must still catch
+      return outer;
+    },
+    expectThrows: true,
+  },
+
   disarmed_acyclic: {
     title: 'Disarmed guard leaves acyclic encoding unchanged',
     jsonEncoder: () => {

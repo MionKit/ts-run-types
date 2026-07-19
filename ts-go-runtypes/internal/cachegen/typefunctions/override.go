@@ -6,7 +6,7 @@ import (
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/operations"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/purefunctions"
-	"github.com/mionkit/ts-runtypes/internal/compiler/virtualmodules"
+	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
@@ -76,7 +76,7 @@ func overrideHashForTag(runType *protocol.RunType, tag string) string {
 //
 // Mirrors collectJsonCompositeEntry's arg assembly; the redirect is never
 // disk-cached (it is trivial to re-derive and the cfn key is content-addressed).
-func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, cfnHash string, opts RenderOpts) *virtualmodules.Entry {
+func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, cfnHash string, opts RenderOpts) *entrymodules.Entry {
 	cfnKey := purefunctions.OverrideNamespace + "::" + cfnHash
 	factoryBody := "return utl.usePureFn(" + quoteJS(cfnKey) + ")"
 	codeArg := "undefined"
@@ -96,9 +96,9 @@ func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, 
 		"[" + quoteJS(cfnKey) + "]", // pureFnDependencies — the cfn this entry redirects to
 		createRTFnArg,
 	})
-	return &virtualmodules.Entry{
+	return &entrymodules.Entry{
 		Key:       entryKey,
-		Kind:      virtualmodules.KindTypeFn,
+		Kind:      entrymodules.KindTypeFn,
 		FamilyTag: tag,
 		ArgsText:  joinArgs(args),
 		SoftDeps:  []string{cfnKey},
@@ -111,7 +111,7 @@ func buildRedirectEntry(entryKey string, tag string, runType *protocol.RunType, 
 // miss is an emitter bug — the unguarded usePureFn would throw at runtime — so
 // it surfaces as an OVR002 Error at collect time. Mirrors AssertCompositeSoftDeps.
 // Deterministic order via sorted keys.
-func AssertOverrideCfn(graph virtualmodules.Graph, diagSink *[]diagnostics.Diagnostic) {
+func AssertOverrideCfn(graph entrymodules.Graph, diagSink *[]diagnostics.Diagnostic) {
 	if diagSink == nil {
 		return
 	}
@@ -123,14 +123,14 @@ func AssertOverrideCfn(graph virtualmodules.Graph, diagSink *[]diagnostics.Diagn
 	sort.Strings(keys)
 	for _, key := range keys {
 		entry := graph[key]
-		if entry == nil || entry.Kind != virtualmodules.KindTypeFn {
+		if entry == nil || entry.Kind != entrymodules.KindTypeFn {
 			continue
 		}
 		for _, dep := range entry.SoftDeps {
 			if !strings.HasPrefix(dep, cfnPrefix) {
 				continue
 			}
-			if target, ok := graph[dep]; ok && target != nil && target.Kind != virtualmodules.KindMissing {
+			if target, ok := graph[dep]; ok && target != nil && target.Kind != entrymodules.KindMissing {
 				continue
 			}
 			*diagSink = append(*diagSink, diagnostics.New(diagnostics.CodeOverrideMissingCfn, diagnostics.Site{}, entry.Key, dep))

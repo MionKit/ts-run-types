@@ -6,11 +6,11 @@
 // in internal/diagnostics/prose.go). `go run ./cmd/gen-diag-catalog` dumps it all
 // as JSON; this script fans that dump out into the two generated artifacts:
 //
-//   1. packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts — the
+//   1. packages/ts-runtypes-devtools/src/go-generated/diagnosticCatalog.generated.ts — the
 //      front-end message dictionary (code → headline/detail templates) the
 //      bundler plugin, the lint plugin, and the runtime alwaysThrow factory
 //      render from. The binary ships only code + args over the wire.
-//   2. container/website/app/components/content/diagnostics-catalog.json —
+//   2. container/website/app/components/content/go-generated/diagnostics-catalog.json —
 //      the website diagnostics page data.
 //
 // Both outputs are committed so consumers build without the Go toolchain.
@@ -23,8 +23,8 @@ import {fileURLToPath} from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const goRoot = resolve(repoRoot, 'ts-go-runtypes');
-const generatedTsPath = resolve(repoRoot, 'packages/ts-runtypes-devtools/src/diagnosticCatalog.generated.ts');
-const websiteJsonPath = resolve(repoRoot, 'container/website/app/components/content/diagnostics-catalog.json');
+const generatedTsPath = resolve(repoRoot, 'packages/ts-runtypes-devtools/src/go-generated/diagnosticCatalog.generated.ts');
+const websiteJsonPath = resolve(repoRoot, 'container/website/app/components/content/go-generated/diagnostics-catalog.json');
 
 // Subsystems group the code prefixes into the sections the page renders, in
 // reading order. Descriptions are short, plain-language, and dash-free so they
@@ -51,8 +51,8 @@ const SUBSYSTEMS = [
   {
     key: 'unknown-keys',
     label: 'Unknown keys',
-    description: 'From hasUnknownKeys, stripUnknownKeys, and the rest of that family.',
-    prefixes: ['HUK', 'SUK', 'UKE', 'UKU', 'UKW'],
+    description: 'From hasUnknownKeys, cloneExactShape, and the rest of that family.',
+    prefixes: ['HUK', 'CES', 'UKE', 'UKU', 'UKW'],
   },
   {
     key: 'formats',
@@ -124,7 +124,7 @@ function tsString(value) {
 
 const entries = goRecords
   .map((record) => {
-    const lines = [`  ${record.code}: {`, `    headline: ${tsString(record.headline)},`];
+    const lines = [`  ${record.code}: {`, `    headline: ${tsString(record.headline)},`, `    severity: ${tsString(record.severity)},`];
     if (record.detail) lines.push(`    detail: ${tsString(record.detail)},`);
     lines.push('  },');
     return lines.join('\n');
@@ -142,6 +142,8 @@ const generatedTs = `// GENERATED FILE — DO NOT EDIT. Run \`pnpm rtx core code
 export interface DiagnosticEntry {
   /** Single-line headline. Mandatory. */
   readonly headline: string;
+  /** Catalog severity — the default lint-rule tier this code routes to. */
+  readonly severity: 'error' | 'warning' | 'info';
   /** Optional multi-line detail block (explanation + code-example fix). */
   readonly detail?: string;
 }

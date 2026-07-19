@@ -174,7 +174,7 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if !ok {
 		t.Fatal("jsonEncoder operation missing from the registry")
 	}
-	rootKey := operations.FnHashFor(jsonEncoderOp, nil, "mutate") + "_" + rootSiteID
+	rootKey := operations.FnHashFor(jsonEncoderOp, nil, "mutate", false) + "_" + rootSiteID
 	userModule := entryModule(resp, rootKey)
 	if !strings.Contains(userModule, "'User',,true]") {
 		t.Errorf("jeMU composite for the absorbed User must collapse to the noop short form, got: %s", userModule)
@@ -265,7 +265,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	}
 	src := familyEntrySources(resp, "prepareForJson")
 	// never under prepareForJson → PJ001; leaf kind label "Never".
-	wantMessage := "[" + diagnostics.CodePJNeverRoot + "] Cannot encode `Never` to JSON."
+	wantMessage := "[" + diagnostics.CodePJNeverRoot + "] Type `Never` can never be encoded to JSON — the generated function will always fail."
 	if !strings.Contains(src, wantMessage) {
 		t.Errorf("expected rendered alwaysThrow message %q embedded in init(), got:\n%s", wantMessage, src)
 	}

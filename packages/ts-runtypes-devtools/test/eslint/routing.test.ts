@@ -2,7 +2,8 @@
 // {rule, message, loc}. Pure mapping — no binary, no worker.
 
 import {describe, expect, it} from 'vitest';
-import {routeDiagnostic, renderMessage} from '../../src/eslint/diagnosticRouting.ts';
+import {routeDiagnostic, renderMessage, RULE_SPECS, type RuleName} from '../../src/eslint/diagnosticRouting.ts';
+import {DIAGNOSTIC_CATALOG} from '../../src/diagnosticCatalog.ts';
 import {Family, Severity, type Diagnostic} from '../../src/protocol.ts';
 
 function diagnostic(partial: Partial<Diagnostic> & {code: string}): Diagnostic {
@@ -14,28 +15,38 @@ function diagnostic(partial: Partial<Diagnostic> & {code: string}): Diagnostic {
   } as Diagnostic;
 }
 
-describe('severity-tier routing (compiler families)', () => {
-  it('routes each per-instance severity to its own rule so oxlint severity config stays faithful', () => {
-    expect(routeDiagnostic(diagnostic({code: 'MKR003', family: Family.Marker, severity: Severity.Error})).ruleName).toBe('error');
-    expect(routeDiagnostic(diagnostic({code: 'VL011', severity: Severity.Warning})).ruleName).toBe('warn');
-    expect(routeDiagnostic(diagnostic({code: 'CLS001', severity: Severity.Info})).ruleName).toBe('info');
-  });
+const ruleOf = (partial: Partial<Diagnostic> & {code: string}) => routeDiagnostic(diagnostic(partial)).ruleName;
 
-  it('routes the build-time pure-fn dependency error (PFE9012) to the error rule with its missing key in the message', () => {
-    // The resolver now cross-checks every RT-referenced pure fn against the
-    // program registration set; a missing one rides the wire as PFE9012 and
-    // must land in the error tier (it fails the build) with the key spelled out.
-    const report = routeDiagnostic(
-      diagnostic({
-        code: 'PFE9012',
-        family: Family.PureFn,
-        severity: Severity.Error,
-        args: ['rt::newRunTypeErr', 'rt', 'newRunTypeErr', 'packages/ts-runtypes/src/runtypes/pure-fns-utils.ts'],
-      })
-    );
-    expect(report.ruleName).toBe('error');
-    expect(report.message).toContain('[PFE9012]');
-    expect(report.message).toContain('rt::newRunTypeErr');
+describe('family routing (compiler diagnostics grouped by Go prefix family, named for what they catch)', () => {
+  it('routes each family to its error rule, splitting warnings to the descriptive advisory rule', () => {
+    // marker family folds MKR / CTA / PFN / TMP.
+    expect(ruleOf({code: 'MKR003', family: Family.Marker, severity: Severity.Error})).toBe('invalid-marker');
+    expect(ruleOf({code: 'MKR001', family: Family.Marker, severity: Severity.Warning})).toBe('redundant-marker');
+    expect(ruleOf({code: 'CTA001', family: Family.Marker, severity: Severity.Error})).toBe('invalid-marker');
+    // validate absorbs validationErrors (VL + VE).
+    expect(ruleOf({code: 'VL001', severity: Severity.Error})).toBe('validate-non-serializable');
+    expect(ruleOf({code: 'VL011', severity: Severity.Warning})).toBe('validate-skipped-member');
+    expect(ruleOf({code: 'VE001', severity: Severity.Error})).toBe('validate-non-serializable');
+    expect(ruleOf({code: 'VE020', severity: Severity.Warning})).toBe('validate-skipped-member');
+    // json folds PJ / PJS / RJ / SJ / JCP.
+    expect(ruleOf({code: 'SJ001', severity: Severity.Error})).toBe('json-non-serializable');
+    expect(ruleOf({code: 'SJ011', severity: Severity.Warning})).toBe('json-skipped-member');
+    expect(ruleOf({code: 'JCP001', severity: Severity.Error})).toBe('json-non-serializable');
+    // binary folds TB / FB.
+    expect(ruleOf({code: 'TB001', severity: Severity.Error})).toBe('binary-non-serializable');
+    expect(ruleOf({code: 'FB011', severity: Severity.Warning})).toBe('binary-skipped-member');
+    // clone keeps-by-reference rather than skipping.
+    expect(ruleOf({code: 'CES001', severity: Severity.Error})).toBe('clone-unsupported-type');
+    expect(ruleOf({code: 'CES010', severity: Severity.Warning})).toBe('clone-shared-reference');
+    // single-tier families keep one rule at their own default.
+    expect(ruleOf({code: 'PFE9012', family: Family.PureFn, severity: Severity.Error})).toBe('pure-functions');
+    expect(ruleOf({code: 'FMT001', severity: Severity.Error})).toBe('format');
+    expect(ruleOf({code: 'HUK010', severity: Severity.Warning})).toBe('unknown-keys');
+    expect(ruleOf({code: 'NE001', severity: Severity.Error})).toBe('non-enumerable');
+    expect(ruleOf({code: 'CLS001', severity: Severity.Warning})).toBe('class-serializer');
+    // overrides mixes tiers.
+    expect(ruleOf({code: 'OVR001', severity: Severity.Error})).toBe('invalid-override');
+    expect(ruleOf({code: 'OVR010', severity: Severity.Warning})).toBe('override-side-effect');
   });
 
   it('keeps the stable code in the message for lookup and disable comments', () => {
@@ -43,36 +54,61 @@ describe('severity-tier routing (compiler families)', () => {
     expect(report.message).toContain('[VL011]');
     expect(report.message).toContain('onClick');
   });
+
+  it('never drops a diagnostic: an unknown prefix routes by its wire family', () => {
+    expect(ruleOf({code: 'ZZ999', family: Family.RunType, severity: Severity.Error})).toBe('other');
+    expect(ruleOf({code: 'ZZ999', family: Family.Marker, severity: Severity.Error})).toBe('invalid-marker');
+    expect(ruleOf({code: 'ZZ999', family: Family.PureFn, severity: Severity.Error})).toBe('pure-functions');
+  });
 });
 
-describe('enrichment routing (per-concern rules)', () => {
-  const cases: Array<[string, string]> = [
-    ['FT020', 'no-enrichment-todo'],
-    ['MD020', 'no-enrichment-todo'],
-    ['FT021', 'no-orphan-carcass'],
-    ['FT022', 'no-orphan-carcass'],
-    ['MD021', 'no-orphan-carcass'],
-    ['MD022', 'no-orphan-carcass'],
-    ['FT002', 'enrichment-field'],
-    ['FT003', 'enrichment-field'],
-    ['FT005', 'enrichment-field'],
-    ['FT006', 'enrichment-field'],
-    ['FT007', 'enrichment-field'],
-    ['FT008', 'enrichment-field'],
-    ['FT009', 'enrichment-field'],
-    ['FT011', 'enrichment-field'],
-    ['MD001', 'enrichment-field'],
-    ['MD011', 'enrichment-field'],
-    ['GE000', 'enrichment-drift'],
-    ['GE002', 'enrichment-drift'],
-    ['GE003', 'enrichment-drift'],
+describe('enrichment routing (per-concern rules, named for what they catch)', () => {
+  const cases: Array<[string, Severity, RuleName]> = [
+    ['FT020', Severity.Error, 'no-enrichment-todo'],
+    ['MD020', Severity.Error, 'no-enrichment-todo'],
+    ['FT021', Severity.Error, 'no-orphan-carcass'],
+    ['FT022', Severity.Error, 'no-orphan-carcass'],
+    ['MD021', Severity.Error, 'no-orphan-carcass'],
+    ['MD022', Severity.Error, 'no-orphan-carcass'],
+    ['FT002', Severity.Error, 'enrichment-field'],
+    ['FT006', Severity.Error, 'enrichment-field'],
+    ['FT003', Severity.Warning, 'enrichment-message'],
+    ['FT005', Severity.Warning, 'enrichment-message'],
+    ['MD001', Severity.Error, 'enrichment-field'],
+    ['GE000', Severity.Error, 'enrichment-broken-source'],
+    ['GE002', Severity.Error, 'enrichment-broken-source'],
+    ['GE001', Severity.Warning, 'enrichment-misplaced-file'],
   ];
-  it.each(cases)('%s → runtypes/%s', (code, ruleName) => {
-    expect(routeDiagnostic(diagnostic({code, family: Family.Enrich, severity: Severity.Error})).ruleName).toBe(ruleName);
+  it.each(cases)('%s (%s) → runtypes/%s', (code, severity, ruleName) => {
+    expect(ruleOf({code, family: Family.Enrich, severity})).toBe(ruleName);
   });
 
-  it('routes a FUTURE enrich code to enrichment-field rather than dropping it', () => {
-    expect(routeDiagnostic(diagnostic({code: 'FT099', family: Family.Enrich})).ruleName).toBe('enrichment-field');
+  it('routes a FUTURE enrich code to the field tier matching its severity', () => {
+    expect(ruleOf({code: 'FT099', family: Family.Enrich, severity: Severity.Error})).toBe('enrichment-field');
+    expect(ruleOf({code: 'FT098', family: Family.Enrich, severity: Severity.Warning})).toBe('enrichment-message');
+  });
+});
+
+// Go↔JS drift guard: every code the Go catalog can emit must route to a rule
+// whose DEFAULT level matches the code's catalog severity. A new Go prefix, or
+// a severity move, that the routing table doesn't cover fails here at PR time
+// (mirrors the constant-sync tests in prefilter.test.ts).
+describe('catalog coverage — every code routes to a rule with the matching default', () => {
+  const RULE_DEFAULT = new Map<RuleName, 'error' | 'warn'>(RULE_SPECS.map((spec) => [spec.name, spec.default]));
+  const enrichPrefixes = new Set(['FT', 'MD', 'GE']);
+  const severityEnum = {error: Severity.Error, warning: Severity.Warning, info: Severity.Info} as const;
+
+  it('maps all 148 codes with no gaps', () => {
+    const codes = Object.keys(DIAGNOSTIC_CATALOG);
+    expect(codes.length).toBeGreaterThan(0);
+    for (const code of codes) {
+      const entry = DIAGNOSTIC_CATALOG[code]!;
+      const prefix = code.match(/^[A-Z]+/)![0];
+      const family = enrichPrefixes.has(prefix) ? Family.Enrich : Family.RunType;
+      const routed = ruleOf({code, family, severity: severityEnum[entry.severity]});
+      const expectedDefault = entry.severity === 'error' ? 'error' : 'warn';
+      expect(RULE_DEFAULT.get(routed), `${code} (${entry.severity}) routed to ${routed}`).toBe(expectedDefault);
+    }
   });
 });
 

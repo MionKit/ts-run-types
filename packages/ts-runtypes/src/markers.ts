@@ -208,12 +208,52 @@ export type CompTimeArgs<T> = T;
 export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
 
 /**
- * Pure-function marker. Brands a function-typed parameter so the Go scanner
- * enforces that the matching argument is *both* an inline function definition
- * *and* passes the purity rules (no `this`, no `await`/`yield`, no dynamic
- * `import`, no eval/Function, no outer-scope captures, no forbidden hosts).
+ * Pure-function marker — the DIRECT form. Brands a function-typed parameter as
+ * the pure function ITSELF: the matching argument must be an inline arrow /
+ * function expression that passes the purity rules (no `this`, no `await` /
+ * `yield`, no dynamic `import`, no eval/Function, no outer-scope captures, no
+ * forbidden hosts). The compiler WRAPS it into the zero-arg factory the runtime
+ * cache stores (`() => fn`), so the author just writes the callback — this is
+ * what lets a wrapper expose a single-callback API like `serverMapFrom(t => t.id)`.
+ *
+ * Use `PureFunctionFactory<F>` instead when the argument is a FACTORY that needs
+ * one-time setup (compile a regex once) or `utl` composition.
  *
  * Strictly stronger than `CompTimeArgs<F>` when F is a function. Inline-shape
  * violations → `PFN001`; purity violations → `PFE9006`–`PFE9011`.
  */
 export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
+
+/**
+ * Pure-function-FACTORY marker — the FACTORY form. Brands a function-typed
+ * parameter as a factory `(utl) => fn` that RETURNS the pure function. Same
+ * inline + purity rules as `PureFunction<F>` (the whole factory is checked), but
+ * the compiler emits it as-is instead of wrapping — so the factory body can do
+ * one-time setup (a `const RE = /…/` compiled once) and compose other pure fns
+ * via `utl.usePureFn('ns::id')` (tracked as a dependency).
+ *
+ * Pair with the `…Factory` registrars (`registerPureFnFactory`,
+ * `registerAnonymousPureFnFactory`); use the plain `PureFunction<F>` marker (and
+ * the plain registrars) when the argument is the callback itself.
+ */
+export type PureFunctionFactory<F> = F & {readonly __rtPureFunctionFactoryBrand?: never};
+
+/**
+ * Anonymous pure-fn injection marker — the content-addressed twin of the named
+ * `registerPureFnFactory('<ns>::<name>', …)` lane. Like `InjectRunTypeId<T>` it
+ * is a pure INJECTION marker (no literal double-duty): absent at author time,
+ * the plugin fills the trailing `hash?` parameter with `"rt::<fnHash>"` where
+ * `fnHash` is a content hash of the NORMALIZED function BODY (not of `<F>`, so
+ * same-signature/different-body pure fns never collide). Because the marker
+ * lives in the callee signature it propagates through wrappers — a library can
+ * offer its own `registerXPureFn<F>(fn: PureFunction<F>, hash?: InjectPureFnHash<F>)`
+ * and the plugin injects at ITS call sites with zero scanner diagnostics.
+ *
+ * `F` is a phantom type parameter used only to link the marker to the sibling
+ * `PureFunction<F>` argument; the runtime value is the injected string. Mirrors
+ * `InjectRunTypeId`'s `string & {brand}` shape so the Go marker scanner resolves
+ * the alias identically.
+ */
+export type InjectPureFnHash<F> = string & {
+  readonly __rtInjectPureFnHashBrand?: F;
+};

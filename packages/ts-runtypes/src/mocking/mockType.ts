@@ -10,8 +10,8 @@
 
 import type {MockDataNode, MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../runtypes/types.ts';
-import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
-import type {RunTypeKindValue} from '../runTypeKind.ts';
+import {RunTypeKind, RunTypeSubKind} from '../go-generated/runTypeKind.generated.ts';
+import type {RunTypeKindValue} from '../go-generated/runTypeKind.generated.ts';
 import {getMockingFunction} from './mockRegistry.ts';
 import {getRTUtils} from '../runtypes/rtUtils.ts';
 import {

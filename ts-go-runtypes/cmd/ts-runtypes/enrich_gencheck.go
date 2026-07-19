@@ -41,27 +41,31 @@ type driftFinding struct {
 //
 // GE002/GE003 detection is shared with `check` and the resolver's checkEnrich
 // pass (mirror.CheckBreadcrumbDrift); GE001 lives here because only the CLI
-// knows the project's enrich-dir config.
+// knows the project's gen-dir config.
 //
 // The argument is a single mirror .ts file or a directory to walk. With no
 // argument, it walks the enrich dir resolved from the current directory's
 // tsconfig. Exits 1 when any Error finding is present.
-func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
+func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
 	var targets []string
 	if len(positional) > 0 {
 		candidate := tspath.NormalizePath(mustAbs(positional[0]))
-		config := resolveEnrichConfig(candidate, enrichDirFlag)
+		config := resolveEnrichConfig(candidate, genDirFlag)
 		// A path OUTSIDE the enrich dir is a SOURCE file (the `gen <source> --check`
 		// form): check ITS mirrors, not the source file itself — whose own
 		// `import type { … }` lines would otherwise be misread as breadcrumbs. A
-		// source file has one mirror per family (plus, transitionally, a pre-split
-		// combined file at the legacy path). A path inside the enrich dir (a mirror
-		// file, or the dir) is scanned directly.
+		// source file has one mirror per family, one translation per configured
+		// locale (plus, transitionally, a pre-split combined file at the legacy
+		// path); missing ones are skipped by collectMirrorFiles. A path inside
+		// the enrich dir (a mirror file, or the dir) is scanned directly.
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && !isUnder(config.EnrichDir, candidate) {
 			targets = []string{
 				config.mirrorPath(familyFriendly, candidate),
 				config.mirrorPath(familyMock, candidate),
 				config.legacyMirrorPath(candidate),
+			}
+			for _, locale := range config.I18nLocales {
+				targets = append(targets, config.translationPathFor(locale, config.mirrorPath(familyFriendly, candidate)))
 			}
 		} else {
 			targets = []string{candidate}
@@ -72,7 +76,7 @@ func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
 			fatal("gen --check: getwd: %v", err)
 		}
 		// Resolve the enrich dir from cwd's tsconfig — the default scan root.
-		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), enrichDirFlag)
+		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), genDirFlag)
 		targets = []string{config.EnrichDir}
 	}
 
@@ -87,7 +91,7 @@ func runGenCheck(positional []string, enrichDirFlag string, asJSON bool) {
 
 	var findings []driftFinding
 	for _, mirrorFile := range mirrorFiles {
-		findings = append(findings, checkMirrorFile(mirrorFile, enrichDirFlag)...)
+		findings = append(findings, checkMirrorFile(mirrorFile, genDirFlag)...)
 	}
 	sort.SliceStable(findings, func(left, right int) bool {
 		if findings[left].File != findings[right].File {
@@ -167,7 +171,7 @@ func collectMirrorFiles(target string) ([]string, error) {
 // checkMirrorFile reads one mirror file's breadcrumb and returns its drift
 // findings. A mirror file with no readable breadcrumb yields nothing (it is not
 // a generated mirror, or has no source link to check).
-func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
+func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 	contents, err := os.ReadFile(mirrorFile)
 	if err != nil {
 		return []driftFinding{{
@@ -206,12 +210,36 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 
 	// GE001 — cosmetic location drift: the mirror file is not where the source's
 	// computed mirror path would put it. CLI-only (needs the enrich config).
+	// The config anchors at the MIRROR file — the project that owns the mirror
+	// tree — exactly like gen's write side, so the two can never disagree. (An
+	// anchor at the resolved source re-derives the config inside a DEPENDENCY
+	// for a node_modules-sourced type and flags gen's own output as drifted.)
 	// The expected location depends on the file's FAMILY, read off its path
-	// segment under the enrich root (friendly/ or mock/); a file at neither
-	// segment is a pre-split combined mirror (or a hand-moved one) and drifts
-	// against both family paths.
+	// segment under the enrich root (friendly/, mock/, or i18n/<locale>/); a
+	// file at none of them is a pre-split combined mirror (or a hand-moved one)
+	// and drifts against both family paths.
 	resolvedSource := mirror.ResolveBreadcrumb(mirrorFile, breadcrumb.Spec)
-	config := resolveEnrichConfig(resolvedSource, enrichDirFlag)
+	config := resolveEnrichConfig(mirrorFile, genDirFlag)
+
+	// i18n locale mirror: its canonical home derives from the friendly mirror
+	// it translates (<I18nDir>/<locale>/<friendly-relative path>).
+	if locale, isLocaleMirror := localeMirrorOf(config, mirrorFile); isLocaleMirror {
+		expectedMirror := config.translationPathFor(locale, config.mirrorPath(familyFriendly, resolvedSource))
+		if tspath.NormalizePath(expectedMirror) != tspath.NormalizePath(mirrorFile) {
+			line, col := lineIndex.At(breadcrumb.Start)
+			findings = append(findings, driftFinding{
+				File:     mirrorFile,
+				Severity: enrichment.Warning,
+				Code:     diagnostics.CodeGenMirrorDrift,
+				Message:  fmt.Sprintf("mirror location drift: source maps to %s but this file is %s — re-run gen to relocate", expectedMirror, mirrorFile),
+				Args:     []string{expectedMirror, mirrorFile},
+				Line:     line,
+				Col:      col,
+			})
+		}
+		return findings
+	}
+
 	family, ok := mirrorFamilyOf(config.EnrichDir, mirrorFile)
 	if !ok {
 		line, col := lineIndex.At(breadcrumb.Start)
@@ -244,6 +272,22 @@ func checkMirrorFile(mirrorFile, enrichDirFlag string) []driftFinding {
 	}
 
 	return findings
+}
+
+// localeMirrorOf reports whether mirrorFile is an i18n locale mirror under the
+// config's i18n root, and which locale segment it sits in. A .ts file directly
+// under i18n/ (no locale segment) is not a locale mirror — it falls through to
+// the family check and drifts like any other hand-moved file.
+func localeMirrorOf(config enrichConfig, mirrorFile string) (string, bool) {
+	rel, err := filepath.Rel(config.I18nDir, mirrorFile)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return "", false
+	}
+	segments := strings.SplitN(filepath.ToSlash(rel), "/", 2)
+	if len(segments) < 2 {
+		return "", false
+	}
+	return segments[0], true
 }
 
 // mirrorFamilyOf reads a mirror file's family off its path: the first segment

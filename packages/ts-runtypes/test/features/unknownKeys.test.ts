@@ -1,22 +1,14 @@
-// End-to-end tests for the unknown-keys rt family. Verifies that the
-// four functions ported from the emit* methods on InterfaceRunType
-// produce correct runtime behavior for the common cases:
+// End-to-end tests for the unknown-keys predicates:
 //
-//   - hasUnknownKeys: boolean predicate
-//   - stripUnknownKeys: delete unknown keys in place
+//   - hasUnknownKeys: boolean predicate (plain + runsAfterValidation variant)
 //   - unknownKeyErrors: accumulate errors with path tracking
-//   - unknownKeysToUndefined: set unknown keys to undefined in place
 //
-// Mirrors `nodes/collection/__tests__/unknownKeys.spec.ts` shape
-// but scoped to the subset of behavior currently exercised.
+// cloneExactShape (the clone-based replacement for the removed mutating
+// stripUnknownKeys / unknownKeysToUndefined) has its own full suite at
+// test/suites/cloning/.
 
 import {describe, expect, it} from 'vitest';
-import {
-  createHasUnknownKeys,
-  createStripUnknownKeys,
-  createUnknownKeyErrors,
-  createUnknownKeysToUndefined,
-} from '@ts-runtypes/core';
+import {createHasUnknownKeys, createUnknownKeyErrors, createValidate} from '@ts-runtypes/core';
 
 describe('hasUnknownKeys', () => {
   it('returns false when the value matches the schema', () => {
@@ -45,25 +37,67 @@ describe('hasUnknownKeys', () => {
   });
 });
 
-describe('stripUnknownKeys', () => {
-  it('removes properties not declared in the schema', () => {
-    const strip = createStripUnknownKeys<{a: string; b: number}>();
-    const input = {a: 'x', b: 1, extra: true, more: 'gone'};
-    strip(input);
-    expect(input).toEqual({a: 'x', b: 1});
+describe('hasUnknownKeys — runsAfterValidation variant', () => {
+  // The variant's contract: inputs already PASSED this type's validate. On an
+  // all-required shape the emitter swaps the key-array scan for a key-count
+  // compare; these tests pin that the fast path answers exactly like the
+  // plain variant on validated inputs.
+  interface Flat {
+    a: string;
+    b: number;
+  }
+  interface Nested {
+    name: string;
+    address: {street: string; city: string};
+  }
+
+  it('agrees with the plain variant on clean validated input', () => {
+    const has = createHasUnknownKeys<Flat>(undefined, {runsAfterValidation: true});
+    expect(has({a: 'x', b: 1})).toBe(false);
   });
 
-  it('is a passthrough for atomic types', () => {
-    const strip = createStripUnknownKeys<string>();
-    expect(strip('hello')).toBe('hello');
+  it('detects a root extra key', () => {
+    const has = createHasUnknownKeys<Flat>(undefined, {runsAfterValidation: true});
+    expect(has({a: 'x', b: 1, extra: true})).toBe(true);
   });
 
-  it('preserves the original value reference (mutates in place)', () => {
-    const strip = createStripUnknownKeys<{a: string}>();
-    const input = {a: 'x', extra: 1};
-    const result = strip(input);
-    expect(result).toBe(input);
-    expect(input).toEqual({a: 'x'});
+  it('detects a nested-only extra key', () => {
+    const has = createHasUnknownKeys<Nested>(undefined, {runsAfterValidation: true});
+    expect(has({name: 'jane', address: {street: '10', city: 'sf', extra: 1}})).toBe(true);
+    expect(has({name: 'jane', address: {street: '10', city: 'sf'}})).toBe(false);
+  });
+
+  it('optional-prop shapes fall back to the scan and stay correct', () => {
+    const has = createHasUnknownKeys<{a: string; b?: number}>(undefined, {runsAfterValidation: true});
+    expect(has({a: 'x'})).toBe(false);
+    expect(has({a: 'x', b: 2})).toBe(false);
+    expect(has({a: 'x', extra: 1})).toBe(true);
+  });
+
+  it('array elements use the fast path per element', () => {
+    const has = createHasUnknownKeys<Array<{a: string}>>(undefined, {runsAfterValidation: true});
+    expect(has([{a: 'x'}, {a: 'y'}])).toBe(false);
+    expect(has([{a: 'x'}, {a: 'y', extra: 1}])).toBe(true);
+  });
+
+  it('both variants of the same type coexist (distinct cache entries)', () => {
+    const plain = createHasUnknownKeys<Flat>();
+    const fast = createHasUnknownKeys<Flat>(undefined, {runsAfterValidation: true});
+    const clean = {a: 'x', b: 1};
+    const dirty = {a: 'x', b: 1, extra: true};
+    expect(plain(clean)).toBe(false);
+    expect(fast(clean)).toBe(false);
+    expect(plain(dirty)).toBe(true);
+    expect(fast(dirty)).toBe(true);
+  });
+
+  it('composes with validate for the assertStrict flow', () => {
+    const validate = createValidate<Nested>();
+    const has = createHasUnknownKeys<Nested>(undefined, {runsAfterValidation: true});
+    const isStrict = (v: unknown) => validate(v) && !has(v);
+    expect(isStrict({name: 'jane', address: {street: '10', city: 'sf'}})).toBe(true);
+    expect(isStrict({name: 'jane', address: {street: '10', city: 'sf', extra: 1}})).toBe(false);
+    expect(isStrict({name: 'jane'})).toBe(false); // fails validate, huk never runs
   });
 });
 
@@ -83,85 +117,43 @@ describe('unknownKeyErrors', () => {
     const validate = createUnknownKeyErrors<string>();
     expect(validate('hello')).toEqual([]);
   });
-});
 
-describe('unknownKeysToUndefined', () => {
-  it('sets unknown keys to undefined (instead of deleting them)', () => {
-    const mutate = createUnknownKeysToUndefined<{a: string}>();
-    const input: Record<string, unknown> = {a: 'x', extra: 'gone'};
-    mutate(input);
-    expect(input.a).toBe('x');
-    expect(input.extra).toBe(undefined);
-    // The key still exists on the object; only its value is undefined.
-    expect('extra' in input).toBe(true);
-  });
-
-  it('is a passthrough for atomic types', () => {
-    const mutate = createUnknownKeysToUndefined<string>();
-    expect(mutate('hello')).toBe('hello');
-  });
-
-  it('preserves the original value reference (mutates in place)', () => {
-    const mutate = createUnknownKeysToUndefined<{a: string}>();
-    const input = {a: 'x', extra: 1};
-    const result = mutate(input);
-    expect(result).toBe(input);
+  it('collects multiple errors when many unknown keys present', () => {
+    const validate = createUnknownKeyErrors<{a: string}>();
+    const errors = validate({a: 'x', extra1: 1, extra2: 2});
+    expect(errors).toHaveLength(2);
+    expect(errors.map((e) => e.path[0]).sort()).toEqual(['extra1', 'extra2']);
+    expect(errors.every((e) => e.expected === 'never')).toBe(true);
   });
 });
 
-describe('nested unknown-keys cases', () => {
+describe('nested unknown-keys cases (hasUnknownKeys)', () => {
   interface User {
     name: string;
     address: {street: string; city: string};
   }
 
-  it('hasUnknownKeys detects unknowns in nested object', () => {
+  it('detects unknowns in nested object', () => {
     const has = createHasUnknownKeys<User>();
     expect(has({name: 'jane', address: {street: '10', city: 'sf', extra: true}})).toBe(true);
   });
 
-  it('stripUnknownKeys removes unknowns from nested object', () => {
-    const strip = createStripUnknownKeys<User>();
-    const input = {name: 'jane', address: {street: '10', city: 'sf', extra: true}};
-    strip(input);
-    expect(input).toEqual({name: 'jane', address: {street: '10', city: 'sf'}});
-  });
-
-  it('hasUnknownKeys returns false for arrays of objects without extras', () => {
+  it('returns false for arrays of objects without extras', () => {
     const has = createHasUnknownKeys<Array<{a: string}>>();
     expect(has([{a: 'x'}, {a: 'y'}])).toBe(false);
   });
 
-  it('hasUnknownKeys returns true when an array element has an extra key', () => {
+  it('returns true when an array element has an extra key', () => {
     const has = createHasUnknownKeys<Array<{a: string}>>();
     expect(has([{a: 'x'}, {a: 'y', extra: 1}])).toBe(true);
   });
 
-  it('stripUnknownKeys removes extras from each element of an array', () => {
-    const strip = createStripUnknownKeys<Array<{a: string}>>();
-    const input = [
-      {a: 'x', extra: 1},
-      {a: 'y', extra: 2},
-    ];
-    strip(input);
-    expect(input).toEqual([{a: 'x'}, {a: 'y'}]);
-  });
-});
-
-describe('index-signature & function-typed property cases', () => {
-  it('hasUnknownKeys returns false when the schema has an index signature (any key allowed)', () => {
+  it('returns false when the schema has an index signature (any key allowed)', () => {
     const has = createHasUnknownKeys<{[key: string]: number}>();
     expect(has({a: 1, b: 2, anyOther: 3})).toBe(false);
   });
 
-  it('stripUnknownKeys is a passthrough when the schema has an index signature', () => {
-    const strip = createStripUnknownKeys<{[key: string]: number}>();
-    const input = {a: 1, b: 2, anyOther: 3};
-    strip(input);
-    expect(input).toEqual({a: 1, b: 2, anyOther: 3});
-  });
-
-  it('hasUnknownKeys reports unknown keys on a tuple inside an array', () => {
+  it('reports unknown keys on a tuple inside an array', () => {
     const has = createHasUnknownKeys<Array<[string, {a: number}]>>();
     expect(
       has([
@@ -171,17 +163,7 @@ describe('index-signature & function-typed property cases', () => {
     ).toBe(true);
   });
 
-  it('unknownKeyErrors collects multiple errors when many unknown keys present', () => {
-    const validate = createUnknownKeyErrors<{a: string}>();
-    const errors = validate({a: 'x', extra1: 1, extra2: 2});
-    expect(errors).toHaveLength(2);
-    expect(errors.map((e) => e.path[0]).sort()).toEqual(['extra1', 'extra2']);
-    expect(errors.every((e) => e.expected === 'never')).toBe(true);
-  });
-
-  it('hasUnknownKeys default ignores the checkNonRTProps option for a RT-only schema', () => {
-    // No function-typed children, so checkNonRTProps has no effect here —
-    // verifies the option threading doesn't break the basic case.
+  it('default ignores the checkNonRTProps option for a RT-only schema', () => {
     const has = createHasUnknownKeys<{a: string}>();
     expect(has({a: 'x'}, {checkNonRTProps: true})).toBe(false);
     expect(has({a: 'x', extra: 1}, {checkNonRTProps: true})).toBe(true);
@@ -189,48 +171,17 @@ describe('index-signature & function-typed property cases', () => {
 });
 
 // ============================================================================
-// Union types — the merged-allowlist semantic
+// Union types — the merged-allowlist semantic (has / keyErrors)
 // ============================================================================
 //
-// For a union `{a: string} | {b: number}` the declared key set is the
-// UNION of every member's declared property names — `{a, b}`. The four
-// functions strip / report / flag anything outside that set.
-//
-// The "loose" semantic: a key declared on at least one member survives
-// even when the runtime value's shape matches a different member that
-// doesn't declare it. Matches the flat encoder's existing structural
-// identity (which collapsed member-identity at the wire).
-//
-// REGRESSION GUARD: prior to consolidating the union arm onto
-// FlatLayout, the four emitters used naïve per-member CompileChild
-// dispatch — concatenating each member's emit produced "delete keys
-// not in {a}; delete keys not in {b}", which deleted BOTH declared
-// keys. These tests pin the corrected merged-allowlist behaviour.
+// For a union `{a: string} | {b: number}` the declared key set is the UNION
+// of every object member's declared property names. hasUnknownKeys and
+// unknownKeyErrors flag/report anything outside that set. (cloneExactShape's
+// union stance — per-member dispatch for atomic unions, CES001 for
+// object-bearing ones — is pinned in test/suites/cloning/Unions.ts.)
 
-describe('union types — strip/has/keyErrors', () => {
+describe('union types — has/keyErrors merged allowlist', () => {
   type Disjoint = {a: string} | {b: number};
-
-  it('stripUnknownKeys leaves both member-declared keys intact', () => {
-    const strip = createStripUnknownKeys<Disjoint>();
-    const v: Record<string, unknown> = {a: 'x', b: 5};
-    strip(v);
-    expect(v).toEqual({a: 'x', b: 5});
-  });
-
-  it('stripUnknownKeys deletes only the truly undeclared key', () => {
-    const strip = createStripUnknownKeys<Disjoint>();
-    const v: Record<string, unknown> = {a: 'x', b: 5, evil: 'sneaky'};
-    strip(v);
-    expect(v).toEqual({a: 'x', b: 5});
-  });
-
-  it('stripUnknownKeys handles overlapping-key unions correctly', () => {
-    type Overlap = {a: string; b: number} | {a: bigint; c: boolean};
-    const strip = createStripUnknownKeys<Overlap>();
-    const v: Record<string, unknown> = {a: 'x', b: 5, c: true, evil: 1};
-    strip(v);
-    expect(v).toEqual({a: 'x', b: 5, c: true});
-  });
 
   it('hasUnknownKeys returns false when only union-declared keys are present', () => {
     const has = createHasUnknownKeys<Disjoint>();
@@ -250,68 +201,11 @@ describe('union types — strip/has/keyErrors', () => {
     const paths = out.map((e) => e.path?.[0]).sort();
     expect(paths).toEqual(['evil', 'stranger']);
   });
-
-  it('unknownKeysToUndefined sets undeclared union keys to undefined', () => {
-    // Public uku now does the merged-allowlist strip on raw objects.
-    // Safe because the decoder pipeline switched to ukuWire (which
-    // handles the wire-format wrapper-peel separately) — uku no
-    // longer sees wire-shape arrays.
-    const uku = createUnknownKeysToUndefined<Disjoint>();
-    const v: Record<string, unknown> = {a: 'x', evil: 'e'};
-    uku(v);
-    expect(v).toEqual({a: 'x', evil: undefined});
-  });
-
-  it('discriminated-union: loose semantic — non-discriminated keys survive', () => {
-    type DU = {kind: 'a'; x: string} | {kind: 'b'; y: number};
-    const strip = createStripUnknownKeys<DU>();
-    // y from member-B in a kind:'a' payload survives because y IS in the
-    // merged allowlist {kind, x, y}. Documented loose semantic.
-    const v: Record<string, unknown> = {kind: 'a', x: 'foo', y: 99};
-    strip(v);
-    expect(v).toEqual({kind: 'a', x: 'foo', y: 99});
-  });
-
-  it('discriminated-union: truly extra keys still get stripped', () => {
-    type DU = {kind: 'a'; x: string} | {kind: 'b'; y: number};
-    const strip = createStripUnknownKeys<DU>();
-    const v: Record<string, unknown> = {kind: 'a', x: 'foo', extra: 'gone'};
-    strip(v);
-    expect(v).toEqual({kind: 'a', x: 'foo'});
-  });
-
-  it('mixed-atomic union: strip is the merged-allowlist on the object branch', () => {
-    type Mixed = string | {a: number};
-    const strip = createStripUnknownKeys<Mixed>();
-    const v: Record<string, unknown> = {a: 5, evil: 'gone'};
-    strip(v);
-    expect(v).toEqual({a: 5});
-  });
-
-  it('union with index-sig member: family is a no-op (carve-out)', () => {
-    type IxUnion = {[k: string]: number} | {b: boolean};
-    const strip = createStripUnknownKeys<IxUnion>();
-    const v: Record<string, unknown> = {b: true, anything: 99};
-    strip(v);
-    // Carve-out semantic: every key is "declared" via the index pattern
-    // of the indexed member, so the merged-allowlist approach is skipped.
-    expect(v).toEqual({b: true, anything: 99});
-  });
 });
 
 // ============================================================================
-// Map<K, V> and Set<T> — iterable unknown-keys
+// Map<K, V> and Set<T> — iterable unknown-keys (has / keyErrors)
 // ============================================================================
-//
-// The IterableRunType (ref: packages/run-types/src/nodes/native/Iterable.ts)
-// emits per-entry iteration for all four unknown-keys variants. When the
-// element / key / value type carries its own unknown-keys handling (a nested
-// object with extras), the iterable recurses into each entry.
-//
-// `hasUnknownKeys(Map<string, SmallObject>)` must report `true` when an
-// inner object carries an extra property — mirrors map.spec.ts:159-216
-// and the equivalent set.spec.ts. Same logic applies to the strip / report /
-// undefine variants.
 
 interface SmallObject {
   a: string;
@@ -349,28 +243,7 @@ describe('iterables — Map<K, V> unknown-keys', () => {
     const out = errs(m as Map<string, SmallObject>);
     expect(out).toHaveLength(1);
     expect(out[0].expected).toBe('never');
-    // The extra-key segment should appear in the path; we don't pin the
-    // exact intermediate shape (the reference uses `{key, index, failed}` envelope
-    // tokens). Required minimum: the extra key name itself.
     expect(out[0].path).toContain('extra');
-  });
-
-  it('stripUnknownKeys: removes extras from inner value objects', () => {
-    const strip = createStripUnknownKeys<Map<string, SmallObject>>();
-    const m = new Map<string, unknown>([['k1', {a: 'x', b: 1, extra: 'gone'}]]);
-    strip(m as Map<string, SmallObject>);
-    expect(m.get('k1')).toEqual({a: 'x', b: 1});
-  });
-
-  it('unknownKeysToUndefined: sets inner extras to undefined', () => {
-    const uku = createUnknownKeysToUndefined<Map<string, SmallObject>>();
-    const m = new Map<string, unknown>([['k1', {a: 'x', b: 1, extra: 'gone'}]]);
-    uku(m as Map<string, SmallObject>);
-    const inner = m.get('k1') as Record<string, unknown>;
-    expect(inner.a).toBe('x');
-    expect(inner.b).toBe(1);
-    expect(inner.extra).toBe(undefined);
-    expect('extra' in inner).toBe(true);
   });
 });
 
@@ -385,15 +258,6 @@ describe('iterables — Set<T> unknown-keys', () => {
     const has = createHasUnknownKeys<Set<SmallObject>>();
     const s: Set<SmallObject> = new Set([{a: 'x', b: 1, extra: 'gone'} as SmallObject]);
     expect(has(s)).toBe(true);
-  });
-
-  it('stripUnknownKeys: removes extras from each element', () => {
-    const strip = createStripUnknownKeys<Set<SmallObject>>();
-    const inner: Record<string, unknown> = {a: 'x', b: 1, extra: 'gone'};
-    const s = new Set([inner]) as unknown as Set<SmallObject>;
-    strip(s);
-    // The Set retains the same object reference; mutation is in place.
-    expect(inner).toEqual({a: 'x', b: 1});
   });
 
   it('unknownKeyErrors: reports unknown keys on elements', () => {

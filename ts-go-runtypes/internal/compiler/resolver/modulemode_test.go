@@ -206,7 +206,7 @@ export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
 	if !ok {
 		t.Fatalf("missing %s/tb bundle; modules: %v", constants.FnsBundleDir, moduleNames(resp))
 	}
-	valSpecifier := constants.VirtualModulePrefix + constants.FnsBundleDir + "/val" + constants.EntryModuleSuffix
+	valSpecifier := constants.EntryModulePrefix + constants.FnsBundleDir + "/val" + constants.EntryModuleSuffix
 	if !strings.Contains(tbBundle, "from '"+valSpecifier+"'") {
 		t.Fatalf("tb bundle missing named import from %s:\n%s", valSpecifier, tbBundle)
 	}
@@ -227,9 +227,9 @@ func TestModuleMode_AllSingle_PureFnBundleAndNamedReplacement(t *testing.T) {
 	// shape as the purefns extraction tests' overlay).
 	dts := strings.Replace(runtypesDTS,
 		"export function createJsonDecoder",
-		"export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};\n"+
+		"export type PureFunctionFactory<F> = F & {readonly __rtPureFunctionFactoryBrand?: never};\n"+
 			"  export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};\n"+
-			"  export function registerPureFnFactory(pureFnId: CompTimeArgs<PureFnId>, factory: PureFunction<(utl: unknown) => unknown> | null): unknown;\n"+
+			"  export function registerPureFnFactory(pureFnId: CompTimeArgs<PureFnId>, createPureFn: PureFunctionFactory<(utl: unknown) => unknown> | null): unknown;\n"+
 			"  export function createJsonDecoder",
 		1)
 	source := `import {registerPureFnFactory} from '@ts-runtypes/core';
@@ -243,7 +243,7 @@ export const _ = registerPureFnFactory('test::double', function (utl) {
 		t.Fatalf("expected a pure-fn replacement")
 	}
 	rep := resp.Replacements[0]
-	pfSpecifier := constants.VirtualModulePrefix + constants.PureFnModuleDir + constants.EntryModuleSuffix
+	pfSpecifier := constants.EntryModulePrefix + constants.PureFnModuleDir + constants.EntryModuleSuffix
 	if rep.ImportFrom != pfSpecifier {
 		t.Fatalf("replacement ImportFrom = %q, want %q", rep.ImportFrom, pfSpecifier)
 	}

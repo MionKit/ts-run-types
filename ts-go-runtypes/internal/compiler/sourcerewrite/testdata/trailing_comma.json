@@ -13,7 +13,7 @@
     }
   ],
   "replacements": [],
-  "expectedCode": "import {__rt_val_Foo5678} from 'virtual:rt/val_Foo5678.js';\nconst v = createValidate<Foo>({\n  noLiterals: true,\n},__rt_val_Foo5678);\n",
+  "expectedCode": "import {__rt_val_Foo5678} from 'rtmod:/val_Foo5678.js';\nconst v = createValidate<Foo>({\n  noLiterals: true,\n},__rt_val_Foo5678);\n",
   "expectedMap": {
     "version": 3,
     "sources": [

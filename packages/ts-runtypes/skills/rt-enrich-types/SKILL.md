@@ -42,9 +42,9 @@ that produces a reviewable, committed diff.
 
 Enrichment is committed to a **mirror directory** whose tree shadows your source, split
 **per family**: a type defined in `<rootDir>/models/user.ts` gets its `friendly<Name>`
-consts (`FriendlyText<Name>`) in `<enrichDir>/friendly/models/user.ts` and its
-`mock<Name>` consts (`MockData<Name>`) in `<enrichDir>/mock/models/user.ts` (default
-`enrichDir`: `runtypes/generated`, configurable via the `ts-runtypes` entry under
+consts (`FriendlyText<Name>`) in `<genDir>/enriched/friendly/models/user.ts` and its
+`mock<Name>` consts (`MockData<Name>`) in `<genDir>/enriched/mock/models/user.ts` (default
+`genDir`: `<genDir>/enriched`, configurable via the `ts-runtypes` entry under
 `compilerOptions.plugins` in `tsconfig.json`). One mirror file per family per source
 file, anchored at the type's **definition** (not its call sites); the two families never
 share a file, and each family file imports only its own wrapper type.
@@ -60,7 +60,7 @@ Each family file holds a strict `import type` back to the source (the rename
 **breadcrumb**) and committed consts you import by name:
 
 ```ts
-// runtypes/generated/mock/models/user.ts — GENERATED, COMMITTED, hand-editable
+// src/__runtypes/enriched/mock/models/user.ts — GENERATED, COMMITTED, hand-editable
 import type {User} from '../../../../models/user';
 import type {MockData} from 'ts-runtypes';
 
@@ -73,8 +73,8 @@ Consumers use a **real, committed import** (never plugin-injected — enrichment
 committed, so its link is committed too):
 
 ```ts
-import {friendlyUser} from 'runtypes/generated/friendly/models/user';
-import {mockUser} from 'runtypes/generated/mock/models/user';
+import {friendlyUser} from 'src/__runtypes/enriched/friendly/models/user';
+import {mockUser} from 'src/__runtypes/enriched/mock/models/user';
 createMockData<User>({data: mockUser});
 ```
 
@@ -100,7 +100,7 @@ gone fields. `--prune` is the only command that deletes.
 A combined, per-field map: `rt$label` (a human name) + `rt$errors` (one message template per
 declared failable constraint — the mapped type requires each key — or the exclusive
 `{rt$default: '…'}` catch-all; count-bearing constraints scaffold plural objects; the
-tsconfig `friendlyErrors` knob picks the scaffold mode for NEW nodes). Pure data;
+scaffold is always per-constraint; switch a node to `rt$default` by hand). Pure data;
 rendered at runtime by `createFriendlyText<T>(map)`, or by `createFriendlyTextI18n` with
 committed translations. The full authoring DSL — node shape, constraint keys, the `$[…]`
 placeholder DSL, plural rules, the `rt$default` mode, the FT0xx checks, runtime
@@ -112,7 +112,7 @@ fill a friendly map.
 The friendly map you author IS the source language (tsconfig `i18n.sourceLocale`, default
 `en`) — there is no separate default catalog and no separate translation type. Each
 target locale gets committed `FriendlyText<T>` files that shadow the friendly mirror
-tree: `<i18nDir>/<locale>/<rel>.ts` (default `i18nDir`: `<enrichDir>/i18n`, resolved
+tree: `<i18nDir>/<locale>/<rel>.ts` (default `i18nDir`: `<genDir>/enriched/i18n`, resolved
 under the project root; the locale is a path segment, so `pt-BR` works verbatim). The
 const per type is `<locale>_friendly<Name>` (BCP-47 `-` becomes `_`:
 `pt_BR_friendlyUser`), annotated `FriendlyText<Name>`, carrying the SAME
@@ -130,7 +130,7 @@ ts-runtypes check --translate <locale|all>                   # completeness gate
 ```
 
 Without `<src.ts>`, targets are "sources that have a friendly mirror" — path math over
-`<enrichDir>/friendly/`; the mirror's content is never read.
+`<genDir>/enriched/friendly/`; the mirror's content is never read.
 
 - **Scaffold + fill rules** — a scaffold is the type's tree with every string leaf and
   plural arm as an `@todo` blank (`''`); it NEVER copies source text as if translated.
@@ -157,11 +157,10 @@ zero change when absent):
 ```jsonc
 {
   "name": "ts-runtypes",
-  "enrichDir": "runtypes/generated",
-  "friendlyErrors": "perConstraint", // rt$errors mode gen scaffolds for NEW nodes ("perConstraint" | "default")
+
   "i18n": {
     "sourceLocale": "en", // language the source FriendlyText maps are written in
-    "dir": "runtypes/generated/i18n", // translation subtree root (default <enrichDir>/i18n)
+    "dir": "src/__runtypes/enriched/i18n", // translation subtree root (default <genDir>/enriched/i18n)
     "locales": ["es", "pl", "pt-BR"], // target locales (the source locale is NOT listed)
     "strict": false, // check --translate gate severity (CI)
   },

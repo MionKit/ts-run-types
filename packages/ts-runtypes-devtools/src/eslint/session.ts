@@ -73,8 +73,8 @@ export class LintSession {
 
   // lintFileSync runs the single resolver pass for one file's buffer text and
   // returns its diagnostics (all families — the caller routes them to rules).
-  // The first call's options configure the worker's connection (settings are
-  // config-global; later differing options are ignored by the worker).
+  // options carries only the per-file timeout budget; the resolver binary and
+  // working directory are resolved transparently in the worker.
   lintFileSync(file: string, text: string, options: LintSessionOptions = {}): LintOutcome {
     const key = `${file} ${createHash('sha1').update(text).digest('base64')}`;
     const cached = this.cache.get(key);
@@ -102,7 +102,7 @@ export class LintSession {
     }
 
     const seq = ++this.seq;
-    port.postMessage({seq, file, text, options} satisfies LintWorkerRequest);
+    port.postMessage({seq, file, text} satisfies LintWorkerRequest);
 
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;

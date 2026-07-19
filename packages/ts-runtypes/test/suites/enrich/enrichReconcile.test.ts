@@ -3,7 +3,7 @@
 // behaviour — property merge preserves authored values, renames carry values
 // under the new key, dropped fields become @rtOrphanChild carcasses, a re-run is
 // a byte-identical no-op, and --prune strips the carcasses. Each family owns its
-// own mirror subtree (runtypes/generated/friendly/ vs mock/), so assertions are
+// own mirror subtree (<genDir>/enriched/friendly/ vs mock/), so assertions are
 // per-family. The Go binary MUST be rebuilt before this runs (the suite spawns
 // bin/ts-runtypes).
 
@@ -122,7 +122,7 @@ describe('enrichment reconcile — family split', () => {
     mkdirSync(dirname(legacyPath), {recursive: true});
     writeFileSync(
       legacyPath,
-      "import type { User } from '../../src/models';\n" +
+      "import type { User } from '../../models';\n" +
         "import type { FriendlyText, MockData } from '@ts-runtypes/core';\n\n" +
         'export const friendlyUser: FriendlyText<User> = {\n' +
         "  rt$label: 'The user',\n" +
@@ -141,7 +141,7 @@ describe('enrichment reconcile — family split', () => {
     const mock = readMirror(fixture, 'mock');
     expect(friendly, 'authored friendly label carried').toContain("rt$label: 'Full name'");
     expect(mock, 'authored mock pool carried').toContain("pool: ['Alice']");
-    expect(friendly, 'breadcrumb recomputed one level deeper').toContain("from '../../../src/models'");
+    expect(friendly, 'breadcrumb recomputed one level deeper').toContain("from '../../../models'");
 
     // A second --update over the migrated state is a byte-identical no-op.
     const first = readMirrors(fixture);

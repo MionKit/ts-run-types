@@ -77,20 +77,15 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_huk_",
 		Tag:       "huk",
 	},
-	"stripUnknownKeys": {
-		Name:      "stripUnknownKeysModule",
-		VarPrefix: "g_suk_",
-		Tag:       "suk",
+	"cloneExactShape": {
+		Name:      "cloneExactShapeModule",
+		VarPrefix: "g_ces_",
+		Tag:       "ces",
 	},
 	"unknownKeyErrors": {
 		Name:      "unknownKeyErrorsModule",
 		VarPrefix: "g_uke_",
 		Tag:       "uke",
-	},
-	"unknownKeysToUndefined": {
-		Name:      "unknownKeysToUndefinedModule",
-		VarPrefix: "g_uku_",
-		Tag:       "uku",
 	},
 	"unknownKeysToUndefinedWire": {
 		Name:      "unknownKeysToUndefinedWireModule",
@@ -246,6 +241,49 @@ func ValidateVariantSuffix(names []string) string {
 	return suffix
 }
 
+// HasUnknownKeysOptions is the ordered registry of supported
+// `HasUnknownKeysOptions` keys — the compile-time options bag of
+// `createHasUnknownKeys<T>(val?, options?, id?)`. Same contract as
+// ValidateOptions above: declaration order is load-bearing for the variant
+// suffix, and the same scanner/emitter/gen-ts mirror steps apply when adding
+// an option (see the ValidateOptions comment).
+//
+// `runsAfterValidation` declares the caller's precondition that the value
+// already PASSED this type's validate — every required prop is present — which
+// makes the emitter's key-count fast path sound (`cnt(v) !== N` exactly
+// separates clean from dirty) and lets it drop the per-object typeof guards.
+// Calling the variant on non-validated input is undefined behavior.
+var HasUnknownKeysOptions = []ValidateOption{
+	{Name: "runsAfterValidation", Letter: "V"},
+}
+
+// HasUnknownKeysVariantSuffix returns the canonical variant suffix for a list
+// of hasUnknownKeys option NAMES (subset of `HasUnknownKeysOptions[*].Name`).
+// Mirrors ValidateVariantSuffix's shape with its own lead letter: `O`
+// ("options") + the letters of the present options in declaration order —
+// `["runsAfterValidation"]` → `"OV"`. Empty input → empty suffix (plain key).
+func HasUnknownKeysVariantSuffix(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	present := make(map[string]bool, len(names))
+	for _, name := range names {
+		present[name] = true
+	}
+	suffix := "O"
+	hit := false
+	for _, opt := range HasUnknownKeysOptions {
+		if present[opt.Name] {
+			suffix += opt.Letter
+			hit = true
+		}
+	}
+	if !hit {
+		return ""
+	}
+	return suffix
+}
+
 // JsonStrategyFamilies maps a JSON "op|strategy" key to the cache family tags it
 // composes. Keyed by op|strategy (not the bare strategy token) because the
 // encoder and decoder can share a strategy NAME — `compact` is both a
@@ -272,15 +310,19 @@ var JsonStrategyFamilies = map[string][]string{
 
 // Per-entry virtual module settings (mirrored to TS via gen-ts-constants).
 // Every cache entry — runtype node, type-fn factory, JSON composite, pure fn —
-// is served as its own ES module `<VirtualModulePrefix><basename><EntryModuleSuffix>`
+// is served as its own ES module `<EntryModulePrefix><basename><EntryModuleSuffix>`
 // exporting one tuple under its binding name (entrymod.ExportName —
 // `<EntryBindingPrefix><identifier-escaped basename>`). The SAME name binds
 // the entry everywhere: the export, every import clause, and the call-site
-// binding the rewrite injects. See internal/compiler/virtualmodules.
+// binding the rewrite injects. See internal/compiler/entrymodules.
 const (
-	// VirtualModulePrefix is the Vite virtual-module namespace every entry
-	// module lives under.
-	VirtualModulePrefix = "virtual:rt/"
+	// EntryModulePrefix is the INTERNAL render-time specifier scheme every
+	// entry module is named under (`rtmod:/<basename>.js`). It never reaches
+	// a bundler or disk: the resolver relativizes every occurrence to a real
+	// relative path (post-render for inter-module imports, post-Apply for the
+	// imports injected into user files). A scheme rather than a path keeps
+	// rendered module text location-independent and the golden corpus stable.
+	EntryModulePrefix = "rtmod:/"
 	// EntryModuleSuffix terminates every entry-module specifier; the .js
 	// extension keeps downstream tooling (and import-analysis fast paths)
 	// treating the virtual id as plain JS.
@@ -295,7 +337,7 @@ const (
 	// keyed runtype / type-fn modules.
 	PureFnModuleDir = "pf"
 	// RunTypesBundleBasename names the SINGLE runtype data module
-	// (`virtual:rt/runtypes.js`): every reflection-demanded node lives there
+	// (`rtmod:/runtypes.js`): every reflection-demanded node lives there
 	// as one tuple row, deduplicated app-wide, with per-root facade modules
 	// aliasing into it. Unlike every other entry module it is NOT
 	// content-addressed — the Vite plugin invalidates it when a scan reports

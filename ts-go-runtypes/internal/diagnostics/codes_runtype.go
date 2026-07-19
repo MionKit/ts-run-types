@@ -176,10 +176,25 @@ const (
 // Unknown-keys family — no root throws today; only child drops.
 const (
 	CodeHUKFunctionPropDropped = "HUK010"
-	CodeSUKFunctionPropDropped = "SUK010"
 	CodeUKEFunctionPropDropped = "UKE010"
 	CodeUKUFunctionPropDropped = "UKU010"
 	CodeUKWFunctionPropDropped = "UKW010"
+)
+
+// cloneExactShape family — the clone-based strip. Object-bearing unions and
+// callable roots FAIL the build (a strip that silently doesn't strip is a
+// security bug, not a fallback). Declared members are never dropped: values
+// the emitter cannot rebuild (functions, symbols, promises, non-serialisable
+// natives) are kept and SHARED BY REFERENCE, with these advisories naming
+// them; class methods ride the prototype (CES011); statics are class-level
+// (CES012).
+const (
+	CodeCESUnionRoot               = "CES001"
+	CodeCESFunctionRoot            = "CES003"
+	CodeCESFunctionPropDropped     = "CES010"
+	CodeCESMethodDropped           = "CES011"
+	CodeCESStaticDropped           = "CES012"
+	CodeCESNonSerializablePropDrop = "CES015"
 )
 
 // Class-serializer family (CLS) — advisory, Warning severity. Emitted once
@@ -206,6 +221,7 @@ func init() {
 		CodeSJNeverRoot, CodeSJNonSerializableRoot, CodeSJFunctionRoot, CodeSJArrayElement, CodeSJSymbolRoot,
 		CodeTBNeverRoot, CodeTBNonSerializableRoot, CodeTBFunctionRoot, CodeTBArrayElement, CodeTBNonSerializableElem, CodeTBSymbolRoot,
 		CodeFBNeverRoot, CodeFBNonSerializableRoot, CodeFBFunctionRoot, CodeFBArrayElement, CodeFBNonSerializableElem, CodeFBSymbolRoot,
+		CodeCESUnionRoot, CodeCESFunctionRoot,
 	} {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityError, Title: "RunType root-position error"})
 	}
@@ -237,7 +253,8 @@ func init() {
 		CodeSJFunctionPropDropped, CodeSJMethodDropped, CodeSJStaticDropped, CodeSJSymbolKeyedDropped, CodeSJUnionMemberDropped, CodeSJNonSerializablePropDrop,
 		CodeTBFunctionPropDropped, CodeTBMethodDropped, CodeTBStaticDropped, CodeTBSymbolKeyedDropped, CodeTBUnionMemberDropped, CodeTBNonSerializablePropDrop,
 		CodeFBFunctionPropDropped, CodeFBMethodDropped, CodeFBStaticDropped, CodeFBSymbolKeyedDropped, CodeFBUnionMemberDropped, CodeFBNonSerializablePropDrop,
-		CodeHUKFunctionPropDropped, CodeSUKFunctionPropDropped, CodeUKEFunctionPropDropped, CodeUKUFunctionPropDropped, CodeUKWFunctionPropDropped,
+		CodeHUKFunctionPropDropped, CodeUKEFunctionPropDropped, CodeUKUFunctionPropDropped, CodeUKWFunctionPropDropped,
+		CodeCESFunctionPropDropped, CodeCESMethodDropped, CodeCESStaticDropped, CodeCESNonSerializablePropDrop,
 	} {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityWarning, Title: "RunType child-position member dropped"})
 	}
