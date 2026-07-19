@@ -14,6 +14,27 @@ permissions:
   contents: read
 
 jobs:
+  # ── version-fresh: catch a missing version bump at PR time ──────────────────
+  # publish.yml's preflight refuses to re-stage an already-published version,
+  # but that only fires AFTER the merge. This is the same check on the PR, so a
+  # promotion whose version.json is already live goes red here instead of
+  # merging green and failing to publish. Registry read is anonymous — the
+  # @ts-runtypes/* packages are public.
+  version-fresh:
+    name: version.json not already on npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: refuse an already-published version
+        shell: bash
+        run: |
+          version=$(jq -r .version version.json)
+          if npm view "@ts-runtypes/core@${version}" version >/dev/null 2>&1; then
+            echo "::error title=version ${version} is already on npm::This PR would merge and then fail publish.yml's preflight. Land a version-bump PR on main first (pnpm rtx release bump - see .claude/skills/release-to-prod/SKILL.md); because this PR's head is main, it picks the bump up automatically."
+            exit 1
+          fi
+          echo "OK: ${version} is not on npm yet — safe to promote."
+
   gate:
     # A called workflow can never exceed the calling job's permissions, and the
     # reusable gate's e2e / benchmarks / website-build jobs request
