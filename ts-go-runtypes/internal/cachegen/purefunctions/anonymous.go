@@ -25,56 +25,81 @@ const AnonymousNamespace = "rt"
 const anonymousPureFnCalleeName = "registerAnonymousPureFn"
 const anonymousPureFnFactoryCalleeName = "registerAnonymousPureFnFactory"
 
-// firstArgIsInlineFunction is the secondary extraction pre-filter for the
-// anonymous lane: the call's first argument is an inline arrow/function
-// expression — the `PureFunction<F>` factory shape. This lets renamed imports
-// and branded wrapper factories reach the (authoritative) brand check without
-// paying signature resolution on every unrelated call; false positives (any
-// other `foo(() => …)` call) are rejected there.
-func firstArgIsInlineFunction(callExpr *ast.CallExpression) bool {
-	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) == 0 {
+// anyArgIsInlineFunction is the secondary extraction pre-filter for the
+// anonymous lane: SOME argument is an inline arrow/function expression — the
+// `PureFunction<F>` shape. This lets renamed imports and branded wrapper
+// factories reach the (authoritative) brand check without paying signature
+// resolution on every unrelated call; false positives (any other
+// `foo(() => …)` call) are rejected there. The scan covers every argument, not
+// just the first, because a wrapper may declare leading non-marker parameters
+// (mion's `serverMapFrom(source, mapper)` carries the mapper at slot 1).
+func anyArgIsInlineFunction(callExpr *ast.CallExpression) bool {
+	if callExpr.Arguments == nil {
 		return false
 	}
-	firstArg := callExpr.Arguments.Nodes[0]
-	return firstArg.Kind == ast.KindArrowFunction || firstArg.Kind == ast.KindFunctionExpression
+	for _, arg := range callExpr.Arguments.Nodes {
+		if arg.Kind == ast.KindArrowFunction || arg.Kind == ast.KindFunctionExpression {
+			return true
+		}
+	}
+	return false
 }
 
 // isAnonymousPureFnCall reports whether call is an anonymous-lane registration
 // (`registerAnonymousPureFn` / `registerAnonymousPureFnFactory`, or a wrapper
-// carrying the same brands) that should be extracted, and whether it uses the
-// direct form (wrap). Two-layer check mirroring `isNamedPureFnCall`:
+// carrying the same brands) that should be extracted, whether it uses the
+// direct form (wrap), and WHERE the two marker parameters sit. Two-layer check
+// mirroring `isNamedPureFnCall`:
 //
 //  1. Cheap: the callee is an identifier whose text equals a well-known anonymous
-//     registrar, OR the first argument is an inline function literal (renamed
+//     registrar, OR some argument is an inline function literal (renamed
 //     imports and branded wrappers). Avoids signature resolution on unrelated
 //     calls.
-//  2. Brand verify: the resolved signature has ≥2 parameters where slot 1 carries
-//     `InjectPureFnHash<F>` and slot 0 carries a pure-fn form marker
-//     (`PureFunction<F>` → direct, or `PureFunctionFactory<F>` → factory).
-//     Module-of-origin is implicit in the brand check, so a user's own same-named
-//     function is rejected even if it passes the name filter.
-func isAnonymousPureFnCall(typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node) (matched, wrap bool) {
+//  2. Brand verify: the resolved signature carries a pure-fn form marker
+//     (`PureFunction<F>` → direct, or `PureFunctionFactory<F>` → factory) at
+//     SOME parameter, followed by an `InjectPureFnHash<F>` parameter. Positions
+//     are discovered, not assumed — a wrapper may declare leading non-marker
+//     parameters (`serverMapFrom(source, mapper, hash?)`), so the brand pair is
+//     the contract, not slots 0/1. Module-of-origin is implicit in the brand
+//     check, so a user's own same-named function is rejected even if it passes
+//     the name filter. Overloaded wrappers work per call site: the checker
+//     resolves the signature the call binds to, so a marker-free overload (a
+//     name-based fallback lane) never extracts.
+func isAnonymousPureFnCall(typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node) (matched, wrap bool, fnParamIndex, hashParamIndex int) {
 	callExpr := call.AsCallExpression()
 	if callExpr == nil || callExpr.Expression == nil {
-		return false, false
+		return false, false, 0, 0
 	}
 	callee := callExpr.Expression
 	if callee.Kind != ast.KindIdentifier {
-		return false, false
+		return false, false, 0, 0
 	}
-	if callee.Text() != anonymousPureFnCalleeName && callee.Text() != anonymousPureFnFactoryCalleeName && !firstArgIsInlineFunction(callExpr) {
-		return false, false
+	if callee.Text() != anonymousPureFnCalleeName && callee.Text() != anonymousPureFnFactoryCalleeName && !anyArgIsInlineFunction(callExpr) {
+		return false, false, 0, 0
 	}
 	signature := checker.Checker_getResolvedSignature(typeChecker, call, nil, 0)
 	if signature == nil {
-		return false, false
+		return false, false, 0, 0
 	}
 	parameters := checker.Signature_parameters(signature)
 	if len(parameters) < 2 {
-		return false, false
+		return false, false, 0, 0
 	}
-	if !paramHasMarker(typeChecker, markerOpts, parameters[1], marker.KindInjectPureFnHash) {
-		return false, false
+	fnParamIndex, hashParamIndex = -1, -1
+	for paramIndex, parameter := range parameters {
+		if fnParamIndex < 0 {
+			if formMatched, formWrap := pureFnFormMarker(typeChecker, markerOpts, parameter); formMatched {
+				fnParamIndex, wrap = paramIndex, formWrap
+			}
+			continue
+		}
+		if paramHasMarker(typeChecker, markerOpts, parameter, marker.KindInjectPureFnHash) {
+			hashParamIndex = paramIndex
+			break
+		}
 	}
-	return pureFnFormMarker(typeChecker, markerOpts, parameters[0])
+	if fnParamIndex < 0 || hashParamIndex < 0 {
+		return false, false, 0, 0
+	}
+	return true, wrap, fnParamIndex, hashParamIndex
 }

@@ -215,6 +215,79 @@ export const cpf = registerAcmeFactory(function () {
 	}
 }
 
+func TestExtractAnonymous_ThroughLeadingParamWrapper(t *testing.T) {
+	// The real mion serverMapFrom shape: a leading non-marker param before the
+	// marker pair, plus an overloaded marker-free name lane. The marker positions
+	// are DISCOVERED (slots 1/2 here), the hash splices at its declared slot, and
+	// the string-overload call never extracts.
+	direct, diags := extractFromOverlay(t, map[string]string{
+		"a.ts": `
+import {registerAnonymousPureFn} from '@ts-runtypes/core';
+export const cpf = registerAnonymousPureFn((customer: {id: number}): number => customer.id * 2);`,
+	})
+	if len(diags) != 0 || len(direct) != 1 {
+		t.Fatalf("direct extraction failed: entries=%d diags=%+v", len(direct), diags)
+	}
+
+	wrapped, wdiags := extractFromOverlay(t, map[string]string{
+		"a.ts": `
+import {registerAnonymousPureFn, type PureFunction, type InjectPureFnHash} from '@ts-runtypes/core';
+function serverMapFrom<Source, MappedInput>(source: Source, fnName: string): unknown;
+function serverMapFrom<Source, MappedInput>(
+  source: Source,
+  mapper: PureFunction<(value: Source) => MappedInput>,
+  hash?: InjectPureFnHash<(value: Source) => MappedInput>
+): unknown;
+function serverMapFrom(source: unknown, mapperOrName: unknown, hash?: string): unknown {
+  if (typeof mapperOrName === 'string') return mapperOrName;
+  if (!hash) throw new Error('plugin did not run');
+  return registerAnonymousPureFn(mapperOrName as never, hash as never);
+}
+const source = {id: 1};
+export const mapped = serverMapFrom(source, (customer: {id: number}): number => customer.id * 2);
+export const named = serverMapFrom(source, 'toCustomerId');`,
+	})
+	if len(wdiags) != 0 {
+		t.Fatalf("leading-param wrapper diagnostics: %+v", wdiags)
+	}
+	if len(wrapped) != 1 {
+		t.Fatalf("only the inline-mapper call must extract (string overload never does), got %d: %+v", len(wrapped), wrapped)
+	}
+	if wrapped[0].Key() != direct[0].Key() {
+		t.Errorf("leading-param wrapper injected %q, direct injected %q — should match (content-addressed)", wrapped[0].Key(), direct[0].Key())
+	}
+	if want := ", '" + wrapped[0].Key() + "'"; wrapped[0].HashInjectText != want {
+		t.Errorf("hash inject text = %q, want %q (slot 2, no padding)", wrapped[0].HashInjectText, want)
+	}
+	if wrapped[0].HashInjectPos == 0 {
+		t.Errorf("hash inject position must be set")
+	}
+}
+
+func TestExtractAnonymous_HashSlotPaddingAcrossOptionalGap(t *testing.T) {
+	// A wrapper with an optional non-marker param BETWEEN the mapper and the hash:
+	// injecting at the hash's declared slot pads the gap with `undefined`.
+	wrapped, wdiags := extractFromOverlay(t, map[string]string{
+		"a.ts": `
+import {registerAnonymousPureFn, type PureFunction, type InjectPureFnHash} from '@ts-runtypes/core';
+function registerWithOpts<F extends (...args: any[]) => any>(
+  fn: PureFunction<F>,
+  opts?: {label?: string},
+  hash?: InjectPureFnHash<F>
+): unknown {
+  if (!hash) throw new Error('plugin did not run');
+  return registerAnonymousPureFn(fn as never, hash as never);
+}
+export const padded = registerWithOpts((n: number): number => n + 1);`,
+	})
+	if len(wdiags) != 0 || len(wrapped) != 1 {
+		t.Fatalf("optional-gap wrapper extraction: entries=%d diags=%+v", len(wrapped), wdiags)
+	}
+	if want := ", undefined, '" + wrapped[0].Key() + "'"; wrapped[0].HashInjectText != want {
+		t.Errorf("hash inject text = %q, want %q (one undefined pad for the skipped opts slot)", wrapped[0].HashInjectText, want)
+	}
+}
+
 func TestExtractAnonymous_Replacements(t *testing.T) {
 	entries, diags := extractFromOverlay(t, map[string]string{
 		"a.ts": `

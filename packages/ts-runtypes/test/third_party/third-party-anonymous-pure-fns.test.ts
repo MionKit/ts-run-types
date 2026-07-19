@@ -60,20 +60,34 @@ export declare function registerAcmePureFn<F extends (...args: any[]) => any>(
   fn: PureFunction<F>,
   hash?: InjectPureFnHash<F>,
 ): unknown;
+export declare function mapAcmeFrom<Source, MappedInput>(source: Source, fnName: string): unknown;
+export declare function mapAcmeFrom<Source, MappedInput>(
+  source: Source,
+  mapper: PureFunction<(value: Source) => MappedInput>,
+  hash?: InjectPureFnHash<(value: Source) => MappedInput>,
+): unknown;
 `;
 
 const TOOLKIT_JS = `export {registerAnonymousPureFn} from '@ts-runtypes/core';
 export function registerAcmePureFn(fn, hash) {
   return {fn, hash};
 }
+export function mapAcmeFrom(source, mapperOrName, hash) {
+  return {source, mapperOrName, hash};
+}
 `;
 
-// Consumer A: a RENAMED re-export call + a wrapper call. Different bodies, so
-// they must inject two DISTINCT content hashes.
-const CONSUMER_SRC = `import {registerAnonymousPureFn as regAPF, registerAcmePureFn} from '@acme/toolkit';
+// Consumer A: a RENAMED re-export call + a wrapper call + a LEADING-PARAM
+// wrapper (mion serverMapFrom shape: markers at slots 1/2, overloaded
+// marker-free name lane). Different bodies, so distinct content hashes; the
+// name-lane call must ride through UNREWRITTEN.
+const CONSUMER_SRC = `import {registerAnonymousPureFn as regAPF, registerAcmePureFn, mapAcmeFrom} from '@acme/toolkit';
 
 export const doubled = regAPF(function _double(n: number): number { return n * 2; });
 export const tripled = registerAcmePureFn(function _triple(n: number): number { return n * 3; });
+const source = {id: 6};
+export const mapped = mapAcmeFrom(source, (customer: {id: number}): number => customer.id * 6);
+export const named = mapAcmeFrom(source, 'toCustomerId');
 `;
 
 // Consumer B: ONLY the wrapper. Names neither '@ts-runtypes/core' nor the
@@ -152,6 +166,14 @@ describe('third-party anonymous pure fns: renamed re-export + branded wrapper (n
       const wrapperHash = assertInjected(code, 'registerAcmePureFn', consumerFile);
       // Different bodies (n*2 vs n*3) → distinct content hashes.
       expect(directHash).not.toBe(wrapperHash);
+
+      // Leading-param wrapper (mion serverMapFrom shape): the mapper at ARG
+      // slot 1 is rewritten and the hash splices at its declared slot 2.
+      const leadingMatch = code.match(/mapAcmeFrom\(\s*source,\s*(__rt_pf[A-Za-z0-9_$]*),\s*'(rt::[A-Za-z0-9_-]{14})'\)/);
+      expect(leadingMatch, `mapAcmeFrom inline call must carry the pf binding + injected hash in:\n${code}`).toBeTruthy();
+      expect(leadingMatch![2]).not.toBe(directHash);
+      // The marker-free string overload rides through UNREWRITTEN.
+      expect(code).toContain(`mapAcmeFrom(source, 'toCustomerId')`);
     } finally {
       try {
         await callHook(plugin.buildEnd, ctx);
