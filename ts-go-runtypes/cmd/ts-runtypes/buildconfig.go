@@ -27,7 +27,6 @@ type buildFlags struct {
 	allowUncheckedPatterns bool
 	pureFnReport           bool
 	pureFnReportFile       bool
-	pureFnReportPath       string
 	sizeBias               float64
 	sizeItems              int
 	sizeStringBytes        int
@@ -47,7 +46,6 @@ type buildOptions struct {
 	allowUncheckedPatterns bool
 	pureFnReport           bool
 	pureFnReportFile       bool
-	pureFnReportPath       string
 	sizeBias               float64
 	sizeItems              int
 	sizeStringBytes        int
@@ -74,7 +72,6 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		allowUncheckedPatterns: flags.allowUncheckedPatterns,
 		pureFnReport:           flags.pureFnReport,
 		pureFnReportFile:       flags.pureFnReportFile,
-		pureFnReportPath:       strings.TrimSpace(flags.pureFnReportPath),
 		sizeBias:               flags.sizeBias,
 		sizeItems:              flags.sizeItems,
 		sizeStringBytes:        flags.sizeStringBytes,
@@ -100,18 +97,16 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		out.allowUncheckedPatterns = *plugin.AllowUncheckedPatterns
 	}
 
-	// Pure-fn report: the tsconfig `pureFnReport` union (true | "<path>") fills
-	// in only when NO report flag was passed on the command line, tsc-style. A
-	// `true` value writes the default-path file; a string writes that path.
-	if !flags.set["pure-fn-report"] && !flags.set["pure-fn-report-file"] && !flags.set["pure-fn-report-path"] {
-		if enabled, file, path := parsePureFnReport(plugin.PureFnReport); enabled {
-			out.pureFnReport = true
-			out.pureFnReportFile = file
-			out.pureFnReportPath = path
-		}
+	// Pure-fn report: the tsconfig `pureFnReport` boolean fills in only when NO
+	// report flag was passed on the command line, tsc-style. `true` both emits
+	// the report data and writes the hardcoded-path JSON file; there is no
+	// path knob (like every location under genDir, it is convention, not config).
+	if !flags.set["pure-fn-report"] && !flags.set["pure-fn-report-file"] && plugin.PureFnReport != nil && *plugin.PureFnReport {
+		out.pureFnReport = true
+		out.pureFnReportFile = true
 	}
-	// A configured file/path always implies the report data is produced.
-	if out.pureFnReportFile || out.pureFnReportPath != "" {
+	// A configured file always implies the report data is produced.
+	if out.pureFnReportFile {
 		out.pureFnReport = true
 	}
 

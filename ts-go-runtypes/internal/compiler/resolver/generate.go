@@ -222,25 +222,23 @@ func unwritableOutDirError(typesDir string, err error) error {
 	return fmt.Errorf("writing generated RunTypes modules under %s: %w", typesDir, err)
 }
 
-// pureFnReportPath resolves where OpGenerate writes the pure-fn report JSON: an
-// explicit configured path (absolutized against the working dir), else the
-// default `<outDir>/types/pure-fns-report.json` — inside the generated cache
-// dir, so it follows the same gitignore + regenerate-every-build lifecycle as
-// the pure-fn cache modules.
-func (sess *Session) pureFnReportPath(outDir string) string {
-	if sess.opts.PureFnReportPath != "" {
-		return sess.absPath(sess.opts.PureFnReportPath)
-	}
+// pureFnReportPath is the HARDCODED location of the pure-fn report JSON:
+// `<outDir>/types/pure-fns-report.json`, inside the generated cache dir so it
+// follows the same gitignore + regenerate-every-build lifecycle as the pure-fn
+// cache modules. Deliberately NOT configurable — like every location under the
+// output root (types/, enriched/, …), the report path is convention, not a
+// knob; only `genDir` itself (the root) is settable.
+func pureFnReportPath(outDir string) string {
 	return filepath.Join(outDir, typesSubdir, pureFnReportFileName)
 }
 
 // writePureFnReport marshals the report to indented JSON and writes it to path,
 // write-only-on-change (so a dev watcher isn't retriggered when the report is
-// byte-identical) and creating the parent dir for a custom out-of-tree path. An
-// empty report still writes `[]` so a stale file from a prior build never
-// misleads a consumer into thinking nothing changed. Fatal on write error —
-// files-mode has no fallback and a configured report the consumer's build
-// depends on must not silently go missing.
+// byte-identical). An empty report still writes `[]` so a stale file from a
+// prior build never misleads a consumer into thinking nothing changed. Fatal on
+// write error — files-mode has no fallback and a report the consumer's build
+// depends on must not silently go missing. types/ already exists (generateToDisk
+// created it before this runs), so no directory setup is needed.
 func writePureFnReport(path string, report []protocol.PureFnSite) error {
 	if report == nil {
 		report = []protocol.PureFnSite{}
@@ -252,9 +250,6 @@ func writePureFnReport(path string, report []protocol.PureFnSite) error {
 	payload = append(payload, '\n')
 	if existing, readErr := os.ReadFile(path); readErr == nil && string(existing) == string(payload) {
 		return nil
-	}
-	if mkErr := os.MkdirAll(filepath.Dir(path), 0o755); mkErr != nil {
-		return unwritableOutDirError(path, mkErr)
 	}
 	if writeErr := os.WriteFile(path, payload, 0o644); writeErr != nil {
 		return unwritableOutDirError(path, writeErr)

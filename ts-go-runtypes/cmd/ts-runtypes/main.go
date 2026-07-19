@@ -80,9 +80,8 @@ Options:
                         off by default. Also readable as the "pureFnReport"
                         tsconfig key (true | "<path>")
     --pure-fn-report-file    also write the whole-program report as JSON to
-                        <genDir>/types/pure-fns-report.json on generate
-    --pure-fn-report-path PATH   write the report JSON to PATH instead of the
-                        default (implies --pure-fn-report --pure-fn-report-file)
+                        <genDir>/types/pure-fns-report.json (hardcoded location)
+                        on generate
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -134,7 +133,6 @@ func main() {
 		allowUncheckedPatterns bool
 		pureFnReport           bool
 		pureFnReportFile       bool
-		pureFnReportPath       string
 		sizeBias               float64
 		sizeItems              int
 		sizeStringBytes        int
@@ -183,9 +181,7 @@ func main() {
 		"emit the structured pure-fn build report (Response.pureFnSites) on generate/scan for host tooling "+
 			"that relocates pure-fn bodies across bundles; off by default so the rewrite pipeline pays nothing")
 	flag.BoolVar(&pureFnReportFile, "pure-fn-report-file", false,
-		"also write the whole-program pure-fn report as JSON to <genDir>/types/pure-fns-report.json on generate (implies --pure-fn-report)")
-	flag.StringVar(&pureFnReportPath, "pure-fn-report-path", "",
-		"write the pure-fn report JSON to this explicit path instead of the default (implies --pure-fn-report --pure-fn-report-file)")
+		"also write the whole-program pure-fn report as JSON to the hardcoded <genDir>/types/pure-fns-report.json on generate (implies --pure-fn-report)")
 	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,
 		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest (more grows), 1 = most generous (default 0.8)")
 	flag.IntVar(&sizeItems, "size-items", constants.DefaultSizeItems,
@@ -288,7 +284,6 @@ func main() {
 		allowUncheckedPatterns: allowUncheckedPatterns,
 		pureFnReport:           pureFnReport,
 		pureFnReportFile:       pureFnReportFile,
-		pureFnReportPath:       pureFnReportPath,
 		sizeBias:               sizeBias,
 		sizeItems:              sizeItems,
 		sizeStringBytes:        sizeStringBytes,
@@ -353,7 +348,6 @@ func main() {
 		AllowUncheckedPatterns:  merged.allowUncheckedPatterns,
 		PureFnReport:            merged.pureFnReport,
 		PureFnReportFile:        merged.pureFnReportFile,
-		PureFnReportPath:        merged.pureFnReportPath,
 		SizeBias:                merged.sizeBias,
 		SizeItems:               merged.sizeItems,
 		SizeStringBytes:         merged.sizeStringBytes,

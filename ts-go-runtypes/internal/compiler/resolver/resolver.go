@@ -135,13 +135,12 @@ type Options struct {
 	// changes the emitted artifacts).
 	PureFnReport bool
 	// PureFnReportFile, when true, additionally WRITES the whole-program report
-	// as one JSON file during OpGenerate. The path is PureFnReportPath when set,
-	// else the default `<outDir>/types/pure-fns-report.json` (inside the
-	// generated cache dir, so it follows types/'s .gitignore + regenerate
-	// lifecycle; still DATA, never part of the module manifest nor resolvable as
-	// an rtmod:/ specifier). PureFnReportPath implies file writing on its own.
+	// as one JSON file during OpGenerate. The location is HARDCODED at
+	// `<outDir>/types/pure-fns-report.json` (inside the generated cache dir, so
+	// it follows types/'s .gitignore + regenerate lifecycle; still DATA, never
+	// part of the module manifest nor resolvable as an rtmod:/ specifier) — it is
+	// not configurable, matching every other path under the output root.
 	PureFnReportFile bool
-	PureFnReportPath string
 }
 
 // Session owns a Program and answers type queries against it. The serializer

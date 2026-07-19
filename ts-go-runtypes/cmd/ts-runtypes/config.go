@@ -115,42 +115,17 @@ type tsRuntypesPlugin struct {
 	// features), asserting the ts-runtypes JS linter owns that check. A pointer
 	// so an absent key falls through to the false default. Build-lane only.
 	AllowUncheckedPatterns *bool `json:"allowUncheckedPatterns"`
-	// PureFnReport is the pure-fn build report switch, a `true | "<path>"`
-	// union: `true` emits the report AND writes it to the default
-	// `<genDir>/types/pure-fns-report.json`; a string writes it to that path; absent /
-	// false keeps it off. Decoded as RawMessage because the value is a union
-	// (bool or string); parsePureFnReport interprets it. Build-lane project
-	// option — the host plugin forwards the equivalent CLI flags.
-	PureFnReport json.RawMessage `json:"pureFnReport"`
+	// PureFnReport is the pure-fn build report switch: `true` emits the report
+	// AND writes it to the HARDCODED `<genDir>/types/pure-fns-report.json`;
+	// absent (nil) / false keeps it off. A pointer so an absent key falls
+	// through to the false default. There is deliberately NO path variant — like
+	// every location under genDir, the report path is convention, not config.
+	// Build-lane project option — the host plugin forwards the equivalent CLI flag.
+	PureFnReport *bool `json:"pureFnReport"`
 	// Size groups the binary `dynamic` strategy's cold-start buffer-estimate
 	// knobs under one `size` object (like `i18n`). A nil object (absent key)
 	// keeps every binary default.
 	Size *sizePluginConfig `json:"size"`
-}
-
-// parsePureFnReport interprets the tsconfig `pureFnReport` union value:
-//   - `true`      → (enabled=true, file=true, path="")  — write the default-path file
-//   - `"<path>"`  → (enabled=true, file=false, path)    — write that explicit path
-//   - absent / false / null / "" → (false, false, "")   — off
-//
-// A file/path implies the report data too (the merge folds that in). Any other
-// shape is treated as off rather than erroring — an unknown value should never
-// break a build.
-func parsePureFnReport(raw json.RawMessage) (enabled, file bool, path string) {
-	trimmed := strings.TrimSpace(string(raw))
-	switch trimmed {
-	case "", "null", "false":
-		return false, false, ""
-	case "true":
-		return true, true, ""
-	}
-	var asPath string
-	if err := json.Unmarshal(raw, &asPath); err == nil {
-		if asPath = strings.TrimSpace(asPath); asPath != "" {
-			return true, false, asPath
-		}
-	}
-	return false, false, ""
 }
 
 // sizePluginConfig is the `size` object under the ts-runtypes plugin entry:

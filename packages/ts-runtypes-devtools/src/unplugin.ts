@@ -147,16 +147,17 @@ export interface PluginOptions {
   // pure fn this build generated (call-site span, callee attribution, registry
   // key, and the self-contained entry payload). For host tooling that relocates
   // pure-fn bodies across bundles (mion's cross-bundle serverMapFrom transport).
-  //   - `true`      → emit the report AND write it to
+  //   - `true`      → emit the report AND write it to the HARDCODED
   //                   `<genDir>/types/pure-fns-report.json` on every generate.
-  //   - '<path>'    → emit + write the JSON to that explicit path (relative to
-  //                   cwd, or absolute).
+  //                   The location is not configurable (like every path under
+  //                   genDir), so it inherits types/'s gitignore + regenerate
+  //                   lifecycle.
   //   - unset/false → off (the callback below alone still enables the report
   //                   DATA without writing a file).
   // The JSON file is for plugin-free / separate-process / CLI-batch consumers;
   // in-process consumers use `onPureFnReport`. Both channels carry identical
   // records. Report shape is identical across every `moduleMode`.
-  pureFnReport?: boolean | string;
+  pureFnReport?: boolean;
   // In-process pure-fn report callback, fired on EVERY adapter (it rides the
   // universal buildStart hook, not a vite-only one): once after the
   // whole-program buildStart scan + generate with the full report (phase
@@ -196,8 +197,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // The pure-fn report is produced when a file is requested (`pureFnReport`) OR
   // an in-process consumer registered `onPureFnReport`. Drives both the resolver
   // flag and whether the callback fires.
-  const reportEnabled: boolean =
-    options.pureFnReport === true || typeof options.pureFnReport === 'string' || typeof options.onPureFnReport === 'function';
+  const reportEnabled: boolean = options.pureFnReport === true || typeof options.onPureFnReport === 'function';
   if (transformMode !== 'go' && transformMode !== 'edits') {
     throw new Error(
       `[@ts-runtypes/devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
@@ -264,15 +264,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
-      // Enable the report DATA whenever a file is requested OR an in-process
-      // callback is registered. A string `pureFnReport` writes to that path; a
-      // `true` writes the default-path file; the callback alone writes no file.
+      // Enable the report DATA whenever the file is requested OR an in-process
+      // callback is registered. `pureFnReport: true` also writes the JSON file
+      // (at the hardcoded genDir/types path); the callback alone writes no file.
       ...(reportEnabled ? {pureFnReport: true} : {}),
-      ...(typeof options.pureFnReport === 'string'
-        ? {pureFnReportPath: options.pureFnReport}
-        : options.pureFnReport === true
-          ? {pureFnReportFile: true}
-          : {}),
+      ...(options.pureFnReport === true ? {pureFnReportFile: true} : {}),
     });
   }
 
