@@ -33,6 +33,16 @@ project's early completion or aborted init also closes servers while other work 
 Whichever container reaches `buildEnd` first kills the shared child under the others.
 Purely timing-dependent, so it presents as CI flake.
 
+## Failure signature (as consumers see it)
+
+A vitest/vite build fails with `Error: generate: resolver exited` (from
+`ResolverClient`) and ZERO resolver output — no Go panic, no diagnostics — either as a
+startup `AggregateError: Failed to initialize projects`, or mid-run where ONE project's
+spec files all fail transform (`resolver is closed`) while sibling projects stay green.
+Identical trees pass locally and pass on re-run (pure timing). Consumer triage until a
+release carries this fix: re-run the job on this signature — there is nothing to debug
+in the consumer's code, and it is not memory pressure (see Evidence).
+
 ## Evidence (mion CI, MionKit/mion PR #123, 2026-07-20)
 
 Two failures with identical signature on trees that pass locally and pass CI on re-run:
@@ -68,6 +78,8 @@ Two failures with identical signature on trees that pass locally and pass CI on 
    `generate: resolver exited` rejection; (b) two-container simulation where one
    container tears down mid-transform of the other.
 
-Consumer note: mion documents the CI triage for this signature in its own
-`docs/todos/ci-resolver-exit-flake.md` (re-run on signature; adopt the fixed devtools
-release when this ships).
+Consumer note: this defect and its incident record are UPSTREAM-owned — the
+consumer-side flake doc that briefly lived in mion (`docs/todos/ci-resolver-exit-flake.md`)
+is absorbed into this spec (the Failure signature section above). Consumers pick the fix
+up with their next `@ts-runtypes/devtools` bump; until then the triage is re-run on
+signature.
