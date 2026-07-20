@@ -102,6 +102,19 @@ export interface WireStats {
   requests: number;
 }
 
+// Transport-injected error reasons for a lost connection. `send`'s
+// respawn-retry matches on EXACTLY these (a Go-side {error} response must
+// never look retryable), so keep the literals and the matcher together.
+const RESOLVER_EXITED = 'resolver exited';
+const SPAWN_FAILED_PREFIX = 'spawn failed';
+function isTransportLoss(reason: string): boolean {
+  return reason === RESOLVER_EXITED || reason.startsWith(SPAWN_FAILED_PREFIX);
+}
+
+// How long close() waits for in-flight requests to settle before releasing
+// the underlying process anyway (a hung child must not wedge teardown).
+const CLOSE_DRAIN_TIMEOUT_MS = 5000;
+
 // Common JSON-per-line request/response framing. Owns the in-flight request
 // queue. The transport is agnostic to whether the streams come from a
 // spawned child process or a Unix-socket connection.
@@ -109,6 +122,11 @@ class MessageTransport {
   private lines: Interface;
   private queue: Array<(r: Response) => void> = [];
   private closed = false;
+  // Drain state: close() was called with requests still in flight — new
+  // requests are refused, pending ones get their real responses, then the
+  // connection is released (bounded by CLOSE_DRAIN_TIMEOUT_MS).
+  private closing = false;
+  private drainTimer: NodeJS.Timeout | null = null;
   private bytesWritten = 0;
   private bytesRead = 0;
   private requestCount = 0;
@@ -129,6 +147,8 @@ class MessageTransport {
       } catch (e) {
         done({error: `parse: ${String(e)}`});
       }
+      // Last in-flight response landed after a draining close — finish it.
+      if (this.closing && this.queue.length === 0) this.finishClose();
     });
   }
 
@@ -140,6 +160,7 @@ class MessageTransport {
   // 'close') to drain pending requests with an error.
   markClosed(reason: string): void {
     this.closed = true;
+    this.clearDrainTimer();
     while (this.queue.length) this.queue.shift()!({error: reason});
   }
 
@@ -151,7 +172,7 @@ class MessageTransport {
   }
 
   async request(req: Request): Promise<Response> {
-    if (this.closed) throw new Error('resolver is closed');
+    if (this.closed || this.closing) throw new Error('resolver is closed');
     return new Promise<Response>((resolve) => {
       this.queue.push(resolve);
       const payload = JSON.stringify(req) + '\n';
@@ -161,10 +182,35 @@ class MessageTransport {
     });
   }
 
+  // close drains before it kills: requests already on the wire get their real
+  // responses (bounded), only then is the underlying process released. Closing
+  // eagerly here used to reject every in-flight request with
+  // "generate: resolver exited" whenever one plugin container tore down while
+  // another still had work on the shared child (the buildEnd race).
   close(): void {
+    if (this.closed || this.closing) return;
+    if (this.queue.length === 0) {
+      this.closed = true;
+      this.onClose();
+      return;
+    }
+    this.closing = true;
+    this.drainTimer = setTimeout(() => this.finishClose(), CLOSE_DRAIN_TIMEOUT_MS);
+    // Never hold the host process open just for a drain window.
+    this.drainTimer.unref?.();
+  }
+
+  private finishClose(): void {
     if (this.closed) return;
     this.closed = true;
+    this.clearDrainTimer();
     this.onClose();
+  }
+
+  private clearDrainTimer(): void {
+    if (!this.drainTimer) return;
+    clearTimeout(this.drainTimer);
+    this.drainTimer = null;
   }
 }
 
@@ -288,8 +334,16 @@ export interface TransformOptions {
 // Mixed-in ops implementation shared between the two clients. Inheritance
 // keeps the method definitions in one place and `this.transport` lookup
 // happens at call time, so field-initializer ordering isn't a concern.
+// (`transport` is deliberately NOT readonly: ResolverClient re-assigns it
+// when it respawns a dead child.)
 abstract class ResolverClientBase implements ResolverConnection {
-  protected abstract readonly transport: MessageTransport;
+  protected abstract transport: MessageTransport;
+
+  // Single request path for every op — ResolverClient overrides it with the
+  // respawn-retry lane; the stream/socket clients keep the plain transport.
+  protected send(req: Request): Promise<Response> {
+    return this.transport.request(req);
+  }
 
   async scanFiles(files: string[], opts: ScanFilesOptions = {}): Promise<ScanFilesResult> {
     if (files.length === 0) throw new Error('scanFiles: files must be non-empty');
@@ -299,7 +353,7 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (opts.includeMetrics) req.includeMetrics = true;
     if (opts.checkEnrich) req.checkEnrich = true;
     if (opts.includeRtDiagnostics) req.includeRtDiagnostics = true;
-    const resp = await this.transport.request(req);
+    const resp = await this.send(req);
     if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
     return {
       sites: resp.sites ?? [],
@@ -340,7 +394,7 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (outDir) req.outDir = outDir;
     if (opts.emitEdits) req.emitEdits = true;
     if (opts.omitSourcesContent) req.omitSourcesContent = true;
-    const resp = await this.transport.request(req);
+    const resp = await this.send(req);
     if (resp.error) throw new Error(`transform [${files.join(', ')}]: ${resp.error}`);
     return {
       transformed: resp.transformed ?? {},
@@ -362,7 +416,7 @@ abstract class ResolverClientBase implements ResolverConnection {
   async generate(outDir?: string): Promise<GenerateResult> {
     const req: Request = {op: 'generate'};
     if (outDir) req.outDir = outDir;
-    const resp = await this.transport.request(req);
+    const resp = await this.send(req);
     if (resp.error) throw new Error(`generate: ${resp.error}`);
     return {
       modules: resp.generated ?? [],
@@ -374,11 +428,11 @@ abstract class ResolverClientBase implements ResolverConnection {
   }
 
   async dump(): Promise<Response> {
-    return this.transport.request({op: 'dump'});
+    return this.send({op: 'dump'});
   }
 
   async setSources(sources: Record<string, string>): Promise<void> {
-    const resp = await this.transport.request({op: 'setSources', sources});
+    const resp = await this.send({op: 'setSources', sources});
     if (resp.error) throw new Error(`setSources: ${resp.error}`);
   }
 
@@ -386,7 +440,7 @@ abstract class ResolverClientBase implements ResolverConnection {
   // internal/compiler/resolver/resolver.go:Reset for the contract. The caller must
   // call setSources before the next scanFiles.
   async reset(): Promise<void> {
-    const resp = await this.transport.request({op: 'reset'});
+    const resp = await this.send({op: 'reset'});
     if (resp.error) throw new Error(`reset: ${resp.error}`);
   }
 
@@ -396,7 +450,7 @@ abstract class ResolverClientBase implements ResolverConnection {
   // modules — purely the TypeScript baseline. Caller must have called
   // setSources first.
   async tsCompile(): Promise<number> {
-    const resp = await this.transport.request({op: 'tsCompile'});
+    const resp = await this.send({op: 'tsCompile'});
     if (resp.error) throw new Error(`tsCompile: ${resp.error}`);
     return resp.tsCompileMs ?? 0;
   }
@@ -458,39 +512,123 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
 //     the caller drives setSources / reset / scanFiles / dump over stdin
 //     for the lifetime of the process.
 export class ResolverClient extends ResolverClientBase {
-  private child: ChildProcess;
-  protected readonly transport: MessageTransport;
+  private child!: ChildProcess;
+  protected transport!: MessageTransport;
+  // True once the OWNER closed this client — an exit after that is expected
+  // and must never trigger a respawn.
+  private intentionalClose = false;
+  // Lifetime respawn budget: enough to absorb the rare transient child loss
+  // (host lifecycle races, external kills) without ever churning forever on a
+  // host where every spawn dies.
+  private respawnsLeft = 3;
 
-  constructor(binary: string, cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}) {
+  constructor(
+    private readonly binary: string,
+    private readonly cwd: string,
+    private readonly tsconfigPath: string,
+    private readonly opts: ResolverClientOptions = {}
+  ) {
     super();
-    const args = buildResolverArgs(cwd, tsconfigPath, opts);
+    this.spawnChild();
+  }
+
+  // The child's OS pid (fresh after a respawn). Diagnostics + tests.
+  get pid(): number | undefined {
+    return this.child.pid;
+  }
+
+  override close(): void {
+    this.intentionalClose = true;
+    super.close();
+  }
+
+  // spawnChild (re)creates the child process + transport. Runs from the
+  // constructor and again on respawn after an unexpected child death; both
+  // one-shot lanes rebuild their Program from the same tsconfig / replayed
+  // inline-sources handshake, so a fresh child serves requests identically.
+  private spawnChild(): void {
+    const args = buildResolverArgs(this.cwd, this.tsconfigPath, this.opts);
     // cacheDir (internal override) rides the child's RT_CACHE_DIR env, not a
     // CLI arg, so concurrent spawns with different cache dirs don't collide.
     // A path forces the cache on there, '' forces it off; undefined leaves the
     // env untouched so the binary follows the project's incremental setting.
-    const env = opts.cacheDir !== undefined ? {...process.env, RT_CACHE_DIR: opts.cacheDir} : process.env;
-    this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit'], env});
-    if (!this.child.stdin || !this.child.stdout) {
+    const env = this.opts.cacheDir !== undefined ? {...process.env, RT_CACHE_DIR: this.opts.cacheDir} : process.env;
+    const child = spawn(this.binary, args, {stdio: ['pipe', 'pipe', 'inherit'], env});
+    if (!child.stdin || !child.stdout) {
       throw new Error('failed to spawn ts-runtypes (no stdio pipes)');
     }
-    const stdin = this.child.stdin;
-    const stdout = this.child.stdout;
-    this.transport = new MessageTransport(stdin, stdout, () => {
+    this.child = child;
+    const stdin = child.stdin;
+    const stdout = child.stdout;
+    // A write into the pipe of a child that just died (exit event not yet
+    // delivered) raises a stream error; swallow it — the exit handler below
+    // owns the failure semantics and `send` retries the interrupted request.
+    stdin.on('error', () => {});
+    const transport = new MessageTransport(stdin, stdout, () => {
       stdin.end();
-      this.child.kill();
+      child.kill();
     });
+    this.transport = transport;
     // A spawn failure (missing binary, host limits) surfaces as an 'error'
     // event with NO 'exit' — drain in-flight requests instead of hanging
     // callers until their timeout.
-    this.child.on('error', (error) => this.transport.markClosed(`spawn failed: ${error.message}`));
-    if (opts.inlineSources) {
+    child.on('error', (error) => transport.markClosed(`${SPAWN_FAILED_PREFIX}: ${error.message}`));
+    if (this.opts.inlineSources) {
       // Handshake: write the source map as a single JSON line before any
       // requests can be queued. The Go side blocks on this before building
       // its Program, so request() calls made by the caller right after the
       // constructor naturally land after the handshake on the wire.
-      this.transport.writeUnframed(JSON.stringify({sources: opts.inlineSources}) + '\n');
+      transport.writeUnframed(JSON.stringify({sources: this.opts.inlineSources}) + '\n');
     }
-    this.child.on('exit', () => this.transport.markClosed('resolver exited'));
+    child.on('exit', () => transport.markClosed(RESOLVER_EXITED));
+  }
+
+  // An UNEXPECTED child death (never an intentional close) is retryable: the
+  // one-shot lanes are stateless across spawns, so a single respawn + replay
+  // turns transient child loss — a host teardown race, an external kill —
+  // into a stderr warning instead of a failed build. serverMode is excluded:
+  // its accumulated setSources/reset state lives in the child and cannot be
+  // replayed from here.
+  protected override async send(req: Request): Promise<Response> {
+    const attempt = this.transport;
+    let resp: Response;
+    try {
+      resp = await attempt.request(req);
+    } catch (error) {
+      // 'resolver is closed' — the transport was already down before this
+      // request was written (e.g. the death happened between two requests).
+      if (!this.canRespawn()) throw error;
+      this.respawnFor(attempt);
+      return this.transport.request(req);
+    }
+    if (typeof resp.error === 'string' && isTransportLoss(resp.error) && this.canRespawn()) {
+      this.respawnFor(attempt);
+      return this.transport.request(req);
+    }
+    return resp;
+  }
+
+  private canRespawn(): boolean {
+    return !this.intentionalClose && !this.opts.serverMode && this.respawnsLeft > 0;
+  }
+
+  // respawnFor replaces the dead child exactly once per loss: concurrent
+  // requests that died together all funnel here, and the transport identity
+  // check makes every caller after the first reuse the fresh child instead of
+  // spawning its own. Synchronous on purpose — no await between the check and
+  // the spawn, so there is no window for a duplicate respawn.
+  private respawnFor(dead: MessageTransport): void {
+    if (this.transport !== dead) return;
+    this.respawnsLeft -= 1;
+    console.error(
+      '[@ts-runtypes/devtools] resolver process died unexpectedly — respawned it and retrying the interrupted request.'
+    );
+    try {
+      this.child.kill();
+    } catch {
+      // The child is already gone in the common path.
+    }
+    this.spawnChild();
   }
 }
 
@@ -499,7 +637,7 @@ export class ResolverClient extends ResolverClientBase {
 // child's stdio pipes belong to the pre-spawned launcher process rather than
 // a ChildProcess this module owns, so the caller wires close/exit itself.
 export class ResolverStreamClient extends ResolverClientBase {
-  protected readonly transport: MessageTransport;
+  protected transport: MessageTransport;
 
   constructor(stdin: Writable, stdout: Readable, onClose: () => void) {
     super();
@@ -518,7 +656,7 @@ export class ResolverStreamClient extends ResolverClientBase {
 // workers); the current vitest setup uses ResolverClient with serverMode.
 export class ResolverSocketClient extends ResolverClientBase {
   private socket: Socket;
-  protected readonly transport: MessageTransport;
+  protected transport: MessageTransport;
 
   private constructor(socket: Socket) {
     super();
