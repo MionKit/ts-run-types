@@ -1,6 +1,15 @@
 # ResolverClient: drain on close + respawn-retry (buildEnd hard-close kills in-flight requests)
 
-**Status:** todo — filed 2026-07-20 from consumer CI evidence (mion, `@ts-runtypes/devtools` 0.10.0).
+**Status:** done — implemented 2026-07-20 on this branch (all four fix-plan points).
+`MessageTransport.close()` drains in-flight requests (bounded by a 5s timer) before
+`stdin.end()`/`kill()`; `ResolverClient.send()` respawns the child once per loss and
+replays the interrupted request (exact-reason match on the transport-injected
+`resolver exited` / `spawn failed` strings, deduped across concurrent callers, lifetime
+budget of 3, never after an intentional `close()`, `serverMode` excluded — its child
+state can't be replayed); the unplugin refcounts `buildStart`/`buildEnd` pairs and
+closes the shared resolver only when the LAST container tears down; regression suite in
+`packages/ts-runtypes-devtools/test/resolver-lifecycle.test.ts` (drain, fail-fast after
+intentional close, post-death respawn, in-flight replay, two-container refcount).
 **Created:** 2026-07-20
 
 ## Problem

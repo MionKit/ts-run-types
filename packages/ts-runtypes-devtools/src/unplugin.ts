@@ -217,6 +217,10 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     );
   }
   let resolver: ResolverClient | null = null;
+  // Live buildStart/buildEnd pairs across this instance's plugin containers
+  // (vite spawns one per environment). The shared resolver closes only when
+  // the LAST container tears down — see the buildEnd hook.
+  let activeBuilds = 0;
   // The transform gate: cwd-relative paths (forward-slashed) of every source
   // file the resolver's scan found marker sites in. Rebuilt from generate()'s
   // siteFiles at buildStart, kept current per-file by handleHotUpdate.
@@ -394,6 +398,9 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // bundlers; under Vite, configResolved spawns the resolver earlier, so the
     // ensureResolver call here is then a no-op.
     async buildStart(this: any) {
+      // Counted BEFORE any await: a sibling container's buildEnd must never
+      // observe a zero count while this container's startup work is running.
+      activeBuilds += 1;
       ensureResolver();
       // generate writes the modules and, when genDirAbs is empty, returns the
       // resolver-inferred <srcDir>/__runtypes. Adopt that resolved path so
@@ -421,7 +428,17 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       surfaceDiagnostics(this, gen.diagnostics ?? [], (d) => d.family !== Family.PureFn, {halt: failOnError});
     },
 
+    // buildEnd fires once per plugin CONTAINER, and one plugin instance (one
+    // resolver child) serves several: vite runs a container per environment
+    // (client + ssr) over the same instance, and hosts like vitest close them
+    // at different times. Closing on the FIRST buildEnd killed the shared
+    // child under the other containers' in-flight requests ("generate:
+    // resolver exited"), so the close waits for the LAST paired buildEnd.
+    // The resolver is nulled so a later buildStart (watch rebuild, dev-server
+    // restart) respawns via ensureResolver.
     buildEnd() {
+      if (activeBuilds > 0) activeBuilds -= 1;
+      if (activeBuilds > 0) return;
       resolver?.close();
       resolver = null;
     },
