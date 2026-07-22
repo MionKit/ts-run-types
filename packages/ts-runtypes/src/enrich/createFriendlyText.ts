@@ -362,6 +362,35 @@ function renderErrors(state: RenderState, errs: RTValidationError[]): FriendlyMe
     const label = node?.rt$label || sourceNode?.rt$label || rawLabel(group.path);
 
     const index = numericIndex(group.path);
+
+    // rt$default (exclusive catch-all) mode → ONE message for the whole field,
+    // whatever failed. Find the node that actually supplies this group's text
+    // (root/translation first, else source — resolveTemplate's precedence) using the
+    // FIRST error, and if it carries a rt$default template render it ONCE with that
+    // error's bound for $[val]. FT009 makes rt$default mutually exclusive with
+    // per-constraint keys, so otherwise every failed constraint would render
+    // identical text.
+    const first = group.errors[0];
+    const firstVal = primitiveVal(first.format?.val);
+    const rootProvides = resolveTemplate(node, constraintKey(first.format), firstVal, state.rootLocale) !== undefined;
+    const defaultNode = rootProvides ? node : sourceNode;
+    const defaultLocale = rootProvides ? state.rootLocale : state.sourceLocale;
+    const catchAll = leafTemplate(defaultNode?.rt$errors?.rt$default, firstVal, defaultLocale);
+    if (catchAll !== undefined) {
+      out.push({
+        path: group.pathStr,
+        label,
+        message: interpolate(catchAll, {
+          label,
+          valText: renderBoundText(state, first.format, firstVal),
+          path: group.pathStr,
+          index,
+        }),
+      });
+      continue;
+    }
+
+    // Per-constraint mode: one message per failed constraint.
     for (const err of group.errors) {
       const key = constraintKey(err.format);
       const val = primitiveVal(err.format?.val);

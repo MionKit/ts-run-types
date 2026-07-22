@@ -280,7 +280,9 @@ threading the input into the renderer. Revisit with the `$[val]` enrichment.
 ### `rt$default` — the exclusive catch-all mode
 
 A node's `rt$errors` is one of exactly two shapes: the per-constraint record, or
-`{rt$default: '…'}` — a single template rendered for EVERY failure of that field.
+`{rt$default: '…'}` — a single template that yields ONE message for the whole
+field, whatever failed (a field that violates several constraints under a
+`rt$default` node still renders exactly one message, not one per constraint).
 The two are **mutually exclusive** (`rt$default` beside any other key is both a TS
 excess-property error and a Go checker Error), enforced as a union of the two
 record types. `rt$default` is plain data, so it stays translatable and

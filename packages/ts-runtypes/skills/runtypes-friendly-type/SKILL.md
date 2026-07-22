@@ -94,15 +94,15 @@ non-failing params never become keys (`isCurrency`, `mockSamples`, and the trans
 bare `name: string` takes `type` only; a richer friendly map requires a richer type
 annotation.
 
-**`rt$default` — the exclusive catch-all mode.** `rt$errors: {rt$default: '…'}` renders that
-ONE message for every failure of the field. It never mixes with per-constraint keys
+**`rt$default` — the exclusive catch-all mode.** `rt$errors: {rt$default: '…'}` yields
+ONE message for the whole field, whatever failed. It never mixes with per-constraint keys
 (TS union + FT009 Error). Each node picks its own mode; `gen` always scaffolds NEW
 nodes per-constraint (switch a node to `rt$default` by hand), and once a node
 exists its authored mode is followed by every sync.
 
 Errors **accumulate** — a value violating `minLength` _and_ `pattern` yields two
-messages (a list), one per violated constraint (a `rt$default` node yields its one
-message per failure).
+messages (a list), one per violated constraint (a `rt$default` node instead collapses
+to a single message for the whole field, no matter how many constraints failed).
 
 ## The placeholder DSL
 
@@ -164,8 +164,9 @@ translation, reconcile and the checker; only data survives):
 
 - **Per-constraint** — `{type: '…', minLength: '…', …}`. Yields **one message per
   failed constraint**; every key compiler-validated (placeholders too, FT005).
-- **`rt$default`** — `{rt$default: '…'}`. Yields that ONE message for every failure of the
-  field. Plain data, so it translates and reconciles like any other leaf.
+- **`rt$default`** — `{rt$default: '…'}`. Yields ONE message for the whole field, whatever
+  failed (a multi-constraint failure still renders a single message). Plain data, so it
+  translates and reconciles like any other leaf.
 
 ```ts
 // rt$default mode — one sentence covers every failure of the field
@@ -242,8 +243,9 @@ friendly.label('profile.email'); // → 'Email'  (falls back to the raw field na
 `createFriendlyText` returns `{ errors(errs), label(path) }`:
 
 - `errors(errs)` — groups `RunTypeError[]` by path, looks up the node, and for each
-  failed constraint interpolates the matching template (a `rt$default` node renders its
-  one message per failure). Returns `FriendlyMessage[]` (`{ path, label, message }`).
+  failed constraint interpolates the matching template (a `rt$default` node instead
+  renders a single message for the whole field). Returns `FriendlyMessage[]`
+  (`{ path, label, message }`).
 - `label(path)` — the friendly label for a dotted path or a raw path-segment array.
 
 ## Translations — per-locale `FriendlyText<T>` files under `<genDir>/enriched/i18n`
