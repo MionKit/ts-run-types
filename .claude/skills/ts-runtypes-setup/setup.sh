@@ -290,22 +290,6 @@ build_go_binary() {
   ok "Go binary built"
 }
 
-# Install garble (obfuscates the published binaries + wasm; scripts/lib/garble.mjs).
-# Best-effort + idempotent: the dev/resolver build never needs it, but the release
-# binary build + the default (garbled) playground wasm do. Keep the pin in sync with
-# scripts/lib/garble.mjs GARBLE_VERSION.
-GARBLE_VERSION="v0.16.0"
-ensure_garble() {
-  command -v go >/dev/null 2>&1 || { warn "go missing - skipping garble"; return 0; }
-  local gobin; gobin="$(go env GOPATH 2>/dev/null)/bin"
-  case ":$PATH:" in *":$gobin:"*) ;; *) export PATH="$gobin:$PATH" ;; esac
-  if command -v garble >/dev/null 2>&1; then ok "garble present"; return 0; fi
-  [ "$CHECK_ONLY" = 1 ] && { warn "garble missing - re-run without --check to install"; return 0; }
-  bold "Installing garble $GARBLE_VERSION (go install)"
-  go install "mvdan.cc/garble@$GARBLE_VERSION" && ok "garble installed" \
-    || warn "garble install failed (release builds need it; wasm falls back to plain)"
-}
-
 # Build ts-runtypes-devtools dist. The marker package's typecheck consumes the
 # plugin's published .d.ts so the dist must exist for tests + smokes to pass.
 build_vite_plugin() {
@@ -372,7 +356,7 @@ main() {
   bold "Required for the benchmarks (host build via 'pnpm rtx bench prep')"
   check_dep node "$NODE_MIN" "node --version | tr -d v" 0
   check_dep pnpm "$PNPM_MIN" "pnpm --version" 0
-  check_dep go   "$GO_MIN"   "go version | awk '{print \$3}' | sed 's/^go//'" 0
+  check_go "$GO_MIN"
 
   bold "Container engine"
   ensure_podman_engine
@@ -395,7 +379,6 @@ main() {
   install_workspace_deps
   wire_husky
   build_go_binary
-  ensure_garble
   build_vite_plugin
 
   bold "Local env (.env, dev only)"
