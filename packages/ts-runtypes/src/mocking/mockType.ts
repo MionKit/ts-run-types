@@ -279,7 +279,11 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     }
     case RunTypeKind.tuple: {
       const children = (runType.children ?? []) as RunType[];
-      const perElemOptions = mOps.tupleOptions;
+      // Per-element options, indexed to each slot: `tupleOptions` for a plain
+      // tuple, `paramsOptions` for a function's parameter tuple. `Parameters<
+      // typeof fn>` (and the `parameters(...)` builder) reflect as a tuple, so a
+      // function's arguments are mocked here — `paramsOptions[i]` steers param i.
+      const perElemOptions = mOps.tupleOptions ?? mOps.paramsOptions;
       // Tuples share one `rt$items` element node (v1 limitation — the DSL has no
       // per-slot tuple nodes). Threaded into every member's options.
       const itemsNode = asDataNode(dataNode?.rt$items);
@@ -489,9 +493,13 @@ function isRestTupleMember(member: RunType): boolean {
   return child !== undefined && child.kind === RunTypeKind.rest;
 }
 
-/** Wrap per-element `MockOptions` into the bag shape `mockRunType` expects. **/
+/** Wrap per-element `MockOptions` into the bag shape `mockRunType` expects.
+ *  The element options replace the mock bag, so carry the seeded random source
+ *  over when they omit it — otherwise a `{seed}` + `tupleOptions`/`paramsOptions`
+ *  mock would lose determinism for the overridden slots. **/
 function mergeChildOptions(options: RunTypeMockOptions, childMock: MockOptions): RunTypeMockOptions {
-  return {...options, mock: childMock};
+  const parentMock = options.mock as MockOptions;
+  return {...options, mock: {...childMock, random: childMock.random ?? parentMock.random}};
 }
 
 /** Map mock builder. Key/value types live at `runType.arguments[i].child`
