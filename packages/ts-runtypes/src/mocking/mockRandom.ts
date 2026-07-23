@@ -22,9 +22,10 @@
 // draws, so reordering the `random.*` calls in the walker changes the generated
 // value. The repeatability tests (test/suites/mocking/mockSeed.test.ts) pin this.
 //
-// The `mulberry32` PRNG + splitmix seed expansion mirror the well-known
-// algorithms already used by `test/fuzz/core/seededRng.ts` (reimplemented here
-// because `src/` cannot import from `test/`).
+// The `mulberry32` PRNG (exported below) is the single copy of the algorithm:
+// the fuzz harness (`test/fuzz/core/seededRng.ts`) imports it from here, since
+// `test/` can import from `src/` but not the reverse. `splitmix32` folds the
+// seed before the class draws from it; both are standard 32-bit algorithms.
 
 import {anyValuesList, stringCharSet, mockRegExpsList} from './constants.mock.ts';
 
@@ -38,8 +39,9 @@ function splitmix32(seed: number): number {
 }
 
 // mulberry32 — a tiny, fast, well-distributed 32-bit PRNG returning floats in
-// [0, 1), the same contract as `Math.random`.
-function mulberry32(state: number): () => number {
+// [0, 1), the same contract as `Math.random`. Exported (not via `index.ts`, so
+// it stays out of the public API) purely so the fuzz harness reuses this copy.
+export function mulberry32(state: number): () => number {
   let current = state >>> 0;
   return function next(): number {
     current = (current + 0x6d2b79f5) | 0;

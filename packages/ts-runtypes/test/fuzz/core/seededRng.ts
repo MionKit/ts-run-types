@@ -10,18 +10,15 @@
 // `seed` option, which builds a seeded `MockRandom` and bypasses `Math.random`.)
 // A failing case logs its seed; re-running `withSeededRandom(seed, …)` replays
 // it byte-for-byte.
+//
+// `mulberry32` is reused from `src/mocking/mockRandom.ts` — one copy of the
+// algorithm (`test/` may import from `src/`, not the reverse). It's called with
+// the RAW seed here, not the class's splitmix-mixed seed, so existing fuzz seeds
+// replay identically. Re-exported so importers keep getting it from this module.
 
-/** mulberry32 — a tiny, fast, well-distributed 32-bit PRNG. Returns a
- *  function yielding floats in [0, 1), same contract as `Math.random`. **/
-export function mulberry32(seed: number): () => number {
-  let state = seed >>> 0;
-  return function next(): number {
-    state = (state + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+import {mulberry32} from '../../../src/mocking/mockRandom.ts';
+
+export {mulberry32};
 
 /** Run `fn` with `Math.random` replaced by a seeded PRNG, then restore the
  *  original. Reproducible: same seed ⇒ same draws ⇒ same generated data. **/
