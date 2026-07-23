@@ -800,6 +800,50 @@ func TestValidateModule_UnionMixedArrayObjectGuardOnce(t *testing.T) {
 	}
 }
 
+// TestValidateModule_UnionObjectGuard_ParentNotChildren pins the guard's
+// POSITION, not just its count: the shared `typeof===object` guard must live at
+// the UNION (parent) level, wrapping the object OR-chain, and must NOT be
+// repeated inside any child arm. This catches a regression the plain count==1
+// tests miss on their own — if the parent guard were dropped but a single child
+// kept its own guard, the total count would still be 1. Here we assert BOTH that
+// the parent guard wraps the chain (`guard && (`) AND that it occurs exactly
+// once (so no child repeats it).
+func TestValidateModule_UnionObjectGuard_ParentNotChildren(t *testing.T) {
+	// string | {a: string} | {b: number} — two object members, so the shared
+	// parent guard is genuinely load-bearing (each child would otherwise need
+	// its own).
+	objA := &protocol.RunType{ID: "ogA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pA", "a", false, &protocol.RunType{ID: "s", Kind: protocol.KindString}),
+	}}
+	objB := &protocol.RunType{ID: "ogB", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pB", "b", false, &protocol.RunType{ID: "n", Kind: protocol.KindNumber}),
+	}}
+	un := &protocol.RunType{ID: "unG", Kind: protocol.KindUnion, Children: []*protocol.RunType{
+		{ID: "s0", Kind: protocol.KindString}, objA, objB,
+	}}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{un}})
+	guard := "typeof v === 'object' && v !== null"
+
+	// Parent-level: the shared guard wraps the object OR-chain, i.e. it is
+	// immediately followed by ` && (`. Removing the parent guard deletes this
+	// exact substring, so the test fails loudly.
+	if !strings.Contains(out, guard+" && (") {
+		t.Errorf("shared object guard must sit at the union (parent) level wrapping the OR-chain, got:\n%s", out)
+	}
+	// Children: exactly one guard total, so the sole occurrence is the parent's
+	// and no child arm repeats it. Re-introducing a per-arm guard makes this 2.
+	if n := strings.Count(out, guard); n != 1 {
+		t.Errorf("object guard must appear exactly once (parent only, none in children), got %d in:\n%s", n, out)
+	}
+	// Belt-and-suspenders: the object OR-chain the parent guard wraps (everything
+	// after `guard && (`) is itself guard-free — no child arm carries a typeof
+	// object check of its own.
+	chain := out[strings.Index(out, guard+" && (")+len(guard+" && ("):]
+	if strings.Contains(chain, "typeof v === 'object'") {
+		t.Errorf("child object arms must be guard-free (the guard belongs to the parent union), chain was:\n%s", chain)
+	}
+}
+
 func TestValidateModule_UnsupportedKindSkipped(t *testing.T) {
 	// KindIntersection stays unsupported — intersections resolve
 	// at compile time into ObjectLiteral / Never, so the emitter never
