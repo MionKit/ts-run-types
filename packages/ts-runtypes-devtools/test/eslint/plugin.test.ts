@@ -112,13 +112,19 @@ type TypeFormat<Base, Name extends string, Params> = Base & {
 export const isCode = createValidate<TypeFormat<string, 'stringFormat', {pattern: {source: '(?<=x)y'; flags: ''; mockSamples: ['nope']}}>>();
 `;
 
-// Transparency: the plugin exposes exactly one knob. binary / cwd / socket
+// Transparency: the plugin reads timeoutMs and tsconfig. binary / cwd / socket
 // under settings.runtypes are NOT read — the resolver binary and working
 // directory are resolved automatically, like any other linter. Pure function,
 // so this runs without the resolver binary.
-describe('sessionOptions — only timeoutMs is configurable', () => {
-  it('reads timeoutMs and drops binary, cwd, and socket', () => {
-    expect(sessionOptions({runtypes: {binary: '/x', cwd: '/y', socket: '/z', timeoutMs: 5000}})).toEqual({timeoutMs: 5000});
+describe('sessionOptions — timeoutMs and tsconfig are configurable', () => {
+  it('reads timeoutMs and tsconfig, drops binary, cwd, and socket', () => {
+    expect(
+      sessionOptions({runtypes: {binary: '/x', cwd: '/y', socket: '/z', timeoutMs: 5000, tsconfig: './tsconfig.lint.json'}})
+    ).toEqual({timeoutMs: 5000, tsconfig: './tsconfig.lint.json'});
+  });
+
+  it('reads tsconfig on its own', () => {
+    expect(sessionOptions({runtypes: {tsconfig: 'tsconfig.build.json'}})).toEqual({tsconfig: 'tsconfig.build.json'});
   });
 
   it('is empty when settings are absent or carry no runtypes bag', () => {

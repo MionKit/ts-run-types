@@ -9,17 +9,23 @@ import type {Diagnostic} from '../protocol.ts';
 // seq into (then Atomics.notify) — the rule thread Atomics.waits on it.
 export const WAKE_INDEX = 0;
 
-// LintSessionOptions is the plugin's ONE knob, read from lint
-// `settings.runtypes.timeoutMs`. Everything else is resolved transparently so
-// linting needs no RunTypes-specific configuration: the resolver binary comes
-// from ts-runtypes-bin's getExePath() (the launcher the bundler plugins use)
-// and the working directory is process.cwd(), the directory the linter itself
-// runs in — exactly like any other linter.
+// LintSessionOptions carries the plugin's knobs, read from lint
+// `settings.runtypes`. The resolver binary is resolved transparently (from
+// ts-runtypes-bin's getExePath(), the launcher the bundler plugins use) and the
+// working directory is process.cwd(), the directory the linter itself runs in —
+// exactly like any other linter. The tsconfig, like on the bundler plugins, IS
+// configurable so a source-resolved monorepo lints against its real resolution
+// options (customConditions / paths).
 export interface LintSessionOptions {
   // Per-file wait budget in milliseconds before the session reports the
   // engine unavailable. Defaults to 60s — the first file pays the child
   // spawn + Program build.
   timeoutMs?: number;
+  // Project tsconfig (relative to process.cwd(), or absolute) the resolver reads
+  // for its resolution-affecting options — customConditions / paths / baseUrl —
+  // so lint-time resolution matches the build. Defaults to 'tsconfig.json' at
+  // the point of use (see lint-worker.ts), mirroring the bundler plugins.
+  tsconfig?: string;
 }
 
 export interface LintWorkerData {
@@ -31,6 +37,10 @@ export interface LintWorkerRequest {
   seq: number;
   file: string;
   text: string;
+  // Project tsconfig path forwarded to the worker's resolver connection. Read
+  // once, when the long-lived connection is opened on the first request (the
+  // connection is fixed for the run, so later requests' values are ignored).
+  tsconfig?: string;
 }
 
 export interface LintWorkerResponse {

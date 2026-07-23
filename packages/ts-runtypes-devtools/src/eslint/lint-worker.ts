@@ -61,17 +61,20 @@ parentPort?.postMessage({shimReady: true});
 let connection: ResolverConnection | null = null;
 
 // ensureConnection lazily opens the resolver on the first request, preferring
-// the pre-spawned shim, then a direct spawn.
-async function ensureConnection(): Promise<ResolverConnection> {
+// the pre-spawned shim, then a direct spawn. The tsconfig is read here, once:
+// the connection is long-lived for the whole run, so the first request's value
+// fixes the resolution options for every later file.
+async function ensureConnection(tsconfig: string): Promise<ResolverConnection> {
   if (connection) return connection;
-  // No configuration: resolve the host-platform binary from the ts-runtypes-bin
-  // launcher (the same resolution the bundler plugins use; throws with a clear
-  // message if none is installed), rooted at process.cwd() — the directory the
-  // linter itself runs in, like any other linter. Single-threaded: the session
-  // lints one file at a time, and a light child keeps editor/CI hosts well
-  // under process/memory limits.
+  // Resolve the host-platform binary from the ts-runtypes-bin launcher (the same
+  // resolution the bundler plugins use; throws with a clear message if none is
+  // installed), rooted at process.cwd() — the directory the linter itself runs in,
+  // like any other linter. The tsconfig (default 'tsconfig.json') is passed so the
+  // Go side applies the project's resolution options (customConditions / paths).
+  // Single-threaded: the session lints one file at a time, and a light child keeps
+  // editor/CI hosts well under process/memory limits.
   const binaryPath = getExePath();
-  const args = buildResolverArgs(process.cwd(), '', {serverMode: true, singleThreaded: true});
+  const args = buildResolverArgs(process.cwd(), tsconfig, {serverMode: true, singleThreaded: true});
   if (shim?.stdin && shim.stdout && shim.exitCode === null) {
     const launcher = shim;
     launcher.stdin!.write(JSON.stringify({exec: binaryPath, args}) + '\n');
@@ -80,7 +83,7 @@ async function ensureConnection(): Promise<ResolverConnection> {
     connection = stream;
     return connection;
   }
-  connection = new ResolverClient(binaryPath, process.cwd(), '', {serverMode: true, singleThreaded: true});
+  connection = new ResolverClient(binaryPath, process.cwd(), tsconfig, {serverMode: true, singleThreaded: true});
   return connection;
 }
 
@@ -126,7 +129,7 @@ async function lintOne(request: LintWorkerRequest): Promise<LintWorkerResponse> 
   for (let attempt = 0; ; attempt++) {
     let stage: 'connect' | 'scan' = 'connect';
     try {
-      const resolver = await ensureConnection();
+      const resolver = await ensureConnection(request.tsconfig ?? 'tsconfig.json');
       stage = 'scan';
       const rel = path.relative(process.cwd(), request.file) || request.file;
       await resolver.setSources({[rel]: request.text});

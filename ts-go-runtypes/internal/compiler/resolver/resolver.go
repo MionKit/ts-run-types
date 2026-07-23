@@ -44,6 +44,12 @@ type Options struct {
 	// is supplied to New(). When unset, SetSources falls back to the
 	// existing Program's GetCurrentDirectory.
 	Cwd string
+	// TsconfigPath is the project tsconfig (relative to Cwd, or absolute) whose
+	// resolution options (customConditions / paths / baseUrl) SetSources threads
+	// into every inferred Program, so lint-time resolution matches the build.
+	// Set in server / inline-sources modes from the --tsconfig flag; empty leaves
+	// resolution at the inferred defaults. Ignored when a Program is supplied to New().
+	TsconfigPath string
 	// TsconfigGenDir is the tsconfig `genDir` value (absolute; empty when the
 	// tsconfig sets none). resolveOutDir prefers it over the inferred
 	// <srcDir>/__runtypes default, so every lane (bundler plugin, --compile,
@@ -158,6 +164,14 @@ type Session struct {
 	sites        []protocol.Site
 	marker       marker.Options
 	opts         Options
+	// inferredResolution caches the resolution options parsed from opts.TsconfigPath
+	// (customConditions / paths / baseUrl), threaded into every setSources-built
+	// Program so lint-time resolution matches the build. Parsed ONCE (cwd + tsconfig
+	// path are fixed per session) and cached; nil means "no usable tsconfig" (the
+	// best-effort fallback to the inferred defaults). Session-lifetime, not reset on
+	// a Program swap.
+	inferredResolution     *program.InferredResolution
+	inferredResolutionDone bool
 	// pureFnHashes is the session-wide index of every pure-fn entry
 	// the resolver has observed so far, keyed by "<ns>::<fnName>" with
 	// the entry's bodyHash as the value. Used by dispatchScanFiles to
