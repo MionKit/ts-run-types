@@ -7,7 +7,7 @@ set -uo pipefail
 NODE_MAJOR_MIN=26
 PODMAN_MIN=4.0
 GO_MIN=1.26
-GO_INSTALL_VERSION=1.26.0 # only used if Go is somehow absent from the image
+GO_INSTALL_VERSION=1.26.0 # installed when Go is absent OR older than GO_MIN
 
 CHECK_ONLY=0
 for arg in "$@"; do
@@ -199,16 +199,11 @@ ensure_podman() {
 }
 
 # -----------------------------------------------------------------------------
-# 3. Go: present in the web image; tarball fallback keeps this standalone.
+# 3. Go: the web image may ship an older Go than the repo needs, so upgrade in
+#    place when it is too old (not just when it is absent). Tarball -> /usr/local/go
+#    keeps this standalone.
 # -----------------------------------------------------------------------------
-ensure_go() {
-  bold "Go (compiles the resolver binary)"
-  if command -v go >/dev/null 2>&1; then
-    local cur; cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
-    version_ge "${cur:-0}" "$GO_MIN" && ok "go ${cur:-?} (>= $GO_MIN)" || warn "go ${cur:-?} present (repo targets >= $GO_MIN)"
-    return 0
-  fi
-  [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
+install_go_tarball() {
   bold "Installing Go $GO_INSTALL_VERSION (tarball -> /usr/local/go)"
   local goarch; case "$(uname -m)" in
     x86_64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;;
@@ -217,6 +212,8 @@ ensure_go() {
   local tgz="go${GO_INSTALL_VERSION}.linux-${goarch}.tar.gz"
   if curl -fsSL "https://go.dev/dl/${tgz}" -o "/tmp/${tgz}" \
      && $SUDO rm -rf /usr/local/go && $SUDO tar -C /usr/local -xzf "/tmp/${tgz}"; then
+    # Prepend so the freshly installed toolchain shadows any older /usr/bin/go for
+    # every later step in this run (resolver build, devtools dist, etc.).
     export PATH="/usr/local/go/bin:$PATH"
     ok "go installed ($(go version 2>/dev/null | awk '{print $3}'))"
   else
@@ -224,22 +221,18 @@ ensure_go() {
   fi
 }
 
-# -----------------------------------------------------------------------------
-# 3b. garble: a Go tool that obfuscates the published binaries + wasm. Best-effort;
-#     the resolver/dev build never needs it, but the release build + the default
-#     garbled wasm do. Keep the pin in sync with scripts/lib/garble.mjs.
-# -----------------------------------------------------------------------------
-GARBLE_VERSION="v0.16.0"
-ensure_garble() {
-  bold "garble (obfuscates published binaries + wasm)"
-  command -v go >/dev/null 2>&1 || { warn "go missing - skipping garble"; return 0; }
-  local gobin; gobin="$(go env GOPATH 2>/dev/null)/bin"
-  case ":$PATH:" in *":$gobin:"*) ;; *) export PATH="$gobin:$PATH" ;; esac
-  if command -v garble >/dev/null 2>&1; then ok "garble present"; return 0; fi
-  [ "$CHECK_ONLY" = 1 ] && { warn "garble missing - re-run without --check to install"; return 0; }
-  bold "Installing garble $GARBLE_VERSION (go install)"
-  go install "mvdan.cc/garble@$GARBLE_VERSION" && ok "garble installed" \
-    || warn "garble install failed (release builds need it; wasm falls back to plain)"
+ensure_go() {
+  bold "Go (compiles the resolver binary)"
+  if command -v go >/dev/null 2>&1; then
+    local cur; cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    if version_ge "${cur:-0}" "$GO_MIN"; then ok "go ${cur:-?} (>= $GO_MIN)"; return 0; fi
+    warn "go ${cur:-?} present but repo needs >= $GO_MIN - upgrading to $GO_INSTALL_VERSION"
+    [ "$CHECK_ONLY" = 1 ] && { warn "go too old - re-run without --check to upgrade"; return 0; }
+    install_go_tarball
+    return 0
+  fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
+  install_go_tarball
 }
 
 # -----------------------------------------------------------------------------
@@ -437,7 +430,6 @@ main() {
   provision_node26
   ensure_podman
   ensure_go
-  ensure_garble
   provision_submodules_light
   apply_tsgolint_patches
   bold "tsgolint pin"
@@ -498,7 +490,8 @@ main "$@"
 #      /etc/profile.d) by symlinking node26 bins into $HOME/.local/bin. pnpm
 #      comes from corepack, pinned to the repo's packageManager.
 #   2. podman   - via apt; confirm the engine is reachable.
-#   3. Go 1.26  - present in the web image; nodejs-style tarball fallback.
+#   3. Go 1.26  - upgraded in place (tarball -> /usr/local/go) when the image's
+#      preinstalled Go is older than the repo's required 1.26.
 #   4. submodules tsgolint + typescript-go, SKIPPING the 620MB nested
 #      microsoft/TypeScript corpus (only typescript-go's own conformance test
 #      runner needs it, never our `go build`; its checker libs are committed +

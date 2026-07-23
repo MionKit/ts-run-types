@@ -91,7 +91,7 @@ async function main(argv) {
   } else {
     note('Building FE dists, cross-compiling the 7 platform packages, packing (this takes a while)…');
     runOrThrow('pnpm', ['run', 'build']); // FE dists (canonical, for packing)
-    runOrThrow('node', ['scripts/release/build-binaries.mjs']); // -> dist-binaries/ (garbled unless RT_GARBLE=0)
+    runOrThrow('node', ['scripts/release/build-binaries.mjs']); // -> dist-binaries/
     runOrThrow('node', ['scripts/release/pack.mjs']); // -> tarballs/ (workspace:* rewritten)
   }
 

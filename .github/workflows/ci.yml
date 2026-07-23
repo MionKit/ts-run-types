@@ -224,17 +224,10 @@ jobs:
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
       # Reuse the playground wasm so a PR that only touches the website / playground
-      # UI doesn't pay the ~8-min rebuild. `plain` matches RT_GARBLE=0 below.
+      # UI doesn't pay the ~8-min rebuild.
       - name: Cache the playground wasm
         uses: ./.github/actions/cache-playground-wasm
-        with:
-          mode: plain
       - name: Website serves-a-page smoke
-        # Build the smoke's wasm plain (no garble): obfuscation isn't needed to prove
-        # the page serves, and a plain build is faster on a cache miss. The DEPLOYED
-        # site builds its own garbled wasm in the release/deploy workflow, not here.
-        env:
-          RT_GARBLE: '0'
         run: pnpm rtx website check
       # RT_BENCH_NO_TYPIA stays until the prebuilt image BAKES typia's .ttsc plugin (a
       # local image change + republish); a no-.ttsc image would otherwise recompile
