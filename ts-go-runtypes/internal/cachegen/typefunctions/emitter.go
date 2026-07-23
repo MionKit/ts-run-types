@@ -131,6 +131,20 @@ func (ctx *EmitContext) IsRoot() bool {
 	return ctx.walker != nil && len(ctx.walker.Stack) == 1
 }
 
+// ParentIsUnion reports whether the immediate parent frame is a union.
+// compileNode resolves refs before pushStack (walker.go), so the parent
+// frame's RT is the real resolved type, never a ref placeholder. Used by
+// emitObjectValidate to drop its own `typeof === 'object'` guard when it
+// sits as a direct union member — emitUnionValidate already wraps the whole
+// object OR-chain in one shared guard, so the per-arm repeat is dead weight.
+func (ctx *EmitContext) ParentIsUnion() bool {
+	if ctx.walker == nil || len(ctx.walker.Stack) < 2 {
+		return false
+	}
+	parent := ctx.walker.Stack[len(ctx.walker.Stack)-2].RT
+	return parent != nil && parent.Kind == protocol.KindUnion
+}
+
 // HasVariantOption reports whether the current walker is rendering
 // the variant identified by `name` (e.g. "noLiterals",
 // "noIsArrayCheck"). Always false for plain walkers. Root-scoped:
