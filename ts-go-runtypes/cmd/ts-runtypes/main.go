@@ -336,6 +336,7 @@ func main() {
 		HashLength:              merged.hashLength,
 		Marker:                  marker.Options{},
 		Cwd:                     absCwd,
+		TsconfigPath:            tsconfigPath,
 		TsconfigGenDir:          tsconfigGenDir,
 		SingleThreaded:          merged.singleThreaded,
 		DisableParallelScan:     merged.disableParallelScan,
@@ -408,10 +409,15 @@ func main() {
 			overlay[abs] = content
 			fileNames = append(fileNames, abs)
 		}
+		// Same tsconfig-fidelity as the inline-server path: thread the project's
+		// resolution options (customConditions / paths / baseUrl) so a source-condition
+		// cross-package import resolves at lint time as it would in a build. Best-effort
+		// (nil when --tsconfig is absent or the file is missing).
 		p, err := program.NewInferred(program.Options{
 			Cwd:            absCwd,
 			SingleThreaded: merged.singleThreaded,
 			Overlay:        overlay,
+			ResolutionBase: program.ParseInferredResolution(absCwd, tsconfigPath),
 		}, fileNames)
 		if err != nil {
 			fatal("program (inferred): %v", err)

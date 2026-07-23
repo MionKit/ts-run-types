@@ -1137,6 +1137,17 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 		return errors.New("setSources: no cwd configured")
 	}
 	cwd = tspath.NormalizePath(cwd)
+
+	// Parse the project tsconfig ONCE per session (cwd + tsconfig path are fixed
+	// for the session lifetime) and thread its resolution options into every
+	// inferred Program, so lint-time resolution (customConditions / paths / baseUrl)
+	// matches the build. Best-effort: a nil handle (no tsconfig configured or found)
+	// leaves resolution at the inferred defaults.
+	if !sess.inferredResolutionDone {
+		sess.inferredResolution = program.ParseInferredResolution(cwd, sess.opts.TsconfigPath)
+		sess.inferredResolutionDone = true
+	}
+
 	overlay := make(map[string]string, len(sources))
 	fileNames := make([]string, 0, len(sources))
 	for relativePath, content := range sources {
@@ -1148,6 +1159,7 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 		Cwd:            cwd,
 		SingleThreaded: sess.opts.SingleThreaded,
 		Overlay:        overlay,
+		ResolutionBase: sess.inferredResolution,
 	}, fileNames)
 	if err != nil {
 		return fmt.Errorf("setSources: %w", err)

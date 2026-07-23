@@ -473,9 +473,11 @@ abstract class ResolverClientBase implements ResolverConnection {
 // — see eslint/spawn-shim.ts).
 export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}): string[] {
   const args = ['--one-shot', '--cwd', cwd];
-  // --tsconfig is meaningless in inline / server modes — the Go binary
-  // ignores it. Skip the flag to keep the CLI honest.
-  if (!opts.inlineSources && !opts.serverMode && tsconfigPath) {
+  // Pass the project tsconfig whenever we have one. In server / inline-sources
+  // modes the Go binary reads it for its resolution-affecting options
+  // (customConditions / paths / baseUrl) so lint-time resolution matches the
+  // build; in default mode program.New builds the whole Program from it.
+  if (tsconfigPath) {
     args.push('--tsconfig', tsconfigPath);
   }
   if (opts.inlineSources) args.push('--inline-sources-stdin');

@@ -52,18 +52,20 @@ interface RuleModule {
 // file claims its engine-error reporting for the process lifetime.
 const engineErrorClaims = new Map<string, RuleName>();
 
-// sessionOptions pulls the plugin's one knob — the per-file timeout — from
-// `settings.runtypes.timeoutMs`. The resolver binary and working directory are
-// deliberately NOT configurable: the plugin resolves the host binary itself
-// (@ts-runtypes/bin) and runs in process.cwd(), like any other linter, so a
-// `binary`, `cwd`, or `socket` under `settings.runtypes` is ignored. Exported
-// for the transparency regression test.
+// sessionOptions pulls the plugin's knobs from `settings.runtypes`: the per-file
+// timeout (`timeoutMs`) and the project `tsconfig` the resolver reads for its
+// resolution options (like the bundler plugins). The resolver binary and working
+// directory are deliberately NOT configurable: the plugin resolves the host binary
+// itself (@ts-runtypes/bin) and runs in process.cwd(), like any other linter, so a
+// `binary`, `cwd`, or `socket` under `settings.runtypes` is ignored. Exported for
+// the transparency regression test.
 export function sessionOptions(settings: Record<string, unknown> | undefined): LintSessionOptions {
   const raw = settings?.['runtypes'];
   if (!raw || typeof raw !== 'object') return {};
   const bag = raw as Record<string, unknown>;
   const options: LintSessionOptions = {};
   if (typeof bag['timeoutMs'] === 'number') options.timeoutMs = bag['timeoutMs'];
+  if (typeof bag['tsconfig'] === 'string') options.tsconfig = bag['tsconfig'];
   return options;
 }
 
