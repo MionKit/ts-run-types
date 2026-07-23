@@ -14,18 +14,8 @@ import {RunTypeKind, RunTypeSubKind} from '../go-generated/runTypeKind.generated
 import type {RunTypeKindValue} from '../go-generated/runTypeKind.generated.ts';
 import {getMockingFunction} from './mockRegistry.ts';
 import {getRTUtils} from '../runtypes/rtUtils.ts';
-import {
-  mockAny,
-  mockBigInt,
-  mockBoolean,
-  mockDate,
-  mockNumber,
-  mockRegExp,
-  mockString,
-  mockSymbol,
-  random,
-  randomItem,
-} from './mockUtils.ts';
+import {nativeMockRandom} from './mockRandom.ts';
+import type {MockRandom} from './mockRandom.ts';
 import {stringCharSet} from './constants.mock.ts';
 import {mockBoundedNativeDate} from './mockDateTimeBounds.ts';
 import {mockTemporal, isTemporalSubKind, temporalBoundsFromAnnotation} from './mockTemporal.ts';
@@ -148,10 +138,10 @@ function dataPool(node: MockDataNode | undefined): unknown[] | undefined {
 
 /** Resolve the element count for an array node from `rt$length` (a fixed `n` or
  *  a `[min, max]` range), or undefined to fall through to the global option. **/
-function dataArrayLength(node: MockDataNode | undefined): number | undefined {
+function dataArrayLength(node: MockDataNode | undefined, random: MockRandom): number | undefined {
   const len = node?.rt$length;
   if (typeof len === 'number') return len;
-  if (Array.isArray(len) && len.length === 2) return random(len[0], len[1]);
+  if (Array.isArray(len) && len.length === 2) return random.int(len[0], len[1]);
   return undefined;
 }
 
@@ -159,12 +149,17 @@ function dataArrayLength(node: MockDataNode | undefined): number | undefined {
  *  switch lives in one place. **/
 function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): unknown {
   const mOps = options.mock as MockOptions;
+  // The generation's shared random source (seeded or native), threaded on the
+  // options bag; every draw below goes through it. Falls back to the shared
+  // native instance for a mock path that bypassed createMockData (e.g. a test
+  // calling mockRunType directly).
+  const random = mOps.random ?? nativeMockRandom;
   const kind = runType.kind as number;
   // Current MockData node for this runtype (undefined ⇒ no enrichment, the
   // walker behaves exactly as before). A pool short-circuits the kind default.
   const dataNode = options.dataNode;
   const pool = dataPool(dataNode);
-  if (pool) return randomItem(pool);
+  if (pool) return random.pick(pool);
 
   // TypeFormat brand: the kind's registered mock fn produces a value
   // satisfying the format (drawing from mockSamples for pattern formats —
@@ -173,7 +168,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
   if (runType.formatAnnotation) {
     const mockFn = getMockingFunction(kind as RunTypeKindValue);
     if (mockFn) {
-      const mocked = mockFn(runType.formatAnnotation);
+      const mocked = mockFn(runType.formatAnnotation, random);
       if (mocked !== undefined) return mocked;
     }
   }
@@ -183,19 +178,19 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       throw new Error('Cannot mock never type.');
     case RunTypeKind.any:
     case RunTypeKind.unknown:
-      return mockAny(mOps.anyValuesList);
+      return random.any(mOps.anyValuesList);
     case RunTypeKind.string:
-      return mockString(mOps.stringLength ?? random(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
+      return random.string(mOps.stringLength ?? random.int(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
     case RunTypeKind.number: {
       // Data-node min/max (numbers only) override the global bounds.
       const min = typeof dataNode?.min === 'number' ? dataNode.min : mOps.minNumber;
       const max = typeof dataNode?.max === 'number' ? dataNode.max : mOps.maxNumber;
-      return mockNumber(min, max);
+      return random.number(min, max);
     }
     case RunTypeKind.boolean:
-      return mockBoolean();
+      return random.boolean();
     case RunTypeKind.bigint:
-      return mockBigInt(mOps.minNumber, mOps.maxNumber);
+      return random.bigint(mOps.minNumber, mOps.maxNumber);
     case RunTypeKind.null:
       return null;
     case RunTypeKind.undefined:
@@ -203,19 +198,19 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.void:
       return undefined;
     case RunTypeKind.regexp:
-      return mockRegExp(mOps.regexpList);
+      return random.regExp(mOps.regexpList);
     case RunTypeKind.symbol:
-      return mockSymbol(mOps.symbolName, mOps.symbolLength, mOps.symbolCharSet);
+      return random.symbol(mOps.symbolName, mOps.symbolLength, mOps.symbolCharSet);
     case RunTypeKind.literal:
       return runType.literal;
     case RunTypeKind.object:
-      return randomItem(mOps.objectList);
+      return random.pick(mOps.objectList);
     case RunTypeKind.enum: {
       const values = runType.values as unknown[];
       if (!Array.isArray(values) || values.length === 0) {
         throw new Error('Cannot mock enum without values.');
       }
-      const index = mOps.enumIndex ?? random(0, values.length - 1);
+      const index = mOps.enumIndex ?? random.int(0, values.length - 1);
       return values[index];
     }
     case RunTypeKind.enumMember:
@@ -236,19 +231,22 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
             dateParams.gt !== undefined ||
             dateParams.lt !== undefined)
         ) {
-          return mockBoundedNativeDate({
-            min: dateParams.min as string | undefined,
-            max: dateParams.max as string | undefined,
-            gt: dateParams.gt as string | undefined,
-            lt: dateParams.lt as string | undefined,
-          });
+          return mockBoundedNativeDate(
+            {
+              min: dateParams.min as string | undefined,
+              max: dateParams.max as string | undefined,
+              gt: dateParams.gt as string | undefined,
+              lt: dateParams.lt as string | undefined,
+            },
+            random
+          );
         }
         // Data-node Date min/max override the global range for an unbranded
         // Date. Skipped above for format-bounded dates so the format's own
         // bounds (which validate enforces) are never widened out of range.
         const minDate = dataNode?.min instanceof Date ? dataNode.min : mOps.minDate;
         const maxDate = dataNode?.max instanceof Date ? dataNode.max : mOps.maxDate;
-        return mockDate(minDate, maxDate);
+        return random.date(minDate, maxDate);
       }
       // Map/Set MockData is v1-limited (no `rt$keys`/`rt$values` in the DSL — the
       // node projects through the object branch). Clear the data node so a
@@ -259,7 +257,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
         // FormatTemporalX<{min,max,gt,lt}> brands an orderable Temporal type
         // with bounds; honor them so the mock re-passes validate.
         const bounds = temporalBoundsFromAnnotation(runType.formatAnnotation);
-        return mockTemporal(subKind as number, bounds);
+        return mockTemporal(subKind as number, bounds, random);
       }
       if (subKind === RunTypeSubKind.nonSerializable) {
         if (mOps.nonDataTypes) return mockNonSerializableNative(runType);
@@ -272,7 +270,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       if (!child) throw new Error('Cannot mock array: child runtype missing.');
       // Data-node `rt$length` (fixed or [min,max]) overrides the global length;
       // `rt$items` is the element node threaded into each child mock.
-      const length = dataArrayLength(dataNode) ?? mOps.arrayLength ?? random(0, mOps.maxRandomItemsLength);
+      const length = dataArrayLength(dataNode, random) ?? mOps.arrayLength ?? random.int(0, mOps.maxRandomItemsLength);
       if (length === 0) return [];
       const childOpts = withDataNode(options, asDataNode(dataNode?.rt$items));
       const items: unknown[] = [];
@@ -304,14 +302,14 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       const child = runType.child as RunType | undefined;
       if (!child) return undefined;
       if (runType.optional && !isRestTupleMember(runType)) {
-        if (Math.random() > mOps.optionalProbability) return undefined;
+        if (random.float() > mOps.optionalProbability) return undefined;
       }
       return mockRunType(child, options, stack);
     }
     case RunTypeKind.rest: {
       const child = runType.child as RunType | undefined;
       if (!child) return [];
-      const length = random(0, mOps.maxRandomItemsLength);
+      const length = random.int(0, mOps.maxRandomItemsLength);
       const items: unknown[] = [];
       for (let i = 0; i < length; i++) items.push(mockRunType(child, options, stack));
       return items;
@@ -330,14 +328,14 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       if (probability < 0 || probability > 1) {
         throw new Error('optionalProbability must be between 0 and 1');
       }
-      if (runType.optional && Math.random() > probability) return undefined;
+      if (runType.optional && random.float() > probability) return undefined;
       return mockRunType(child, options, stack);
     }
     case RunTypeKind.indexSignature: {
       const child = runType.child as RunType | undefined;
       const keyType = runType.index as RunType | undefined;
       if (!child || !keyType) return {};
-      const length = random(0, mOps.maxRandomItemsLength);
+      const length = random.int(0, mOps.maxRandomItemsLength);
       const parent: Record<string | number | symbol, unknown> = mOps.parentObj ?? {};
       const keyKind = keyType.kind as number;
       for (let i = 0; i < length; i++) {
@@ -354,7 +352,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
             break;
           case RunTypeKind.templateLiteral: {
             // Retry on collision — narrow patterns like `id-${number}` can repeat.
-            const buildKey = (): string => buildTemplateLiteralString(keyType, mOps);
+            const buildKey = (): string => buildTemplateLiteralString(keyType, mOps, random);
             let candidate = buildKey();
             for (let attempt = 0; attempt < 5 && Object.prototype.hasOwnProperty.call(parent, candidate); attempt++) {
               candidate = buildKey();
@@ -383,11 +381,11 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       if (mOps.unionIndex !== undefined && (mOps.unionIndex < 0 || mOps.unionIndex >= children.length)) {
         throw new Error('unionIndex must be between 0 and the number of types in the union.');
       }
-      const index = mOps.unionIndex ?? random(0, children.length - 1);
+      const index = mOps.unionIndex ?? random.int(0, children.length - 1);
       return mockRunType(children[index], options, stack);
     }
     case RunTypeKind.templateLiteral:
-      return buildTemplateLiteralString(runType, mOps);
+      return buildTemplateLiteralString(runType, mOps, random);
     case RunTypeKind.promise: {
       const child = runType.child as RunType | undefined;
       const timeOut = mOps.promiseTimeOut || 0;
@@ -500,12 +498,13 @@ function mergeChildOptions(options: RunTypeMockOptions, childMock: MockOptions):
  *  (the wire stores them as KindParameter wrappers). **/
 function mockMap(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): Map<unknown, unknown> {
   const mOps = options.mock as MockOptions;
+  const random = mOps.random ?? nativeMockRandom;
   const args = (runType.arguments ?? []) as RunType[];
   const keyType = args[0]?.child as RunType | undefined;
   const valueType = args[1]?.child as RunType | undefined;
   const result = new Map<unknown, unknown>();
   if (!keyType || !valueType) return result;
-  const length = mOps.arrayLength ?? random(0, mOps.maxRandomItemsLength);
+  const length = mOps.arrayLength ?? random.int(0, mOps.maxRandomItemsLength);
   for (let i = 0; i < length; i++) {
     const key = mockRunType(keyType, options, stack);
     const value = mockRunType(valueType, options, stack);
@@ -517,18 +516,19 @@ function mockMap(runType: RunType, options: RunTypeMockOptions, stack: RunType[]
 /** Set mock builder. Element type lives at `runType.arguments[0].child`. **/
 function mockSet(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): Set<unknown> {
   const mOps = options.mock as MockOptions;
+  const random = mOps.random ?? nativeMockRandom;
   const args = (runType.arguments ?? []) as RunType[];
   const elementType = args[0]?.child as RunType | undefined;
   const result = new Set<unknown>();
   if (!elementType) return result;
-  const length = mOps.arrayLength ?? random(0, mOps.maxRandomItemsLength);
+  const length = mOps.arrayLength ?? random.int(0, mOps.maxRandomItemsLength);
   for (let i = 0; i < length; i++) result.add(mockRunType(elementType, options, stack));
   return result;
 }
 
 /** Render a template-literal runtype to a string satisfying its regex.
  *  Layout: `runType.literal.templateLiteral.{texts, placeholders}`. **/
-function buildTemplateLiteralString(runType: RunType, mOps: MockOptions): string {
+function buildTemplateLiteralString(runType: RunType, mOps: MockOptions, random: MockRandom): string {
   const envelope = (runType.literal ?? null) as TemplateLiteralEnvelope | null;
   const layout = envelope?.templateLiteral;
   if (!layout || !Array.isArray(layout.texts)) return '';
@@ -538,7 +538,7 @@ function buildTemplateLiteralString(runType: RunType, mOps: MockOptions): string
   for (let i = 0; i < texts.length; i++) {
     out += texts[i];
     if (i < placeholders.length) {
-      out += renderTemplateLiteralPlaceholder(placeholders[i], mOps);
+      out += renderTemplateLiteralPlaceholder(placeholders[i], mOps, random);
     }
   }
   return out;
@@ -557,20 +557,20 @@ interface TemplateLiteralPlaceholder {
 }
 
 /** Render one placeholder span to a fragment satisfying the regex anchor. **/
-function renderTemplateLiteralPlaceholder(span: TemplateLiteralPlaceholder, mOps: MockOptions): string {
+function renderTemplateLiteralPlaceholder(span: TemplateLiteralPlaceholder, mOps: MockOptions, random: MockRandom): string {
   if (!span) return '';
   const kind = typeof span.kind === 'number' ? span.kind : -1;
   switch (kind) {
     case RunTypeKind.literal:
       return span.literal === undefined ? '' : String(span.literal);
     case RunTypeKind.number:
-      return String(mockNumber(mOps.minNumber, mOps.maxNumber));
+      return String(random.number(mOps.minNumber, mOps.maxNumber));
     case RunTypeKind.bigint:
-      return String(mockBigInt(mOps.minNumber, mOps.maxNumber));
+      return String(random.bigint(mOps.minNumber, mOps.maxNumber));
     case RunTypeKind.string:
     case RunTypeKind.any:
     case RunTypeKind.unknown:
-      return mockString(mOps.stringLength ?? random(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
+      return random.string(mOps.stringLength ?? random.int(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
     default:
       // Unknown kind — empty string so surrounding text segments still anchor.
       return '';

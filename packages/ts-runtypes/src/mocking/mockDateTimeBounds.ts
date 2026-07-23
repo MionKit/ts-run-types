@@ -20,6 +20,7 @@
 // math exactly — keep it in sync with literals.go / dateTime-pure-fns.ts.
 
 import type {DateFmt, TimeFmt, DateTimeParams} from '../formats/datetime/stringDateTimeFormats.ts';
+import type {MockRandom} from './mockRandom.ts';
 
 // Fill year for yearless date layouts (MM-DD / DD-MM) — MUST match Go's
 // defaultFillYear (literals.go) and the JS dateStrToMs fill (a leap year so
@@ -31,9 +32,12 @@ const MS_PER_HOUR = 3600000;
 const MS_PER_MIN = 60000;
 const MS_PER_SEC = 1000;
 
-function randInt(min: number, max: number): number {
+// Inclusive integer draw that returns `min` WITHOUT drawing when the range
+// collapses — preserving the exact draw sequence (a collapsed date bound must
+// not consume a PRNG step). Uses `float()` (not `int`) for the same reason.
+function randInt(min: number, max: number, random: MockRandom): number {
   if (max <= min) return min;
-  return min + Math.floor(Math.random() * (max - min + 1));
+  return min + Math.floor(random.float() * (max - min + 1));
 }
 
 // ─────────────────────── relative now±P resolution ───────────────────────
@@ -73,8 +77,10 @@ function parseDuration(tail: string): {
   return out;
 }
 
-function resolveRelative(spec: string, scale: RelScale): number {
-  const now = new Date();
+function resolveRelative(spec: string, scale: RelScale, random: MockRandom): number {
+  // Wall clock via `random.now()`: live `Date.now()` natively, a fixed
+  // reference instant under a seed so relative `now±P` bounds stay repeatable.
+  const now = new Date(random.now());
   if (scale === 'timeOfDay') {
     let ms =
       now.getUTCHours() * MS_PER_HOUR +
@@ -185,16 +191,16 @@ function dateTimeLiteralToMs(value: string, splitChar: string): number {
 // ───────────────────────────── key resolution ─────────────────────────────
 
 // resolveDateKey returns the epoch-ms (UTC midnight) bound for a date format.
-function resolveDateKey(bound: string, layout: DateFmt): number {
-  return isRelative(bound) ? resolveRelative(bound, 'epochDate') : dateLiteralToMs(bound, layout);
+function resolveDateKey(bound: string, layout: DateFmt, random: MockRandom): number {
+  return isRelative(bound) ? resolveRelative(bound, 'epochDate', random) : dateLiteralToMs(bound, layout);
 }
 
-function resolveTimeKey(bound: string, layout: TimeFmt): number {
-  return isRelative(bound) ? resolveRelative(bound, 'timeOfDay') : timeLiteralToMs(bound, layout);
+function resolveTimeKey(bound: string, layout: TimeFmt, random: MockRandom): number {
+  return isRelative(bound) ? resolveRelative(bound, 'timeOfDay', random) : timeLiteralToMs(bound, layout);
 }
 
-function resolveEpochKey(bound: string, splitChar: string): number {
-  return isRelative(bound) ? resolveRelative(bound, 'epoch') : dateTimeLiteralToMs(bound, splitChar);
+function resolveEpochKey(bound: string, splitChar: string, random: MockRandom): number {
+  return isRelative(bound) ? resolveRelative(bound, 'epoch', random) : dateTimeLiteralToMs(bound, splitChar);
 }
 
 // ───────────────────────────── formatting ─────────────────────────────
@@ -339,38 +345,38 @@ function resolveRange(
 
 // mockBoundedDate returns a date string in `layout` within the bound set
 // (each bound optional, absolute literal or relative now±P).
-export function mockBoundedDate(layout: DateFmt, bounds: BoundInputs): string {
-  const {lo, hi} = resolveRange(bounds, (b) => resolveDateKey(b, layout), DATE_MIN_MS, DATE_MAX_MS, MS_PER_DAY);
-  return formatDate(randInt(lo, hi), layout);
+export function mockBoundedDate(layout: DateFmt, bounds: BoundInputs, random: MockRandom): string {
+  const {lo, hi} = resolveRange(bounds, (b) => resolveDateKey(b, layout, random), DATE_MIN_MS, DATE_MAX_MS, MS_PER_DAY);
+  return formatDate(randInt(lo, hi, random), layout);
 }
 
 // mockBoundedTime returns a time string in `layout` within the bound set.
 // The grid step is the layout's smallest representable unit so an exclusive
 // bound excludes its own grid-aligned value.
-export function mockBoundedTime(layout: TimeFmt, bounds: BoundInputs): string {
+export function mockBoundedTime(layout: TimeFmt, bounds: BoundInputs, random: MockRandom): string {
   const grid = timeGridMs(layout);
-  const {lo, hi} = resolveRange(bounds, (b) => resolveTimeKey(b, layout), 0, timeMaxMs(layout), grid);
-  return formatTime(randInt(lo, hi), layout);
+  const {lo, hi} = resolveRange(bounds, (b) => resolveTimeKey(b, layout, random), 0, timeMaxMs(layout), grid);
+  return formatTime(randInt(lo, hi, random), layout);
 }
 
 // mockBoundedDateTime returns a dateTime string honoring the nested layouts,
 // splitChar, and top-level min/max/gt/lt bounds.
-export function mockBoundedDateTime(params: Partial<DateTimeParams>): string {
+export function mockBoundedDateTime(params: Partial<DateTimeParams>, random: MockRandom): string {
   const dateLayout = (params.date?.format ?? 'ISO') as DateFmt;
   const timeLayout = (params.time?.format ?? 'ISO') as TimeFmt;
   const splitChar = params.splitChar ?? 'T';
   const bounds: BoundInputs = {min: params.min, max: params.max, gt: params.gt, lt: params.lt};
   if (bounds.min === undefined && bounds.max === undefined && bounds.gt === undefined && bounds.lt === undefined) {
-    return `${mockBoundedDate(dateLayout, {})}${splitChar}${mockBoundedTime(timeLayout, {})}`;
+    return `${mockBoundedDate(dateLayout, {}, random)}${splitChar}${mockBoundedTime(timeLayout, {}, random)}`;
   }
   const {lo, hi} = resolveRange(
     bounds,
-    (b) => resolveEpochKey(b, splitChar),
+    (b) => resolveEpochKey(b, splitChar, random),
     DATE_MIN_MS,
     DATE_MAX_MS + timeMaxMs(timeLayout),
     timeGridMs(timeLayout)
   );
-  const pick = randInt(lo, hi);
+  const pick = randInt(lo, hi, random);
   // Split the picked instant into a UTC-midnight date part + the remaining
   // time-of-day, format each in its layout. Truncation to each layout grid is
   // monotonic with fixed points at the (grid-aligned) bounds, keeping the
@@ -383,7 +389,9 @@ export function mockBoundedDateTime(params: Partial<DateTimeParams>): string {
 // mockBoundedNativeDate returns a Date within the bound set for Date.
 // The scale is full UTC epoch ms; the exclusive grid step is 1 ms (a Date's
 // resolution).
-export function mockBoundedNativeDate(bounds: BoundInputs): Date {
-  const {lo, hi} = resolveRange(bounds, (b) => resolveEpochKey(b, 'T'), DATE_MIN_MS, Date.now(), 1);
-  return new Date(randInt(lo, hi));
+export function mockBoundedNativeDate(bounds: BoundInputs, random: MockRandom): Date {
+  // `random.now()` for the default upper bound: live `Date.now()` natively, a
+  // fixed reference instant under a seed.
+  const {lo, hi} = resolveRange(bounds, (b) => resolveEpochKey(b, 'T', random), DATE_MIN_MS, random.now(), 1);
+  return new Date(randInt(lo, hi, random));
 }

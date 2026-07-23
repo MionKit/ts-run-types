@@ -10,11 +10,13 @@
 import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import {registerMockingFunction} from './mockRegistry.ts';
+import {nativeMockRandom} from './mockRandom.ts';
+import type {MockRandom} from './mockRandom.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';
 
-const mockBigIntFormat = (annotation: FormatAnnotation): unknown => {
+const mockBigIntFormat = (annotation: FormatAnnotation, random: MockRandom = nativeMockRandom): unknown => {
   if (annotation.name !== 'bigintFormat') return undefined;
-  return mockBigIntParams((annotation.params ?? {}) as BigIntParams);
+  return mockBigIntParams((annotation.params ?? {}) as BigIntParams, random);
 };
 
 registerMockingFunction(RunTypeKind.bigint, mockBigIntFormat);
@@ -25,7 +27,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 // mockBigIntParams returns a bigint satisfying every constraint. Random
 // generation runs in the safe-integer Number range (the documented
 // limitation) then converts back to bigint.
-function mockBigIntParams(params: BigIntParams): bigint {
+function mockBigIntParams(params: BigIntParams, random: MockRandom): bigint {
   let min = params.min !== undefined ? toBig(params.min) : -99999n;
   let max = params.max !== undefined ? toBig(params.max) : 99999n;
 
@@ -36,7 +38,7 @@ function mockBigIntParams(params: BigIntParams): bigint {
   // Clamp to the safe-integer range for Number-based randomness.
   const minNum = Number(min > MIN_SAFE ? min : MIN_SAFE);
   const maxNum = Number(max < MAX_SAFE ? max : MAX_SAFE);
-  let result = BigInt(randomInt(minNum, maxNum));
+  let result = BigInt(random.int(minNum, maxNum));
 
   // Snap to the largest multiple of multipleOf <= result.
   if (params.multipleOf !== undefined) {
@@ -54,9 +56,4 @@ function toBig(value: unknown): bigint {
   if (typeof value === 'number') return BigInt(Math.trunc(value));
   if (value !== null && typeof value === 'object' && 'val' in value) return toBig((value as {val: unknown}).val);
   return BigInt(String(value).replace(/n$/, ''));
-}
-
-// randomInt returns an inclusive random integer in [min, max].
-function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }

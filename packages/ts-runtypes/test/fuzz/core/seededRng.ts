@@ -1,11 +1,15 @@
 // Deterministic RNG for reproducible fuzzing.
 //
-// The mock walker (mocking/mockUtils.ts) and the invalid-value generator
-// both draw entropy from the global `Math.random`. To make a fuzz run
-// reproducible we don't thread a generator through every call site —
-// instead `withSeededRandom` swaps `Math.random` for a seeded PRNG for the
-// duration of one closure and restores it afterwards. A failing case logs
-// its seed; re-running `withSeededRandom(seed, …)` replays it byte-for-byte.
+// The mock generator draws all entropy through a `MockRandom` instance
+// (mocking/mockRandom.ts) whose NATIVE (seedless) mode reads the global
+// `Math.random` LIVE on every draw. To make a fuzz run reproducible we don't
+// thread a generator through every call site — instead `withSeededRandom` swaps
+// `Math.random` for a seeded PRNG for the duration of one closure and restores
+// it afterwards; because native `MockRandom` reads `Math.random` live, the swap
+// still governs every mock draw. (This is distinct from the mock library's own
+// `seed` option, which builds a seeded `MockRandom` and bypasses `Math.random`.)
+// A failing case logs its seed; re-running `withSeededRandom(seed, …)` replays
+// it byte-for-byte.
 
 /** mulberry32 — a tiny, fast, well-distributed 32-bit PRNG. Returns a
  *  function yielding floats in [0, 1), same contract as `Math.random`. **/

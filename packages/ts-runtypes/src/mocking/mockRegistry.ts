@@ -8,12 +8,18 @@
 
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import type {RunTypeKindValue} from '../go-generated/runTypeKind.generated.ts';
+import type {MockRandom} from './mockRandom.ts';
 
 /** Produces a base mock value for a format-branded runtype. Returns
  *  `undefined` to defer to the kind-default mock (e.g. an unknown format
  *  name). The value-transform (lowercase/trim) is applied separately by
- *  the mock walker, after this returns. **/
-export type MockFormatFn = (annotation: FormatAnnotation) => unknown;
+ *  the mock walker, after this returns.
+ *
+ *  `random` is the generation's shared random source — draw every value from it
+ *  (not `Math.random`) so a custom mock fn stays reproducible under a `seed`.
+ *  Optional for backward compatibility: an existing `(annotation) => …` fn still
+ *  satisfies the type and simply ignores it. **/
+export type MockFormatFn = (annotation: FormatAnnotation, random?: MockRandom) => unknown;
 
 const registry = new Map<number, MockFormatFn>();
 
