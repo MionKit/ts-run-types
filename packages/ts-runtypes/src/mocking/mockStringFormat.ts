@@ -1,11 +1,14 @@
 // Single mock entry point for every string format. Registered once for
 // ReflectionKind.string via `registerMockingFunction`; the mock walker
-// calls it with the FormatAnnotation and dispatches on the format name.
-// Replaces the old per-format `_mock` classes (the project's class→switch
-// convention). The value-transform (lowercase/trim) is applied by the
-// mock walker AFTER this returns, so these produce the base valid value.
+// calls it with the FormatAnnotation and the generation's shared MockRandom,
+// and dispatches on the format name. Replaces the old per-format `_mock`
+// classes (the project's class→switch convention). The value-transform
+// (lowercase/trim) is applied by the mock walker AFTER this returns, so these
+// produce the base valid value.
 
 import {registerMockingFunction} from './mockRegistry.ts';
+import {nativeMockRandom} from './mockRandom.ts';
+import type {MockRandom} from './mockRandom.ts';
 import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import type {
@@ -23,32 +26,33 @@ import {mockBoundedDate, mockBoundedTime, mockBoundedDateTime} from './mockDateT
 
 // mockStringFormat dispatches on the format name. Returns undefined for
 // an unrecognised name so the mock walker falls back to the kind-default
-// (a plain random string).
-function mockStringFormat(annotation: FormatAnnotation): unknown {
+// (a plain random string). `random` defaults to the shared native instance so
+// a call without one (a custom caller) still works.
+function mockStringFormat(annotation: FormatAnnotation, random: MockRandom = nativeMockRandom): unknown {
   const params = annotation.params ?? {};
   switch (annotation.name) {
     case 'stringFormat':
-      return mockStringParams(params as StringParams);
+      return mockStringParams(params as StringParams, random);
     case 'uuid':
-      return mockUuid(params as Partial<UUIDParams>);
+      return mockUuid(params as Partial<UUIDParams>, random);
     case 'date': {
       const dateParams = params as Partial<DateParams>;
-      return mockBoundedDate(dateParams.format ?? 'ISO', dateParams);
+      return mockBoundedDate(dateParams.format ?? 'ISO', dateParams, random);
     }
     case 'time': {
       const timeParams = params as Partial<TimeParams>;
-      return mockBoundedTime(timeParams.format ?? 'ISO', timeParams);
+      return mockBoundedTime(timeParams.format ?? 'ISO', timeParams, random);
     }
     case 'dateTime':
-      return mockBoundedDateTime(params as Partial<DateTimeParams>);
+      return mockBoundedDateTime(params as Partial<DateTimeParams>, random);
     case 'ip':
-      return mockIp(params as Partial<IPParams>);
+      return mockIp(params as Partial<IPParams>, random);
     case 'domain':
-      return mockDomain(params as DomainParams);
+      return mockDomain(params as DomainParams, random);
     case 'email':
-      return mockEmail(params as EmailParams);
+      return mockEmail(params as EmailParams, random);
     case 'url':
-      return mockUrl(params as UrlParams);
+      return mockUrl(params as UrlParams, random);
     default:
       return undefined;
   }
@@ -58,8 +62,8 @@ registerMockingFunction(RunTypeKind.string, mockStringFormat);
 
 // ─────────────────────────── StringFormat ───────────────────────────
 
-function mockStringParams(params: StringParams): string {
-  if (params.allowedValues) return pickSample(params.allowedValues.val) ?? '';
+function mockStringParams(params: StringParams, random: MockRandom): string {
+  if (params.allowedValues) return pickSample(params.allowedValues.val, random) ?? '';
   // Pattern / disallowed-value samples can't be reversed from a regex, so
   // we draw from the supplied samples. When length bounds are present, keep
   // only the samples that satisfy them (the pattern formats encode their
@@ -70,18 +74,19 @@ function mockStringParams(params: StringParams): string {
     filterSamplesByLength(
       params.mockSamples ?? patternSampleList(params.pattern) ?? toSampleList(params.disallowedValues?.mockSamples),
       params
-    )
+    ),
+    random
   );
   if (sample !== undefined) return sample;
   const charSet = params.allowedChars?.val ?? asCharString(params.disallowedChars?.mockSamples);
-  if (charSet) return randomStringFrom(charSet, Math.max(1, pickMockLength(params)));
+  if (charSet) return randomStringFrom(charSet, Math.max(1, pickMockLength(params, random)), random);
   if (params.pattern !== undefined) {
     throw new Error(
       'StringFormat: a `pattern` requires `mockSamples` compatible with the length bounds to mock — ' +
         'none provided, or every sample violates length/minLength/maxLength.'
     );
   }
-  return randomString(pickMockLength(params));
+  return randomString(pickMockLength(params, random), random);
 }
 
 // patternSampleList returns a pattern's `mockSamples` as a string[] (the
@@ -111,9 +116,9 @@ function filterSamplesByLength(samples: readonly string[] | undefined, params: S
 }
 
 // pickSample returns a random entry from a non-empty list, else undefined.
-export function pickSample(samples: readonly string[] | undefined): string | undefined {
+export function pickSample(samples: readonly string[] | undefined, random: MockRandom): string | undefined {
   if (!samples || samples.length === 0) return undefined;
-  return samples[Math.floor(Math.random() * samples.length)];
+  return samples[random.int(0, samples.length - 1)];
 }
 
 function toSampleList(samples: Samples | undefined): readonly string[] | undefined {
@@ -125,63 +130,34 @@ function asCharString(samples: Samples | undefined): string | undefined {
   return typeof samples === 'string' ? samples : undefined;
 }
 
-function randomStringFrom(chars: string, length: number): string {
+function randomStringFrom(chars: string, length: number, random: MockRandom): string {
   if (chars.length === 0) return '';
   let out = '';
-  for (let i = 0; i < length; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < length; i++) out += chars[random.int(0, chars.length - 1)];
   return out;
 }
 
-function pickMockLength(params: StringParams): number {
+function pickMockLength(params: StringParams, random: MockRandom): number {
   if (params.length !== undefined) return params.length;
   if (params.maxLength !== undefined && params.minLength !== undefined) {
-    return randomInt(params.minLength, params.maxLength);
+    return random.int(params.minLength, params.maxLength);
   }
-  if (params.maxLength !== undefined) return randomInt(0, params.maxLength);
-  if (params.minLength !== undefined) return randomInt(params.minLength, params.minLength + 8);
-  return randomInt(1, 16);
-}
-
-function randomInt(min: number, max: number): number {
-  if (max < min) return min;
-  return min + Math.floor(Math.random() * (max - min + 1));
+  if (params.maxLength !== undefined) return random.int(0, params.maxLength);
+  if (params.minLength !== undefined) return random.int(params.minLength, params.minLength + 8);
+  return random.int(1, 16);
 }
 
 const MOCK_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-function randomString(length: number): string {
+function randomString(length: number, random: MockRandom): string {
   let out = '';
-  for (let i = 0; i < length; i++) out += MOCK_CHARS[Math.floor(Math.random() * MOCK_CHARS.length)];
+  for (let i = 0; i < length; i++) out += MOCK_CHARS[random.int(0, MOCK_CHARS.length - 1)];
   return out;
 }
 
 // ─────────────────────────────── UUID ───────────────────────────────
 
-function mockUuid(params: Partial<UUIDParams>): string {
-  return (params.version ?? '4') === '7' ? randomUUIDv7() : randomUUIDv4();
-}
-
-function randomUUIDv4(): string {
-  const globalCrypto = (globalThis as {crypto?: {randomUUID?: () => string}}).crypto;
-  if (globalCrypto?.randomUUID) return globalCrypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const rand = (Math.random() * 16) | 0;
-    const value = char === 'x' ? rand : (rand & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
-function randomUUIDv7(): string {
-  // 32 hex nibbles: 48-bit ms timestamp (12) + version '7' (1) +
-  // rand_a (3) + variant nibble (1) + rand_b (15).
-  const timeHex = Date.now().toString(16).padStart(12, '0').slice(-12);
-  const randHex = (count: number): string => {
-    let out = '';
-    for (let i = 0; i < count; i++) out += Math.floor(Math.random() * 16).toString(16);
-    return out;
-  };
-  const variant = ((Math.floor(Math.random() * 16) & 0x3) | 0x8).toString(16);
-  const full = timeHex + '7' + randHex(3) + variant + randHex(15);
-  return `${full.slice(0, 8)}-${full.slice(8, 12)}-${full.slice(12, 16)}-${full.slice(16, 20)}-${full.slice(20, 32)}`;
+function mockUuid(params: Partial<UUIDParams>, random: MockRandom): string {
+  return (params.version ?? '4') === '7' ? random.uuidV7() : random.uuidV4();
 }
 
 // Date / Time / DateTime mocking lives in ./mockDateTimeBounds.ts — it must
@@ -190,58 +166,60 @@ function randomUUIDv7(): string {
 
 // ──────────────────────────────── IP ────────────────────────────────
 
-function mockIp(params: Partial<IPParams>): string {
-  if (params.version === 4) return mockIpV4(params);
-  if (params.version === 6) return mockIpV6(params);
-  return Math.random() > 0.5 ? mockIpV4(params) : mockIpV6(params);
+function mockIp(params: Partial<IPParams>, random: MockRandom): string {
+  if (params.version === 4) return mockIpV4(params, random);
+  if (params.version === 6) return mockIpV6(params, random);
+  return random.float() > 0.5 ? mockIpV4(params, random) : mockIpV6(params, random);
 }
 
-function mockIpV4(params: Partial<IPParams>): string {
+function mockIpV4(params: Partial<IPParams>, random: MockRandom): string {
   // '127:0:0:1' is a valid v4 loopback only WITHOUT a port — the allowPort
   // address parser splits on ':' and rejects >2 segments — so when ports
   // are allowed the loopback is emitted as 'localhost' (the colon-free form).
-  if (params.allowLocalHost && Math.random() > 0.8) {
-    return params.allowPort ? 'localhost' : Math.random() > 0.5 ? 'localhost' : '127:0:0:1';
+  if (params.allowLocalHost && random.float() > 0.8) {
+    return params.allowPort ? 'localhost' : random.float() > 0.5 ? 'localhost' : '127:0:0:1';
   }
-  const address = Array.from({length: 4}, () => Math.floor(Math.random() * 256)).join('.');
-  return params.allowPort ? `${address}:${randomPort()}` : address;
+  const address = Array.from({length: 4}, () => random.int(0, 255)).join('.');
+  return params.allowPort ? `${address}:${randomPort(random)}` : address;
 }
 
-function mockIpV6(params: Partial<IPParams>): string {
-  if (params.allowLocalHost && Math.random() > 0.8) {
-    const loopback = Math.random() > 0.5 ? '0:0:0:0:0:0:0:1' : '::1';
+function mockIpV6(params: Partial<IPParams>, random: MockRandom): string {
+  if (params.allowLocalHost && random.float() > 0.8) {
+    const loopback = random.float() > 0.5 ? '0:0:0:0:0:0:0:1' : '::1';
     // The allowPort v6 parser requires the bracketed `[addr]` (optionally
     // `[addr]:port`) form — a bare address fails to match.
     return params.allowPort ? `[${loopback}]` : loopback;
   }
-  const address = Array.from({length: 8}, () => Math.floor(Math.random() * 0xffff).toString(16)).join(':');
-  return params.allowPort ? `[${address}]:${randomPort()}` : address;
+  // `Math.floor(x * 0xffff)` (0..0xfffe), preserved exactly via float() — an
+  // `int(0, 0xffff)` would widen the range by one and change no-seed output.
+  const address = Array.from({length: 8}, () => Math.floor(random.float() * 0xffff).toString(16)).join(':');
+  return params.allowPort ? `[${address}]:${randomPort(random)}` : address;
 }
 
 // randomPort returns a valid 0-65535 port for the *WithPort IP formats.
-function randomPort(): number {
-  return Math.floor(Math.random() * 65536);
+function randomPort(random: MockRandom): number {
+  return random.int(0, 65535);
 }
 
 // ─────────────────────────── Domain / Email ─────────────────────────
 
-function mockDomain(params: DomainParams): string {
+function mockDomain(params: DomainParams, random: MockRandom): string {
   // allowedValues wins outright: the emitted validator only accepts these
   // exact domains, so any synthesized value would fail its own validate.
   // Mirrors the plain string-format path (mockStringParams).
   if (params.allowedValues) {
-    const allowed = pickSample(params.allowedValues.val);
+    const allowed = pickSample(params.allowedValues.val, random);
     if (allowed !== undefined) return allowed;
   }
   // names/tld decomposition (DomainStrict): draw a label + tld from
   // their sub-pattern samples (we use the names/tld char-sets). The
   // samples live under `<part>.pattern.mockSamples` (or a bare mockSamples).
   if (params.names || params.tld) {
-    const name = pickSample(domainPartSamples(params.names)) ?? 'example';
-    const tld = pickSample(domainPartSamples(params.tld)) ?? 'com';
+    const name = pickSample(domainPartSamples(params.names), random) ?? 'example';
+    const tld = pickSample(domainPartSamples(params.tld), random) ?? 'com';
     return `${name}.${tld}`;
   }
-  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern))) ?? 'example.com';
+  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern)), random) ?? 'example.com';
 }
 
 // domainPartSamples reads a names/tld sub-format's samples, preferring its
@@ -251,22 +229,22 @@ function domainPartSamples(part: {mockSamples?: Samples; pattern?: unknown} | un
   return toSampleList(part.mockSamples) ?? patternSampleList(asPattern(part.pattern));
 }
 
-function mockEmail(params: EmailParams): string {
+function mockEmail(params: EmailParams, random: MockRandom): string {
   if (params.localPart || params.domain) {
-    const local = params.localPart ? mockStringParams(params.localPart) : 'user';
-    const domain = params.domain ? mockDomain(params.domain) : 'example.com';
+    const local = params.localPart ? mockStringParams(params.localPart, random) : 'user';
+    const domain = params.domain ? mockDomain(params.domain, random) : 'example.com';
     return `${local}@${domain}`;
   }
-  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern))) ?? 'john@example.com';
+  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern)), random) ?? 'john@example.com';
 }
 
 // ──────────────────────────────── URL ───────────────────────────────
 
-function mockUrl(params: UrlParams): string {
+function mockUrl(params: UrlParams, random: MockRandom): string {
   // URL formats bake their scheme set into the pattern, which can't be
   // reversed — draw from the pattern's mockSamples (http(s)/ftp/ws,
   // http-only, or file:// per variant). Default only fits the generic URL.
-  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern))) ?? 'https://example.com';
+  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern)), random) ?? 'https://example.com';
 }
 
 // asPattern coerces a domain/email/url `pattern` param (a `{source, flags}`

@@ -11,6 +11,7 @@ import {mockRunType} from './mockType.ts';
 import {mockRunTypeInvalid} from './mockInvalid.ts';
 import {mockRunTypeOversized} from './mockOversized.ts';
 import {applyInBoundsSizing} from './binarySize.ts';
+import {MockRandom, nativeMockRandom} from './mockRandom.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockDataNode, MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
 
@@ -49,6 +50,11 @@ export function createMockData<T>(
   return ((callOpts) => {
     const merged = mergeMockOptions(factoryOpts, callOpts as DeepPartial<RunTypeMockOptions<unknown>> | undefined);
     const mockOpts = merged.mock as MockOptions;
+    // One random source per generation, carried on the options bag so it threads
+    // through the whole walk (and the deferred Promise resolver, which closes
+    // over `merged`). A fresh seeded instance each call ⇒ the same seed always
+    // reproduces the same value; no seed reuses the stateless native instance.
+    mockOpts.random = mockOpts.seed === undefined ? nativeMockRandom : new MockRandom(mockOpts.seed);
     // Steer generation to FIT the binary cold-start estimate — only when
     // explicitly requested (`=== true`). `undefined` leaves the random generator
     // untouched; `false` (oversized) inflates a position past the budget and

@@ -3,6 +3,7 @@
 // `dynamic` strategy and internal/cachegen/typefunctions/binary_size_estimate.go).
 
 import type {BinarySizingOptions, MockOptions} from './mockTypes.ts';
+import type {MockRandom} from './mockRandom.ts';
 
 // Mirror internal/constants/constants.go DefaultSize* — only the fallbacks when
 // binarySizingOptions omits a field (callers steering size pass them explicitly).
@@ -37,9 +38,9 @@ export function resolveSizing(opts?: BinarySizingOptions): ResolvedSizing {
 // length (the estimate budgets bytes).
 export const ASCII_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-export function randomAscii(length: number): string {
+export function randomAscii(length: number, random: MockRandom): string {
   let out = '';
-  for (let i = 0; i < length; i++) out += ASCII_CHARS[Math.floor(Math.random() * ASCII_CHARS.length)];
+  for (let i = 0; i < length; i++) out += ASCII_CHARS[random.int(0, ASCII_CHARS.length - 1)];
   return out;
 }
 

@@ -212,6 +212,10 @@ export {
 // whole mock subtree when consumers don't reference `createMockData`.
 export {createMockData} from './mocking/createMockData.ts';
 export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTypes.ts';
+// The seeded/native random source. Exported so a custom mock fn (registered via
+// `registerMockingFunction`) receives a `MockRandom` and stays reproducible
+// under `createMockData(..., { mock: { seed } })`.
+export {MockRandom} from './mocking/mockRandom.ts';
 
 // Standard Schema v1 adapter — re-exported from `./standard/` so bundlers can
 // drop the adapter subtree when consumers never call createStandardSchema. The

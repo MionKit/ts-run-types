@@ -21,4 +21,11 @@ const mockAccount = createMockData<Account>(undefined, {
 const rich = mockAccount({mock: {minNumber: 1_000_000}}); // override just for this call
 // end-options
 
-export {mockAccount, rich};
+// start-seed
+// Pass a seed for reproducible data: the same seed always yields the same value,
+// so snapshot tests and fixtures stay stable. Leave it out for fresh data.
+const mockFixture = createMockData<Account>(undefined, {mock: {seed: 123}});
+const sameEveryRun = mockFixture(); // identical on every run
+// end-seed
+
+export {mockAccount, rich, mockFixture, sameEveryRun};

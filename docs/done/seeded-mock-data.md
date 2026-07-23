@@ -1,3 +1,10 @@
+---
+type: feature
+spec: full-plan
+status: ready
+created: 2026-07-22
+---
+
 # Seeded, repeatable mock data (`createMockData({ seed })`)
 
 Status: **READY.** New feature. Planned for the next release.
@@ -127,4 +134,48 @@ test area) asserting:
 - No remaining direct `Math.random` / `crypto` call on the mock path bypasses
   `MockRandom`.
 - Repeatability suite + existing mock tests green (`pnpm test`); docs updated.
+
+## What shipped (reconciliation)
+
+Built as planned, with these refinements decided during implementation:
+
+- **`MockRandom` is the single home for all mock randomness.** The atomic
+  generators the plan listed under `mockUtils.ts` became **methods** of the new
+  `MockRandom` class (`packages/ts-runtypes/src/mocking/mockRandom.ts`) and
+  `mockUtils.ts` was **deleted** (owner request during planning: encapsulate
+  everything in one class threaded through the mock context). Every
+  `Math.random` / `crypto` / clock site across the 10 mock files now draws from
+  the threaded instance; a grep confirms none remain outside `mockRandom.ts`.
+- **Threaded on the options bag** (the plan's preferred path, not the ambient
+  fallback). Reinforced by the async Promise arm (`mockType.ts`, default
+  `promiseTimeOut` 1): its deferred resolver closes over the options object, so
+  the seeded instance must ride there to stay deterministic. `MockOptions` gains
+  public `seed?: number` + an internal `random?: MockRandom` carrier; the factory
+  builds a fresh `new MockRandom(seed)` per invocation (so the same seed always
+  reproduces the same value, even across separate factories).
+- **Fuzz-harness contract honored.** Native (no-seed) `MockRandom` reads
+  `Math.random` / `crypto` / `Date.now()` **live** per draw, so the existing fuzz
+  harness's global-`Math.random` swap (`withSeededRandom`) still governs no-seed
+  mocks. Comment added to `test/fuzz/core/seededRng.ts`.
+- **Custom mock fns are seed-aware too.** `MockFormatFn` (a public export) gained
+  an **optional** `random?: MockRandom` second param (backward compatible), and
+  `MockRandom` is now exported from `src/index.ts` — so a consumer's registered
+  mock fn stays reproducible under a seed. This is a small public-API addition
+  beyond the plan's "keep `MockRandom` internal".
+- **Docs: full mocking-page refresh** (owner request), not just a `seed` row. The
+  options reference in `container/website/content/2.guide/6.mocking.md` now covers
+  the complete user-facing `mock` surface (it previously documented ~9 of ~25
+  options), plus a "Reproducible data with a seed" section and a `seed` example in
+  `packages/examples/src/guide/mocking-options.ts`.
+- **Tests.** `test/suites/mocking/mockSeed.test.ts` (same-seed / different-seed /
+  no-seed / factory+per-call merge, both `createMockData` call shapes with a
+  convergence assert) plus a determinism "do-it-twice" **fuzz** suite
+  (`test/fuzz/type/mockSeedFuzz.ts` + `mockSeedDeterminism.unit.test.ts`, opted
+  in) over random runtypes with a negative control. All green.
+- **Finding (out of scope):** `paramsOptions?: MockOptions[]` on `MockOptions` is
+  a dead field (0 reads); filed separately in `docs/todos/`.
+
+Not implemented (deliberately, matching the plan's scope): relative `now±P`
+**Temporal** bounds still read the real clock under a seed (an edge case; plain
+Temporal values are deterministic). Everything in "Done when" holds.
 </content>
