@@ -6,14 +6,14 @@
 
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors, type InferType} from '@ts-runtypes/core';
+import {createValidateFn, createGetValidationErrorsFn, type InferType} from '@ts-runtypes/core';
 import {circular, self, object, optional, array, union, record, literal} from '@ts-runtypes/core/schema';
 import '@ts-runtypes/core/formats';
 
 describe('circular() — recursive schemas without types', () => {
   it('object self-ref validates + converges (static & reflect)', () => {
     const Node = circular(object({n: TF.number(), s: TF.string(), c: optional(self())}));
-    const isNode = createValidate(Node);
+    const isNode = createValidateFn(Node);
     expect(isNode({n: 1, s: 'a'})).toBe(true);
     expect(isNode({n: 1, s: 'a', c: {n: 2, s: 'b', c: {n: 3, s: 'c'}}})).toBe(true);
     expect(isNode({n: 1, s: 'a', c: {n: 2, s: 123 as unknown as string}})).toBe(false);
@@ -24,9 +24,9 @@ describe('circular() — recursive schemas without types', () => {
       s: string;
       c?: NodeT;
     }
-    expect(isNode).toBe(createValidate<NodeT>());
+    expect(isNode).toBe(createValidateFn<NodeT>());
     const sample: NodeT = {n: 1, s: 'a'};
-    expect(isNode).toBe(createValidate(sample));
+    expect(isNode).toBe(createValidateFn(sample));
 
     type Inferred = InferType<typeof Node>;
     const v: Inferred = {n: 1, s: 'a', c: {n: 2, s: 'b'}};
@@ -35,11 +35,11 @@ describe('circular() — recursive schemas without types', () => {
 
   it('array + union self-ref converges', () => {
     const Cu = circular(array(union([self(), TF.date(), TF.number(), TF.string()])));
-    const isCu = createValidate(Cu);
+    const isCu = createValidateFn(Cu);
     expect(isCu([1, 'a', new Date(), [2, 'b']])).toBe(true);
     expect(isCu([true])).toBe(false);
     type CuArray = (CuArray | Date | number | string)[];
-    expect(isCu).toBe(createValidate<CuArray>());
+    expect(isCu).toBe(createValidateFn<CuArray>());
   });
 
   it('cycle through a record / index-signature converges', () => {
@@ -47,7 +47,7 @@ describe('circular() — recursive schemas without types', () => {
     interface CircularIndex {
       index: {[k: string]: CircularIndex};
     }
-    expect(createValidate(Ci)).toBe(createValidate<CircularIndex>());
+    expect(createValidateFn(Ci)).toBe(createValidateFn<CircularIndex>());
   });
 
   it('cycle through a tuple PROPERTY converges (the case bare tokens broke)', () => {
@@ -55,13 +55,13 @@ describe('circular() — recursive schemas without types', () => {
     interface CircularArrayProp {
       tuple: CircularArrayProp[];
     }
-    expect(createValidate(Ct)).toBe(createValidate<CircularArrayProp>());
+    expect(createValidateFn(Ct)).toBe(createValidateFn<CircularArrayProp>());
   });
 
   it('mutual recursion via direct cross-references converges', () => {
     const icd = circular(object({name: TF.string(), embedded: object({hello: TF.string(), child: optional(self())})}));
     const root = circular(object({isRoot: literal(true), ciChild: icd, ciSelf: optional(self())}));
-    const isRoot = createValidate(root);
+    const isRoot = createValidateFn(root);
     expect(isRoot({isRoot: true, ciChild: {name: 'a', embedded: {hello: 'h'}}})).toBe(true);
     expect(isRoot({isRoot: true, ciChild: {name: 'a', embedded: {hello: 123}}})).toBe(false);
 
@@ -74,7 +74,7 @@ describe('circular() — recursive schemas without types', () => {
       ciChild: ICircularDeep;
       ciSelf?: RootCircular;
     }
-    expect(isRoot).toBe(createValidate<RootCircular>());
+    expect(isRoot).toBe(createValidateFn<RootCircular>());
   });
 
   it('getValidationErrors via circular() converges', () => {
@@ -83,6 +83,6 @@ describe('circular() — recursive schemas without types', () => {
       n: number;
       c?: NodeT;
     }
-    expect(createGetValidationErrors(Node)).toBe(createGetValidationErrors<NodeT>());
+    expect(createGetValidationErrorsFn(Node)).toBe(createGetValidationErrorsFn<NodeT>());
   });
 });

@@ -1,5 +1,5 @@
 import type * as TF from '@ts-runtypes/core/formats';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
 // TF.String / TF.Number / TF.BigInt are the escape hatches: pass
 // your own params when no named format fits.
@@ -13,7 +13,7 @@ type Profile = {
   followers: BigPositive;
 };
 
-const isProfile = createValidate<Profile>();
+const isProfile = createValidateFn<Profile>();
 
 isProfile({handle: 'ada_99', completion: 80, followers: 1200n}); // true
 isProfile({handle: 'no', completion: 150, followers: -1n}); // false

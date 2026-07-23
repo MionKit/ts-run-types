@@ -71,7 +71,7 @@ Captured from the resolver via the playground engine (`emitMode: functions`,
 resolver-level, so it is expected to reproduce under the default plugin config
 too — confirm that as step 1.
 
-### `active?: boolean` — JSON encoder (`createJsonEncoder` → `pjs`)
+### `active?: boolean` — JSON encoder (`createJsonEncoderFn` → `pjs`)
 
 `active` is resolved as a union of three `val` members (`v === false`,
 `v === true`, `typeof v === 'undefined'`) and encoded as `[armIndex, value]`:
@@ -104,7 +104,7 @@ export const __rt_CiE_jf9vtBd = ['val', , , 'CiE_jf9vtBd', 'literal', …, funct
 export const __rt_CiE_zxt3nZt = ['val', , , 'CiE_zxt3nZt', 'undefined', …, function (utl){ return (v) => typeof v === 'undefined' }];
 ```
 
-### `active?: boolean` — binary encoder (`createBinaryEncoder` → `tb`)
+### `active?: boolean` — binary encoder (`createBinaryEncoderFn` → `tb`)
 
 Same union treatment: writes a discriminant byte (0/1/2) per arm. Note it also
 reuses the JSON error string (`'Can not json encode union: …'`) in the binary
@@ -352,8 +352,8 @@ const MyType = RT.circular((self) =>
 ## Investigation (part of this TODO — done; see results below)
 
 0. **Sweep every preset above** (both forms) across all `createX` families
-   (`createValidate`, `createGetValidationErrors`, `createJsonEncoder`,
-   `createJsonDecoder`, `createBinaryEncoder`, `createBinaryDecoder`,
+   (`createValidateFn`, `createGetValidationErrorsFn`, `createJsonEncoderFn`,
+   `createJsonDecoderFn`, `createBinaryEncoderFn`, `createBinaryDecoderFn`,
    `getRunType`), generate the code, read it, and record anything wrong or wasteful
    (union encoding where none is needed, redundant checks, wrong error strings,
    TS-form vs schema-form divergence, format-aware fields, the recursive `Tree`
@@ -413,7 +413,7 @@ projection (`StripUndefined`) and the union emitters, all of which predate compa
 | **E** | Low | Bug | Binary `toBinary` throws the **JSON** message `'Can not json encode union: …'`. Present in every union-bearing `tb` (required + optional + array). | `union_flat_binary.go:187` reuses `flatUnionEncodeErrorVar` (`union_flat.go:49`). |
 | **F** | Med | Bug | Schema form only: `RT.circular((self) => … RT.array(self))` emits a spurious **CTA001 Error** diagnostic on `self`, though codegen succeeds. `tree-ts` is clean. | `scan.go` `checkCompTimeArgs` classifies the `self` identifier as a non-literal `CompTimeArgs` leaf → `CodeCompTimeArgsNonLiteral` (Error). |
 | G | Low | Inefficiency | `prepareForJsonSafe` root fn is a bare `return ctxFnN(v)` forwarder for every mixed-optionality object (one extra hop/closure). | `json_prepare_safe.go:564` `buildSafeObjectLiteral` pre-hoists via `CreateFnInContext`. |
-| H | Info | DX | TS-form `createJsonEncoder<T>({strategy:'compact'})` binds the option to the `val` slot (param 0), is **silently ignored with no diagnostic**, and falls back to `clone`. Correct form is `createJsonEncoder<T>(undefined, {strategy})`. | overload arg-slot resolution; no comptime-arg-in-value-slot warning. |
+| H | Info | DX | TS-form `createJsonEncoderFn<T>({strategy:'compact'})` binds the option to the `val` slot (param 0), is **silently ignored with no diagnostic**, and falls back to `clone`. Correct form is `createJsonEncoderFn<T>(undefined, {strategy})`. | overload arg-slot resolution; no comptime-arg-in-value-slot warning. |
 
 ### Detail + verbatim evidence
 
@@ -612,7 +612,7 @@ existing hoist path wrap only when the parent slot needs it. Batch with Step 2.
 
 ### Step 8 — Fix H (DX): warn on a comptime option passed in the value slot
 
-TS-form `createJsonEncoder<T>({strategy})` silently binds the option to the `val` slot
+TS-form `createJsonEncoderFn<T>({strategy})` silently binds the option to the `val` slot
 and falls back to `clone`. Emit a build-time **Warning** when a `createX` value-slot
 argument is an object literal matching the options shape while `T` came from a type
 argument. Low priority; a docs note is an acceptable alternative.

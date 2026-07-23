@@ -31,10 +31,10 @@ describe('@ts-runtypes/devtools / runtype diagnostics', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('emits PJ001 for Never at root under prepareForJson', async () => {
-    // pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
+    // pj is demand-driven now, so seed it via createJsonEncoderFn(mutate) → [pj].
     const sources = {
-      'never.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+      'never.ts': `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -53,13 +53,13 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
   });
 
   register('emits per-family codes — SJ001 / TB001 / PJ001 — for same root throw', async () => {
-    // All three families are demand-driven: seed pj via createJsonEncoder(mutate),
-    // sj via createJsonEncoder(direct), and tb via createBinaryEncoder.
+    // All three families are demand-driven: seed pj via createJsonEncoderFn(mutate),
+    // sj via createJsonEncoderFn(direct), and tb via createBinaryEncoderFn.
     const sources = {
-      'never-multi.ts': `import {createJsonEncoder, createBinaryEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
-export const _s = createJsonEncoder<never>(undefined, {strategy: 'direct'});
-export const _b = createBinaryEncoder<never>();
+      'never-multi.ts': `import {createJsonEncoderFn, createBinaryEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoderFn<never>(undefined, {strategy: 'direct'});
+export const _b = createBinaryEncoderFn<never>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -74,13 +74,13 @@ export const _b = createBinaryEncoder<never>();
   });
 
   register('emits per-call-site fan-out — three marker calls = three diagnostics', async () => {
-    // pj is demand-driven; three createJsonEncoder(mutate) sites share one `never`
+    // pj is demand-driven; three createJsonEncoderFn(mutate) sites share one `never`
     // id, so the single rendered pj entry fans the PJ001 diag out to all three.
     const sources = {
-      'fan-out.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
-export const a = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
-export const b = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
-export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+      'fan-out.ts': `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const a = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
+export const b = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
+export const c = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -95,12 +95,12 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
   });
 
   register('emits child-position warning for function-typed property under validate', async () => {
-    // `it` is demand-driven, so seed it via createValidate (a reflection-only
+    // `it` is demand-driven, so seed it via createValidateFn (a reflection-only
     // getRunTypeId would emit no val_ entry and thus no validate diagnostic).
     const sources = {
-      'fn-prop.ts': `import {createValidate} from '@ts-runtypes/core';
+      'fn-prop.ts': `import {createValidateFn} from '@ts-runtypes/core';
 interface User { name: string; onClick: () => void; }
-export const _ = createValidate<User>();
+export const _ = createValidateFn<User>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -119,8 +119,8 @@ export const _ = createValidate<User>();
     // drop is silent at runtime, so the build surfaces a VL014 Warning naming
     // the dropped member — mirroring the function-prop drop (VL010) above.
     const sources = {
-      'union-drop.ts': `import {createValidate} from '@ts-runtypes/core';
-export const _ = createValidate<Date | symbol>();
+      'union-drop.ts': `import {createValidateFn} from '@ts-runtypes/core';
+export const _ = createValidateFn<Date | symbol>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -143,10 +143,10 @@ export const _ = createValidate<Date | symbol>();
     // codes. Seed pjs via the default clone encode, sj via the direct strategy,
     // and rj via the decoder.
     const sources = {
-      'union-drop-json.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
-export const _e = createJsonEncoder<Date | symbol>();
-export const _s = createJsonEncoder<Date | symbol>(undefined, {strategy: 'direct'});
-export const _d = createJsonDecoder<Date | symbol>();
+      'union-drop-json.ts': `import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
+export const _e = createJsonEncoderFn<Date | symbol>();
+export const _s = createJsonEncoderFn<Date | symbol>(undefined, {strategy: 'direct'});
+export const _d = createJsonDecoderFn<Date | symbol>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -168,8 +168,8 @@ export const _d = createJsonDecoder<Date | symbol>();
     // factory alwaysThrows and there is no surviving union to drop INTO. A
     // …014 drop warning would be wrong here.
     const sources = {
-      'union-allstripped.ts': `import {createValidate} from '@ts-runtypes/core';
-export const _ = createValidate<symbol | (() => void)>();
+      'union-allstripped.ts': `import {createValidateFn} from '@ts-runtypes/core';
+export const _ = createValidateFn<symbol | (() => void)>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -182,10 +182,10 @@ export const _ = createValidate<symbol | (() => void)>();
   });
 
   register('formatTscDiagnostic renders runtype warnings in tsc line format', async () => {
-    // pj is demand-driven, so seed it via createJsonEncoder(mutate) → [pj].
+    // pj is demand-driven, so seed it via createJsonEncoderFn(mutate) → [pj].
     const sources = {
-      'fmt-rt.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+      'fmt-rt.ts': `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -221,11 +221,11 @@ export const _ = getRunTypeId<any>();
   });
 
   register('emits VL021 warning diagnostic for validate on root any/unknown', async () => {
-    // `it` is demand-driven, so seed it via createValidate<unknown>() (a
+    // `it` is demand-driven, so seed it via createValidateFn<unknown>() (a
     // reflection-only getRunTypeId would emit no val_ entry, no VL021).
     const sources = {
-      'any-istype.ts': `import {createValidate} from '@ts-runtypes/core';
-export const _ = createValidate<unknown>();
+      'any-istype.ts': `import {createValidateFn} from '@ts-runtypes/core';
+export const _ = createValidateFn<unknown>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -251,14 +251,14 @@ export const _ = createValidate<unknown>();
   // short-circuits we removed in the tuple emits.
 
   register('propagates function-typed tuple slot as alwaysThrow under prepareForJson', async () => {
-    // pj/pjs/rj/sj are demand-driven: seed pj via createJsonEncoder(mutate), pjs
-    // via the default clone (shape-derived strip), sj via direct, and rj via createJsonDecoder.
+    // pj/pjs/rj/sj are demand-driven: seed pj via createJsonEncoderFn(mutate), pjs
+    // via the default clone (shape-derived strip), sj via direct, and rj via createJsonDecoderFn.
     const sources = {
-      'fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'mutate'});
-export const _s = createJsonEncoder<[number, () => void]>();
-export const _d = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'direct'});
-export const _r = createJsonDecoder<[number, () => void]>();
+      'fn-tuple.ts': `import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<[number, () => void]>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoderFn<[number, () => void]>();
+export const _d = createJsonEncoderFn<[number, () => void]>(undefined, {strategy: 'direct'});
+export const _r = createJsonDecoderFn<[number, () => void]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -273,7 +273,7 @@ export const _r = createJsonDecoder<[number, () => void]>();
       expect(codes).toContain('RJ003');
       expect(codes).toContain('SJ003');
       // Entry modules must wire the tuple's prepareForJson entry as
-      // alwaysThrow so calling `createJsonEncoder<[number, () => void]>()`
+      // alwaysThrow so calling `createJsonEncoderFn<[number, () => void]>()`
       // throws at the first lookup. The fully rendered throw message rides
       // the tuple's final positional slot — verify it for the tuple entry.
       const allModules = Object.values(response.entryModules ?? {}).join('\n');
@@ -286,9 +286,9 @@ export const _r = createJsonDecoder<[number, () => void]>();
   register('propagates function-typed tuple slot as alwaysThrow under toBinary / fromBinary', async () => {
     // tb/fb are demand-driven, so seed each via the matching binary createX.
     const sources = {
-      'fn-tuple-bin.ts': `import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
-export const _e = createBinaryEncoder<[string, () => number]>();
-export const _d = createBinaryDecoder<[string, () => number]>();
+      'fn-tuple-bin.ts': `import {createBinaryEncoderFn, createBinaryDecoderFn} from '@ts-runtypes/core';
+export const _e = createBinaryEncoderFn<[string, () => number]>();
+export const _d = createBinaryDecoderFn<[string, () => number]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -312,9 +312,9 @@ export const _d = createBinaryDecoder<[string, () => number]>();
     // path even before the fix. This test pins that behavior so a future
     // optimisation can't silently regress it.
     const sources = {
-      'sym-tuple.ts': `import {createJsonEncoder, createBinaryEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<[number, symbol]>(undefined, {strategy: 'mutate'});
-export const _b = createBinaryEncoder<[number, symbol]>();
+      'sym-tuple.ts': `import {createJsonEncoderFn, createBinaryEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<[number, symbol]>(undefined, {strategy: 'mutate'});
+export const _b = createBinaryEncoderFn<[number, symbol]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -338,9 +338,9 @@ export const _b = createBinaryEncoder<[number, symbol]>();
   // siblings and never trips JCP001. See docs/done/jcp001-*.
   register('compact strategy alwaysThrows (PJS003 / RJ003) with NO JCP001 for a function tuple slot', async () => {
     const sources = {
-      'compact-fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
-export const _e = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'compact'});
-export const _d = createJsonDecoder<[number, () => void]>(undefined, {strategy: 'compact'});
+      'compact-fn-tuple.ts': `import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
+export const _e = createJsonEncoderFn<[number, () => void]>(undefined, {strategy: 'compact'});
+export const _d = createJsonDecoderFn<[number, () => void]>(undefined, {strategy: 'compact'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -367,9 +367,9 @@ export const _d = createJsonDecoder<[number, () => void]>(undefined, {strategy: 
 
   register('compact strategy alwaysThrows (PJS005 / RJ005) with NO JCP001 for a symbol tuple slot', async () => {
     const sources = {
-      'compact-sym-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
-export const _e = createJsonEncoder<[number, symbol]>(undefined, {strategy: 'compact'});
-export const _d = createJsonDecoder<[number, symbol]>(undefined, {strategy: 'compact'});
+      'compact-sym-tuple.ts': `import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
+export const _e = createJsonEncoderFn<[number, symbol]>(undefined, {strategy: 'compact'});
+export const _d = createJsonDecoderFn<[number, symbol]>(undefined, {strategy: 'compact'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -395,12 +395,12 @@ export const _d = createJsonDecoder<[number, symbol]>(undefined, {strategy: 'com
     // Before the fix the default clone encoder (prepareForJsonSafe) FAILED these
     // outright, and the other families emitted an Error — F3.
     const sources = {
-      'stripped-prop.ts': `import {createValidate, createJsonEncoder} from '@ts-runtypes/core';
+      'stripped-prop.ts': `import {createValidateFn, createJsonEncoderFn} from '@ts-runtypes/core';
 interface S { a: symbol; b: number; }
 interface P { a: Promise<number>; b: number; }
-export const _v = createValidate<S>();
-export const _e = createJsonEncoder<S>();
-export const _p = createValidate<P>();
+export const _v = createValidateFn<S>();
+export const _e = createJsonEncoderFn<S>();
+export const _p = createValidateFn<P>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -433,9 +433,9 @@ export const _p = createValidate<P>();
     // it cannot be safely dropped: the family throws at build time with a root
     // error, and the …015 drop Warning must NOT fire.
     const sources = {
-      'structural-prop.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
+      'structural-prop.ts': `import {createJsonEncoderFn} from '@ts-runtypes/core';
 interface S { a: symbol[]; b: number; }
-export const _e = createJsonEncoder<S>(undefined, {strategy: 'mutate'});
+export const _e = createJsonEncoderFn<S>(undefined, {strategy: 'mutate'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -463,16 +463,16 @@ export const _e = createJsonEncoder<S>(undefined, {strategy: 'mutate'});
   // a one-shot ResolverClient with the production default and pins the
   // smaller emit shape.
   register('default emit (no inline createRTFn) trims the default tail and omits g_<hash>(utl)', async () => {
-    // `it` is demand-driven, so seed it via createValidate<User>() — a
+    // `it` is demand-driven, so seed it via createValidateFn<User>() — a
     // reflection-only getRunTypeId would emit no val_ entries to inspect.
     const sources = {
-      'mini.ts': `import {createValidate} from '@ts-runtypes/core';
+      'mini.ts': `import {createValidateFn} from '@ts-runtypes/core';
 interface User { name: string; age: number; tags: string[]; }
-export const _ = createValidate<User>();
+export const _ = createValidateFn<User>();
 `,
     };
     // Slice 4: the validate family prefix is the opaque fnHash the scanner
-    // injected into the createValidate site's `fnId`, not the readable `it`
+    // injected into the createValidateFn site's `fnId`, not the readable `it`
     // tag. Captured from the first scan so both the inline-factory and the
     // one-shot init-line assertions stay correct across version-isolated hashes.
     let itPrefix = '';
@@ -482,7 +482,7 @@ export const _ = createValidate<User>();
       });
       const inlineOnBody = Object.values(inlineOn.entryModules ?? {}).join('\n');
       const itSite = inlineOn.sites.find((s) => s.fnId);
-      if (!itSite?.fnId) throw new Error('expected a createValidate site with an injected fnId');
+      if (!itSite?.fnId) throw new Error('expected a createValidateFn site with an injected fnId');
       itPrefix = itSite.fnId;
       // The default shared client runs with emitMode 'both' so we get the
       // inline factory here as a baseline.

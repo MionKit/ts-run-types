@@ -329,7 +329,7 @@ export const x = registerPureFnFactory('rt::rounder', function () {
   // clients per mode to prove purefunctions.CollectEntries gates the pure-fn
   // tuple's `code` and `createPureFn` slots end to end through the real binary
   // — for BOTH a user pure fn (registerPureFnFactory) and a table-served
-  // built-in (rt::findCycle, demanded by a circular createValidate).
+  // built-in (rt::findCycle, demanded by a circular createValidateFn).
   async function withEmitMode<T>(
     emitMode: 'code' | 'functions' | 'both',
     sources: Record<string, string>,
@@ -357,9 +357,9 @@ export const a = registerPureFnFactory('app::answer', function () {
   // CollectEntries gating path as a user pure fn. A plain (unarmed) cyclable
   // validate ships no walker at all (the compile-time-option model).
   const CIRCULAR_VALIDATE = {
-    'circ.ts': `import {createValidate} from '@ts-runtypes/core';
+    'circ.ts': `import {createValidateFn} from '@ts-runtypes/core';
 interface Node { next?: Node; val: number; }
-export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
+export const isNode = createValidateFn<Node>(undefined, {rejectCircularRefs: true});
 `,
   };
 

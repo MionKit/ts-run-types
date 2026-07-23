@@ -92,7 +92,7 @@ const decls = (locals) => (locals.length ? locals.join('\n') + '\n' : '');
 // ── whole-suite probe: every supported call site in one file ─────────────────
 function buildProbeSource(model, keys) {
   const callOf = (typeText) =>
-    COMPETITOR === 'typia' ? `typia.createIs<${typeText}>()` : `createValidate<${typeText}>()`;
+    COMPETITOR === 'typia' ? `typia.createIs<${typeText}>()` : `createValidateFn<${typeText}>()`;
   const blocks = keys.map((key, i) => {
     const e = model.entries[key];
     return `{\n${decls(e.locals)}const __v${i} = ${callOf(e.typeText)};\nvoid __v${i};\n}`;
@@ -163,7 +163,7 @@ function cleanup() {
 }
 
 async function main() {
-  const callName = COMPETITOR === 'typia' ? 'typia.createIs' : 'createValidate';
+  const callName = COMPETITOR === 'typia' ? 'typia.createIs' : 'createValidateFn';
   const model = extractTypeForm(path.join(COMPETITOR_DIR, 'cases.ts'), 'cases', callName);
   const keys = model.keys.filter((k) => model.entries[k]);
   if (!keys.length) {

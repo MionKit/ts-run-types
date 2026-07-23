@@ -68,7 +68,7 @@
   So `{...importedFragment}` resolves.
 - **Net asymmetry:** `object({...importedBase, x: string()})` works, but
   `object({field: importedFieldConst})` and
-  `createValidate(undefined, importedOptsConst)` do NOT (CTA001). The
+  `createValidateFn(undefined, importedOptsConst)` do NOT (CTA001). The
   split-and-merge story is cross-module; the whole-const story is not.
 - **`PureFunction` / `registerPureFnFactory`** (`CheckLiteralFunction`,
   [comptimeargs.go](../../internal/compiler/comptimeargs/comptimeargs.go)):
@@ -86,24 +86,24 @@ the other module. Cover, at minimum:
 
 - **`InjectRunTypeId<T>` reflection** — `getRunTypeId<ImportedType>()` and the
   reflection form `getRunTypeId(valueOfImportedType)`; `getRunType` likewise;
-  `createMockData<ImportedType>()`. (Marker-coverage rule: BOTH `getRunTypeId`
+  `createMockDataFn<ImportedType>()`. (Marker-coverage rule: BOTH `getRunTypeId`
   call shapes, with a hash-equivalence assertion.)
-- **Value-first builders with imported children** — `createValidate(ImportedSchema)`
+- **Value-first builders with imported children** — `createValidateFn(ImportedSchema)`
   where `ImportedSchema = object({...})` lives in the library module; nested
   `object({inner: ImportedSchema})`; `array(ImportedSchema)`. This is the
   asymmetry above: decide (Decision 1) whether an imported builder-child const
   should resolve cross-module like a spread fragment, then pin the chosen
   behavior.
 - **`InjectTypeFnArgs<T, Fn>` for the full `createX` surface** with an imported
-  `T`: `createValidate` / `createGetValidationErrors`, the unknown-keys group
-  (`createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors`
-  / `createUnknownKeysToUndefined`), `createFormatTransform`,
-  `createJsonEncoder` / `createJsonDecoder`, `createBinaryEncoder` /
-  `createBinaryDecoder`, `createStandardSchema`. Assert each produces a working
+  `T`: `createValidateFn` / `createGetValidationErrorsFn`, the unknown-keys group
+  (`createHasUnknownKeysFn` / `createStripUnknownKeys` / `createUnknownKeyErrorsFn`
+  / `createUnknownKeysToUndefined`), `createFormatTransformFn`,
+  `createJsonEncoderFn` / `createJsonDecoderFn`, `createBinaryEncoderFn` /
+  `createBinaryDecoderFn`, `createStandardSchema`. Assert each produces a working
   fn over imported-typed data (round-trip where applicable).
-- **`CompTimeFnArgs` option presets** — `createValidate(undefined, {...importedPreset})`
+- **`CompTimeFnArgs` option presets** — `createValidateFn(undefined, {...importedPreset})`
   (cross-module spread, should work today) AND
-  `createValidate(undefined, importedPreset)` (whole imported const — rejected
+  `createValidateFn(undefined, importedPreset)` (whole imported const — rejected
   today; Decision 1). Assert the spread-merged variant equals the inlined one
   (fnId convergence), and that the resolved variant is correct.
 - **`CompTimeArgs` spread fragments** — `object({...importedBase, …})`,

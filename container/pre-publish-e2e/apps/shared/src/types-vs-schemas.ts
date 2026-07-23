@@ -2,7 +2,7 @@
 // A plain type and the value-first RT.* schema builder resolve to the SAME
 // validator, and InferType<typeof schema> recovers the TypeScript type.
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type InferType} from '@ts-runtypes/core';
+import {createValidateFn, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {type CheckResult, ok} from './check';
 
@@ -13,7 +13,7 @@ export interface Product {
   tags: string[];
   status: 'draft' | 'live';
 }
-export const isProductTypeFirst = createValidate<Product>();
+export const isProductTypeFirst = createValidateFn<Product>();
 
 // Value-first — the same shape as an RT.* schema value.
 export const productSchema = RT.object({
@@ -22,7 +22,7 @@ export const productSchema = RT.object({
   tags: RT.array(TF.string()),
   status: RT.union([RT.literal('draft'), RT.literal('live')]),
 });
-export const isProductSchemaFirst = createValidate(productSchema);
+export const isProductSchemaFirst = createValidateFn(productSchema);
 
 // InferType maps the schema value back to a usable TypeScript type.
 export type ProductFromSchema = InferType<typeof productSchema>;

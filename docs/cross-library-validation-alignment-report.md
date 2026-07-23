@@ -23,7 +23,7 @@ design, and both hide real divergences:
 2. A competitor may declare a case `NOT_SUPPORTED`, opting out entirely.
 
 The audit looks behind both. For each competitor it runs the real validator
-(`createValidate` for RunTypes, `.Check` for TypeBox, the compiled `validate`
+(`createValidateFn` for RunTypes, `.Check` for TypeBox, the compiled `validate`
 for ajv, `safeParse` for zod, the generated check for typia) against the SHARED
 samples, never the competitor's own override, and records every individual sample
 where the answer differs from the shared truth. Each record is one row:

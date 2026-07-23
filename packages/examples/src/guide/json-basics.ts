@@ -1,4 +1,4 @@
-import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
 
 // A type with members JSON.stringify quietly mangles: a Date and a Map.
 type Session = {
@@ -14,8 +14,8 @@ const session: Session = {
 };
 
 // start-roundtrip
-const encode = createJsonEncoder<Session>();
-const decode = createJsonDecoder<Session>();
+const encode = createJsonEncoderFn<Session>();
+const decode = createJsonDecoderFn<Session>();
 
 const wire = encode(session)!; // a JSON string — Date and Map survive
 const back = decode(wire); // Date is a Date again, Map is a Map again

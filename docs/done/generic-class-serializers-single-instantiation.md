@@ -4,7 +4,7 @@
 
 mion's wire error type is a generic class (`RpcError<ErrType extends string, ErrData>`),
 registered once as `registerClassSerializer<RpcError<string>>(RpcError, {...})`. Only that
-exact instantiation reconstructed; `createJsonDecoder<RpcError<'other', {n: number}>>()`
+exact instantiation reconstructed; `createJsonDecoderFn<RpcError<'other', {n: number}>>()`
 decoded to a PLAIN OBJECT (structural fallback) because:
 
 1. the registry was keyed by the registration site's injected instantiation TYPE ID, and

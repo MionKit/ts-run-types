@@ -12,7 +12,7 @@
 ## Why not
 
 1. **Protobuf only pays off for interop with systems that are not ours.** When both
-   ends are our paired `createBinaryEncoder<T>` / `createBinaryDecoder<T>`, the wire
+   ends are our paired `createBinaryEncoderFn<T>` / `createBinaryDecoderFn<T>`, the wire
    format is a private implementation detail; protobuf's per-field tags, length
    prefixes, and tag-dispatch decode loop are pure overhead with no benefit.
 2. **That audience barely exists for a TS-first server.** Protobuf in JS shows up

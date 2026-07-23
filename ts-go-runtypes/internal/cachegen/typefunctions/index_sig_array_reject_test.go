@@ -14,7 +14,7 @@ import (
 // (`!Array.isArray(v) && Object.prototype.toString.call(v) === '[object
 // Object]'`), but `validationErrors` did not — so `validate([])` returned false
 // while `getValidationErrors([])` returned zero errors, breaking the
-// createValidate/createGetValidationErrors agreement invariant (fuzz oracle O4).
+// createValidateFn/createGetValidationErrorsFn agreement invariant (fuzz oracle O4).
 //
 // The root cause: emitObjectValidationErrors tracked `allOptional` +
 // `hasContributingChild` but NOT `hasIndexSig`, so the guard was skipped for a

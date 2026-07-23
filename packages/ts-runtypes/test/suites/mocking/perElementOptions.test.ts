@@ -2,7 +2,7 @@
 // `paramsOptions` is its alias. A function's `Parameters<typeof fn>` reflects as
 // a tuple, so the same per-element indexing covers both a plain tuple and a
 // function's argument tuple. Driven low-level over a hand-built tuple runtype
-// (createMockData needs a plugin-injected id; the walker takes a RunType
+// (createMockDataFn needs a plugin-injected id; the walker takes a RunType
 // directly), mirroring mockData.test.ts.
 
 import {describe, it, expect} from 'vitest';

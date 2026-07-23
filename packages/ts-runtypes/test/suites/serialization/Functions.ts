@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
+import {createBinaryDecoderFn, createBinaryEncoderFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import type {SerializationCase} from './types.ts';
 
@@ -16,61 +16,61 @@ export const FUNCTIONS = {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createJsonDecoder<Parameters<typeof fnNoOptional>>();
+      return createJsonDecoderFn<Parameters<typeof fnNoOptional>>();
     },
     preserveDecoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createJsonDecoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createJsonDecoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createBinaryEncoder<Parameters<typeof fnNoOptional>>();
+      return createBinaryEncoderFn<Parameters<typeof fnNoOptional>>();
     },
     binaryDecoder: () => {
       function fnNoOptional(a: number, b: boolean, c: string): Date {
         return new Date(a);
       }
-      return createBinaryDecoder<Parameters<typeof fnNoOptional>>();
+      return createBinaryDecoderFn<Parameters<typeof fnNoOptional>>();
     },
     // Parameters tuple [number, boolean, string].
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number(), RT.boolean(), TF.string()])),
     getTestData: () => ({
       values: [
         [3, true, 'hello'],
@@ -90,7 +90,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -98,7 +98,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -106,7 +106,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -114,7 +114,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -122,7 +122,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<Parameters<typeof fnOptionalParams>>();
+      return createJsonDecoderFn<Parameters<typeof fnOptionalParams>>();
     },
     preserveDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -130,7 +130,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -138,7 +138,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -146,7 +146,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createBinaryEncoder<Parameters<typeof fnOptionalParams>>();
+      return createBinaryEncoderFn<Parameters<typeof fnOptionalParams>>();
     },
     binaryDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -154,13 +154,13 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createBinaryDecoder<Parameters<typeof fnOptionalParams>>();
+      return createBinaryDecoderFn<Parameters<typeof fnOptionalParams>>();
     },
     // Parameters tuple [Date, boolean?] — trailing optional slot.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.date()], [RT.boolean()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.date()], [RT.boolean()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.date()], [RT.boolean()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.date()], [RT.boolean()])),
     getTestData: () => {
       const d = new Date('2000-08-06T02:13:00.000Z');
       return {values: [[d, true], [d]]};
@@ -177,7 +177,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -186,7 +186,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -195,7 +195,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -204,7 +204,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -213,7 +213,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonDecoder<ReturnType<typeof fnOptionalParam>>();
+      return createJsonDecoderFn<ReturnType<typeof fnOptionalParam>>();
     },
     preserveDecoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -222,7 +222,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonDecoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -231,7 +231,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonDecoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -240,7 +240,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createBinaryEncoder<ReturnType<typeof fnOptionalParam>>();
+      return createBinaryEncoderFn<ReturnType<typeof fnOptionalParam>>();
     },
     binaryDecoder: () => {
       function fnOptionalParam(a: number, b: boolean, c?: string): Date {
@@ -249,13 +249,13 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createBinaryDecoder<ReturnType<typeof fnOptionalParam>>();
+      return createBinaryDecoderFn<ReturnType<typeof fnOptionalParam>>();
     },
     // Return type is Date.
-    schemaEncoder: () => createJsonEncoder(TF.date()),
-    schemaDecoder: () => createJsonDecoder(TF.date()),
-    schemaBinaryEncoder: () => createBinaryEncoder(TF.date()),
-    schemaBinaryDecoder: () => createBinaryDecoder(TF.date()),
+    schemaEncoder: () => createJsonEncoderFn(TF.date()),
+    schemaDecoder: () => createJsonDecoderFn(TF.date()),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(TF.date()),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(TF.date()),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
   },
   function_with_rest_parameters: {
@@ -271,7 +271,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Parameters<typeof fnRestParams>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -280,7 +280,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Parameters<typeof fnRestParams>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -289,7 +289,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Parameters<typeof fnRestParams>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -298,7 +298,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Parameters<typeof fnRestParams>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -307,7 +307,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnRestParams>>();
+      return createJsonDecoderFn<Parameters<typeof fnRestParams>>();
     },
     preserveDecoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -316,7 +316,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Parameters<typeof fnRestParams>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -325,7 +325,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Parameters<typeof fnRestParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -334,7 +334,7 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createBinaryEncoder<Parameters<typeof fnRestParams>>();
+      return createBinaryEncoderFn<Parameters<typeof fnRestParams>>();
     },
     binaryDecoder: () => {
       function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -343,13 +343,13 @@ export const FUNCTIONS = {
         void b;
         return new Date(0);
       }
-      return createBinaryDecoder<Parameters<typeof fnRestParams>>();
+      return createBinaryDecoderFn<Parameters<typeof fnRestParams>>();
     },
     // Parameters tuple [number, boolean, ...Date[]] — trailing rest segment.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.boolean()], TF.date())),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number(), RT.boolean()], TF.date())),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number(), RT.boolean()], TF.date())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number(), RT.boolean()], TF.date())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number(), RT.boolean()], TF.date())),
     getTestData: () => ({
       values: [
         [3, true, new Date('2000-08-06T02:13:00.000Z'), new Date('2000-08-06T02:13:00.000Z')],
@@ -368,7 +368,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -376,7 +376,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -384,7 +384,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -392,7 +392,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -400,7 +400,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<Parameters<typeof fnOptionalParams>>();
+      return createJsonDecoderFn<Parameters<typeof fnOptionalParams>>();
     },
     preserveDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -408,7 +408,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -416,7 +416,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -424,7 +424,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createBinaryEncoder<Parameters<typeof fnOptionalParams>>();
+      return createBinaryEncoderFn<Parameters<typeof fnOptionalParams>>();
     },
     binaryDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -432,13 +432,13 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createBinaryDecoder<Parameters<typeof fnOptionalParams>>();
+      return createBinaryDecoderFn<Parameters<typeof fnOptionalParams>>();
     },
     // Parameters tuple [Date, boolean?] — trailing optional slot.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.date()], [RT.boolean()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.date()], [RT.boolean()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.date()], [RT.boolean()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.date()], [RT.boolean()])),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.date()], [RT.boolean()])),
     getTestData: () => {
       const d = new Date('2000-08-06T02:13:00.000Z');
       return {values: [[d, true], [d]]};
@@ -455,7 +455,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -463,7 +463,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -471,7 +471,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -479,7 +479,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -487,7 +487,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<ReturnType<typeof fnOptionalParams>>();
+      return createJsonDecoderFn<ReturnType<typeof fnOptionalParams>>();
     },
     preserveDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -495,7 +495,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -503,7 +503,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createJsonDecoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -511,7 +511,7 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createBinaryEncoder<ReturnType<typeof fnOptionalParams>>();
+      return createBinaryEncoderFn<ReturnType<typeof fnOptionalParams>>();
     },
     binaryDecoder: () => {
       function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -519,13 +519,13 @@ export const FUNCTIONS = {
         void b;
         return 1n;
       }
-      return createBinaryDecoder<ReturnType<typeof fnOptionalParams>>();
+      return createBinaryDecoderFn<ReturnType<typeof fnOptionalParams>>();
     },
     // Return type is bigint.
-    schemaEncoder: () => createJsonEncoder(TF.bigInt()),
-    schemaDecoder: () => createJsonDecoder(TF.bigInt()),
-    schemaBinaryEncoder: () => createBinaryEncoder(TF.bigInt()),
-    schemaBinaryDecoder: () => createBinaryDecoder(TF.bigInt()),
+    schemaEncoder: () => createJsonEncoderFn(TF.bigInt()),
+    schemaDecoder: () => createJsonDecoderFn(TF.bigInt()),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(TF.bigInt()),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(TF.bigInt()),
     getTestData: () => ({values: [1n]}),
   },
   function_with_only_rest_parameters: {
@@ -537,69 +537,69 @@ export const FUNCTIONS = {
         void rest;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>();
+      return createJsonDecoderFn<Parameters<typeof fnOnlyRestParams>>();
     },
     preserveDecoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createBinaryEncoder<Parameters<typeof fnOnlyRestParams>>();
+      return createBinaryEncoderFn<Parameters<typeof fnOnlyRestParams>>();
     },
     binaryDecoder: () => {
       function fnOnlyRestParams(...rest: number[]): Date {
         void rest;
         return new Date(0);
       }
-      return createBinaryDecoder<Parameters<typeof fnOnlyRestParams>>();
+      return createBinaryDecoderFn<Parameters<typeof fnOnlyRestParams>>();
     },
     // Parameters tuple [...number[]] — no fixed slots, rest only.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([], TF.number())),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([], TF.number())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([], TF.number())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([], TF.number())),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([], TF.number())),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([], TF.number())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([], TF.number())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([], TF.number())),
     getTestData: () => ({values: [[3, 2, 1], []]}),
   },
   non_serializable_params: {
@@ -615,7 +615,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -624,7 +624,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -633,7 +633,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -642,7 +642,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -651,7 +651,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnWithCallback>>();
+      return createJsonDecoderFn<Parameters<typeof fnWithCallback>>();
     },
     preserveDecoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -660,7 +660,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -669,7 +669,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createJsonDecoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -678,7 +678,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createBinaryEncoder<Parameters<typeof fnWithCallback>>();
+      return createBinaryEncoderFn<Parameters<typeof fnWithCallback>>();
     },
     binaryDecoder: () => {
       function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -687,7 +687,7 @@ export const FUNCTIONS = {
         void c;
         return new Date(0);
       }
-      return createBinaryDecoder<Parameters<typeof fnWithCallback>>();
+      return createBinaryDecoderFn<Parameters<typeof fnWithCallback>>();
     },
     // Parameters<typeof fnWithCallback> resolves to a tuple ending
     // in `() => null`. Function-typed tuple slots are unsupported in
@@ -713,7 +713,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -722,7 +722,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -731,7 +731,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -740,7 +740,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -749,7 +749,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>();
+      return createJsonDecoderFn<ReturnType<typeof fnReturnsPromise>>();
     },
     preserveDecoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -758,7 +758,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -767,7 +767,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -776,7 +776,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createBinaryEncoder<ReturnType<typeof fnReturnsPromise>>();
+      return createBinaryEncoderFn<ReturnType<typeof fnReturnsPromise>>();
     },
     binaryDecoder: () => {
       function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
@@ -785,7 +785,7 @@ export const FUNCTIONS = {
         void c;
         return Promise.resolve(new Date(0));
       }
-      return createBinaryDecoder<ReturnType<typeof fnReturnsPromise>>();
+      return createBinaryDecoderFn<ReturnType<typeof fnReturnsPromise>>();
     },
     // Promise return type is non-serializable; no value-first builder.
     schemaEncoder: 'not-supported',
@@ -808,7 +808,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -817,7 +817,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -826,7 +826,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -835,7 +835,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -844,7 +844,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>();
+      return createJsonDecoderFn<ReturnType<typeof fnReturnsFunction>>();
     },
     preserveDecoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -853,7 +853,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -862,7 +862,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -871,7 +871,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createBinaryEncoder<ReturnType<typeof fnReturnsFunction>>();
+      return createBinaryEncoderFn<ReturnType<typeof fnReturnsFunction>>();
     },
     binaryDecoder: () => {
       function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
@@ -880,7 +880,7 @@ export const FUNCTIONS = {
         void c;
         return () => new Date(0);
       }
-      return createBinaryDecoder<ReturnType<typeof fnReturnsFunction>>();
+      return createBinaryDecoderFn<ReturnType<typeof fnReturnsFunction>>();
     },
     // Return type is another function — non-serializable; no value-first builder.
     schemaEncoder: 'not-supported',
@@ -894,40 +894,40 @@ export const FUNCTIONS = {
     title: 'Call signature params',
     description:
       'Parameters of a call-signature interface resolve to the fixed-length tuple [number, boolean], and both scalar slots round-trip identically across JSON and binary.',
-    mutateEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(),
-    preserveDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<Parameters<{(a: number, b: boolean): string}>>(),
-    binaryDecoder: () => createBinaryDecoder<Parameters<{(a: number, b: boolean): string}>>(),
+    mutateEncoder: () => createJsonEncoderFn<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<Parameters<{(a: number, b: boolean): string}>>(),
+    preserveDecoder: () => createJsonDecoderFn<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<Parameters<{(a: number, b: boolean): string}>>(),
+    binaryDecoder: () => createBinaryDecoderFn<Parameters<{(a: number, b: boolean): string}>>(),
     // Call-signature parameters tuple [number, boolean].
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.boolean()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.boolean()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.boolean()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.boolean()])),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number(), RT.boolean()])),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number(), RT.boolean()])),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number(), RT.boolean()])),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number(), RT.boolean()])),
     getTestData: () => ({values: [[3, true]]}),
   },
   call_signature_return: {
     title: 'Call signature return',
     description:
       'The return type of a call-signature interface resolves to a root string that round-trips identically across JSON and binary.',
-    mutateEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
-    preserveDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
-    binaryDecoder: () => createBinaryDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
+    mutateEncoder: () => createJsonEncoderFn<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<ReturnType<{(a: number, b: boolean): string}>>(),
+    preserveDecoder: () => createJsonDecoderFn<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<ReturnType<{(a: number, b: boolean): string}>>(),
+    binaryDecoder: () => createBinaryDecoderFn<ReturnType<{(a: number, b: boolean): string}>>(),
     // Call-signature return type is string.
-    schemaEncoder: () => createJsonEncoder(TF.string()),
-    schemaDecoder: () => createJsonDecoder(TF.string()),
-    schemaBinaryEncoder: () => createBinaryEncoder(TF.string()),
-    schemaBinaryDecoder: () => createBinaryDecoder(TF.string()),
+    schemaEncoder: () => createJsonEncoderFn(TF.string()),
+    schemaDecoder: () => createJsonDecoderFn(TF.string()),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(TF.string()),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(TF.string()),
     getTestData: () => ({values: ['result']}),
   },
 } as const satisfies Record<string, SerializationCase>;

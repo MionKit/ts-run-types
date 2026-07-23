@@ -1,15 +1,15 @@
 import {
-  createValidate,
+  createValidateFn,
   overrideValidate,
-  createGetValidationErrors,
+  createGetValidationErrorsFn,
   overrideGetValidationErrors,
-  createJsonEncoder,
+  createJsonEncoderFn,
   overrideJsonEncoder,
-  createJsonDecoder,
+  createJsonDecoderFn,
   overrideJsonDecoder,
-  createBinaryEncoder,
+  createBinaryEncoderFn,
   overrideBinaryEncoder,
-  createBinaryDecoder,
+  createBinaryDecoderFn,
   overrideBinaryDecoder,
 } from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
@@ -33,15 +33,15 @@ overrideBinaryDecoder<AtomicTarget>((ret, Des) => JSON.parse(Des.desString()) as
 
 export const ATOMIC_OVERRIDE: OverrideCase = {
   title: 'Atomic',
-  validate: () => createValidate<AtomicTarget>(),
+  validate: () => createValidateFn<AtomicTarget>(),
   validateSamples: {pass: [42], fail: [7, '42', null]},
-  getValidationErrors: () => createGetValidationErrors<AtomicTarget>(),
+  getValidationErrors: () => createGetValidationErrorsFn<AtomicTarget>(),
   errorsValue: 1,
-  jsonEncoder: () => createJsonEncoder<AtomicTarget>(),
-  jsonDecoder: () => createJsonDecoder<AtomicTarget>(),
+  jsonEncoder: () => createJsonEncoderFn<AtomicTarget>(),
+  jsonDecoder: () => createJsonDecoderFn<AtomicTarget>(),
   jsonValue: 5,
   jsonString: 'OVR5',
-  binaryEncoder: () => createBinaryEncoder<AtomicTarget>(),
-  binaryDecoder: () => createBinaryDecoder<AtomicTarget>(),
+  binaryEncoder: () => createBinaryEncoderFn<AtomicTarget>(),
+  binaryDecoder: () => createBinaryDecoderFn<AtomicTarget>(),
   binaryValue: 3.5,
 };

@@ -9,13 +9,13 @@
 
 import {describe, expect, it} from 'vitest';
 import {
-  createValidate,
-  createGetValidationErrors,
-  createMockData,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
   type BinaryDecoderFn,
 } from '@ts-runtypes/core';
 
@@ -36,7 +36,7 @@ const samples = {
 
 describe('Temporal validate — instanceof', () => {
   it('PlainDate accepts a PlainDate, rejects others', () => {
-    const validate = createValidate<Temporal.PlainDate>();
+    const validate = createValidateFn<Temporal.PlainDate>();
     expect(validate(samples.PlainDate())).toBe(true);
     expect(validate(samples.Instant())).toBe(false);
     expect(validate('2020-08-24')).toBe(false); // a string is not a PlainDate
@@ -44,13 +44,13 @@ describe('Temporal validate — instanceof', () => {
   });
 
   it('Instant accepts an Instant, rejects a ZonedDateTime', () => {
-    const validate = createValidate<Temporal.Instant>();
+    const validate = createValidateFn<Temporal.Instant>();
     expect(validate(samples.Instant())).toBe(true);
     expect(validate(samples.ZonedDateTime())).toBe(false);
   });
 
   it('Duration accepts a Duration', () => {
-    const validate = createValidate<Temporal.Duration>();
+    const validate = createValidateFn<Temporal.Duration>();
     expect(validate(samples.Duration())).toBe(true);
     expect(validate(samples.PlainDate())).toBe(false);
   });
@@ -58,7 +58,7 @@ describe('Temporal validate — instanceof', () => {
 
 describe('Temporal getValidationErrors', () => {
   it('PlainDate — no errors for valid, one error for invalid', () => {
-    const getErrors = createGetValidationErrors<Temporal.PlainDate>();
+    const getErrors = createGetValidationErrorsFn<Temporal.PlainDate>();
     expect(getErrors(samples.PlainDate())).toEqual([]);
     expect(getErrors('nope').length).toBe(1);
   });
@@ -80,50 +80,50 @@ describe('Temporal JSON round-trip (encode → decode → equals)', () => {
 
   it('Instant', () =>
     jrt(
-      createJsonEncoder<Temporal.Instant>()(samples.Instant() as never),
-      createJsonDecoder<Temporal.Instant>(),
+      createJsonEncoderFn<Temporal.Instant>()(samples.Instant() as never),
+      createJsonDecoderFn<Temporal.Instant>(),
       samples.Instant()
     ));
   it('ZonedDateTime', () =>
     jrt(
-      createJsonEncoder<Temporal.ZonedDateTime>()(samples.ZonedDateTime() as never),
-      createJsonDecoder<Temporal.ZonedDateTime>(),
+      createJsonEncoderFn<Temporal.ZonedDateTime>()(samples.ZonedDateTime() as never),
+      createJsonDecoderFn<Temporal.ZonedDateTime>(),
       samples.ZonedDateTime()
     ));
   it('PlainDate', () =>
     jrt(
-      createJsonEncoder<Temporal.PlainDate>()(samples.PlainDate() as never),
-      createJsonDecoder<Temporal.PlainDate>(),
+      createJsonEncoderFn<Temporal.PlainDate>()(samples.PlainDate() as never),
+      createJsonDecoderFn<Temporal.PlainDate>(),
       samples.PlainDate()
     ));
   it('PlainTime', () =>
     jrt(
-      createJsonEncoder<Temporal.PlainTime>()(samples.PlainTime() as never),
-      createJsonDecoder<Temporal.PlainTime>(),
+      createJsonEncoderFn<Temporal.PlainTime>()(samples.PlainTime() as never),
+      createJsonDecoderFn<Temporal.PlainTime>(),
       samples.PlainTime()
     ));
   it('PlainDateTime', () =>
     jrt(
-      createJsonEncoder<Temporal.PlainDateTime>()(samples.PlainDateTime() as never),
-      createJsonDecoder<Temporal.PlainDateTime>(),
+      createJsonEncoderFn<Temporal.PlainDateTime>()(samples.PlainDateTime() as never),
+      createJsonDecoderFn<Temporal.PlainDateTime>(),
       samples.PlainDateTime()
     ));
   it('PlainYearMonth', () =>
     jrt(
-      createJsonEncoder<Temporal.PlainYearMonth>()(samples.PlainYearMonth() as never),
-      createJsonDecoder<Temporal.PlainYearMonth>(),
+      createJsonEncoderFn<Temporal.PlainYearMonth>()(samples.PlainYearMonth() as never),
+      createJsonDecoderFn<Temporal.PlainYearMonth>(),
       samples.PlainYearMonth()
     ));
   it('PlainMonthDay', () =>
     jrt(
-      createJsonEncoder<Temporal.PlainMonthDay>()(samples.PlainMonthDay() as never),
-      createJsonDecoder<Temporal.PlainMonthDay>(),
+      createJsonEncoderFn<Temporal.PlainMonthDay>()(samples.PlainMonthDay() as never),
+      createJsonDecoderFn<Temporal.PlainMonthDay>(),
       samples.PlainMonthDay()
     ));
   it('Duration', () =>
     jrt(
-      createJsonEncoder<Temporal.Duration>()(samples.Duration() as never),
-      createJsonDecoder<Temporal.Duration>(),
+      createJsonEncoderFn<Temporal.Duration>()(samples.Duration() as never),
+      createJsonDecoderFn<Temporal.Duration>(),
       samples.Duration()
     ));
 });
@@ -134,26 +134,26 @@ describe('Temporal binary round-trip', () => {
 
   it('Instant', () =>
     brt(
-      createBinaryEncoder<Temporal.Instant>()(samples.Instant() as never),
-      createBinaryDecoder<Temporal.Instant>(),
+      createBinaryEncoderFn<Temporal.Instant>()(samples.Instant() as never),
+      createBinaryDecoderFn<Temporal.Instant>(),
       samples.Instant()
     ));
   it('PlainDate', () =>
     brt(
-      createBinaryEncoder<Temporal.PlainDate>()(samples.PlainDate() as never),
-      createBinaryDecoder<Temporal.PlainDate>(),
+      createBinaryEncoderFn<Temporal.PlainDate>()(samples.PlainDate() as never),
+      createBinaryDecoderFn<Temporal.PlainDate>(),
       samples.PlainDate()
     ));
   it('PlainDateTime', () =>
     brt(
-      createBinaryEncoder<Temporal.PlainDateTime>()(samples.PlainDateTime() as never),
-      createBinaryDecoder<Temporal.PlainDateTime>(),
+      createBinaryEncoderFn<Temporal.PlainDateTime>()(samples.PlainDateTime() as never),
+      createBinaryDecoderFn<Temporal.PlainDateTime>(),
       samples.PlainDateTime()
     ));
   it('Duration', () =>
     brt(
-      createBinaryEncoder<Temporal.Duration>()(samples.Duration() as never),
-      createBinaryDecoder<Temporal.Duration>(),
+      createBinaryEncoderFn<Temporal.Duration>()(samples.Duration() as never),
+      createBinaryDecoderFn<Temporal.Duration>(),
       samples.Duration()
     ));
 });
@@ -166,60 +166,62 @@ describe('Temporal binary round-trip', () => {
 describe('Temporal binary round-trip — numeric precision & calendar fallback', () => {
   it('Instant — nanosecond precision survives', () => {
     const v = T.Instant.fromEpochNanoseconds(1_579_084_200_123_456_789n);
-    const decoded = createBinaryDecoder<Temporal.Instant>()(createBinaryEncoder<Temporal.Instant>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.Instant>()(createBinaryEncoderFn<Temporal.Instant>()(v as never));
     // epochNanoseconds is authoritative (some polyfill equals() are flaky on
     // reconstructed instances).
     expect(decoded.epochNanoseconds).toBe(v.epochNanoseconds);
   });
   it('Instant — pre-epoch (negative, sub-second) survives', () => {
     const v = T.Instant.fromEpochNanoseconds(-6_857_222_999_999_999n);
-    const decoded = createBinaryDecoder<Temporal.Instant>()(createBinaryEncoder<Temporal.Instant>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.Instant>()(createBinaryEncoderFn<Temporal.Instant>()(v as never));
     expect(decoded.epochNanoseconds).toBe(v.epochNanoseconds);
   });
   it('Instant — epoch zero survives', () => {
     const v = T.Instant.fromEpochNanoseconds(0n);
-    const decoded = createBinaryDecoder<Temporal.Instant>()(createBinaryEncoder<Temporal.Instant>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.Instant>()(createBinaryEncoderFn<Temporal.Instant>()(v as never));
     expect(decoded.epochNanoseconds).toBe(v.epochNanoseconds);
   });
 
   it('PlainTime — full nanosecond precision', () => {
     const v = T.PlainTime.from('23:59:59.999999999');
-    const decoded = createBinaryDecoder<Temporal.PlainTime>()(createBinaryEncoder<Temporal.PlainTime>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.PlainTime>()(createBinaryEncoderFn<Temporal.PlainTime>()(v as never));
     expect(decoded.toString()).toBe(v.toString());
   });
   it('PlainTime — midnight', () => {
     const v = T.PlainTime.from('00:00:00');
-    const decoded = createBinaryDecoder<Temporal.PlainTime>()(createBinaryEncoder<Temporal.PlainTime>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.PlainTime>()(createBinaryEncoderFn<Temporal.PlainTime>()(v as never));
     expect(decoded.toString()).toBe(v.toString());
   });
 
   it('PlainDate — far-past ISO year', () => {
     const v = T.PlainDate.from('-001000-06-15');
-    const decoded = createBinaryDecoder<Temporal.PlainDate>()(createBinaryEncoder<Temporal.PlainDate>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.PlainDate>()(createBinaryEncoderFn<Temporal.PlainDate>()(v as never));
     expect(decoded.toString()).toBe(v.toString());
   });
   it('PlainDate — non-ISO calendar falls back to string (lossless)', () => {
     const v = T.PlainDate.from('2024-03-20[u-ca=hebrew]');
-    const decoded = createBinaryDecoder<Temporal.PlainDate>()(createBinaryEncoder<Temporal.PlainDate>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.PlainDate>()(createBinaryEncoderFn<Temporal.PlainDate>()(v as never));
     expect(decoded.calendarId).toBe('hebrew');
     expect(decoded.toString()).toBe(v.toString());
   });
 
   it('PlainDateTime — nanosecond precision (ISO)', () => {
     const v = T.PlainDateTime.from('2020-01-15T10:30:00.123456789');
-    const decoded = createBinaryDecoder<Temporal.PlainDateTime>()(createBinaryEncoder<Temporal.PlainDateTime>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.PlainDateTime>()(createBinaryEncoderFn<Temporal.PlainDateTime>()(v as never));
     expect(decoded.toString()).toBe(v.toString());
   });
   it('PlainDateTime — non-ISO calendar falls back to string', () => {
     const v = T.PlainDateTime.from('2024-03-20T08:15:30[u-ca=hebrew]');
-    const decoded = createBinaryDecoder<Temporal.PlainDateTime>()(createBinaryEncoder<Temporal.PlainDateTime>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.PlainDateTime>()(createBinaryEncoderFn<Temporal.PlainDateTime>()(v as never));
     expect(decoded.calendarId).toBe('hebrew');
     expect(decoded.toString()).toBe(v.toString());
   });
 
   it('PlainYearMonth — ISO round-trips', () => {
     const v = T.PlainYearMonth.from('2020-07');
-    const decoded = createBinaryDecoder<Temporal.PlainYearMonth>()(createBinaryEncoder<Temporal.PlainYearMonth>()(v as never));
+    const decoded = createBinaryDecoderFn<Temporal.PlainYearMonth>()(
+      createBinaryEncoderFn<Temporal.PlainYearMonth>()(v as never)
+    );
     expect(decoded.toString()).toBe(v.toString());
   });
 });
@@ -227,23 +229,23 @@ describe('Temporal binary round-trip — numeric precision & calendar fallback',
 describe('Temporal mock — every generated value passes validate', () => {
   const ITER = 30;
   it('PlainDate', () => {
-    const validate = createValidate<Temporal.PlainDate>();
-    const mock = createMockData<Temporal.PlainDate>();
+    const validate = createValidateFn<Temporal.PlainDate>();
+    const mock = createMockDataFn<Temporal.PlainDate>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('Instant', () => {
-    const validate = createValidate<Temporal.Instant>();
-    const mock = createMockData<Temporal.Instant>();
+    const validate = createValidateFn<Temporal.Instant>();
+    const mock = createMockDataFn<Temporal.Instant>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('Duration', () => {
-    const validate = createValidate<Temporal.Duration>();
-    const mock = createMockData<Temporal.Duration>();
+    const validate = createValidateFn<Temporal.Duration>();
+    const mock = createMockDataFn<Temporal.Duration>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('ZonedDateTime', () => {
-    const validate = createValidate<Temporal.ZonedDateTime>();
-    const mock = createMockData<Temporal.ZonedDateTime>();
+    const validate = createValidateFn<Temporal.ZonedDateTime>();
+    const mock = createMockDataFn<Temporal.ZonedDateTime>();
     for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
 });

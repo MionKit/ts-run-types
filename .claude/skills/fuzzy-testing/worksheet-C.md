@@ -25,7 +25,7 @@ Two of the three are free. Only the check needs real thought (below).
 - Don't invent an input space. Widen the one the test already uses: find what the author
   froze (a value, a length, a field set, an order) and let it vary.
 - If the test has a `valid[]` and an `invalid[]` list, point it out to the user: that
-  split names your **two input makers**, `createMockData<T>()` for the valid side and
+  split names your **two input makers**, `createMockDataFn<T>()` for the valid side and
   `mutateToInvalid(schema, mock)` for the invalid side.
 - A **table-driven** test: each row is a hand-found example; the row dimension is your
   input maker.
@@ -37,7 +37,7 @@ move by the shape of the check:
 
 | The example checks…                                       | Grow it into…                                                                                 |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| a **relation** already (do-it-then-undo-it / do-it-twice) | the same relation over an input maker, _trivial_ (swap the literal for `createMockData<T>()`) |
+| a **relation** already (do-it-then-undo-it / do-it-twice) | the same relation over an input maker, _trivial_ (swap the literal for `createMockDataFn<T>()`) |
 | **true/false** on a hand-picked good/bad value            | two input makers + the rule that ties the code's outputs together                             |
 | a **constant you can recompute** (`toBe(5)`)              | compare against a trusted source, or the predicted-change relation it's an instance of        |
 | a **hardcoded "this once broke"** case                    | make random inputs **around** that hazard                                                     |

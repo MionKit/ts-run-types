@@ -6,7 +6,7 @@ HARDENED (a TS-validity gate + valid-type generation — see "Fuzz-lane hardenin
 below). Re-enabling callable-interface fuzz GENERATION stays a follow-up (the
 `calls` plumbing is kept), but the pre-existing serialization bugs the soak
 surfaced are now fixed. Originally four findings from the DataOnly non-data fuzz
-lane (the `createMockData`-driven, real-pipeline lane in
+lane (the `createMockDataFn`-driven, real-pipeline lane in
 [`nonDataTypeFuzz.integration.test.ts`](../../packages/ts-runtypes/test/fuzz/nonDataTypeFuzz.integration.test.ts));
 broader multi-seed soaking then surfaced G5 / G6 (clean union shapes unrelated to
 the stripped-member work) which are fixed too.
@@ -33,7 +33,7 @@ Every original finding replays from the listed seed via the soak:
 FUZZ_NONDATA_SOAK_MS=45000 FUZZ_SEED=20260620 pnpm exec vitest run nonDataTypeFuzz
 ```
 
-The lane routes a REAL value (from `createMockData`, `nonDataTypes:true`) through
+The lane routes a REAL value (from `createMockDataFn`, `nonDataTypes:true`) through
 the real validators and serializers, then checks metamorphic properties
 (JSON/binary wire-stability, cross-wire agreement, family agreement). That is why
 it reaches shapes the older shape-value lane never built. The committed lane (seed
@@ -67,7 +67,7 @@ could actually occur):
   shape-lane value (`shapeValue.ts`) keys each index entry by the declared kind
   (numeric for a number key, dropped for a symbol key) so the value conforms — a
   non-numeric key under a number index is corrupted by the binary number-index
-  codec. `createMockData` already keys on the resolved index kind. Any residual
+  codec. `createMockDataFn` already keys on the resolved index kind. Any residual
   invalid combo (e.g. a numeric weird-key prop under a number-only key, ~9% of
   generated types) is dropped by the gate above.
 
@@ -90,9 +90,9 @@ and remains a real finding to triage.
 
 A real binary-serializer correctness bug, independent of non-data types. When an
 object type carries BOTH an index signature AND explicitly named properties,
-`createBinaryEncoder` applies the index-signature VALUE encoder to the named
+`createBinaryEncoderFn` applies the index-signature VALUE encoder to the named
 properties as well, instead of encoding each named property with its own type.
-`createJsonEncoder` handles the same value correctly, so the two wires disagree
+`createJsonEncoderFn` handles the same value correctly, so the two wires disagree
 and the lane's cross-wire / family-agreement rule flags it.
 
 ### Repro

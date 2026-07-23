@@ -33,9 +33,9 @@ import (
 // createX<T>() call site demands its family so the resolver renders a real live
 // body for it.
 const tripwireCorpus = `import {
-  createValidate, createGetValidationErrors, createHasUnknownKeys,
-  createCloneExactShape, createUnknownKeyErrors, createFormatTransform,
-  createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder,
+  createValidateFn, createGetValidationErrorsFn, createHasUnknownKeysFn,
+  createCloneExactShapeFn, createUnknownKeyErrorsFn, createFormatTransformFn,
+  createJsonEncoderFn, createJsonDecoderFn, createBinaryEncoderFn, createBinaryDecoderFn,
 } from '@ts-runtypes/core';
 type TypeFormat<Base, Name extends string, Params> = Base & {
   readonly __rtFormatName?: Name;
@@ -44,20 +44,20 @@ type TypeFormat<Base, Name extends string, Params> = Base & {
 type Obj = {a: string; b: number; c?: boolean};
 type Nested = {inner: Obj; tags: string[]};
 type WithFmt = {id: TypeFormat<string, 'uuid', {version: '4'}>; note: string};
-export const v = createValidate<Obj>();
-export const vf = createValidate<WithFmt>();
-export const vn = createValidate<Nested>();
-export const e = createGetValidationErrors<Obj>();
-export const ef = createGetValidationErrors<WithFmt>();
-export const en = createGetValidationErrors<Nested>();
-export const h = createHasUnknownKeys<Obj>();
-export const cl = createCloneExactShape<Obj>();
-export const uke = createUnknownKeyErrors<Obj>();
-export const ft = createFormatTransform<WithFmt>();
-export const je = createJsonEncoder<WithFmt>();
-export const jd = createJsonDecoder<WithFmt>();
-export const be = createBinaryEncoder<WithFmt>();
-export const bd = createBinaryDecoder<WithFmt>();
+export const v = createValidateFn<Obj>();
+export const vf = createValidateFn<WithFmt>();
+export const vn = createValidateFn<Nested>();
+export const e = createGetValidationErrorsFn<Obj>();
+export const ef = createGetValidationErrorsFn<WithFmt>();
+export const en = createGetValidationErrorsFn<Nested>();
+export const h = createHasUnknownKeysFn<Obj>();
+export const cl = createCloneExactShapeFn<Obj>();
+export const uke = createUnknownKeyErrorsFn<Obj>();
+export const ft = createFormatTransformFn<WithFmt>();
+export const je = createJsonEncoderFn<WithFmt>();
+export const jd = createJsonDecoderFn<WithFmt>();
+export const be = createBinaryEncoderFn<WithFmt>();
+export const bd = createBinaryDecoderFn<WithFmt>();
 `
 
 // emittedPureFnRe matches a `getPureFn`/`usePureFn` call in an emitted body. The

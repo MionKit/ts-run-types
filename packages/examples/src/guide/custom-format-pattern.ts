@@ -1,5 +1,5 @@
 import type * as TF from '@ts-runtypes/core/formats';
-import {createValidate, registerFormatPattern} from '@ts-runtypes/core';
+import {createValidateFn, registerFormatPattern} from '@ts-runtypes/core';
 
 // Register a reusable string pattern once. `mockSamples` are required —
 // they double as canonical values the mock generator draws from, and each
@@ -16,7 +16,7 @@ type Slug = TF.String<{pattern: typeof slug}>;
 
 type Post = {slug: Slug; title: string};
 
-const isPost = createValidate<Post>();
+const isPost = createValidateFn<Post>();
 isPost({slug: 'my-first-post', title: 'Hi'}); // true
 isPost({slug: 'Not A Slug!', title: 'Hi'}); // false
 

@@ -1,5 +1,5 @@
-// Decoder return-type contract — `createJsonDecoder<T>()` and
-// `createBinaryDecoder<T>()` return the DATA-ONLY PROJECTION `DataOnly<T>`, not
+// Decoder return-type contract — `createJsonDecoderFn<T>()` and
+// `createBinaryDecoderFn<T>()` return the DATA-ONLY PROJECTION `DataOnly<T>`, not
 // the bare `T`. A decoded value is reconstructed from JSON / bytes, so it can
 // only ever hold serialisable data — never the methods / `Promise`s / symbols /
 // non-serialisable built-ins `T` may declare. Annotating the return as
@@ -14,7 +14,7 @@
 // the wiring (overload return = `DataOnly<T>`, identity on clean DTOs).
 
 import {describe, it, expect} from 'vitest';
-import {createJsonDecoder, createBinaryDecoder, type DataOnly} from '@ts-runtypes/core';
+import {createJsonDecoderFn, createBinaryDecoderFn, type DataOnly} from '@ts-runtypes/core';
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Expect<T extends true> = T;
@@ -23,8 +23,8 @@ type Assignable<A, B> = A extends B ? true : false;
 
 // The value a decoder hands back, derived from the REAL factory signature:
 // `createXDecoder<T>()` → `XDecoderFn<DataOnly<T>>` → its call returns `DataOnly<T>`.
-type JsonDecoded<T> = ReturnType<ReturnType<typeof createJsonDecoder<T>>>;
-type BinaryDecoded<T> = ReturnType<ReturnType<typeof createBinaryDecoder<T>>>;
+type JsonDecoded<T> = ReturnType<ReturnType<typeof createJsonDecoderFn<T>>>;
+type BinaryDecoded<T> = ReturnType<ReturnType<typeof createBinaryDecoderFn<T>>>;
 
 // --- Clean DTO: projection is the IDENTITY, so the signature is unchanged. ---
 interface CleanUser {
@@ -75,7 +75,7 @@ type _setBin = Expect<Equal<BinaryDecoded<Set<{id: string; run(): Promise<void>}
 type _wireJson = Expect<Equal<JsonDecoded<WithMethod>, DataOnly<WithMethod>>>;
 type _wireBin = Expect<Equal<BinaryDecoded<Nested>, DataOnly<Nested>>>;
 
-describe('decoder return type — createJsonDecoder/createBinaryDecoder return DataOnly<T>', () => {
+describe('decoder return type — createJsonDecoderFn/createBinaryDecoderFn return DataOnly<T>', () => {
   it('is enforced at type-check time (see the Expect<Equal<…>> aliases above)', () => {
     // The guarantee is purely type-level (enforced by `typecheck:test`); this
     // runtime assertion keeps the file in the normal vitest suite.

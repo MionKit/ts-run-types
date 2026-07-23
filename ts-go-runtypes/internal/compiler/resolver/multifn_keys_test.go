@@ -129,7 +129,7 @@ createFour(s);
 // TestResolver_MultiFn_MionShape pins mion's interim route() marker verbatim:
 // verr + jsonDecoder + jsonEncoder in one marker yields three distinct, ordered
 // fnIds. This is the exact three-family combination mion forwards to
-// createGetValidationErrors / createJsonDecoder / createJsonEncoder, so it must
+// createGetValidationErrorsFn / createJsonDecoderFn / createJsonEncoderFn, so it must
 // keep resolving to three separate handles (a silent regression to fewer would
 // mis-wire mion's routes — see docs/done/mion-adoption.md).
 func TestResolver_MultiFn_MionShape(t *testing.T) {

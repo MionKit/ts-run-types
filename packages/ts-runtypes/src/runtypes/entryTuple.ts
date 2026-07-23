@@ -220,7 +220,7 @@ export interface FnTypeRecord extends Pick<
   code: CompiledFnData['code'] | undefined;
   // `tb` (binary-encoder) entries only: the compile-time cold-start buffer-size
   // estimate (bytes). Trailing slot; absent on every other family. Read by
-  // createBinaryEncoder's `dynamic` strategy to seed the buffer (see
+  // createBinaryEncoderFn's `dynamic` strategy to seed the buffer (see
   // binarySizeEstimateFromTuple).
   binarySizeEstimate?: number;
 }
@@ -422,7 +422,7 @@ export function entryTupleKey(tuple: EntryTuple): string {
 
 /** The compile-time cold-start size estimate (bytes) a `tb` (binary-encoder)
  *  entry tuple carries at its trailing slot, or undefined when absent — every
- *  non-`tb` family, or a build without the estimate. createBinaryEncoder's
+ *  non-`tb` family, or a build without the estimate. createBinaryEncoderFn's
  *  `dynamic` strategy uses it to seed the buffer so a cold encode is sized to
  *  the type instead of the flat `defaultBufferSize` fallback. **/
 export function binarySizeEstimateFromTuple(injected: unknown): number | undefined {

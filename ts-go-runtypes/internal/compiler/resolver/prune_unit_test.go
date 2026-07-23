@@ -81,7 +81,7 @@ func TestPruneUnit_NonTypeFnKindsAreRoots(t *testing.T) {
 }
 
 // TestPruneUnit_DemandedOrphanSurvives — a rewrite-injected binding resolves
-// even when nothing else references it (the createValidate<any> shape).
+// even when nothing else references it (the createValidateFn<any> shape).
 func TestPruneUnit_DemandedOrphanSurvives(t *testing.T) {
 	graph := entrymodules.Graph{}
 	graph.Add(typeFnEntry("demandedNoop", nil, nil))

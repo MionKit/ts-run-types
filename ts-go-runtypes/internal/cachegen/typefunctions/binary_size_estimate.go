@@ -16,7 +16,7 @@ import (
 // budgets that reserve where a value is type-constrained (enum / index-sig keys).
 const maxVarintBytes = 5
 
-// Compile-time buffer-size estimator for createBinaryEncoder. It walks a type
+// Compile-time buffer-size estimator for createBinaryEncoderFn. It walks a type
 // graph and returns an estimated on-wire byte count, baked into the `tb` entry
 // and used at runtime as the `dynamic` strategy's cold-start buffer size (in
 // place of the flat defaultBufferSize fallback) until per-key history warms up.
@@ -39,7 +39,7 @@ const maxVarintBytes = 5
 // types); this cap only backstops the rare un-interned inline subtree.
 const sizeEstimateDepthCap = 8
 
-// binaryToFamilyTag is the family tag of createBinaryEncoder's cache entries —
+// binaryToFamilyTag is the family tag of createBinaryEncoderFn's cache entries —
 // the only family carrying a cold-start size estimate. Mirrors
 // constants.CacheModules["toBinary"].Tag (guarded below).
 const binaryToFamilyTag = "tb"

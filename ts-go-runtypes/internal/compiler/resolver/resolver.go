@@ -101,7 +101,7 @@ type Options struct {
 	// sandboxed iframes, browser CSP without `unsafe-eval`) that disallow
 	// dynamic-code construction yet read `.code`. The vitest configs set
 	// EmitBoth so the suite covers both the inline-factory path (via
-	// createValidate<T>) and the new-Function path (via
+	// createValidateFn<T>) and the new-Function path (via
 	// deserializeValidate<T>) on every case.
 	EmitMode constants.EmitMode
 	// InlineMode selects the child-inlining policy (constants.InlineMode,

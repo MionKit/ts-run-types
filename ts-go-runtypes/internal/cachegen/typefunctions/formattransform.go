@@ -8,7 +8,7 @@ import (
 )
 
 // FormatTransformEmitter implements the `format` rt function — the value-transform
-// family behind createFormatTransform<T>. It walks the type and applies a
+// family behind createFormatTransformFn<T>. It walks the type and applies a
 // format's value mutation wherever a TypeFormat brand specifies one
 // (string transforms like trim / lowercase / uppercase / capitalize;
 // domain / ip / url lowercasing), rebuilding the surrounding value in
@@ -33,7 +33,7 @@ func (FormatTransformEmitter) Args() []ArgSpec {
 
 // Supports is true for (almost) every kind: identity is always a valid
 // transform, so the renderer emits a — usually noop — entry per runtype.
-// That keeps createFormatTransform<T> resolving to a real fn and parent dep-calls
+// That keeps createFormatTransformFn<T> resolving to a real fn and parent dep-calls
 // hitting a live factory, exactly like the JSON-transform families.
 func (FormatTransformEmitter) Supports(rt *protocol.RunType) bool {
 	if rt == nil {

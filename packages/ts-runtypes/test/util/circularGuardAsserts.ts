@@ -21,11 +21,11 @@ type AnyBinaryEncoderFn = (value: unknown) => unknown;
 export interface CircularGuardValidationCase {
   title: string;
   description?: string;
-  /** `createValidate<T>(undefined, {rejectCircularRefs: true})` — STATIC form. */
+  /** `createValidateFn<T>(undefined, {rejectCircularRefs: true})` — STATIC form. */
   validate: () => AnyValidateFn;
   /** Reflect form — `T` inferred from an acyclic annotated value. */
   validateReflect: () => AnyValidateFn;
-  /** `createGetValidationErrors<T>(undefined, {rejectCircularRefs: true})` — STATIC. */
+  /** `createGetValidationErrorsFn<T>(undefined, {rejectCircularRefs: true})` — STATIC. */
   getValidationErrors: () => GetValidationErrorsFn;
   /** Reflect-form companion. */
   getValidationErrorsReflect: () => GetValidationErrorsFn;
@@ -59,9 +59,9 @@ export function assertCircularGetValidationErrors(testCase: CircularGuardValidat
 export interface CircularGuardSerializationCase {
   title: string;
   description?: string;
-  /** `createJsonEncoder<T>(undefined, {rejectCircularRefs: true})`. */
+  /** `createJsonEncoderFn<T>(undefined, {rejectCircularRefs: true})`. */
   jsonEncoder: () => AnyJsonEncoderFn;
-  /** `createBinaryEncoder<T>(undefined, {rejectCircularRefs: true})`. */
+  /** `createBinaryEncoderFn<T>(undefined, {rejectCircularRefs: true})`. */
   binaryEncoder: () => AnyBinaryEncoderFn;
   /** Builds the runtime value under test — cyclic, or an acyclic control. */
   getValue: () => unknown;

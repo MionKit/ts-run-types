@@ -23,12 +23,12 @@ func moduleImporting(modules map[string]string, specifier string) (string, strin
 }
 
 // TestBuiltinDelivery_ValidationErrorsImportsNewRunTypeErr — a
-// createGetValidationErrors body reaches rt::newRunTypeErr; the verr module must
+// createGetValidationErrorsFn body reaches rt::newRunTypeErr; the verr module must
 // import + deps-thunk-bind the served built-in, and the built-in module must be
 // present in the output.
 func TestBuiltinDelivery_ValidationErrorsImportsNewRunTypeErr(t *testing.T) {
-	r := setupInline(t, map[string]string{"a.ts": `import {createGetValidationErrors} from '@ts-runtypes/core';
-export const e = createGetValidationErrors<{a: string; b: number}>();
+	r := setupInline(t, map[string]string{"a.ts": `import {createGetValidationErrorsFn} from '@ts-runtypes/core';
+export const e = createGetValidationErrorsFn<{a: string; b: number}>();
 `})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}, IncludeEntryModules: true})
 	if resp.Error != "" {
@@ -61,12 +61,12 @@ export const e = createGetValidationErrors<{a: string; b: number}>();
 // reaches rtFormats::isUUID; the format built-in must be served from the table
 // the same way, with no diagnostics.
 func TestBuiltinDelivery_FormatValidatorServesRtFormats(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 type TypeFormat<Base, Name extends string, Params> = Base & {
   readonly __rtFormatName?: Name;
   readonly __rtFormatParams?: Params;
 };
-export const v = createValidate<TypeFormat<string, 'uuid', {version: '4'}>>();
+export const v = createValidateFn<TypeFormat<string, 'uuid', {version: '4'}>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}, IncludeEntryModules: true})

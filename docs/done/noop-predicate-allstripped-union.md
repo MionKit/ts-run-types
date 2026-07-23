@@ -30,7 +30,7 @@ Unlike the [pj objectLiteral tripwire](noop-predicate-pj-mismatch.md), this one
 does not fire the renderer tripwire (the tripwire compares the predicate against
 the *inlined* body; the union externalizes its members). Instead the FALSE
 `true` fed the walker's **dispatch gate**, which elides a noop child's dep call
-as empty code. Rendering `createJsonEncoder<{x: ArrayBuffer | SharedArrayBuffer; y: number}>(undefined, {strategy: 'mutate'})`:
+as empty code. Rendering `createJsonEncoderFn<{x: ArrayBuffer | SharedArrayBuffer; y: number}>(undefined, {strategy: 'mutate'})`:
 
 - **Before the fix** — the gate saw `unionJsonNoop = true` and dropped the `v.x`
   transform. The whole encoder then had no live primitive, so the JSON composite

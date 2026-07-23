@@ -54,7 +54,7 @@ export interface PluginOptions {
   emitMode?: 'code' | 'functions' | 'both';
   // Binary `dynamic` cold-start buffer-size estimate knobs. The compiler walks
   // each binary-encoder type at build time and bakes a buffer-size estimate
-  // into the entry; `createBinaryEncoder({sizeStrategy: 'dynamic'})` uses it as
+  // into the entry; `createBinaryEncoderFn({sizeStrategy: 'dynamic'})` uses it as
   // the initial buffer size (instead of a 16 MiB default) until per-key history
   // warms up. All are optional and fold into the disk cache fingerprint.
   //   - sizeBias (0..1, default 0.8): 0 = tightest (more grows), 1 = most generous.

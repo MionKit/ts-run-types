@@ -86,8 +86,8 @@ Keep these stable — they are the boundary between the generator and the UI.
   "title": "…",
   "description": "…",
   "notes": ["…"],
-  "pureType": "createValidate<{a: string}>()",
-  "schema": "createValidate(RT.object({a: RT.string()}))",
+  "pureType": "createValidateFn<{a: string}>()",
+  "schema": "createValidateFn(RT.object({a: RT.string()}))",
   "generated": "function YOw…(v){return (typeof v === 'object' && …)}",
 }
 ```
@@ -125,8 +125,8 @@ Keep these stable — they are the boundary between the generator and the UI.
 `schemaEncoder` body (the `SchemaThunk` variants already existed on every case),
 copies `description` + `serializeNotes`, and dumps the generated JSON-encoder
 modules per case. The website transform maps serialization to
-`pureField: 'cloneEncoder'` (type-first `createJsonEncoder<T>()`) and
-`schemaField: 'schemaEncoder'` (value-first `createJsonEncoder(RT.…)`). Shipped:
+`pureField: 'cloneEncoder'` (type-first `createJsonEncoderFn<T>()`) and
+`schemaField: 'schemaEncoder'` (value-first `createJsonEncoderFn(RT.…)`). Shipped:
 `container/website/public/suite-data/serialization/` — **137 cases, 136 with generated
 code, 125 with a schema body** (12 `'not-supported'` sentinels). The hover panel
 shows the `clone` (default) strategy as the representative; the other strategies

@@ -141,8 +141,8 @@ the runner sees today is one row. Today they're hidden inside `detail` strings
 
 ## Two paths, two functions, two outputs
 
-The user's request is explicit and easy to lose: BOTH `createValidate<T>()` and
-`createGetValidationErrors<T>()` must be audited. They look like the same
+The user's request is explicit and easy to lose: BOTH `createValidateFn<T>()` and
+`createGetValidationErrorsFn<T>()` must be audited. They look like the same
 metric (the runner wraps `getValidationErrors` to a boolean), but they are
 DIFFERENT code paths in every library:
 

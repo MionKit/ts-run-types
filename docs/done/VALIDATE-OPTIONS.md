@@ -2,8 +2,8 @@
 
 > _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `ts-runtypes-devtools`, and `reflectRunTypeId(value)` is now `getRunTypeId(value)`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
 
-> **⚠️ Schema-form options updated.** The schema form is now a `createValidate` /
-> `createGetValidationErrors` **overload** (`createValidate(schema, options)`), not the
+> **⚠️ Schema-form options updated.** The schema form is now a `createValidateFn` /
+> `createGetValidationErrorsFn` **overload** (`createValidateFn(schema, options)`), not the
 > separate `createValidateFor`/`createValidationErrorsFor` functions. Options ride the
 > overload call's OWN options slot (read by `extractValidateOptions` like any
 > marker), so the `schemaFormOptions` builder-fold and the `CompTimeRunType`
@@ -21,7 +21,7 @@ flagged inline under **TO REVISIT**.
 ## Goal
 
 Make the structural type id a pure function of `T` only. Options the
-caller passes to `createValidate<T>(…, options)` (and friends) parameterise
+caller passes to `createValidateFn<T>(…, options)` (and friends) parameterise
 the **generated function**, not the **type**. Idempotency invariants:
 
 - Same `T`, any option combination → same `Site.ID`.
@@ -33,7 +33,7 @@ The first two are now fully enforced. The third is also enforced
 directly: the earlier typeid mismatch (schema vs marker forms hashing
 differently) was fixed **at the source** — the leaf builders no longer
 brand their no-params return — so `createValidateFor(RT.array(RT.string()))`
-and `createValidate<string[]>()` resolve to one id. See
+and `createValidateFn<string[]>()` resolve to one id. See
 [SCHEMA-FORM-TYPEID-CONVERGENCE.md](SCHEMA-FORM-TYPEID-CONVERGENCE.md)
 and §3 below.
 
@@ -68,7 +68,7 @@ was deleted entirely from
 
 **Primary (only) path:** [`scanCall`](../internal/compiler/resolver/scan.go) — the
 InjectRunTypeId-marker walk. `extractValidateOptions` populates
-`Site.Options` for the marker forms (`createValidate<T>(…, options)`).
+`Site.Options` for the marker forms (`createValidateFn<T>(…, options)`).
 
 **Schema forms** (`createValidateFor(schema, options)` /
 `createValidationErrorsFor`) are NOT markers — they read `schema.id` at

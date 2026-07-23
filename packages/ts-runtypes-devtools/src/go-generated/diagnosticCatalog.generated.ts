@@ -21,7 +21,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       '`cloneExactShape` does not support unions with object members — the emitter cannot know which declared shape to rebuild at runtime.',
     severity: 'error',
     detail:
-      'A clone built from the declared shape needs to know WHICH union arm the\nruntime value matches; v1 has no arm discrimination, and silently keeping\nunknown keys would defeat the strip guarantee, so the build fails instead.\n\nWorkarounds: narrow the value to one arm before cloning (one\n`createCloneExactShape<Arm>()` per arm), or restructure the union into a\nsingle object with optional properties.',
+      'A clone built from the declared shape needs to know WHICH union arm the\nruntime value matches; v1 has no arm discrimination, and silently keeping\nunknown keys would defeat the strip guarantee, so the build fails instead.\n\nWorkarounds: narrow the value to one arm before cloning (one\n`createCloneExactShapeFn<Arm>()` per arm), or restructure the union into a\nsingle object with optional properties.',
   },
   CES003: {
     headline: '`cloneExactShape` cannot clone a function-typed value.',
@@ -66,7 +66,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       '`CompTimeArgs<T>` argument must be a literal at the call site, or a `const` whose initializer is itself entirely literal (a same-module or imported `const` both work).',
     severity: 'error',
     detail:
-      "The build resolves the argument before running, so it needs to read its\nvalue from the source. Function-call results, property accesses, ternary\nexpressions, and `let`/`var` bindings can't be evaluated at build time.\nAccepted: an inline literal, or a `const` whose initializer is itself\nfully literal — including a `const` imported from another module. (An\nobject `const` must be `as const` so its members stay literal; see CTA004.)\n\nFix — inline at the call site:\n-  const opts = getOpts();\n-  const isUser = createValidate<User>(undefined, opts);\n+  const isUser = createValidate<User>(undefined, {mode: 'unsafe'});\n\nFix — use a const of literals (here or in another module):\n  const opts = {mode: 'unsafe'} as const;   // literal initializer ✓\n  const isUser = createValidate<User>(undefined, opts);",
+      "The build resolves the argument before running, so it needs to read its\nvalue from the source. Function-call results, property accesses, ternary\nexpressions, and `let`/`var` bindings can't be evaluated at build time.\nAccepted: an inline literal, or a `const` whose initializer is itself\nfully literal — including a `const` imported from another module. (An\nobject `const` must be `as const` so its members stay literal; see CTA004.)\n\nFix — inline at the call site:\n-  const opts = getOpts();\n-  const isUser = createValidateFn<User>(undefined, opts);\n+  const isUser = createValidateFn<User>(undefined, {mode: 'unsafe'});\n\nFix — use a const of literals (here or in another module):\n  const opts = {mode: 'unsafe'} as const;   // literal initializer ✓\n  const isUser = createValidateFn<User>(undefined, opts);",
   },
   CTA002: {
     headline: '`CompTimeArgs<T>` literal nesting exceeds the depth cap (16) — refactor to flatten.',
@@ -85,7 +85,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       '`CompTimeArgs<T>` value comes from a `const` with a widened (non-literal) member ({0}) — declare the const `as const`.',
     severity: 'error',
     detail:
-      "A `const` used as a CompTimeArgs / CompTimeFnArgs argument (a whole option\nbag, or a builder child) must carry LITERAL value types, so the value the\nbuild reads matches the type TypeScript resolves the call against. Without\n`as const`, an object literal's members widen — `{strategy: 'mutate'}`\nbecomes `{strategy: string}` — which can let the type system select one\nfunction variant while the build injects another.\n\nWhole imported consts now resolve cross-module (like a spread fragment), so\nthis rule keeps that path sound.\n\nFix — add `as const`:\n-  const preset = {strategy: 'mutate'};\n+  const preset = {strategy: 'mutate'} as const;\n   createJsonEncoder(undefined, preset);",
+      "A `const` used as a CompTimeArgs / CompTimeFnArgs argument (a whole option\nbag, or a builder child) must carry LITERAL value types, so the value the\nbuild reads matches the type TypeScript resolves the call against. Without\n`as const`, an object literal's members widen — `{strategy: 'mutate'}`\nbecomes `{strategy: string}` — which can let the type system select one\nfunction variant while the build injects another.\n\nWhole imported consts now resolve cross-module (like a spread fragment), so\nthis rule keeps that path sound.\n\nFix — add `as const`:\n-  const preset = {strategy: 'mutate'};\n+  const preset = {strategy: 'mutate'} as const;\n   createJsonEncoderFn(undefined, preset);",
   },
   FB001: {
     headline: 'Type `{0}` can never be deserialised from binary — the generated function will always fail.',
@@ -174,7 +174,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'TypeFormat mockSample violates a sibling constraint — {0}',
     severity: 'error',
     detail:
-      "A mockSample is meant to be a canonical VALID value for the format, so it\nmust satisfy the format's own statically checkable siblings (length /\nminLength / maxLength, and the plain-string allowedChars / disallowedChars /\ndisallowedValues ops). A sample that its siblings reject means\n`createMockData` would either produce an invalid value or filter every\nsample out and throw at mock time.\n\nLengths are counted in UTF-16 code units, exactly as the emitted validator's\n`.length` check counts them.\n\nFix — adjust the offending sample(s), or relax the constraint:\n  -  String<{minLength: 5; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>\n+  String<{minLength: 1; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>",
+      "A mockSample is meant to be a canonical VALID value for the format, so it\nmust satisfy the format's own statically checkable siblings (length /\nminLength / maxLength, and the plain-string allowedChars / disallowedChars /\ndisallowedValues ops). A sample that its siblings reject means\n`createMockDataFn` would either produce an invalid value or filter every\nsample out and throw at mock time.\n\nLengths are counted in UTF-16 code units, exactly as the emitted validator's\n`.length` check counts them.\n\nFix — adjust the offending sample(s), or relax the constraint:\n  -  String<{minLength: 5; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>\n+  String<{minLength: 1; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>",
   },
   FMT004: {
     headline:
@@ -321,26 +321,26 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       '`{0}()` is being called at runtime just so the marker can read its return type — side effects, throws, or async work run for nothing.',
     severity: 'warning',
     detail:
-      'Reflect-form markers (`createValidate(value)`, `getRunTypeId(value)`)\ninvoke their argument expression at runtime; the value is then discarded —\nonly its inferred type is used.\n\nFix — use the static form with `ReturnType<>`:\n  -  const isUser = createValidate({0}());\n+  const isUser = createValidate<ReturnType<typeof {0}>>();\n\nFix — pass an existing value of the desired type:\n  const existingUser: User = ...;\n  const isUser = getRunTypeId(existingUser);',
+      'Reflect-form markers (`createValidateFn(value)`, `getRunTypeId(value)`)\ninvoke their argument expression at runtime; the value is then discarded —\nonly its inferred type is used.\n\nFix — use the static form with `ReturnType<>`:\n  -  const isUser = createValidateFn({0}());\n+  const isUser = createValidateFn<ReturnType<typeof {0}>>();\n\nFix — pass an existing value of the desired type:\n  const existingUser: User = ...;\n  const isUser = getRunTypeId(existingUser);',
   },
   MKR003: {
     headline:
       'Marker call is inside a generic function — the type argument is unresolved, so no id can be computed at build time.',
     severity: 'error',
     detail:
-      "The build can only compute an id for a concrete type (`User`,\n`{name: string}`, etc.). A type parameter like `T` is abstract — it\ntakes a different value at each call site of the surrounding function,\nso a single id can't represent it.\n\nFix — inline the marker at each concrete call site:\n  function isUser(value: unknown) {\n    return createValidate<User>()(value);\n  }\n\nFix — accept a pre-computed id from the caller:\n  function makeChecker<T>(id: InjectRunTypeId<T>) {\n    return createValidate<T>(id);\n  }\n  const isUser = makeChecker<User>(getRunTypeId<User>());",
+      "The build can only compute an id for a concrete type (`User`,\n`{name: string}`, etc.). A type parameter like `T` is abstract — it\ntakes a different value at each call site of the surrounding function,\nso a single id can't represent it.\n\nFix — inline the marker at each concrete call site:\n  function isUser(value: unknown) {\n    return createValidateFn<User>()(value);\n  }\n\nFix — accept a pre-computed id from the caller:\n  function makeChecker<T>(id: InjectRunTypeId<T>) {\n    return createValidateFn<T>(id);\n  }\n  const isUser = makeChecker<User>(getRunTypeId<User>());",
   },
   MKR004: {
     headline: "`noLiterals: true` has no effect here — the type argument doesn't resolve to literal values.",
     severity: 'warning',
     detail:
-      "The `noLiterals` validate option skips the exact-value check that literal\ntypes (`'admin'`, `42`, `true`) compile to. This call's type argument\nresolves to a non-literal type, so there is no literal check to skip and\nthe option is a silent no-op.\n\nFix — drop the option:\n-  const isRole = createValidate<string>({noLiterals: true});\n+  const isRole = createValidate<string>();\n\nOr, if you meant to relax a literal union, point the option at the type\nthat actually carries the literals:\n  const isRole = createValidate<'admin' | 'user'>({noLiterals: true});",
+      "The `noLiterals` validate option skips the exact-value check that literal\ntypes (`'admin'`, `42`, `true`) compile to. This call's type argument\nresolves to a non-literal type, so there is no literal check to skip and\nthe option is a silent no-op.\n\nFix — drop the option:\n-  const isRole = createValidateFn<string>({noLiterals: true});\n+  const isRole = createValidateFn<string>();\n\nOr, if you meant to relax a literal union, point the option at the type\nthat actually carries the literals:\n  const isRole = createValidateFn<'admin' | 'user'>({noLiterals: true});",
   },
   MKR005: {
     headline: '`noIsArrayCheck: true` has no effect here — the type argument is not an array type.',
     severity: 'warning',
     detail:
-      "The `noIsArrayCheck` validate option skips the `Array.isArray` guard that\narray types compile to. This call's type argument resolves to a non-array\ntype, so there is no guard to skip and the option is a silent no-op.\n\nFix — drop the option:\n-  const isUser = createValidate<User>({noIsArrayCheck: true});\n+  const isUser = createValidate<User>();\n\nOr point it at the array type you meant:\n  const isUsers = createValidate<User[]>({noIsArrayCheck: true});",
+      "The `noIsArrayCheck` validate option skips the `Array.isArray` guard that\narray types compile to. This call's type argument resolves to a non-array\ntype, so there is no guard to skip and the option is a silent no-op.\n\nFix — drop the option:\n-  const isUser = createValidateFn<User>({noIsArrayCheck: true});\n+  const isUser = createValidateFn<User>();\n\nOr point it at the array type you meant:\n  const isUsers = createValidateFn<User[]>({noIsArrayCheck: true});",
   },
   MKR006: {
     headline: '`InjectTypeFnArgs` names the function family `{0}` more than once — remove the duplicate key.',
@@ -379,7 +379,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'Overriding `validate` for this type also changes how JSON and binary decoders narrow unions containing it.',
     severity: 'warning',
     detail:
-      "`validate` is a shared dependency across function families: JSON and\nbinary union decoders call the member validators to pick the matching\nbranch. An `overrideValidate<T>()` therefore reaches past\n`createValidate<T>()` — decoders of any union containing T now narrow\nwith YOUR function.\n\nThis is informational; the build proceeds. If the override should only\naffect direct validation, give the union members a discriminant so\ndecoders never fall back to member validation:\n  type Event = {kind: 'click'; x: number} | {kind: 'key'; code: string};",
+      "`validate` is a shared dependency across function families: JSON and\nbinary union decoders call the member validators to pick the matching\nbranch. An `overrideValidate<T>()` therefore reaches past\n`createValidateFn<T>()` — decoders of any union containing T now narrow\nwith YOUR function.\n\nThis is informational; the build proceeds. If the override should only\naffect direct validation, give the union members a discriminant so\ndecoders never fall back to member validation:\n  type Event = {kind: 'click'; x: number} | {kind: 'key'; code: string};",
   },
   PFE9004: {
     headline: 'Duplicate `registerPureFnFactory` for `{0}` with a different body — only one definition can win.',
@@ -886,7 +886,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: '`validationErrors` on `any` / `unknown` always returns an empty error array — nothing is checked.',
     severity: 'warning',
     detail:
-      'Same reason as VL021: `any` and `unknown` describe "anything", so the\nchecker has no structure to compare against. The returned error array\nwill always be empty.\n\nFix — narrow the type to the actual shape you expect:\n  -  const errors = createGetValidationErrors<unknown>()(value);\n+  const errors = createGetValidationErrors<User>()(value);',
+      'Same reason as VL021: `any` and `unknown` describe "anything", so the\nchecker has no structure to compare against. The returned error array\nwill always be empty.\n\nFix — narrow the type to the actual shape you expect:\n  -  const errors = createGetValidationErrorsFn<unknown>()(value);\n+  const errors = createGetValidationErrorsFn<User>()(value);',
   },
   VL001: {
     headline: 'Type `{0}` can never be validated — the generated function will always fail.',
@@ -943,6 +943,6 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: '`validate` on `any` / `unknown` always returns true — the validator accepts every value.',
     severity: 'warning',
     detail:
-      '`any` and `unknown` describe "anything", so a structural validator has\nnothing to check. The resulting function passes for every input —\nincluding the ones you probably wanted to reject.\n\nFix — narrow the type to the actual shape you expect:\n  -  const isUser = createValidate<unknown>();\n+  const isUser = createValidate<User>();',
+      '`any` and `unknown` describe "anything", so a structural validator has\nnothing to check. The resulting function passes for every input —\nincluding the ones you probably wanted to reject.\n\nFix — narrow the type to the actual shape you expect:\n  -  const isUser = createValidateFn<unknown>();\n+  const isUser = createValidateFn<User>();',
   },
 };

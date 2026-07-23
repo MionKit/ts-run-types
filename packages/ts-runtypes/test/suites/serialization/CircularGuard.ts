@@ -1,10 +1,10 @@
 // Circular-reference GUARD cases for the serialization suite. Each recursive
 // TYPE is fed a runtime VALUE containing a reference cycle; with the per-call
-// `{rejectCircularRefs: true}` option armed, `createJsonEncoder` / `createBinaryEncoder`
+// `{rejectCircularRefs: true}` option armed, `createJsonEncoderFn` / `createBinaryEncoderFn`
 // throw `CircularReferenceError` before recursing forever (matching
 // JSON.stringify). Acyclic controls (DAG, disarmed) encode without throwing.
 
-import {createBinaryEncoder, createJsonEncoder} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 import type {CircularGuardSerializationCase} from '../../util/circularGuardAsserts.ts';
 
 export const CIRCULAR_GUARD = {
@@ -15,14 +15,14 @@ export const CIRCULAR_GUARD = {
         name: string;
         next?: Node;
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         name: string;
         next?: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {name: string; next?: unknown} = {name: 'a'};
@@ -39,14 +39,14 @@ export const CIRCULAR_GUARD = {
         label: string;
         children: Node[];
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         label: string;
         children: Node[];
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {label: string; children: unknown[]} = {label: 'r', children: []};
@@ -63,14 +63,14 @@ export const CIRCULAR_GUARD = {
         head: number;
         tail?: [Node];
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         head: number;
         tail?: [Node];
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {head: number; tail?: unknown[]} = {head: 1};
@@ -86,13 +86,13 @@ export const CIRCULAR_GUARD = {
       interface Node {
         [key: string]: Node;
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         [key: string]: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: Record<string, unknown> = {};
@@ -109,14 +109,14 @@ export const CIRCULAR_GUARD = {
         value: number;
         next: Node | null;
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         value: number;
         next: Node | null;
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {value: number; next: unknown} = {value: 1, next: null};
@@ -133,14 +133,14 @@ export const CIRCULAR_GUARD = {
         name: string;
         a: {b: {c?: Node}};
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         name: string;
         a: {b: {c?: Node}};
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const root: {name: string; a: {b: {c?: unknown}}} = {name: 'r', a: {b: {}}};
@@ -161,7 +161,7 @@ export const CIRCULAR_GUARD = {
         id: number;
         node?: Recursive;
       }
-      return createJsonEncoder<Wrapper>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Wrapper>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Recursive {
@@ -172,7 +172,7 @@ export const CIRCULAR_GUARD = {
         id: number;
         node?: Recursive;
       }
-      return createBinaryEncoder<Wrapper>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Wrapper>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const child: {name: string; next?: unknown} = {name: 'x'};
@@ -196,14 +196,14 @@ export const CIRCULAR_GUARD = {
         name: string;
         next?: Node;
       }
-      return createJsonEncoder<Node>(undefined, {strategy: 'mutate', rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {strategy: 'mutate', rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         name: string;
         next?: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {name: string; next?: unknown} = {name: 'a'};
@@ -224,7 +224,7 @@ export const CIRCULAR_GUARD = {
         tag: string;
         a?: A;
       }
-      return createJsonEncoder<A>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<A>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface A {
@@ -235,7 +235,7 @@ export const CIRCULAR_GUARD = {
         tag: string;
         a?: A;
       }
-      return createBinaryEncoder<A>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<A>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const a: {name: string; b?: unknown} = {name: 'a'};
@@ -254,14 +254,14 @@ export const CIRCULAR_GUARD = {
         label: string;
         children: Node[];
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         label: string;
         children: Node[];
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const shared = {label: 'shared', children: [] as unknown[]};
@@ -280,7 +280,7 @@ export const CIRCULAR_GUARD = {
         a?: Node;
         b?: Node;
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
@@ -288,7 +288,7 @@ export const CIRCULAR_GUARD = {
         a?: Node;
         b?: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       // A diamond DAG: every node's `a` and `b` point at the SAME next node, so
@@ -311,7 +311,7 @@ export const CIRCULAR_GUARD = {
         a?: Node;
         b?: Node;
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
@@ -319,7 +319,7 @@ export const CIRCULAR_GUARD = {
         a?: Node;
         b?: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       // A separate armed encoder over its own cyclic value, invoked from a getter
@@ -332,7 +332,7 @@ export const CIRCULAR_GUARD = {
       }
       const innerCyclic: {label: string; next?: unknown} = {label: 'i'};
       innerCyclic.next = innerCyclic;
-      const encodeInner = createJsonEncoder<Inner>(undefined, {rejectCircularRefs: true});
+      const encodeInner = createJsonEncoderFn<Inner>(undefined, {rejectCircularRefs: true});
       const outer: {name: string; a?: unknown; b?: unknown} = {name: 'o'};
       Object.defineProperty(outer, 'a', {
         enumerable: true,
@@ -359,14 +359,14 @@ export const CIRCULAR_GUARD = {
         name: string;
         next?: Node;
       }
-      return createJsonEncoder<Node>();
+      return createJsonEncoderFn<Node>();
     },
     binaryEncoder: () => {
       interface Node {
         name: string;
         next?: Node;
       }
-      return createBinaryEncoder<Node>();
+      return createBinaryEncoderFn<Node>();
     },
     getValue: () => ({name: 'a', next: {name: 'b'}}),
     expectThrows: false,

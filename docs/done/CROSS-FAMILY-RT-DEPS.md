@@ -16,7 +16,7 @@ those references are emitted only as **closure-prologue runtime lookups** —
 emits `const val_<member> = utl.getRT('val_<member>')` and relies on the `it`
 family being all-emit. They are **not** tracked as build-time dependency edges,
 so nothing triggers emission of `val_<member>`. That blocks demand-scoping `it`
-(the final step of the parent plan): scoping `it` to only `createValidate` sites
+(the final step of the parent plan): scoping `it` to only `createValidateFn` sites
 drops the `val_<member>` entries unions need, silently corrupting round-trips
 (verified: 22 union/binary failures).
 

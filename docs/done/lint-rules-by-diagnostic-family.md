@@ -190,7 +190,7 @@ existing lint configs; pre-1.0, and the recommended config carries users).
 ## Resolved decisions (owner, 2026-07-18)
 
 1. **JSON granularity** — RESOLVED: one `runtypes/json(-warn)` pair for
-   PJ/PJS/RJ/SJ/JCP. Users reach these through `createJsonEncoder/Decoder`; the
+   PJ/PJS/RJ/SJ/JCP. Users reach these through `createJsonEncoderFn/Decoder`; the
    precise code stays in the message.
 2. **Enrichment** — RESOLVED: keep the concern-named rules with the tier split
    (table above). The concern gate granularity stays.

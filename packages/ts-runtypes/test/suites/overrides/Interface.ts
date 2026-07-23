@@ -1,15 +1,15 @@
 import {
-  createValidate,
+  createValidateFn,
   overrideValidate,
-  createGetValidationErrors,
+  createGetValidationErrorsFn,
   overrideGetValidationErrors,
-  createJsonEncoder,
+  createJsonEncoderFn,
   overrideJsonEncoder,
-  createJsonDecoder,
+  createJsonDecoderFn,
   overrideJsonDecoder,
-  createBinaryEncoder,
+  createBinaryEncoderFn,
   overrideBinaryEncoder,
-  createBinaryDecoder,
+  createBinaryDecoderFn,
   overrideBinaryDecoder,
 } from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
@@ -33,15 +33,15 @@ overrideBinaryDecoder<InterfaceTarget>((ret, Des) => JSON.parse(Des.desString())
 
 export const INTERFACE_OVERRIDE: OverrideCase = {
   title: 'Interface',
-  validate: () => createValidate<InterfaceTarget>(),
+  validate: () => createValidateFn<InterfaceTarget>(),
   validateSamples: {pass: [{a: 1, b: 'x'}], fail: [{a: 2, b: 'x'}, null]},
-  getValidationErrors: () => createGetValidationErrors<InterfaceTarget>(),
+  getValidationErrors: () => createGetValidationErrorsFn<InterfaceTarget>(),
   errorsValue: {a: 1, b: 'x'},
-  jsonEncoder: () => createJsonEncoder<InterfaceTarget>(),
-  jsonDecoder: () => createJsonDecoder<InterfaceTarget>(),
+  jsonEncoder: () => createJsonEncoderFn<InterfaceTarget>(),
+  jsonDecoder: () => createJsonDecoderFn<InterfaceTarget>(),
   jsonValue: {a: 7},
   jsonString: 'OVR' + JSON.stringify({a: 7}),
-  binaryEncoder: () => createBinaryEncoder<InterfaceTarget>(),
-  binaryDecoder: () => createBinaryDecoder<InterfaceTarget>(),
+  binaryEncoder: () => createBinaryEncoderFn<InterfaceTarget>(),
+  binaryDecoder: () => createBinaryDecoderFn<InterfaceTarget>(),
   binaryValue: {a: 1, b: 'y'},
 };

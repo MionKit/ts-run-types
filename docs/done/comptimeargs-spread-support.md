@@ -3,7 +3,7 @@
 > **Status: DONE (shipped 2026-06-23).** A spread of a statically-resolvable
 > `const` (or inline) container fragment inside a `CompTimeArgs<T>` /
 > `CompTimeFnArgs<T>` literal is now accepted — `object({...base, name: string()})`,
-> `createJsonDecoder<T>({...preset, strategy: 'mutate'})`. Parts A, B and C all
+> `createJsonDecoderFn<T>({...preset, strategy: 'mutate'})`. Parts A, B and C all
 > shipped, with cross-module operand support (Decision 2) and shape-mismatch
 > rejection (Decision 3). A spread whose operand is dynamic, non-`const`, or a
 > shape mismatch still raises `CTA003`.
@@ -46,7 +46,7 @@ const Post = object({...base, title: string()});     // wanted
 
 // shared option presets across many call sites
 const strict = {noLiterals: true, noIsArrayCheck: true} as const;
-const isUser = createValidate<User>(undefined, {...strict, rejectCircularRefs: true});  // wanted
+const isUser = createValidateFn<User>(undefined, {...strict, rejectCircularRefs: true});  // wanted
 ```
 
 All three raise `CTA003` today.
@@ -61,7 +61,7 @@ The shared literal validator rejects spread in both container kinds:
 - pinned by tests `TestComposerCTA_TupleSpreadRejected` / `TestComposerCTA_UnionSpreadRejected` ([comptimeargs_composer_test.go:100](../../internal/compiler/resolver/comptimeargs_composer_test.go))
 
 `CheckLiteral` already const-traces a *whole* identifier
-(`const opts = {...}; createValidate(undefined, opts)` works — [comptimeargs.go:361](../../internal/compiler/comptimeargs/comptimeargs.go)).
+(`const opts = {...}; createValidateFn(undefined, opts)` works — [comptimeargs.go:361](../../internal/compiler/comptimeargs/comptimeargs.go)).
 The gap is purely **merging two fragments**.
 
 ## Key insight — there are two consumer classes, and spread costs them very differently
@@ -79,7 +79,7 @@ two classes of consumer use the literal differently:
    Go-side merge logic. **This is the easy, high-value part.**
 
 2. **Option bags** (`CompTimeFnArgs<ValidateOptions>` / `<JsonEncoderOptions>` / … on
-   `createValidate`, `createJsonEncoder`, `createJsonDecoder`, the `huk`/`suk`/… group)
+   `createValidateFn`, `createJsonEncoderFn`, `createJsonDecoderFn`, the `huk`/`suk`/… group)
    — the literal **value is read from the AST** to compute the fn-hash variant.
    `eachOptionProperty` walks the literal positionally and **silently skips spreads**
    ([scan.go:613-620](../../internal/compiler/resolver/scan.go)); `extractValidateOptions`
@@ -97,7 +97,7 @@ two classes of consumer use the literal differently:
 
 `CheckLiteral` is shared by both markers ([scan.go:352-365](../../internal/compiler/resolver/scan.go)).
 If we relax it to accept spread **without** also teaching the option-bag readers to
-merge, then `createValidate<T>(undefined, {...strict, rejectCircularRefs: true})` would
+merge, then `createValidateFn<T>(undefined, {...strict, rejectCircularRefs: true})` would
 **pass validation and then silently drop** `strict`'s options → wrong fn-hash → wrong
 validator variant. That is a silent correctness regression. So Part C below is **not
 optional** unless we explicitly gate the relaxation by marker kind (see Decision 1).
@@ -211,7 +211,7 @@ threaded into `eachOptionProperty` and its two callers (today they take only
 - `object({...base, name: string()})` and `union`/`tuple` with a tuple-operand spread
   compile, reflect the merged type, and converge on the same structural id as the
   type-first equivalent.
-- `createValidate` / `createJson*` option bags with a spread select the **same**
+- `createValidateFn` / `createJson*` option bags with a spread select the **same**
   fn-hash variant as the fully-inlined equivalent (no silent option drop).
 - Spread of a dynamic / non-container / non-`const` operand still errors with a precise
   `CTA0xx` diagnostic.

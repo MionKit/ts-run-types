@@ -1,12 +1,12 @@
 import type * as TF from '@ts-runtypes/core/formats';
 import {
-  createValidate,
-  createGetValidationErrors,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
-  createMockData,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
+  createMockDataFn,
 } from '@ts-runtypes/core';
 
 // One real-world type — the single source of truth every suite + benchmark
@@ -45,28 +45,28 @@ const order: Order = {
 };
 
 // Validate — fast yes/no, plus a detailed error report when you need it.
-const isOrder = createValidate<Order>();
+const isOrder = createValidateFn<Order>();
 isOrder(order); // true
 
-const orderErrors = createGetValidationErrors<Order>();
+const orderErrors = createGetValidationErrorsFn<Order>();
 orderErrors({...order, total: 'free'}); // [{path: ['total'], expected: 'number'}]
 
 // JSON that round-trips — Date survives the trip, typed as DataOnly<Order>.
-const toJson = createJsonEncoder<Order>();
-const fromJson = createJsonDecoder<Order>();
+const toJson = createJsonEncoderFn<Order>();
+const fromJson = createJsonDecoderFn<Order>();
 
 const wire = toJson(order)!; // Date -> string, ready for the network
 const back = fromJson(wire); // string -> Date again
 
 // Binary — the same type, a compact buffer instead of JSON.
-const toBytes = createBinaryEncoder<Order>();
-const fromBytes = createBinaryDecoder<Order>();
+const toBytes = createBinaryEncoderFn<Order>();
+const fromBytes = createBinaryDecoderFn<Order>();
 
 const bytes = toBytes(order); // a Uint8Array; smaller than JSON
 const order2 = fromBytes(bytes); // back to a typed object
 
 // Mock — believable, valid, randomized data for your tests and fixtures.
-const mockOrder = createMockData<Order>();
+const mockOrder = createMockDataFn<Order>();
 const fake = mockOrder(); // a valid, randomized Order
 
 export {order, back, order2, fake};

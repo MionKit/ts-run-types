@@ -1017,7 +1017,7 @@ getRunTypeId<Color>();
 // argument is an anti-pattern: the function would be invoked at runtime
 // purely to satisfy type inference, with side effects / exceptions /
 // async work firing for nothing. The diagnostic nudges users toward
-// `createValidate<ReturnType<typeof fn>>()`.
+// `createValidateFn<ReturnType<typeof fn>>()`.
 func TestResolver_FunctionCallArgDiagnostic(t *testing.T) {
 	const code = `import {getRunTypeId} from '@ts-runtypes/core';
 function makeUser(): {id: number} { return {id: 1}; }
@@ -1075,20 +1075,20 @@ getRunTypeId(user);
 // strategy composes. The dispatch is now COMPTIME via the fnId, not a
 // runtime family-prefix guess. Folding the strategy into the id would
 // break the invariant that `getRunTypeId<T>()` and
-// `createJsonEncoder<T>(undefined, {strategy: 'mutate'})` share one id.
+// `createJsonEncoderFn<T>(undefined, {strategy: 'mutate'})` share one id.
 func TestResolver_EncoderOptionsShareTypeID(t *testing.T) {
 	const dts = `declare module '@ts-runtypes/core' {
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
+  export function createJsonEncoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
 }
 `
-	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
-createJsonEncoder<string>();
-createJsonEncoder<string>(undefined, {strategy: 'mutate'});
-createJsonEncoder<string>(undefined, {strategy: 'direct'});
+	const code = `import {createJsonEncoderFn} from '@ts-runtypes/core';
+createJsonEncoderFn<string>();
+createJsonEncoderFn<string>(undefined, {strategy: 'mutate'});
+createJsonEncoderFn<string>(undefined, {strategy: 'direct'});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1136,12 +1136,12 @@ func TestResolver_CompTimeArgs_NonLiteralDiagnostic(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createValidate} from '@ts-runtypes/core';
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
 declare function getOptions(): {noLiterals: true};
-createValidate<string>(undefined, getOptions());
+createValidateFn<string>(undefined, getOptions());
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1178,12 +1178,12 @@ func TestResolver_CompTimeArgs_LiteralAccepted(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createValidate} from '@ts-runtypes/core';
-createValidate<'a'>(undefined, {noLiterals: true});
-createValidate<string>(undefined, {});
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
+createValidateFn<'a'>(undefined, {noLiterals: true});
+createValidateFn<string>(undefined, {});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1209,12 +1209,12 @@ func TestResolver_CompTimeArgs_UnionBrandFallback(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRunTypeId<T>): (v: unknown) => string | undefined;
+  export function createJsonEncoderFn<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRunTypeId<T>): (v: unknown) => string | undefined;
 }
 `
-	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
+	const code = `import {createJsonEncoderFn} from '@ts-runtypes/core';
 declare function getOptions(): {strategy: 'mutate'};
-createJsonEncoder<string>(undefined, getOptions());
+createJsonEncoderFn<string>(undefined, getOptions());
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1241,12 +1241,12 @@ func TestResolver_CompTimeArgs_ConstChainAccepted(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createValidate} from '@ts-runtypes/core';
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
 const opts = {noLiterals: true as const};
-createValidate<string>(undefined, opts);
+createValidateFn<string>(undefined, opts);
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1432,12 +1432,12 @@ func TestResolver_TrailingInjectionStillEmitsSite(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createValidate} from '@ts-runtypes/core';
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
 declare function getOptions(): {noLiterals: true};
-createValidate<string>(undefined, getOptions());
+createValidateFn<string>(undefined, getOptions());
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1478,7 +1478,7 @@ func TestResolver_ValidateOptions_DoNotChangeID(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
 	cases := []struct {
@@ -1487,32 +1487,32 @@ func TestResolver_ValidateOptions_DoNotChangeID(t *testing.T) {
 	}{
 		{
 			name: "literal 'a' ± noLiterals",
-			code: `import {createValidate} from '@ts-runtypes/core';
-createValidate<'a'>();
-createValidate<'a'>(undefined, {noLiterals: true});
+			code: `import {createValidateFn} from '@ts-runtypes/core';
+createValidateFn<'a'>();
+createValidateFn<'a'>(undefined, {noLiterals: true});
 const v: 'a' = 'a';
-createValidate(v);
-createValidate(v, {noLiterals: true});
+createValidateFn(v);
+createValidateFn(v, {noLiterals: true});
 `,
 		},
 		{
 			name: "array string[] ± noIsArrayCheck",
-			code: `import {createValidate} from '@ts-runtypes/core';
-createValidate<string[]>();
-createValidate<string[]>(undefined, {noIsArrayCheck: true});
+			code: `import {createValidateFn} from '@ts-runtypes/core';
+createValidateFn<string[]>();
+createValidateFn<string[]>(undefined, {noIsArrayCheck: true});
 const v: string[] = [];
-createValidate(v);
-createValidate(v, {noIsArrayCheck: true});
+createValidateFn(v);
+createValidateFn(v, {noIsArrayCheck: true});
 `,
 		},
 		{
 			name: "composite with nested literal AND array + both options",
-			code: `import {createValidate} from '@ts-runtypes/core';
+			code: `import {createValidateFn} from '@ts-runtypes/core';
 type Composite = {tag: 'a'; list: string[]};
-createValidate<Composite>();
-createValidate<Composite>(undefined, {noLiterals: true});
-createValidate<Composite>(undefined, {noIsArrayCheck: true});
-createValidate<Composite>(undefined, {noLiterals: true, noIsArrayCheck: true});
+createValidateFn<Composite>();
+createValidateFn<Composite>(undefined, {noLiterals: true});
+createValidateFn<Composite>(undefined, {noIsArrayCheck: true});
+createValidateFn<Composite>(undefined, {noLiterals: true, noIsArrayCheck: true});
 `,
 		},
 	}
@@ -1548,12 +1548,12 @@ func TestResolver_ValidateOptions_NoLiteralsNoop(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createValidate} from '@ts-runtypes/core';
-createValidate<string>(undefined, {noLiterals: true});
-createValidate<{a: string}>(undefined, {noIsArrayCheck: true});
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
+createValidateFn<string>(undefined, {noLiterals: true});
+createValidateFn<{a: string}>(undefined, {noIsArrayCheck: true});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1579,14 +1579,14 @@ createValidate<{a: string}>(undefined, {noIsArrayCheck: true});
 
 // TestResolver_SchemaForm_ConvergesAndObservesOptions pins the schema-form
 // path AFTER the CompTimeRunType ref-tracing was removed: the value-first schema
-// form is now an ordinary `createValidate` OVERLOAD taking a `RunType<T>` first arg
-// (`createValidate(array(string()))`). It must resolve to the SAME structural id as
-// the marker form (`createValidate<string[]>()`) — `T` is inferred from the
+// form is now an ordinary `createValidateFn` OVERLOAD taking a `RunType<T>` first arg
+// (`createValidateFn(array(string()))`). It must resolve to the SAME structural id as
+// the marker form (`createValidateFn<string[]>()`) — `T` is inferred from the
 // schema's `RunType<T>` and reflected off the trailing `InjectTypeFnArgs<T, 'val'>`,
 // no `schema.id` read, no builder ref-trace — AND its options ride the call's own
-// slot, folded into the injected fnId variant suffix. The createValidate call IS the
+// slot, folded into the injected fnId variant suffix. The createValidateFn call IS the
 // injection marker, so the nested `array(string())` builder is skipped (enclosed);
-// the Site sits on the createValidate call.
+// the Site sits on the createValidateFn call.
 func TestResolver_SchemaForm_ConvergesAndObservesOptions(t *testing.T) {
 	const dts = `declare module '@ts-runtypes/core' {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
@@ -1595,26 +1595,26 @@ func TestResolver_SchemaForm_ConvergesAndObservesOptions(t *testing.T) {
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export interface RunType<T = unknown> {id: string; readonly __rtType?: {t: T}}
-  export function createValidate<T>(schema: RunType<T>, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createValidateFn<T>(schema: RunType<T>, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
   export function string(id?: InjectRunTypeId<string>): RunType<string>;
   export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]>;
 }
 `
-	const code = `import {createValidate, array, string} from '@ts-runtypes/core';
-createValidate<string[]>();
-createValidate(array(string()));
-createValidate(array(string()), {noIsArrayCheck: true});
+	const code = `import {createValidateFn, array, string} from '@ts-runtypes/core';
+createValidateFn<string[]>();
+createValidateFn(array(string()));
+createValidateFn(array(string()), {noIsArrayCheck: true});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	// One Site per createValidate call — the nested array(string()) builders are
-	// skipped (enclosed by the createValidate injection marker).
+	// One Site per createValidateFn call — the nested array(string()) builders are
+	// skipped (enclosed by the createValidateFn injection marker).
 	if len(resp.Sites) != 3 {
-		t.Fatalf("expected 3 Sites (one per createValidate call), got %d: %+v", len(resp.Sites), resp.Sites)
+		t.Fatalf("expected 3 Sites (one per createValidateFn call), got %d: %+v", len(resp.Sites), resp.Sites)
 	}
 	markerID := resp.Sites[0].ID
 	for i, s := range resp.Sites {
@@ -1648,11 +1648,11 @@ func TestResolver_ValidateOptions_AsConstExtracted(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createValidate} from '@ts-runtypes/core';
-createValidate<string>(undefined, {noLiterals: true} as const);
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
+createValidateFn<string>(undefined, {noLiterals: true} as const);
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})

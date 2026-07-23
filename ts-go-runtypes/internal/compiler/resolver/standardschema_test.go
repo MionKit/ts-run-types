@@ -15,7 +15,7 @@ const standardSchemaDTS = `declare module '@ts-runtypes/core' {
   export type CompTimeArgs<T> = T & {readonly __rtCompTimeArgsBrand?: never};
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
   export function createStandardSchema<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, ids?: InjectTypeFnArgs<T, 'val', 'verr'>): {'~standard': {version: 1; vendor: string; validate: (v: unknown) => unknown}};
 }
 `
@@ -76,11 +76,11 @@ createStandardSchema<string>();
 }
 
 // TestResolver_SingleFn_NoFnIds confirms the multi-fn change leaves ordinary
-// single-function sites byte-stable: createValidate yields a scalar FnId and
+// single-function sites byte-stable: createValidateFn yields a scalar FnId and
 // NO FnIds list (so the wire and rewrite stay identical to before).
 func TestResolver_SingleFn_NoFnIds(t *testing.T) {
-	const code = `import {createValidate} from '@ts-runtypes/core';
-createValidate<string>();
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
+createValidateFn<string>();
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": standardSchemaDTS, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})

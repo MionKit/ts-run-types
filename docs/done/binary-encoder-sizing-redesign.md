@@ -11,7 +11,7 @@
 
 **Phase 1 — strategy contract (DONE, committed `3b625a39`).** `sizeStrategy:
 'dynamic' | 'precalculate' | 'initialSize' | 'into'`, `DataViewSerializer`
-return, decoder-accepts-serializer, `createBinarySizer` kept,
+return, decoder-accepts-serializer, `createBinarySizerFn` kept,
 `setDefaultBinarySizing` removed.
 
 **Phase 2 — compile-time format-aware estimate (DONE, this change).**
@@ -47,13 +47,13 @@ return, decoder-accepts-serializer, `createBinarySizer` kept,
 >    exact size; `.slice()` for an owned copy; for `intoBuffer` the view aliases
 >    the caller's buffer). The serializer was a stateful instance and a leaky
 >    abstraction; a `Uint8Array` covers every consumer use, still round-trips
->    through `createBinaryDecoder` (it already accepts any view), and the decoder's
+>    through `createBinaryDecoderFn` (it already accepts any view), and the decoder's
 >    serializer-detection branch was dropped.
 > 2. **Strategy renamed.** `sizeStrategy: 'into'` → **`'intoBuffer'`** (the
 >    parameter stays `into`, already typed `ArrayBuffer`). Self-documenting at the
 >    factory call, alongside `initialSize`. The per-strategy overloads also gained
 >    explicit forms so the return specialises for the static
->    `createBinaryEncoder<T>(undefined, {sizeStrategy})` form too.
+>    `createBinaryEncoderFn<T>(undefined, {sizeStrategy})` form too.
 >
 > Mentions of a `DataViewSerializer` return or the `'into'` strategy below describe
 > the interim design.
@@ -76,7 +76,7 @@ return, decoder-accepts-serializer, `createBinarySizer` kept,
 
 **Deferred (future enhancement, NOT shipped):** per-call-site **comptime
 overrides** of `sizeBias` / `sizeItems` / an explicit `initialSize` via
-`CompTimeFnArgs` on `createBinaryEncoder`. The global config covers the common
+`CompTimeFnArgs` on `createBinaryEncoderFn`. The global config covers the common
 case; per-encoder bias tuning would need the scanner's `CompTimeFnArgs` +
 demand machinery and either an `fnHash` fold (one `tb` entry per option set) or
 a call-site injected literal (moving the estimate off the shared tuple). Scoped
@@ -103,22 +103,22 @@ benchmark and the follow-up discussion surfaced cleaner semantics:
 
 ## API
 
-`createBinaryEncoder<T>(opts?)`'s `sizeStrategy` (a **static literal**) selects the
+`createBinaryEncoderFn<T>(opts?)`'s `sizeStrategy` (a **static literal**) selects the
 returned function's signature and behavior:
 
 ```ts
 // dynamic (default) — grow as needed; seeded by the Phase-2 estimate then history
-createBinaryEncoder<T>(): (val) => DataViewSerializer
-createBinaryEncoder<T>({ sizeStrategy: 'dynamic' }): (val) => DataViewSerializer
+createBinaryEncoderFn<T>(): (val) => DataViewSerializer
+createBinaryEncoderFn<T>({ sizeStrategy: 'dynamic' }): (val) => DataViewSerializer
 
 // precalculate — measure pass → allocate exactly; can't overflow
-createBinaryEncoder<T>({ sizeStrategy: 'precalculate' }): (val) => DataViewSerializer
+createBinaryEncoderFn<T>({ sizeStrategy: 'precalculate' }): (val) => DataViewSerializer
 
 // initialSize — caller gives the size each call; throws on overflow (never resizes)
-createBinaryEncoder<T>({ sizeStrategy: 'initialSize' }): (val, size: number) => DataViewSerializer
+createBinaryEncoderFn<T>({ sizeStrategy: 'initialSize' }): (val, size: number) => DataViewSerializer
 
 // into — caller gives the buffer each call; throws on overflow (never resizes)
-createBinaryEncoder<T>({ sizeStrategy: 'into' }): (val, into: ArrayBuffer) => DataViewSerializer
+createBinaryEncoderFn<T>({ sizeStrategy: 'into' }): (val, into: ArrayBuffer) => DataViewSerializer
 ```
 
 | `sizeStrategy` | returned fn | initial size from | overflow |
@@ -131,9 +131,9 @@ createBinaryEncoder<T>({ sizeStrategy: 'into' }): (val, into: ArrayBuffer) => Da
 - **Return**: `DataViewSerializer`. Extract bytes via `getBufferView()` (zero-copy
   `Uint8Array`, e.g. a view into the caller's `into`) or `getBuffer()` (copy);
   `.index` is the byte count.
-- **`createBinaryDecoder` accepts a `DataViewSerializer`** (reads its written view),
+- **`createBinaryDecoderFn` accepts a `DataViewSerializer`** (reads its written view),
   so `decode(encode(v))` round-trips without the caller extracting bytes by hand.
-- **`createBinarySizer<T>()` stays** — it's how a caller computes the exact `size`
+- **`createBinarySizerFn<T>()` stays** — it's how a caller computes the exact `size`
   to feed `initialSize` (or to allocate an exact `into`).
 
 ### Why `sizeStrategy` is a static literal, not a runtime/Go-comptime arg
@@ -163,7 +163,7 @@ preserved. Core contract stays throw.)
 - caller-supplied-serializer second argument → **removed** (`into` replaces it).
 - `setDefaultBinarySizing` / `getDefaultBinarySizing` global default → **removed** (strategy is a per-call-site literal; omitted = `dynamic`).
 - return `ArrayBuffer` → return `DataViewSerializer`.
-- `createBinarySizer` → **kept**. Backstop already retired (stays retired). Emitter reserves already in place (stay).
+- `createBinarySizerFn` → **kept**. Backstop already retired (stays retired). Emitter reserves already in place (stay).
 
 ## Phase 2 — compile-time, format-aware size estimate (the `dynamic` seed)
 
@@ -205,9 +205,9 @@ the 16 MiB cold start — critical for short-lived/serverless where history neve
    `sizeStrategy`; overloads typing the returned signature per strategy; four
    specialized closures returning `DataViewSerializer`; `initialSize`/`into` throw on
    overflow. Remove `setDefaultBinarySizing`/`getDefaultBinarySizing` + `MAX_BUFFER_BYTES`
-   already gone. Keep `createBinarySizer`.
-3. `createBinaryDecoder`: accept a `DataViewSerializer` input (read `getBufferView()`).
-4. `index.ts`: drop the removed exports; keep `createBinarySizer`.
+   already gone. Keep `createBinarySizerFn`.
+3. `createBinaryDecoderFn`: accept a `DataViewSerializer` input (read `getBufferView()`).
+4. `index.ts`: drop the removed exports; keep `createBinarySizerFn`.
 5. Tests: rework `binarySizingModes.test.ts` (four strategies, return type, decoder-
    accepts-serializer, `initialSize`/`into` throw, byte-identity across strategies),
    `binaryDynamicGrow.test.ts`. Run the full serialization suite — round-trips keep
@@ -233,6 +233,6 @@ buffer). 0 byte mismatches across strategies. These motivate keeping all four.
 ## Docs to update on landing
 
 - Website `2.guide/3.serialization.md` — rewrite the sizing section for `sizeStrategy`
-  + `DataViewSerializer` return + `createBinarySizer`.
+  + `DataViewSerializer` return + `createBinarySizerFn`.
 - `docs/ARCHITECTURE.md` factory surface + table.
 - Fold/retire the two superseded done-docs.

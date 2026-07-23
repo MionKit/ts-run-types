@@ -1,5 +1,5 @@
 // Shared helpers for the `respectBinarySize` mock option — bound generated
-// values against the binary cold-start size estimate (see createBinaryEncoder's
+// values against the binary cold-start size estimate (see createBinaryEncoderFn's
 // `dynamic` strategy and internal/cachegen/typefunctions/binary_size_estimate.go).
 
 import type {BinarySizingOptions, MockOptions} from './mockTypes.ts';

@@ -243,7 +243,7 @@ func ValidateVariantSuffix(names []string) string {
 
 // HasUnknownKeysOptions is the ordered registry of supported
 // `HasUnknownKeysOptions` keys — the compile-time options bag of
-// `createHasUnknownKeys<T>(val?, options?, id?)`. Same contract as
+// `createHasUnknownKeysFn<T>(val?, options?, id?)`. Same contract as
 // ValidateOptions above: declaration order is load-bearing for the variant
 // suffix, and the same scanner/emitter/gen-ts mirror steps apply when adding
 // an option (see the ValidateOptions comment).

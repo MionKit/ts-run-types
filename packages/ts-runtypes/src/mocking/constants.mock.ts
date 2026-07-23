@@ -91,6 +91,6 @@ export const defaultMockOptions: MockOptions = {
   invalid: false,
   invalidLeafProbability: 0.85,
   // Undefined ⇒ native randomness (the `MockRandom` instance is built per
-  // generation by createMockData; a seeded run sets this via `mock.seed`).
+  // generation by createMockDataFn; a seeded run sets this via `mock.seed`).
   seed: undefined,
 };

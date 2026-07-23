@@ -12,25 +12,25 @@
 // integrity idiom (same structural id ⇒ same cached factory).
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
 describe('value-first brand tag — runtime', () => {
-  it('a branded leaf nested in createValidate resolves a working validator', () => {
-    const isUserId = createValidate(TF.string({minLength: 3}, TF.brand('UserId')));
+  it('a branded leaf nested in createValidateFn resolves a working validator', () => {
+    const isUserId = createValidateFn(TF.string({minLength: 3}, TF.brand('UserId')));
     expect(isUserId('abc')).toBe(true); // satisfies the format
     expect(isUserId('ab')).toBe(false); // minLength still enforced (format unchanged by the brand)
     expect(isUserId(42)).toBe(false); // base kind still enforced
   });
 
   it('brand is id-neutral: branded twin resolves the SAME cached factory as the unbranded leaf', () => {
-    const branded = createValidate(TF.string({minLength: 3}, TF.brand('UserId')));
-    const unbranded = createValidate(TF.string({minLength: 3}));
+    const branded = createValidateFn(TF.string({minLength: 3}, TF.brand('UserId')));
+    const unbranded = createValidateFn(TF.string({minLength: 3}));
     expect(branded).toBe(unbranded);
   });
 
   it('branded value-first converges with the type-first form (one structural id)', () => {
-    const branded = createValidate(TF.string({minLength: 3}, TF.brand('UserId')));
-    const typeFirst = createValidate<TF.String<{minLength: 3}>>();
+    const branded = createValidateFn(TF.string({minLength: 3}, TF.brand('UserId')));
+    const typeFirst = createValidateFn<TF.String<{minLength: 3}>>();
     expect(branded).toBe(typeFirst);
   });
 
@@ -40,7 +40,7 @@ describe('value-first brand tag — runtime', () => {
     // injection slot were wrong the builder would fall back to its carrier and the
     // validator below would not match the unbranded factory.
     const userId = TF.string({minLength: 3}, TF.brand('UserId'));
-    const isUserId = createValidate(userId);
+    const isUserId = createValidateFn(userId);
     expect(isUserId('abc')).toBe(true);
     expect(isUserId('ab')).toBe(false); // minLength enforced ⇒ the standalone builder resolved a real node, not its carrier
     expect(isUserId(42)).toBe(false);

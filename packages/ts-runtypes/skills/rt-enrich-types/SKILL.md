@@ -75,7 +75,7 @@ committed, so its link is committed too):
 ```ts
 import {friendlyUser} from 'src/__runtypes/enriched/friendly/models/user';
 import {mockUser} from 'src/__runtypes/enriched/mock/models/user';
-createMockData<User>({data: mockUser});
+createMockDataFn<User>({data: mockUser});
 ```
 
 ## The JSDoc tags
@@ -174,7 +174,7 @@ type-driven `$[val]` rendering (Currency / date bounds) — is covered in the
 ## `MockData<T>` — realistic sample data
 
 Per-field value pools and ranges (`pool`, `min`/`max`, `rt$items`/`rt$length`, `rt$optional`)
-that feed `createMockData<T>({ data })`: the mechanical generator keeps handling
+that feed `createMockDataFn<T>({ data })`: the mechanical generator keeps handling
 structure + format-correctness, you supply _believable_ values. The full authoring DSL
 — node shapes per field kind, the MD0xx checks, end-to-end wiring — is the
 **`runtypes-mock-data`** skill; use it whenever you author or fill a mock map.

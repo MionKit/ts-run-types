@@ -1,6 +1,6 @@
 ---
 name: runtypes-friendly-type
-description: Author and use a `FriendlyText<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrors<T>()` output into readable messages via `createFriendlyText<T>(map).errors(...)`; or when an `rt$errors` / `rt$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ rt$label, rt$errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `rt$default` catch-all mode, and where the map lives.
+description: Author and use a `FriendlyText<T>` for a RunTypes type — the committed, type-keyed map of human-readable field LABELS + ERROR-MESSAGE templates. Use when writing or editing friendly validation errors, friendly/human-readable field labels, form-builder labels, or a `*.rt.ts` enrichment sibling; when turning `createGetValidationErrorsFn<T>()` output into readable messages via `createFriendlyText<T>(map).errors(...)`; or when an `rt$errors` / `rt$label` / `$[label]` / `$[val]` placeholder template needs writing. Covers the `{ rt$label, rt$errors, ...children }` node shape (total: both meta keys required on every node), the `$[…]` placeholder DSL, the param-precise error-template keys (the failed-constraint name: `type`, `minLength`, `min`, `max`, `pattern`, …), the exclusive `rt$default` catch-all mode, and where the map lives.
 ---
 
 # Authoring & using `FriendlyText<T>`
@@ -18,19 +18,19 @@ A `FriendlyText<T>` is a combined, per-field map of:
 
 It is **pure data**. The shipped runtime renderer is
 [`createFriendlyText<T>(map)`](https://github.com/mionkit/ts-runtypes/blob/main/packages/ts-runtypes/src/enrich/createFriendlyText.ts);
-it turns `createGetValidationErrors<T>()` output into readable messages. No type-id
+it turns `createGetValidationErrorsFn<T>()` output into readable messages. No type-id
 injection, no `rtUtils` — error rendering needs only `(map, errors)`.
 
 ## When to use it
 
-- You have `createGetValidationErrors<T>()` errors (`RunTypeError[]`) and want
+- You have `createGetValidationErrorsFn<T>()` errors (`RunTypeError[]`) and want
   human-readable messages instead of raw `{ path, expected, format }`.
 - You need stable, human field **labels** (form building, error summaries).
 - You're scaffolding a type's committed friendly mirror file, or filling a
   locale's translation file (also typed `FriendlyText<T>`, rendered via
   `createFriendlyTextI18n`).
 
-If you only need a boolean pass/fail, use `createValidate<T>()` directly — no friendly
+If you only need a boolean pass/fail, use `createValidateFn<T>()` directly — no friendly
 map involved.
 
 ## What is shipped today vs designed
@@ -74,7 +74,7 @@ a missing field, an object node where `T` is scalar (or vice-versa), an unknown
 ## `rt$errors` keys = the failed-constraint name
 
 Each `rt$errors` key names the sub-constraint that failed. This is **not** an invented key
-set — it maps 1:1 onto what `createGetValidationErrors<T>()` emits. The renderer picks
+set — it maps 1:1 onto what `createGetValidationErrorsFn<T>()` emits. The renderer picks
 the template by the error's `(format.name, formatPath-tail)` discriminator:
 
 - `type` — the base type-shape failure (a `RunTypeError` with no `.format`): "this
@@ -227,11 +227,11 @@ These catch drift: rename a field and `FT002` flags the now-stale entry.
 ## Rendering at runtime — `createFriendlyText<T>(map)`
 
 ```ts
-import {createGetValidationErrors, createFriendlyText} from 'ts-runtypes';
+import {createGetValidationErrorsFn, createFriendlyText} from 'ts-runtypes';
 import {friendlyUser} from 'src/__runtypes/enriched/friendly/models/user';
 import type {User} from '../models/user';
 
-const getUserErrors = createGetValidationErrors<User>();
+const getUserErrors = createGetValidationErrorsFn<User>();
 const friendly = createFriendlyText<User>(friendlyUser);
 
 friendly.errors(getUserErrors(badInput));
@@ -400,11 +400,11 @@ export const friendlyUser: FriendlyText<User> = {
 
 ```ts
 // src/services/userForm.ts — the CONSUMER
-import {createGetValidationErrors, createFriendlyText} from 'ts-runtypes';
+import {createGetValidationErrorsFn, createFriendlyText} from 'ts-runtypes';
 import {friendlyUser} from 'src/__runtypes/enriched/friendly/models/user';
 import type {User} from '../models/user';
 
-const getUserErrors = createGetValidationErrors<User>();
+const getUserErrors = createGetValidationErrorsFn<User>();
 const friendly = createFriendlyText<User>(friendlyUser);
 
 const messages = friendly.errors(getUserErrors({name: 'A', age: 200, profile: {email: 'nope', score: 5}}));

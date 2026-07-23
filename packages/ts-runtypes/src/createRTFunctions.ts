@@ -31,15 +31,15 @@ export interface ValidateOptions {
    *  the same type id can serve both the guarded and unguarded factory. **/
   noIsArrayCheck?: boolean;
   /** Arms the circular-reference guard for THIS validator: a value containing a
-   *  reference cycle makes `createValidate` return false and
-   *  `createGetValidationErrors` record a `{expected: 'circular'}` entry.
+   *  reference cycle makes `createValidateFn` return false and
+   *  `createGetValidationErrorsFn` record a `{expected: 'circular'}` entry.
    *  COMPILE-TIME (like `noLiterals`): it forks the injected fnHash, so an armed
    *  and a plain validator for the same `T` compile to distinct entries — the
    *  armed one bakes the cycle check into its body (pay-for-use). **/
   rejectCircularRefs?: boolean;
 }
 
-/** Validator function returned by `createValidate<T>()`. The type guard narrows
+/** Validator function returned by `createValidateFn<T>()`. The type guard narrows
  *  to `DataOnly<T>` — the serialisable projection of `T` the validator actually
  *  enforces (non-data members like functions / methods / symbols are silently
  *  dropped from the validated shape; see CLAUDE.md "validate contract"). `T`
@@ -88,7 +88,7 @@ export interface RTValidationError {
   format?: TypeFormatError;
 }
 
-/** Validator returned by `createGetValidationErrors<T>()`. Caller-optional `path`
+/** Validator returned by `createGetValidationErrorsFn<T>()`. Caller-optional `path`
  *  and `errors` slots so the validator can be chained or pre-seeded. **/
 export type GetValidationErrorsFn = (
   value: unknown,
@@ -102,7 +102,7 @@ export interface HasUnknownKeysOptions {
   checkNonRTProps?: boolean;
 }
 
-/** COMPILE-TIME options for `createHasUnknownKeys<T>(val?, options?, id?)` —
+/** COMPILE-TIME options for `createHasUnknownKeysFn<T>(val?, options?, id?)` —
  *  baked into the emitted variant at build time (like `ValidateOptions`),
  *  never read at runtime.
  *
@@ -121,10 +121,10 @@ export interface HasUnknownKeysCompileOptions {
   runsAfterValidation?: boolean;
 }
 
-/** Predicate returned by `createHasUnknownKeys<T>()`. **/
+/** Predicate returned by `createHasUnknownKeysFn<T>()`. **/
 export type HasUnknownKeysFn = (value: unknown, options?: HasUnknownKeysOptions) => boolean;
 
-/** Clone returned by `createCloneExactShape<T>()`: a PROPER deep clone of the
+/** Clone returned by `createCloneExactShapeFn<T>()`: a PROPER deep clone of the
  *  DECLARED shape. Unknown/undeclared keys are dropped by construction (the
  *  clone is built from the type, never `{...v}`), the input is never mutated
  *  (frozen inputs work), and `clone(x) !== x` holds for EVERY object-typed
@@ -146,7 +146,7 @@ export type HasUnknownKeysFn = (value: unknown, options?: HasUnknownKeysOptions)
  *  and any place a schema-shaped deep clone is wanted. **/
 export type CloneExactShapeFn<T = unknown> = (value: T) => T;
 
-/** Validator returned by `createUnknownKeyErrors<T>()`. Each unknown key
+/** Validator returned by `createUnknownKeyErrorsFn<T>()`. Each unknown key
  *  produces one `{path, expected: 'never'}` entry. **/
 export type UnknownKeyErrorsFn = (
   value: unknown,
@@ -158,7 +158,7 @@ export type UnknownKeyErrorsFn = (
  *  transform operates on: TypeFormat brands collapse to their base
  *  (string formats → `string`), nested objects / arrays recurse. The
  *  brand exists only at the type level (erased at runtime), so callers
- *  pass and receive plain data — `createFormatTransform<Lowercase>()` is
+ *  pass and receive plain data — `createFormatTransformFn<Lowercase>()` is
  *  `(value: string) => string`, not a branded-in/branded-out fn. **/
 export type FormatTransformValue<T> = T extends string
   ? string
@@ -172,7 +172,7 @@ export type FormatTransformValue<T> = T extends string
           ? {[K in keyof T]: FormatTransformValue<T[K]>}
           : T;
 
-/** Transform function returned by `createFormatTransform<T>()`. Applies the value
+/** Transform function returned by `createFormatTransformFn<T>()`. Applies the value
  *  mutations declared by any TypeFormat in `T` (string trim / lowercase /
  *  uppercase / capitalize; domain / ip / url lowercasing) and returns the
  *  transformed value. Identity when `T` carries no transforming format. **/
@@ -183,14 +183,14 @@ export type PrepareForJsonFn = (value: unknown) => unknown;
 export type RestoreFromJsonFn = (value: unknown) => unknown;
 export type StringifyJsonFn = (value: unknown) => string | undefined;
 
-/** Stringifier returned by `createJsonEncoder<T>()`. Returns the JSON string,
+/** Stringifier returned by `createJsonEncoderFn<T>()`. Returns the JSON string,
  *  OR `undefined` for top-level `undefined` inputs (matches `JSON.stringify`). **/
 export type JsonEncoderFn = (value: unknown) => string | undefined;
 
-/** Parse function returned by `createJsonDecoder<T>()`. **/
+/** Parse function returned by `createJsonDecoderFn<T>()`. **/
 export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
 
-/** Caller-controlled `strategy` for `createJsonEncoder<T>()`. The walk mode:
+/** Caller-controlled `strategy` for `createJsonEncoderFn<T>()`. The walk mode:
  *
  *  - `'clone'` (default): walk the type and build a NEW value from the declared
  *    shape (`{a: v.a, b: prepareForJson(v.b)}`, never `{...v}`), then hand to
@@ -216,7 +216,7 @@ export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct' | 'compact';
 // whose body throws a CircularReferenceError on a reference cycle.
 export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy; rejectCircularRefs?: boolean};
 
-/** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
+/** Caller-controlled `strategy` for `createJsonDecoderFn<T>()`. The decoder always
  *  allocates fresh via `JSON.parse`, so the only axis is undeclared keys:
  *  `'strip'` (default) sets them to `undefined` before restore walks the
  *  declared shape; `'preserve'` passes them through untouched. `'compact'`
@@ -243,7 +243,7 @@ function resolveTupleEntry<F extends AnyFn>(fnName: string, identityFn: F, val: 
 }
 
 /** Returns the compiled closure for an option-carrying createX factory
- *  (`createValidate` / `createGetValidationErrors`, 3-arg `(val, options, args)`). The
+ *  (`createValidateFn` / `createGetValidationErrorsFn`, 3-arg `(val, options, args)`). The
  *  injected entry tuple sits at the trailing slot; options @slot1 (including
  *  `rejectCircularRefs`) are compile-time — baked into the tuple's key at build
  *  time, so the runtime ignores them. **/
@@ -255,11 +255,11 @@ function createTypeFnArgsFunction<F extends AnyFn>(
 }
 
 /** Returns the compiled closure for a leaf family that does NOT honour
- *  `ValidateOptions` — every non-validator factory (`createHasUnknownKeys`,
- *  `createCloneExactShape`, `createUnknownKeyErrors`,
- *  `createFormatTransform`). The injected
+ *  `ValidateOptions` — every non-validator factory (`createHasUnknownKeysFn`,
+ *  `createCloneExactShapeFn`, `createUnknownKeyErrorsFn`,
+ *  `createFormatTransformFn`). The injected
  *  entry tuple sits at slot 1. Slot 0 may be a value-first schema
- *  (`createCloneExactShape(rt)`) whose `.id` overrides the injected typeId. **/
+ *  (`createCloneExactShapeFn(rt)`) whose `.id` overrides the injected typeId. **/
 function createRTFunction<F extends AnyFn>(fnName: string, identityFn: F): (val?: unknown, args?: unknown) => F {
   return (val, args) => resolveTupleEntry(fnName, identityFn, val, args);
 }
@@ -279,15 +279,15 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 // Two overloads, schema form FIRST (TS resolves intersected call signatures
 // top-to-bottom, and a `RunType<T>` arg must be tried before the `val?: T`
 // reflection form, which would otherwise absorb it as `T = RunType<…>`):
-//   - SCHEMA form `createValidate(rt)` — a value-first builder schema. `T` is
+//   - SCHEMA form `createValidateFn(rt)` — a value-first builder schema. `T` is
 //     inferred from `rt: RunType<T>` and reflected off the trailing
 //     `InjectRunTypeId<T>`, exactly like the type/value forms. No `schema.id`
 //     read, no ref-tracing — the call IS the injection site.
-//   - VALUE / static form `createValidate<T>()` / `createValidate(value)`.
+//   - VALUE / static form `createValidateFn<T>()` / `createValidateFn(value)`.
 // Both share the runtime impl (`val`/`schema` @slot0 ignored, options @slot1,
 // injected id @slot2).
-export const createValidate = createTypeFnArgsFunction<ValidateFn>(
-  'createValidate',
+export const createValidateFn = createTypeFnArgsFunction<ValidateFn>(
+  'createValidateFn',
   // The runtime fallback is a plain `() => true`; `ValidateFn` is now a type
   // guard, so cast through `unknown` (a direct cast is rejected — a boolean fn
   // doesn't structurally overlap a type predicate).
@@ -299,8 +299,8 @@ export const createValidate = createTypeFnArgsFunction<ValidateFn>(
 ) => ValidateFn<T>) &
   (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>) => ValidateFn<T>);
 
-export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationErrorsFn>(
-  'createGetValidationErrors',
+export const createGetValidationErrorsFn = createTypeFnArgsFunction<GetValidationErrorsFn>(
+  'createGetValidationErrorsFn',
   getValidationErrorsIdentity
 ) as unknown as (<T>(
   schema: RunType<T>,
@@ -309,15 +309,15 @@ export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationE
 ) => GetValidationErrorsFn) &
   (<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>) => GetValidationErrorsFn);
 
-// `ValidateOptions` stays exclusive to `createValidate` /
-// `createGetValidationErrors`; `createHasUnknownKeys` carries its OWN
+// `ValidateOptions` stays exclusive to `createValidateFn` /
+// `createGetValidationErrorsFn`; `createHasUnknownKeysFn` carries its OWN
 // compile-time bag (`HasUnknownKeysCompileOptions`, options @slot1 baked into
 // the variant fnHash exactly like the validate options). The remaining leaf
 // families take no options — leaving a slot there would let callers pass
 // values the Go emitter silently ignores.
 
-export const createHasUnknownKeys = createTypeFnArgsFunction<HasUnknownKeysFn>(
-  'createHasUnknownKeys',
+export const createHasUnknownKeysFn = createTypeFnArgsFunction<HasUnknownKeysFn>(
+  'createHasUnknownKeysFn',
   () => false
 ) as unknown as (<T>(
   schema: RunType<T>,
@@ -326,14 +326,14 @@ export const createHasUnknownKeys = createTypeFnArgsFunction<HasUnknownKeysFn>(
 ) => HasUnknownKeysFn) &
   (<T>(val?: T, options?: CompTimeFnArgs<HasUnknownKeysCompileOptions>, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn);
 
-export const createCloneExactShape = createRTFunction<CloneExactShapeFn>(
-  'createCloneExactShape',
+export const createCloneExactShapeFn = createRTFunction<CloneExactShapeFn>(
+  'createCloneExactShapeFn',
   identityValueFn
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'ces'>) => CloneExactShapeFn<T>) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'ces'>) => CloneExactShapeFn<T>);
 
-export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
-  'createUnknownKeyErrors',
+export const createUnknownKeyErrorsFn = createRTFunction<UnknownKeyErrorsFn>(
+  'createUnknownKeyErrorsFn',
   unknownKeyErrorsIdentity
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn);
@@ -351,10 +351,10 @@ export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
 // `[value]` array envelope is a JSON-document concern the caller's own envelope
 // replaces.
 
-// createFormatTransform returns a `(value) => transformedValue` for `T`. Identity
+// createFormatTransformFn returns a `(value) => transformedValue` for `T`. Identity
 // fallback covers both noop-format types and the no-plugin case.
-export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>>(
-  'createFormatTransform',
+export const createFormatTransformFn = createRTFunction<FormatTransformFn<unknown>>(
+  'createFormatTransformFn',
   identityValueFn
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'fmt'>) => FormatTransformFn<T>) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'fmt'>) => FormatTransformFn<T>);
@@ -377,53 +377,53 @@ const jsonParseFallback: JsonDecoderFn = (s) => JSON.parse(s);
 
 /** Returns a JSON encoder for `T`. Default `strategy: 'clone'`. See
  *  `JsonEncoderStrategy` for the full matrix. Accepts either a value-first
- *  schema (`createJsonEncoder(rt)`) or the value/static form.
+ *  schema (`createJsonEncoderFn(rt)`) or the value/static form.
  *
  *  The trailing slot is the `InjectTypeFnArgs` marker — the plugin injects a
  *  `[typeId, fnId]` tuple where `fnId` IS the composite fnHash the backend
  *  computed from the comptime-resolved `strategy`. The runtime resolves that
  *  composite entry directly; the fallback (`JSON.stringify`) covers the
  *  no-plugin case. **/
-export function createJsonEncoder<T>(
+export function createJsonEncoderFn<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn;
-export function createJsonEncoder<T>(
+export function createJsonEncoderFn<T>(
   val?: T,
   options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn;
-export function createJsonEncoder<T>(
+export function createJsonEncoderFn<T>(
   valOrSchema?: T | RunType<T>,
   _options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
   // `strategy` + `rejectCircularRefs` are compile-time — the plugin baked both
   // into `id`'s fnHash, so the runtime just resolves the injected tuple.
-  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', jsonStringifyFallback, valOrSchema, id);
+  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoderFn', jsonStringifyFallback, valOrSchema, id);
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
  *  properties become `undefined` before restore walks the declared shape.
- *  Accepts either a value-first schema (`createJsonDecoder(rt)`) or the
+ *  Accepts either a value-first schema (`createJsonDecoderFn(rt)`) or the
  *  value/static form.
  *
  *  As with the encoder, the trailing `InjectTypeFnArgs` slot carries the
  *  `[typeId, fnId]` tuple whose `fnId` is the composite fnHash; the runtime
  *  resolves that entry directly. The fallback (`JSON.parse`) covers the
  *  no-plugin case. **/
-export function createJsonDecoder<T>(
+export function createJsonDecoderFn<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<DataOnly<T>>;
-export function createJsonDecoder<T>(
+export function createJsonDecoderFn<T>(
   val?: T,
   options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<DataOnly<T>>;
-export function createJsonDecoder<T>(
+export function createJsonDecoderFn<T>(
   valOrSchema?: T | RunType<T>,
   options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
@@ -432,7 +432,7 @@ export function createJsonDecoder<T>(
   // serialisable data — the return is the data-only projection `DataOnly<T>`
   // (identity on clean DTOs). Runtime is unchanged; this is the type boundary.
   return resolveTupleEntry<JsonDecoderFn<DataOnly<T>>>(
-    'createJsonDecoder',
+    'createJsonDecoderFn',
     jsonParseFallback as JsonDecoderFn<DataOnly<T>>,
     valOrSchema,
     id

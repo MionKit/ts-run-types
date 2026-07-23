@@ -1,6 +1,6 @@
 // Regression for docs/done/verr-record-array-disagreement.md.
 //
-// The invariant: createValidate<T>() and createGetValidationErrors<T>() must
+// The invariant: createValidateFn<T>() and createGetValidationErrorsFn<T>() must
 // ALWAYS agree — for every value v, `validate(v) === (getValidationErrors(v).length === 0)`
 // (fuzz oracle O4). It broke for record / index-signature types fed a
 // non-plain-object input: `validate([])` correctly returned false (an array is
@@ -14,12 +14,12 @@
 // internal/cachegen/typefunctions/index_sig_array_reject_test.go.
 
 import {describe, test, expect} from 'vitest';
-import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';
+import {createValidateFn, createGetValidationErrorsFn} from '@ts-runtypes/core';
 
 describe('verr/validate agreement on non-plain-object inputs to record types (O4)', () => {
   test('Record<string, number> — [] is the minimal disagreement repro', () => {
-    const validate = createValidate<Record<string, number>>();
-    const errors = createGetValidationErrors<Record<string, number>>();
+    const validate = createValidateFn<Record<string, number>>();
+    const errors = createGetValidationErrorsFn<Record<string, number>>();
     // Before the fix: validate=false but errors returned [] (0 errors) → O4 violated.
     expect(validate([])).toBe(false);
     expect(errors([])).toEqual([{path: [], expected: 'objectLiteral'}]);
@@ -27,15 +27,15 @@ describe('verr/validate agreement on non-plain-object inputs to record types (O4
 
   test('Record<string, number> — reflect form agrees too', () => {
     const rec: Record<string, number> = {};
-    const validate = createValidate(rec);
-    const errors = createGetValidationErrors(rec);
+    const validate = createValidateFn(rec);
+    const errors = createGetValidationErrorsFn(rec);
     expect(validate([])).toBe(false);
     expect(errors([]).length).toBeGreaterThan(0);
   });
 
   test('Record<string, number> — full repro table', () => {
-    const validate = createValidate<Record<string, number>>();
-    const errors = createGetValidationErrors<Record<string, number>>();
+    const validate = createValidateFn<Record<string, number>>();
+    const errors = createGetValidationErrorsFn<Record<string, number>>();
 
     // {} — valid (an empty record)
     expect(validate({})).toBe(true);
@@ -55,8 +55,8 @@ describe('verr/validate agreement on non-plain-object inputs to record types (O4
   });
 
   test('Record<string, Date> — full repro table', () => {
-    const validate = createValidate<Record<string, Date>>();
-    const errors = createGetValidationErrors<Record<string, Date>>();
+    const validate = createValidateFn<Record<string, Date>>();
+    const errors = createGetValidationErrorsFn<Record<string, Date>>();
     const good = new Date('2020-01-01T00:00:00.000Z');
 
     expect(validate({})).toBe(true);
@@ -91,8 +91,8 @@ describe('verr/validate agreement on non-plain-object inputs to record types (O4
       42,
       'string',
     ];
-    const validate = createValidate<Record<string, number>>();
-    const errors = createGetValidationErrors<Record<string, number>>();
+    const validate = createValidateFn<Record<string, number>>();
+    const errors = createGetValidationErrorsFn<Record<string, number>>();
     for (const input of inputs) {
       const ok = validate(input);
       const errs = errors(input);

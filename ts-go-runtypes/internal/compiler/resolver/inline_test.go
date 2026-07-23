@@ -21,20 +21,20 @@ const runtypesDTS = `declare module '@ts-runtypes/core' {
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean; rejectCircularRefs?: boolean}
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
-  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createGetValidationErrorsFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
   export function createStandardSchema<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, ids?: InjectTypeFnArgs<T, 'val', 'verr'>): {'~standard': {version: 1; vendor: string; validate: (v: unknown) => unknown}};
-  export function createHasUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>): (v: unknown) => unknown;
+  export function createHasUnknownKeysFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>): (v: unknown) => unknown;
   export function createStripUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>): (v: unknown) => unknown;
-  export function createUnknownKeyErrors<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>): (v: unknown) => unknown;
+  export function createUnknownKeyErrorsFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>): (v: unknown) => unknown;
   export function createUnknownKeysToUndefined<T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>): (v: unknown) => unknown;
-  export function createFormatTransform<T>(val?: T, id?: InjectTypeFnArgs<T, 'fmt'>): (v: unknown) => unknown;
-  export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (v: unknown) => unknown;
-  export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (v: unknown) => unknown;
+  export function createFormatTransformFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'fmt'>): (v: unknown) => unknown;
+  export function createBinaryEncoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (v: unknown) => unknown;
+  export function createBinaryDecoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (v: unknown) => unknown;
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'; rejectCircularRefs?: boolean};
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
-  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (s: string) => unknown;
+  export function createJsonEncoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
+  export function createJsonDecoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (s: string) => unknown;
   // Minimal DataOnly stand-in — preserves the alias-clearing key-filtering
   // mapped-type shape that the real DataOnly uses in dataOnly.ts, just
   // enough to exercise the serializer's mapped-type recognition path.

@@ -9,7 +9,7 @@
 > doc for the current contract; the notes below are the earlier interim design.
 >
 > **Status: SHIPPED (2026-06-23).** Implemented as commits on the `binary-sizing-modes`
-> branch. The three modes, `createBinarySizer<T>()`, the `bufferSize` option, the Go
+> branch. The three modes, `createBinarySizerFn<T>()`, the `bufferSize` option, the Go
 > emitter container-boundary reserves, and the retired backstop all landed and are
 > pinned by tests (`binarySizingModes.test.ts`, `binaryDynamicGrow.test.ts`, the
 > serialization suite, the type-generation oracle sweep). The only deferred item is
@@ -17,7 +17,7 @@
 > phases). This doc **merges and superseded** the two previous specs:
 > - `docs/todos/binary-buffer-sizing.md` (deferred improvements — container-boundary
 >   reservation, backstop retirement, lower cold start, pooling, decaying stats)
-> - `docs/todos/binary-caller-supplied-buffer-size.md` (`createBinarySizer<T>()`,
+> - `docs/todos/binary-caller-supplied-buffer-size.md` (`createBinarySizerFn<T>()`,
 >   `bufferSize` option, caller-supplied serializer)
 >
 > The shipped baseline it builds on (Welford prediction, in-place grow, the
@@ -70,7 +70,7 @@ vs `dynamic`:
 
 - **`precalculate` ≈ −22% to −24%** (the measure pass), uniform across groups.
 - **`initial` ≈ +17% to +19%** — the fastest: no measure pass, no grow checks, an
-  exact pre-sized buffer (size it once with `createBinarySizer`).
+  exact pre-sized buffer (size it once with `createBinarySizerFn`).
 - **0 byte mismatches** across all modes.
 
 The original two-mode measurement that drove the design (`precalculate` vs `dynamic`):
@@ -176,20 +176,20 @@ bufferSize?: number;                                // required for 'initial'
 - **precalculate**: measure pass (`createSizingSerializer`) → `createDataViewSerializer(cacheKey, {size: sizer.getLength(), grow:false})`.
 - **initial**: `createDataViewSerializer(cacheKey, {size: bufferSize, grow:false})`;
   a raw write throws `RangeError` if `bufferSize` is too small (propagated, not caught).
-- **caller-supplied serializer** (`createBinaryEncoder(value, serializer)`) keeps
+- **caller-supplied serializer** (`createBinaryEncoderFn(value, serializer)`) keeps
   working unchanged — the caller already owns sizing + grow.
 - **Retire** `MAX_BUFFER_BYTES` + the `for(;;) try/catch` backstop (see Phase 5).
 
 ### D. Public size API (from the caller-supplied todo)
 
-1. **`createBinarySizer<T>()` → `(value) => number`** — the exact on-wire byte count.
+1. **`createBinarySizerFn<T>()` → `(value) => number`** — the exact on-wire byte count.
    Reuses the `'tb'` family entry (same `InjectTypeFnArgs<T, 'tb'>` injection as
-   `createBinaryEncoder`) run against `createSizingSerializer`, so **no new cache
+   `createBinaryEncoderFn`) run against `createSizingSerializer`, so **no new cache
    family** and **no Go emitter change**. Verify the marker scanner recognises it by
    the injected param (`internal/compiler/marker`) — expected to need no allowlist change.
 2. **`bufferSize` option** — the ergonomic form of `initial` (above).
 3. **Document the pre-built serializer pattern** — building one at a known size
-   (`createBinarySizer` gives the safe number) and reusing it across encodes to pool
+   (`createBinarySizerFn` gives the safe number) and reusing it across encodes to pool
    the buffer and skip a fresh `ArrayBuffer` per call.
 
 ## Decisions (agreed 2026-06-23)
@@ -207,7 +207,7 @@ bufferSize?: number;                                // required for 'initial'
    fixed modes, so the call short-circuits (not invoked, arg not evaluated). A no-op
    *method* is rejected because it still invokes a call.
 5. **`initial` overflow** — wrap the native `RangeError` with a clearer message naming
-   `bufferSize` + `createBinarySizer`, then rethrow (no retry).
+   `bufferSize` + `createBinarySizerFn`, then rethrow (no retry).
 
 ## Implementation phases
 
@@ -216,7 +216,7 @@ bufferSize?: number;                                // required for 'initial'
    threads through `createDataViewSerializer`. The three modes are wired in
    `createRTFBinary.ts`. Tests: byte-identical across modes; the fixed modes leave
    `ensureCapacity` undefined; `initial` throws on an undersized `bufferSize`.
-2. **DONE — `createBinarySizer<T>()` + `bufferSize`.** Public factory + option. The
+2. **DONE — `createBinarySizerFn<T>()` + `bufferSize`.** Public factory + option. The
    `sizer(v) === encode(v).byteLength` oracle is pinned; the marker scanner injects
    it from its `InjectTypeFnArgs<T,'tb'>` param with no Go change.
 3. **DONE — Go emitter reserves.** Container-boundary `ensureCapacity?.(n)` for every
@@ -245,9 +245,9 @@ bufferSize?: number;                                // required for 'initial'
   serializer's `ensureCapacity` member is `undefined` after construction in both
   modes (so every `?.(N)` site short-circuits), and that `resize`/grow is never
   invoked. `dynamic` has it defined.
-- **`initial` throws** on an undersized buffer; succeeds at the `createBinarySizer`
+- **`initial` throws** on an undersized buffer; succeeds at the `createBinarySizerFn`
   size.
-- **Sizer oracle**: `createBinarySizer(v) === createBinaryEncoder(v).byteLength`
+- **Sizer oracle**: `createBinarySizerFn(v) === createBinaryEncoderFn(v).byteLength`
   (fuzz over generated types) — pins the measure pass to the real encoder.
 - **`dynamic` overflow fuzz** (gates Phase 5): random + suite payloads against a
   deliberately tiny initial prediction never throw.
@@ -262,7 +262,7 @@ bufferSize?: number;                                // required for 'initial'
 - `container/website/content/2.guide/3.serialization.md` — a "buffer sizing"
   section: the three modes, what each is for (dynamic = default/fast, precalculate =
   deterministic but ~27% slower on encode, initial = caller-owned/pooling),
-  `createBinarySizer`, `bufferSize`. Website voice rules apply (plain language, no
+  `createBinarySizerFn`, `bufferSize`. Website voice rules apply (plain language, no
   em-dashes, short frontmatter) — see
   [CLAUDE.md → Website docs style](../../CLAUDE.md#website-docs-style-container/websitecontent).
 - `docs/ARCHITECTURE.md` rewrite-mechanics — note the emitter now reserves at

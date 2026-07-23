@@ -328,7 +328,7 @@ the most important decision in the whole framework.
 How are valid inputs described?               →  Generator tool to use
 ─────────────────────────────────────────────────────────────────────────────
 A) runtime schema / reflected type            →  DERIVE it (reflection)
-   (Zod, a RunType, JSON Schema)                  createMockData<T>(), zod-fast-check
+   (Zod, a RunType, JSON Schema)                  createMockDataFn<T>(), zod-fast-check
 B) only a static TS type                       →  reflect it, or hand-write
                                                    typia random<T>(), or fc.Arbitrary<T>
 C) unstructured bytes / strings                →  MUTATE a seed corpus
@@ -352,8 +352,8 @@ In plain terms:
 
 ```ts
 // The schema IS the generator. One reflected type → infinite valid values.
-import {createMockData} from '@ts-runtypes/core';
-const mockUser = createMockData<User>(); // () => User, valid by construction
+import {createMockDataFn} from '@ts-runtypes/core';
+const mockUser = createMockDataFn<User>(); // () => User, valid by construction
 const u = mockUser(); // a fresh random User every call
 ```
 
@@ -390,7 +390,7 @@ type-blind junk:
 
 | Generator                        | File                                                 | Produces                                           |
 | -------------------------------- | ---------------------------------------------------- | -------------------------------------------------- |
-| `createMockData<T>()`            | `packages/ts-runtypes/src/mocking/createMockData.ts` | a **valid** value of `T`                           |
+| `createMockDataFn<T>()`            | `packages/ts-runtypes/src/mocking/createMockData.ts` | a **valid** value of `T`                           |
 | `mutateToInvalid(schema, valid)` | `test/fuzz/invalidValue.ts`                          | a value **corrupted at one provably-invalid spot** |
 | `randomJunk(depth)`              | `test/fuzz/fuzzRunner.ts`                            | type-blind random junk (bounded, acyclic)          |
 
@@ -485,7 +485,7 @@ Runner          iterate × seed × collect      ____          ____
 ```
 
 Worked: **RunTypes value fuzzing** — every cell is "have," pointing at a real file
-(`createMockData` / `invalidValue.ts` / `seededRng.ts` / return+throw / one-spot
+(`createMockDataFn` / `invalidValue.ts` / `seededRng.ts` / return+throw / one-spot
 corruption / `fuzzRunner.ts`). That is why it could be stood up fast. The enrichment
 pipeline (in "A real one" below) will have _gaps_ — mainly the event input maker plus
 the state model — and the table is how we'll see exactly what to build.
@@ -538,11 +538,11 @@ split literally names the **two input makers** you need:
 ```ts
 // test/suites/validation/Atomic.test.ts → assertValidateStatic (validationAsserts.ts:119)
 // the example PINS both sides by hand:
-valid.forEach((v) => expect(validate(v)).toBe(true)); //   ← createMockData<T>()           generates this side
+valid.forEach((v) => expect(validate(v)).toBe(true)); //   ← createMockDataFn<T>()           generates this side
 invalid.forEach((v) => expect(validate(v)).toBe(false)); // ← mutateToInvalid(schema, mock)  generates this side
 ```
 
-The fuzz harness reads exactly that off the example: `createMockData(schema)`
+The fuzz harness reads exactly that off the example: `createMockDataFn(schema)`
 replaces the hand-written `valid` array (valid by construction), and
 `mutateToInvalid` (`test/fuzz/invalidValue.ts`, consumed by `fuzzRunner.ts:14`)
 replaces the `invalid` array (corrupt one provably-invalid spot). A **table-driven**
@@ -562,7 +562,7 @@ Pick the tactic by the **shape of the check you already have**:
 | a **hardcoded regression** ("this once broke")   | **fuzz the neighbourhood** of that hazard                          | `binaryEncoderResize.test.ts` (50 small encodes + 1 big) → varied-length mocks                          |
 
 The round-trip case is the gift: `expect(decode(encode(x))).toEqual(x)` is _already_
-the rule — swap the literal `x` for `createMockData<T>()` and you are done. The
+the rule — swap the literal `x` for `createMockDataFn<T>()` and you are done. The
 good/bad case is the workhorse: the example's two values become two input makers, and
 the check becomes the relation that ties the code's two outputs together —
 `validate(x) ⇔ getValidationErrors(x).length === 0`, true for **every** `x`
@@ -605,7 +605,7 @@ always:
 - **Pure, total transforms** — `transformAsserts.ts` (`transform(input) === expected`):
   deterministic, no error path, nothing to sweep. The examples are sufficient.
 - **Inputs the input maker can't reach** — `circularGuardAsserts.ts` needs a _cyclic_
-  value, which the default `createMockData` rng won't produce; a naive lift would fuzz
+  value, which the default `createMockDataFn` rng won't produce; a naive lift would fuzz
   a space that never contains the case (the inputs never hit the case). Grow it only
   once you have an input maker that reaches it.
 

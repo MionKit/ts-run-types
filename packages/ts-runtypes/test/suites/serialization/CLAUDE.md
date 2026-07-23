@@ -31,7 +31,7 @@ single-purpose — benchmarking, code extraction, doc-gen") and
 mutateEncoder: () => {
   class Ledger { constructor(public owner: string, public balance: bigint) {} }
   registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.balance)});
-  return createJsonEncoder<Ledger>(undefined, {strategy: 'mutate'});
+  return createJsonEncoderFn<Ledger>(undefined, {strategy: 'mutate'});
 },
 // WRONG — `class Ledger {}` at module scope, referenced from the thunk.
 ```

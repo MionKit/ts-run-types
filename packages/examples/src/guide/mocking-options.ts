@@ -1,4 +1,4 @@
-import {createMockData} from '@ts-runtypes/core';
+import {createMockDataFn} from '@ts-runtypes/core';
 
 type Account = {
   balance: number;
@@ -9,7 +9,7 @@ type Account = {
 // start-options
 // Options can be set at the factory (apply to every call) or per call.
 // They merge: defaults < factory < call.
-const mockAccount = createMockData<Account>(undefined, {
+const mockAccount = createMockDataFn<Account>(undefined, {
   mock: {
     minNumber: 0,
     maxNumber: 1000, // numbers land in [0, 1000]
@@ -24,7 +24,7 @@ const rich = mockAccount({mock: {minNumber: 1_000_000}}); // override just for t
 // start-seed
 // Pass a seed for reproducible data: the same seed always yields the same value,
 // so snapshot tests and fixtures stay stable. Leave it out for fresh data.
-const mockFixture = createMockData<Account>(undefined, {mock: {seed: 123}});
+const mockFixture = createMockDataFn<Account>(undefined, {mock: {seed: 123}});
 const sameEveryRun = mockFixture(); // identical on every run
 // end-seed
 

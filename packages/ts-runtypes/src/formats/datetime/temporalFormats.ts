@@ -146,7 +146,7 @@ declare module '../../runtypes/dataOnly.ts' {
 // Co-located here (not under the root `formats` surface) so the Temporal-lib
 // coupling stays in this one module. Each builder still returns the generic
 // `RunType<…>` node and converges on the same structural id as the type-first
-// `createValidate<Temporal.X>()` surface.
+// `createValidateFn<Temporal.X>()` surface.
 
 // `temporalBuilder` — shared factory for the 6 orderable temporal builders. Each
 // fixes its tag and returns the matching branded `Instant`/`PlainDate`/… via the
@@ -167,7 +167,7 @@ function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag
 /** A no-ordering temporal builder (`plainMonthDay` / `duration`). These have no
  *  min/max semantics, so — unlike `temporalBuilder` — there is only the no-params
  *  overload: it returns the raw instance type and converges with the type-first
- *  `createValidate<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
+ *  `createValidateFn<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
 function temporalInstanceBuilder<Tag extends 'temporal.plainMonthDay' | 'temporal.duration'>(
   tag: Tag
 ): TemporalInstanceBuilderFn<Tag> {

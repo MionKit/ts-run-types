@@ -1,4 +1,4 @@
-// Mock soundness: `validate(createMockData<T>()())` must hold — or fail
+// Mock soundness: `validate(createMockDataFn<T>()())` must hold — or fail
 // loudly. Pins the fixes from
 // docs/done/mocking-gaps-format-transforms-and-domain-allowedvalues.md and
 // docs/done/format-pattern-samples-dedup-and-length-soundness.md:
@@ -16,10 +16,10 @@
 
 import {describe, expect, it} from 'vitest';
 import {
-  createValidate,
-  createGetValidationErrors,
-  createMockData,
-  createFormatTransform,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createFormatTransformFn,
   getRunTypeId,
   type TypeFormat,
 } from '@ts-runtypes/core';
@@ -36,9 +36,9 @@ describe('mock soundness — validate(mock()) holds or fails loudly', () => {
     type LoweredTag = Lowercase<{mockSamples: ['MiXeD', 'UPPERCASE', 'already']}>;
     // The fmt family is demand-driven: this call site is what compiles the
     // transform entry the mock generator must find.
-    const toCanonical = createFormatTransform<LoweredTag>();
+    const toCanonical = createFormatTransformFn<LoweredTag>();
     expect(toCanonical('ABC')).toBe('abc');
-    const mock = createMockData<LoweredTag>();
+    const mock = createMockDataFn<LoweredTag>();
     for (let i = 0; i < 8; i++) {
       const value = mock() as string;
       expect(value).toBe(value.toLowerCase());
@@ -47,8 +47,8 @@ describe('mock soundness — validate(mock()) holds or fails loudly', () => {
 
   it('domain formats restricted by allowedValues mock from the allowed set', () => {
     type PinnedDomain = TypeFormat<string, 'domain', {allowedValues: {val: ['alpha.example', 'beta.example']}}>;
-    const isPinnedDomain = createValidate<PinnedDomain>();
-    const mock = createMockData<PinnedDomain>();
+    const isPinnedDomain = createValidateFn<PinnedDomain>();
+    const mock = createMockDataFn<PinnedDomain>();
     for (let i = 0; i < 8; i++) {
       const value = mock() as string;
       expect(['alpha.example', 'beta.example']).toContain(value);
@@ -66,8 +66,8 @@ describe('mock soundness — validate(mock()) holds or fails loudly', () => {
     const sampleA: FormatA = 'aaa';
     expect(getRunTypeId(sampleA)).toBe(idA);
 
-    const mockA = createMockData<FormatA>();
-    const mockB = createMockData<FormatB>();
+    const mockA = createMockDataFn<FormatA>();
+    const mockB = createMockDataFn<FormatB>();
     for (let i = 0; i < 8; i++) {
       expect(['aaa', 'aa']).toContain(mockA());
       expect(['zzz', 'zz']).toContain(mockB());
@@ -76,8 +76,8 @@ describe('mock soundness — validate(mock()) holds or fails loudly', () => {
 
   it('length-compatible samples survive the bound filter; incompatible-only samples throw', () => {
     type Mixed = StringFormat<{minLength: 5; pattern: {source: '^a+$'; flags: ''; mockSamples: ['aa', 'aaaaaa']}}>;
-    const isMixed = createValidate<Mixed>();
-    const mockMixed = createMockData<Mixed>();
+    const isMixed = createValidateFn<Mixed>();
+    const mockMixed = createMockDataFn<Mixed>();
     for (let i = 0; i < 8; i++) {
       const value = mockMixed() as string;
       expect(value).toBe('aaaaaa'); // the only sample satisfying minLength
@@ -85,13 +85,13 @@ describe('mock soundness — validate(mock()) holds or fails loudly', () => {
     }
 
     type Impossible = StringFormat<{minLength: 5; pattern: {source: '^b+$'; flags: ''; mockSamples: ['b', 'bb']}}>;
-    const mockImpossible = createMockData<Impossible>();
+    const mockImpossible = createMockDataFn<Impossible>();
     expect(() => mockImpossible()).toThrow(/`mockSamples` compatible with the length bounds/);
   });
 
   it("surfaces a pattern's `message` as the validation error format val", () => {
     type Slugish = StringFormat<{pattern: {source: '^[a-z-]+$'; flags: ''; mockSamples: ['my-slug']; message: 'must be a slug'}}>;
-    const getErrors = createGetValidationErrors<Slugish>();
+    const getErrors = createGetValidationErrorsFn<Slugish>();
     const errors = getErrors('NOT A SLUG!') as Array<{format?: {name?: string; val?: unknown}}>;
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0].format?.val).toBe('must be a slug');

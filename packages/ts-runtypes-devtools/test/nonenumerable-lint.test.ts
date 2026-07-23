@@ -19,13 +19,13 @@ describe('@ts-runtypes/devtools / @nonEnumerable lint (NE001)', () => {
 
   register('flags a REQUIRED @nonEnumerable property', async () => {
     const sources = {
-      'req.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
+      'req.ts': `import {createJsonEncoderFn} from '@ts-runtypes/core';
 interface Doc {
   id: string;
   /** @nonEnumerable */
   token: string;
 }
-export const _ = createJsonEncoder<Doc>();
+export const _ = createJsonEncoderFn<Doc>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -37,13 +37,13 @@ export const _ = createJsonEncoder<Doc>();
 
   register('does NOT flag an OPTIONAL @nonEnumerable property', async () => {
     const sources = {
-      'opt.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
+      'opt.ts': `import {createJsonEncoderFn} from '@ts-runtypes/core';
 interface Doc {
   id: string;
   /** @nonEnumerable */
   token?: string;
 }
-export const _ = createJsonEncoder<Doc>();
+export const _ = createJsonEncoderFn<Doc>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -53,13 +53,13 @@ export const _ = createJsonEncoder<Doc>();
 
   register('flags a required @nonEnumerable class property too', async () => {
     const sources = {
-      'cls.ts': `import {createJsonEncoder} from '@ts-runtypes/core';
+      'cls.ts': `import {createJsonEncoderFn} from '@ts-runtypes/core';
 class Doc {
   id = '';
   /** @nonEnumerable */
   token = '';
 }
-export const _ = createJsonEncoder<Doc>();
+export const _ = createJsonEncoderFn<Doc>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {

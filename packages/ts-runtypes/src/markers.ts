@@ -143,7 +143,7 @@ export type InjectTypeFnArgs<
  *     MODELS: `getRunTypeId(object({…}))`. `T` is the UNWRAPPED modeled type;
  *     without this overload a value-first `getRunTypeId(schema)` infers
  *     `T = RunType<…>` and returns the id of the `RunType` wrapper interface
- *     instead of the type the schema describes. Mirrors `createMockData`.
+ *     instead of the type the schema describes. Mirrors `createMockDataFn`.
  *
  * Throws if the transformer is not active — the id can only be computed at
  * build time. The plugin injects the runtype's entry-module tuple at the
@@ -197,9 +197,9 @@ export type CompTimeArgs<T> = T;
  * Compile-time fn-args marker. Like `CompTimeArgs<T>` it brands a parameter so
  * the Go scanner enforces the argument is *fully literal* (`CTA0xx`), but it
  * ALSO marks this as the parameter whose literal value selects the `createX`
- * function variant — the `ValidateOptions` bag for `createValidate` /
- * `createGetValidationErrors`, the strategy for `createJsonEncoder` /
- * `createJsonDecoder`. The scanner reads it to compute the injected fn hash
+ * function variant — the `ValidateOptions` bag for `createValidateFn` /
+ * `createGetValidationErrorsFn`, the strategy for `createJsonEncoderFn` /
+ * `createJsonDecoderFn`. The scanner reads it to compute the injected fn hash
  * (see `InjectTypeFnArgs`). A `{...preset, …}` spread is merged in source order
  * (last write wins), so a shared options preset selects the same variant as the
  * fully-inlined options. Phantom intersection; the value flows through

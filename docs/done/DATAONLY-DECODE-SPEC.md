@@ -2,12 +2,12 @@
 
 > _Resurfaced historical doc, kept as a record of implemented work. Project names have changed since: `ts-go-run-types` / `@mionjs/ts-go-run-types` is now `ts-runtypes`, the `vite-plugin-runtypes` plugin is now `ts-runtypes-devtools`, and `reflectRunTypeId(value)` is now `getRunTypeId(value)`. Some paths and symbols below may since have been renamed, removed, or ported to Go._
 
-**Status:** Implemented. `createJsonDecoder<T>()` / `createBinaryDecoder<T>()` return `DataOnly<T>`.
+**Status:** Implemented. `createJsonDecoderFn<T>()` / `createBinaryDecoderFn<T>()` return `DataOnly<T>`.
 **Scope:** type-level return annotation for the decode APIs. No runtime or emitter change.
 
 ## Problem
 
-`createJsonDecoder<T>()` and `createBinaryDecoder<T>()` today return `=> T`.
+`createJsonDecoderFn<T>()` and `createBinaryDecoderFn<T>()` today return `=> T`.
 
 A decoded value is reconstructed from JSON / bytes, so it can only hold serialisable
 data — it can never carry the functions, methods, `Promise`s, symbols, or
@@ -23,8 +23,8 @@ back a real object the caller will consume as `T`.
 
 Annotate the decode return as the data-only projection:
 
-- `createJsonDecoder<T>()` → `JsonDecoderFn<DataOnly<T>>`
-- `createBinaryDecoder<T>()` → `(bytes) => DataOnly<T>`
+- `createJsonDecoderFn<T>()` → `JsonDecoderFn<DataOnly<T>>`
+- `createBinaryDecoderFn<T>()` → `(bytes) => DataOnly<T>`
 
 `DataOnly<T>` ([`src/runtypes/dataOnly.ts`](../packages/ts-go-run-types/src/runtypes/dataOnly.ts))
 is the exact shape the AOT validator/serialiser produces: keeps primitives /
@@ -40,9 +40,9 @@ the TypeScript signature tell the truth about what the decoder returns.
 
 ## Scope
 
-- **IN:** type-first decode return types — `createJsonDecoder<T>()`,
-  `createBinaryDecoder<T>()` (keep the value-first / schema overloads consistent).
-- **OUT — encoders** (`createJsonEncoder` / `createBinaryEncoder`): they take `T`
+- **IN:** type-first decode return types — `createJsonDecoderFn<T>()`,
+  `createBinaryDecoderFn<T>()` (keep the value-first / schema overloads consistent).
+- **OUT — encoders** (`createJsonEncoderFn` / `createBinaryEncoderFn`): they take `T`
   as *input* (you pass your real object; non-data is dropped at emit), so the input
   type stays `T`.
 - **OUT — `validate` / `getValidationErrors`:** separate discussion; `DataOnly` there is the
@@ -74,10 +74,10 @@ routing every return value through it scales linearly and reuse is effectively f
 
 ## Open questions (resolved during implementation)
 
-1. **Value-first / schema decoders** (`createJsonDecoder(rt)`): projected too. The
+1. **Value-first / schema decoders** (`createJsonDecoderFn(rt)`): projected too. The
    schema form infers `T = Static<typeof rt>`, then the same overload return
    projects it — consistent with the type-first form, no extra wiring.
-2. **`JsonDecoderFn` / `createBinaryDecoder` signature**: the projection lives on the
+2. **`JsonDecoderFn` / `createBinaryDecoderFn` signature**: the projection lives on the
    **factory overload return** (`JsonDecoderFn<DataOnly<T>>` /
    `BinaryDecoderFn<DataOnly<T>>`), NOT on the `JsonDecoderFn`/`BinaryDecoderFn`
    aliases — those stay `=> T` as composable primitives. Baking it into the alias
@@ -98,7 +98,7 @@ routing every return value through it scales linearly and reuse is effectively f
 
 ## Acceptance — met
 
-- ✅ `createJsonDecoder<Dirty>()` / `createBinaryDecoder<Dirty>()` return the projected
+- ✅ `createJsonDecoderFn<Dirty>()` / `createBinaryDecoderFn<Dirty>()` return the projected
   (data-only) type; clean DTOs are unchanged (`DataOnly<T> ≡ T`).
 - ✅ No runtime or emitter behaviour change; all existing decode round-trips pass
   (full marker-package suite: 5899 tests green).

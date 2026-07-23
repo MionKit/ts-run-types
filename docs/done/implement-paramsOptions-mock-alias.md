@@ -51,6 +51,6 @@ make it an **alias** of `tupleOptions` in the tuple arm.
 ## Done when
 
 - `paramsOptions` is read (aliased to `tupleOptions`), so
-  `createMockData<Parameters<typeof fn>>(_, {mock: {paramsOptions: [...]}})` steers
+  `createMockDataFn<Parameters<typeof fn>>(_, {mock: {paramsOptions: [...]}})` steers
   each parameter. ✓
 - Mock suites green; the option is documented. ✓

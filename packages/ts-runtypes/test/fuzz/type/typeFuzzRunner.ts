@@ -44,7 +44,7 @@ import {
 
 /** Where the behaviour tier sources its conforming value: the abstract-shape
  *  generator (`shapeValue.ts`, the WILD lane) or the REAL product mock
- *  (`createMockData` with nonDataTypes on, the DataOnly non-data lane). **/
+ *  (`createMockDataFn` with nonDataTypes on, the DataOnly non-data lane). **/
 export type ValueSource = 'shape' | 'mock';
 
 const EXPECTED_FN_SITES = 6;
@@ -63,7 +63,7 @@ export interface TypeFuzzOptions {
   iterations?: number;
   gen?: Partial<GenOptions>;
   /** Value source for the behaviour tier — `'shape'` (default, the WILD lane)
-   *  or `'mock'` (the DataOnly non-data lane: REAL createMockData values +
+   *  or `'mock'` (the DataOnly non-data lane: REAL createMockDataFn values +
    *  diagnostics-driven serialize/fail tiering). **/
   valueSource?: ValueSource;
 }
@@ -389,7 +389,7 @@ function runRobustnessProbe(compiled: CompiledType, seed: number, out: Violation
   }
 }
 
-// --- Tier B (mock lane) — values from the REAL createMockData (nonDataTypes on).
+// --- Tier B (mock lane) — values from the REAL createMockDataFn (nonDataTypes on).
 // The serialize-vs-fail tier is read from the ACTUAL encoder behaviour, not the
 // resolver's diagnostics: the resolver over-reports Error-severity diagnostics
 // for non-serialisable positions inside DROPPED subtrees (e.g. a dropped

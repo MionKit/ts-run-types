@@ -1,7 +1,7 @@
 // ts-runtypes validators keyed by suite case key ("GROUP.case"), SCHEMA form
 // (value-first). Each entry is the case's own `validateSchema` thunk copied
 // VERBATIM from the shared suites (container/benchmarks/src/suites/**) — a
-// `() => createValidate(RT.…)` arrow built from the `ts-runtypes/schema`
+// `() => createValidateFn(RT.…)` arrow built from the `ts-runtypes/schema`
 // builders instead of a literal type argument. Consumed by typecost ONLY (it is
 // NOT imported by main.ts). Cases whose value-first form can't be authored
 // (`validateSchema: 'not-supported'`) or that render an alwaysThrow factory
@@ -9,65 +9,65 @@
 
 import * as TF from '@ts-runtypes/core/formats';
 import * as TFT from '@ts-runtypes/core/formats/temporal';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 
 export const schemaCases: CompetitorCases = {
   // ── ATOMIC ──
-  'ATOMIC.any': () => createValidate(RT.any()),
-  'ATOMIC.bigint': () => createValidate(TF.bigInt()),
-  'ATOMIC.boolean': () => createValidate(RT.boolean()),
-  'ATOMIC.date': () => createValidate(TF.date()),
+  'ATOMIC.any': () => createValidateFn(RT.any()),
+  'ATOMIC.bigint': () => createValidateFn(TF.bigInt()),
+  'ATOMIC.boolean': () => createValidateFn(RT.boolean()),
+  'ATOMIC.date': () => createValidateFn(TF.date()),
   'ATOMIC.enum_mixed': () => {
     enum Color {
       Red,
       Green = 'green',
       Blue = 2,
     }
-    return createValidate(RT.enum(Color));
+    return createValidateFn(RT.enum(Color));
   },
-  'ATOMIC.literal_2': () => createValidate(RT.literal(2)),
-  'ATOMIC.literal_a': () => createValidate(RT.literal('a')),
-  'ATOMIC.literal_true': () => createValidate(RT.literal(true)),
-  'ATOMIC.literal_1n': () => createValidate(RT.literal(1n)),
+  'ATOMIC.literal_2': () => createValidateFn(RT.literal(2)),
+  'ATOMIC.literal_a': () => createValidateFn(RT.literal('a')),
+  'ATOMIC.literal_true': () => createValidateFn(RT.literal(true)),
+  'ATOMIC.literal_1n': () => createValidateFn(RT.literal(1n)),
   'ATOMIC.literal_symbol': NOT_SUPPORTED, // validateSchema not-supported
-  'ATOMIC.never': () => createValidate(RT.never()),
-  'ATOMIC.null': () => createValidate(RT.literal(null)),
-  'ATOMIC.number': () => createValidate(TF.number()),
+  'ATOMIC.never': () => createValidateFn(RT.never()),
+  'ATOMIC.null': () => createValidateFn(RT.literal(null)),
+  'ATOMIC.number': () => createValidateFn(TF.number()),
   'ATOMIC.object': NOT_SUPPORTED, // validateSchema not-supported
-  'ATOMIC.regexp': () => createValidate(RT.regexp()),
-  'ATOMIC.string': () => createValidate(TF.string()),
+  'ATOMIC.regexp': () => createValidateFn(RT.regexp()),
+  'ATOMIC.string': () => createValidateFn(TF.string()),
   'ATOMIC.symbol': NOT_SUPPORTED, // factoryThrows
-  'ATOMIC.undefined': () => createValidate(RT.literal(undefined)),
-  'ATOMIC.void': () => createValidate(RT.void()),
-  'ATOMIC.literal_2_noLiterals': () => createValidate(RT.literal(2), {noLiterals: true}),
-  'ATOMIC.literal_a_noLiterals': () => createValidate(RT.literal('a'), {noLiterals: true}),
-  'ATOMIC.literal_regexp_noLiterals': () => createValidate(RT.regexp(), {noLiterals: true}),
-  'ATOMIC.literal_true_noLiterals': () => createValidate(RT.literal(true), {noLiterals: true}),
-  'ATOMIC.literal_1n_noLiterals': () => createValidate(RT.literal(1n), {noLiterals: true}),
+  'ATOMIC.undefined': () => createValidateFn(RT.literal(undefined)),
+  'ATOMIC.void': () => createValidateFn(RT.void()),
+  'ATOMIC.literal_2_noLiterals': () => createValidateFn(RT.literal(2), {noLiterals: true}),
+  'ATOMIC.literal_a_noLiterals': () => createValidateFn(RT.literal('a'), {noLiterals: true}),
+  'ATOMIC.literal_regexp_noLiterals': () => createValidateFn(RT.regexp(), {noLiterals: true}),
+  'ATOMIC.literal_true_noLiterals': () => createValidateFn(RT.literal(true), {noLiterals: true}),
+  'ATOMIC.literal_1n_noLiterals': () => createValidateFn(RT.literal(1n), {noLiterals: true}),
   'ATOMIC.literal_symbol_noLiterals': NOT_SUPPORTED, // factoryThrows
-  'ATOMIC.unknown': () => createValidate(RT.unknown()),
+  'ATOMIC.unknown': () => createValidateFn(RT.unknown()),
 
   // ── ARRAY ──
-  'ARRAY.string_array': () => createValidate(RT.array(TF.string())),
-  'ARRAY.number_array': () => createValidate(RT.array(TF.number())),
-  'ARRAY.boolean_array': () => createValidate(RT.array(RT.boolean())),
-  'ARRAY.bigint_array': () => createValidate(RT.array(TF.bigInt())),
-  'ARRAY.date_array': () => createValidate(RT.array(TF.date())),
-  'ARRAY.regexp_array': () => createValidate(RT.array(RT.regexp())),
-  'ARRAY.undefined_array': () => createValidate(RT.array(RT.literal(undefined))),
-  'ARRAY.null_array': () => createValidate(RT.array(RT.literal(null))),
-  'ARRAY.array_generic': () => createValidate(RT.array(TF.string())),
-  'ARRAY.string_array_2d': () => createValidate(RT.array(RT.array(TF.string()))),
-  'ARRAY.string_array_3d': () => createValidate(RT.array(RT.array(RT.array(TF.string())))),
-  'ARRAY.string_array_noIsArrayCheck': () => createValidate(RT.array(TF.string()), {noIsArrayCheck: true}),
-  'ARRAY.object_array': () => createValidate(RT.array(RT.object({a: TF.string()}))),
-  'ARRAY.union_array': () => createValidate(RT.array(RT.union([TF.string(), TF.number()]))),
-  'ARRAY.tuple_array': () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
+  'ARRAY.string_array': () => createValidateFn(RT.array(TF.string())),
+  'ARRAY.number_array': () => createValidateFn(RT.array(TF.number())),
+  'ARRAY.boolean_array': () => createValidateFn(RT.array(RT.boolean())),
+  'ARRAY.bigint_array': () => createValidateFn(RT.array(TF.bigInt())),
+  'ARRAY.date_array': () => createValidateFn(RT.array(TF.date())),
+  'ARRAY.regexp_array': () => createValidateFn(RT.array(RT.regexp())),
+  'ARRAY.undefined_array': () => createValidateFn(RT.array(RT.literal(undefined))),
+  'ARRAY.null_array': () => createValidateFn(RT.array(RT.literal(null))),
+  'ARRAY.array_generic': () => createValidateFn(RT.array(TF.string())),
+  'ARRAY.string_array_2d': () => createValidateFn(RT.array(RT.array(TF.string()))),
+  'ARRAY.string_array_3d': () => createValidateFn(RT.array(RT.array(RT.array(TF.string())))),
+  'ARRAY.string_array_noIsArrayCheck': () => createValidateFn(RT.array(TF.string()), {noIsArrayCheck: true}),
+  'ARRAY.object_array': () => createValidateFn(RT.array(RT.object({a: TF.string()}))),
+  'ARRAY.union_array': () => createValidateFn(RT.array(RT.union([TF.string(), TF.number()]))),
+  'ARRAY.tuple_array': () => createValidateFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
   'ARRAY.circular_array': () => {
     const ca = RT.circular(RT.array(RT.self()));
-    return createValidate(ca);
+    return createValidateFn(ca);
   },
   'ARRAY.circular_object_with_array': () => {
     const ot = RT.circular(
@@ -77,32 +77,32 @@ export const schemaCases: CompetitorCases = {
         d: RT.optional(RT.array(RT.self())),
       })
     );
-    return createValidate(ot);
+    return createValidateFn(ot);
   },
   'ARRAY.symbol_array': NOT_SUPPORTED, // factoryThrows
-  'ARRAY.readonly_string_array': () => createValidate(RT.array(TF.string())),
+  'ARRAY.readonly_string_array': () => createValidateFn(RT.array(TF.string())),
 
   // ── OBJECT ──
-  'OBJECT.simple_interface': () => createValidate(RT.object({a: TF.string(), b: TF.number()})),
+  'OBJECT.simple_interface': () => createValidateFn(RT.object({a: TF.string(), b: TF.number()})),
   'OBJECT.object_as_const_literals': () =>
-    createValidate(
+    createValidateFn(
       RT.object({name: RT.propMod({readonly: true}, RT.literal('john')), age: RT.propMod({readonly: true}, RT.literal(30))})
     ),
-  'OBJECT.object_via_return_type_utility': () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
-  'OBJECT.object_via_property_access': () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
-  'OBJECT.object_via_array_access': () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
-  'OBJECT.interface_with_optional': () => createValidate(RT.object({a: TF.string(), b: RT.optional(TF.number())})),
-  'OBJECT.interface_with_date': () => createValidate(RT.object({date: TF.date(), name: TF.string()})),
-  'OBJECT.interface_with_method': () => createValidate(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
-  'OBJECT.nested_object': () => createValidate(RT.object({a: TF.string(), deep: RT.object({b: TF.string(), c: TF.number()})})),
-  'OBJECT.interface_string_array_prop': () => createValidate(RT.object({tags: RT.array(TF.string())})),
+  'OBJECT.object_via_return_type_utility': () => createValidateFn(RT.object({id: TF.number(), name: TF.string()})),
+  'OBJECT.object_via_property_access': () => createValidateFn(RT.object({id: TF.number(), name: TF.string()})),
+  'OBJECT.object_via_array_access': () => createValidateFn(RT.object({id: TF.number(), name: TF.string()})),
+  'OBJECT.interface_with_optional': () => createValidateFn(RT.object({a: TF.string(), b: RT.optional(TF.number())})),
+  'OBJECT.interface_with_date': () => createValidateFn(RT.object({date: TF.date(), name: TF.string()})),
+  'OBJECT.interface_with_method': () => createValidateFn(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
+  'OBJECT.nested_object': () => createValidateFn(RT.object({a: TF.string(), deep: RT.object({b: TF.string(), c: TF.number()})})),
+  'OBJECT.interface_string_array_prop': () => createValidateFn(RT.object({tags: RT.array(TF.string())})),
   'OBJECT.circular_interface': () => {
     const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
-    return createValidate(ic);
+    return createValidateFn(ic);
   },
   'OBJECT.circular_interface_on_array': () => {
     const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
-    return createValidate(ica);
+    return createValidateFn(ica);
   },
   'OBJECT.circular_interface_on_nested_object': () => {
     const icd = RT.circular(
@@ -111,19 +111,19 @@ export const schemaCases: CompetitorCases = {
         embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())}),
       })
     );
-    return createValidate(icd);
+    return createValidateFn(icd);
   },
-  'OBJECT.index_signature_string': () => createValidate(RT.record(TF.string())),
+  'OBJECT.index_signature_string': () => createValidateFn(RT.record(TF.string())),
   'OBJECT.index_signature_named_props': () =>
-    createValidate(RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))),
-  'OBJECT.index_signature_nested': () => createValidate(RT.record(RT.record(TF.number()))),
-  'OBJECT.index_signature_date_value': () => createValidate(RT.record(RT.record(TF.date()))),
+    createValidateFn(RT.intersection(RT.record(RT.union([TF.string(), TF.number()])), RT.object({a: TF.string(), b: TF.number()}))),
+  'OBJECT.index_signature_nested': () => createValidateFn(RT.record(RT.record(TF.number()))),
+  'OBJECT.index_signature_date_value': () => createValidateFn(RT.record(RT.record(TF.date()))),
   'OBJECT.index_signature_non_root': () =>
-    createValidate(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
-  'OBJECT.function_top_level': () => createValidate(RT.func()),
+    createValidateFn(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
+  'OBJECT.function_top_level': () => createValidateFn(RT.func()),
   'OBJECT.interface_callable': () =>
-    createValidate(RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}))),
-  'OBJECT.interface_all_optional': () => createValidate(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.number())})),
+    createValidateFn(RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}))),
+  'OBJECT.interface_all_optional': () => createValidateFn(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.number())})),
   'OBJECT.class_simple': () => {
     class MySerializableClass {
       date: Date;
@@ -136,7 +136,7 @@ export const schemaCases: CompetitorCases = {
         return 'unused';
       }
     }
-    return createValidate(RT.classType(MySerializableClass));
+    return createValidateFn(RT.classType(MySerializableClass));
   },
   'OBJECT.rpc_error_class': () => {
     class RpcError<ErrType extends string> {
@@ -150,18 +150,18 @@ export const schemaCases: CompetitorCases = {
         this.id = args.id;
       }
     }
-    return createValidate(RT.classType<RpcError<'test-error'>>(RpcError));
+    return createValidateFn(RT.classType<RpcError<'test-error'>>(RpcError));
   },
-  'OBJECT.call_signature_params': () => createValidate(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
+  'OBJECT.call_signature_params': () => createValidateFn(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
   'OBJECT.call_signature_params_with_optional': () =>
-    createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
+    createValidateFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
   'OBJECT.call_signature_params_with_rest': () =>
-    createValidate(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
-  'OBJECT.record_union_keys': () => createValidate(RT.object({a: TF.number(), b: TF.number()})),
-  'OBJECT.union_value_index': () => createValidate(RT.record(RT.union([TF.string(), TF.number()]))),
+    createValidateFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
+  'OBJECT.record_union_keys': () => createValidateFn(RT.object({a: TF.number(), b: TF.number()})),
+  'OBJECT.union_value_index': () => createValidateFn(RT.record(RT.union([TF.string(), TF.number()]))),
   'OBJECT.object_with_union_prop': () =>
-    createValidate(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: TF.number()})),
-  'OBJECT.interface_inheritance': () => createValidate(RT.object({a: TF.string(), b: TF.number()})),
+    createValidateFn(RT.object({kind: RT.union([RT.literal('a'), RT.literal('b')]), n: TF.number()})),
+  'OBJECT.interface_inheritance': () => createValidateFn(RT.object({a: TF.string(), b: TF.number()})),
   'OBJECT.class_inheritance': () => {
     class Base {
       a: string = '';
@@ -169,31 +169,31 @@ export const schemaCases: CompetitorCases = {
     class Sub extends Base {
       b: number = 0;
     }
-    return createValidate(RT.classType(Sub));
+    return createValidateFn(RT.classType(Sub));
   },
-  'OBJECT.index_signature_number_key': () => createValidate(RT.record(TF.number(), TF.string())),
+  'OBJECT.index_signature_number_key': () => createValidateFn(RT.record(TF.number(), TF.string())),
 
   // ── TUPLE ──
-  'TUPLE.string_number_pair': () => createValidate(RT.tuple([TF.string(), TF.number()])),
+  'TUPLE.string_number_pair': () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
   'TUPLE.full_mion_tuple': () =>
-    createValidate(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
-  'TUPLE.tuple_with_optional': () => createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-  'TUPLE.nested_tuple_in_array': () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
-  'TUPLE.tuple_rest': () => createValidate(RT.tuple([TF.number()], TF.string())),
+    createValidateFn(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+  'TUPLE.tuple_with_optional': () => createValidateFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+  'TUPLE.nested_tuple_in_array': () => createValidateFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
+  'TUPLE.tuple_rest': () => createValidateFn(RT.tuple([TF.number()], TF.string())),
   'TUPLE.tuple_circular': NOT_SUPPORTED, // validateSchema not-supported
   'TUPLE.tuple_multiple_trailing_optionals': () =>
-    createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-  'TUPLE.tuple_named_labels': () => createValidate(RT.tuple([TF.string(), TF.number()])),
-  'TUPLE.tuple_with_non_serializable': () => createValidate(RT.tuple([TF.number(), RT.func([], RT.any())])),
-  'TUPLE.empty_tuple': () => createValidate(RT.tuple([])),
-  'TUPLE.single_element_tuple': () => createValidate(RT.tuple([TF.string()])),
-  'TUPLE.readonly_tuple': () => createValidate(RT.tuple([TF.string(), TF.number()])),
+    createValidateFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+  'TUPLE.tuple_named_labels': () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
+  'TUPLE.tuple_with_non_serializable': () => createValidateFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
+  'TUPLE.empty_tuple': () => createValidateFn(RT.tuple([])),
+  'TUPLE.single_element_tuple': () => createValidateFn(RT.tuple([TF.string()])),
+  'TUPLE.readonly_tuple': () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
 
   // ── UNION ──
-  'UNION.atomic_union': () => createValidate(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
-  'UNION.string_literal_union': () => createValidate(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+  'UNION.atomic_union': () => createValidateFn(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
+  'UNION.string_literal_union': () => createValidateFn(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
   'UNION.large_union_eight_arms': () =>
-    createValidate(
+    createValidateFn(
       RT.union([
         RT.literal('a'),
         RT.literal('b'),
@@ -205,16 +205,16 @@ export const schemaCases: CompetitorCases = {
         RT.object({c: TF.bigInt()}),
       ])
     ),
-  'UNION.string_or_number': () => createValidate(RT.union([TF.string(), TF.number()])),
+  'UNION.string_or_number': () => createValidateFn(RT.union([TF.string(), TF.number()])),
   'UNION.union_of_array_types': () =>
-    createValidate(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
-  'UNION.array_of_union': () => createValidate(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
+    createValidateFn(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
+  'UNION.array_of_union': () => createValidateFn(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
   'UNION.union_of_object_shapes': () =>
-    createValidate(
+    createValidateFn(
       RT.union([RT.object({a: TF.string(), aa: RT.boolean()}), RT.object({b: TF.number()}), RT.object({c: TF.bigInt()})])
     ),
   'UNION.discriminated_union': () =>
-    createValidate(
+    createValidateFn(
       RT.union([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
     ),
   'UNION.circular_union': () => {
@@ -227,18 +227,18 @@ export const schemaCases: CompetitorCases = {
         RT.array(RT.self()),
       ])
     );
-    return createValidate(uc);
+    return createValidateFn(uc);
   },
   'UNION.union_with_methods': () =>
-    createValidate(
+    createValidateFn(
       RT.union([
         RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
         RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
       ])
     ),
-  'UNION.intersection_to_object': () => createValidate(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
+  'UNION.intersection_to_object': () => createValidateFn(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
   'UNION.union_with_index_arm': () =>
-    createValidate(
+    createValidateFn(
       RT.union([
         RT.object({a: TF.string(), aa: RT.boolean()}),
         RT.object({b: TF.number()}),
@@ -246,7 +246,7 @@ export const schemaCases: CompetitorCases = {
       ])
     ),
   'UNION.union_same_prop_different_types': () =>
-    createValidate(
+    createValidateFn(
       RT.union([
         RT.object({type: RT.literal('a'), prop: RT.boolean()}),
         RT.object({type: RT.literal('b'), prop: TF.number()}),
@@ -254,7 +254,7 @@ export const schemaCases: CompetitorCases = {
       ])
     ),
   'UNION.union_mixed_arrays_and_objects': () =>
-    createValidate(
+    createValidateFn(
       RT.union([
         RT.array(TF.string()),
         RT.array(TF.number()),
@@ -264,9 +264,9 @@ export const schemaCases: CompetitorCases = {
         RT.object({c: TF.bigInt(), aa: RT.literal('string')}),
       ])
     ),
-  'UNION.union_merged_property': () => createValidate(RT.union([RT.object({a: RT.boolean()}), RT.object({a: TF.number()})])),
+  'UNION.union_merged_property': () => createValidateFn(RT.union([RT.object({a: RT.boolean()}), RT.object({a: TF.number()})])),
   'UNION.union_mixed_with_index': () =>
-    createValidate(
+    createValidateFn(
       RT.union([
         RT.array(TF.string()),
         RT.object({a: TF.string(), aa: RT.boolean()}),
@@ -275,12 +275,12 @@ export const schemaCases: CompetitorCases = {
         RT.intersection(RT.record(TF.bigInt()), RT.object({b: TF.bigInt()})),
       ])
     ),
-  'UNION.union_with_any_fallback': () => createValidate(RT.any()),
-  'UNION.union_with_unknown_fallback': () => createValidate(RT.unknown()),
+  'UNION.union_with_any_fallback': () => createValidateFn(RT.any()),
+  'UNION.union_with_unknown_fallback': () => createValidateFn(RT.unknown()),
   'UNION.union_subset_small_first': () =>
-    createValidate(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
+    createValidateFn(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
   'UNION.union_subset_nested_levels': () =>
-    createValidate(
+    createValidateFn(
       RT.union([
         RT.object({x: TF.string()}),
         RT.object({x: TF.string(), y: TF.number()}),
@@ -288,28 +288,28 @@ export const schemaCases: CompetitorCases = {
       ])
     ),
   'UNION.union_subset_mixed_related_unrelated': () =>
-    createValidate(
+    createValidateFn(
       RT.union([RT.object({id: TF.string()}), RT.object({id: TF.string(), name: TF.string()}), RT.object({value: TF.number()})])
     ),
 
   // ── TEMPLATE_LITERAL ──
-  'TEMPLATE_LITERAL.url_with_number_id': () => createValidate(RT.templateLiteral(['api/user/', TF.number()])),
+  'TEMPLATE_LITERAL.url_with_number_id': () => createValidateFn(RT.templateLiteral(['api/user/', TF.number()])),
   'TEMPLATE_LITERAL.multi_segment_url': () =>
-    createValidate(RT.templateLiteral(['/api/v', TF.number(), '/user/', TF.string(), '/posts/', TF.number()])),
-  'TEMPLATE_LITERAL.leading_string_placeholder': () => createValidate(RT.templateLiteral([TF.string(), '/', TF.number()])),
-  'TEMPLATE_LITERAL.regex_special_chars': () => createValidate(RT.templateLiteral(['(', TF.number(), ')'])),
+    createValidateFn(RT.templateLiteral(['/api/v', TF.number(), '/user/', TF.string(), '/posts/', TF.number()])),
+  'TEMPLATE_LITERAL.leading_string_placeholder': () => createValidateFn(RT.templateLiteral([TF.string(), '/', TF.number()])),
+  'TEMPLATE_LITERAL.regex_special_chars': () => createValidateFn(RT.templateLiteral(['(', TF.number(), ')'])),
   'TEMPLATE_LITERAL.template_literal_nested_in_object': () =>
-    createValidate(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
+    createValidateFn(RT.object({url: RT.templateLiteral(['api/user/', TF.number()]), method: TF.string()})),
   'TEMPLATE_LITERAL.template_literal_index_key': () =>
-    createValidate(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
+    createValidateFn(RT.record(RT.templateLiteral(['api/', TF.string()]), TF.number())),
   'TEMPLATE_LITERAL.template_literal_union_placeholder': () =>
-    createValidate(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', TF.number()])),
+    createValidateFn(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', TF.number()])),
 
   // ── NATIVE ──
-  'NATIVE.map_string_number': () => createValidate(RT.map(TF.string(), TF.number())),
-  'NATIVE.set_string': () => createValidate(RT.set(TF.string())),
-  'NATIVE.promise_string': () => createValidate(RT.promise(TF.string())),
-  'NATIVE.awaited_promise': () => createValidate(TF.string()),
+  'NATIVE.map_string_number': () => createValidateFn(RT.map(TF.string(), TF.number())),
+  'NATIVE.set_string': () => createValidateFn(RT.set(TF.string())),
+  'NATIVE.promise_string': () => createValidateFn(RT.promise(TF.string())),
+  'NATIVE.awaited_promise': () => createValidateFn(TF.string()),
 
   // ── CIRCULAR ──
   'CIRCULAR.object_full_mion_shape': () => {
@@ -321,19 +321,19 @@ export const schemaCases: CompetitorCases = {
         d: RT.optional(TF.date()),
       })
     );
-    return createValidate(cir);
+    return createValidateFn(cir);
   },
   'CIRCULAR.array_of_union_with_self_ref': () => {
     const cu = RT.circular(RT.array(RT.union([RT.self(), TF.date(), TF.number(), TF.string()])));
-    return createValidate(cu);
+    return createValidateFn(cu);
   },
   'CIRCULAR.object_with_tuple_prop': () => {
     const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
-    return createValidate(ct);
+    return createValidateFn(ct);
   },
   'CIRCULAR.object_with_index_prop': () => {
     const ci = RT.circular(RT.object({index: RT.record(RT.self())}));
-    return createValidate(ci);
+    return createValidateFn(ci);
   },
   'CIRCULAR.object_deeply_nested': () => {
     const cd = RT.circular(
@@ -343,7 +343,7 @@ export const schemaCases: CompetitorCases = {
         }),
       })
     );
-    return createValidate(cd);
+    return createValidateFn(cd);
   },
   'CIRCULAR.circular_child_under_literal_root': () => {
     // The recursive child is a `circular(...)`; the non-circular root is a plain
@@ -356,7 +356,7 @@ export const schemaCases: CompetitorCases = {
       })
     );
     const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-    return createValidate(root);
+    return createValidateFn(root);
   },
   'CIRCULAR.multiple_circular_types_cross_referenced': () => {
     // Mutual recursion, no types: each type's OWN back-edge uses `self`;
@@ -385,29 +385,29 @@ export const schemaCases: CompetitorCases = {
         ciDate: icDate,
       })
     );
-    return createValidate(root);
+    return createValidateFn(root);
   },
 
   // ── UTILITY ──
-  'UTILITY.partial': () => createValidate(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
+  'UTILITY.partial': () => createValidateFn(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
   'UTILITY.required': () =>
-    createValidate(
+    createValidateFn(
       RT.required(RT.object({name: RT.optional(TF.string()), age: RT.optional(TF.number()), createdAt: RT.optional(TF.date())}))
     ),
   'UTILITY.pick': () =>
-    createValidate(RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name', 'createdAt'])),
-  'UTILITY.omit': () => createValidate(RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['age'])),
+    createValidateFn(RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name', 'createdAt'])),
+  'UTILITY.omit': () => createValidateFn(RT.omit(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['age'])),
   'UTILITY.exclude_atomic': () =>
-    createValidate(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))),
+    createValidateFn(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))),
   'UTILITY.extract_atomic': () =>
-    createValidate(
+    createValidateFn(
       RT.extract(
         RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]),
         RT.union([RT.literal('name'), RT.literal('createdAt')])
       )
     ),
   'UTILITY.exclude_from_object_union': () =>
-    createValidate(
+    createValidateFn(
       RT.exclude(
         RT.union([
           RT.object({kind: RT.literal('circle'), radius: TF.number()}),
@@ -418,27 +418,27 @@ export const schemaCases: CompetitorCases = {
       )
     ),
   'UTILITY.non_nullable': () =>
-    createValidate(RT.nonNullable(RT.union([TF.string(), TF.number(), RT.literal(null), RT.literal(undefined)]))),
-  'UTILITY.return_type': () => createValidate(RT.returnType(RT.func([TF.number(), RT.boolean()], TF.date()))),
-  'UTILITY.readonly': () => createValidate(RT.readonly(RT.object({name: TF.string(), age: TF.number()}))),
+    createValidateFn(RT.nonNullable(RT.union([TF.string(), TF.number(), RT.literal(null), RT.literal(undefined)]))),
+  'UTILITY.return_type': () => createValidateFn(RT.returnType(RT.func([TF.number(), RT.boolean()], TF.date()))),
+  'UTILITY.readonly': () => createValidateFn(RT.readonly(RT.object({name: TF.string(), age: TF.number()}))),
   'UTILITY.intersection_with_required_override': () =>
-    createValidate(
+    createValidateFn(
       RT.intersection(
         RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()})),
         RT.required(RT.pick(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}), ['name']))
       )
     ),
   'UTILITY.omit_keeping_optional': () =>
-    createValidate(RT.omit(RT.object({a: TF.string(), b: RT.optional(TF.number()), c: RT.boolean()}), ['a'])),
+    createValidateFn(RT.omit(RT.object({a: TF.string(), b: RT.optional(TF.number()), c: RT.boolean()}), ['a'])),
   'UTILITY.keyof_to_literal_union': () =>
-    createValidate(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
-  'UTILITY.typeof_variable_query': () => createValidate(RT.object({url: TF.string(), port: TF.number()})),
-  'UTILITY.indexed_access_type': () => createValidate(TF.string()),
-  'UTILITY.conditional_type_resolved': () => createValidate(RT.boolean()),
+    createValidateFn(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
+  'UTILITY.typeof_variable_query': () => createValidateFn(RT.object({url: TF.string(), port: TF.number()})),
+  'UTILITY.indexed_access_type': () => createValidateFn(TF.string()),
+  'UTILITY.conditional_type_resolved': () => createValidateFn(RT.boolean()),
   'UTILITY.mapped_type_custom': () =>
-    createValidate(RT.object({a: RT.union([TF.string(), RT.literal(null)]), b: RT.union([TF.number(), RT.literal(null)])})),
+    createValidateFn(RT.object({a: RT.union([TF.string(), RT.literal(null)]), b: RT.union([TF.number(), RT.literal(null)])})),
   'UTILITY.mapped_type_with_conditional_value': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         name: RT.object({kind: RT.literal('text'), value: TF.string()}),
         age: RT.object({kind: RT.literal('number'), value: TF.number(), min: RT.optional(TF.number())}),
@@ -446,9 +446,9 @@ export const schemaCases: CompetitorCases = {
       })
     ),
   'UTILITY.distributive_conditional_over_union': () =>
-    createValidate(RT.union([RT.object({w: TF.string()}), RT.object({w: TF.number()})])),
+    createValidateFn(RT.union([RT.object({w: TF.string()}), RT.object({w: TF.number()})])),
   'UTILITY.deep_partial_recursive_mapped': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         display: RT.optional(
           RT.object({
@@ -461,61 +461,61 @@ export const schemaCases: CompetitorCases = {
     ),
 
   // ── TYPE_MAPPINGS ──
-  'TYPE_MAPPINGS.key_prefix_rename': () => createValidate(RT.object({user_id: TF.number(), user_name: TF.string()})),
+  'TYPE_MAPPINGS.key_prefix_rename': () => createValidateFn(RT.object({user_id: TF.number(), user_name: TF.string()})),
   'TYPE_MAPPINGS.key_conditional_rename': () =>
-    createValidate(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
-  'TYPE_MAPPINGS.key_filter_via_never': () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
+    createValidateFn(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
+  'TYPE_MAPPINGS.key_filter_via_never': () => createValidateFn(RT.object({id: TF.number(), name: TF.string()})),
 
   // ── DATETIME ──
-  'DATETIME.date': () => createValidate(TF.date()),
-  'DATETIME.instant': () => createValidate(TFT.instant()),
-  'DATETIME.zonedDateTime': () => createValidate(TFT.zonedDateTime()),
-  'DATETIME.plainDate': () => createValidate(TFT.plainDate()),
-  'DATETIME.plainTime': () => createValidate(TFT.plainTime()),
-  'DATETIME.plainDateTime': () => createValidate(TFT.plainDateTime()),
-  'DATETIME.plainYearMonth': () => createValidate(TFT.plainYearMonth()),
-  'DATETIME.plainMonthDay': () => createValidate(TFT.plainMonthDay()),
-  'DATETIME.duration': () => createValidate(TFT.duration()),
+  'DATETIME.date': () => createValidateFn(TF.date()),
+  'DATETIME.instant': () => createValidateFn(TFT.instant()),
+  'DATETIME.zonedDateTime': () => createValidateFn(TFT.zonedDateTime()),
+  'DATETIME.plainDate': () => createValidateFn(TFT.plainDate()),
+  'DATETIME.plainTime': () => createValidateFn(TFT.plainTime()),
+  'DATETIME.plainDateTime': () => createValidateFn(TFT.plainDateTime()),
+  'DATETIME.plainYearMonth': () => createValidateFn(TFT.plainYearMonth()),
+  'DATETIME.plainMonthDay': () => createValidateFn(TFT.plainMonthDay()),
+  'DATETIME.duration': () => createValidateFn(TFT.duration()),
 
   // ── STRING_FORMAT ──
-  'STRING_FORMAT.string_maxLength': () => createValidate(TF.string({maxLength: 5})),
-  'STRING_FORMAT.string_minLength': () => createValidate(TF.string({minLength: 3})),
-  'STRING_FORMAT.string_length': () => createValidate(TF.string({length: 4})),
-  'STRING_FORMAT.string_range': () => createValidate(TF.string({minLength: 2, maxLength: 4})),
-  'STRING_FORMAT.string_allowedChars': () => createValidate(TF.string({allowedChars: {val: '0123456789abcdef'}})),
-  'STRING_FORMAT.string_allowedChars_ignoreCase': () => createValidate(TF.string({allowedChars: {val: 'abc', ignoreCase: true}})),
-  'STRING_FORMAT.string_allowedChars_literal': () => createValidate(TF.string({allowedChars: {val: '.-'}})),
-  'STRING_FORMAT.string_disallowedChars': () => createValidate(TF.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
-  'STRING_FORMAT.string_allowedValues': () => createValidate(TF.string({allowedValues: {val: ['red', 'green', 'blue']}})),
+  'STRING_FORMAT.string_maxLength': () => createValidateFn(TF.string({maxLength: 5})),
+  'STRING_FORMAT.string_minLength': () => createValidateFn(TF.string({minLength: 3})),
+  'STRING_FORMAT.string_length': () => createValidateFn(TF.string({length: 4})),
+  'STRING_FORMAT.string_range': () => createValidateFn(TF.string({minLength: 2, maxLength: 4})),
+  'STRING_FORMAT.string_allowedChars': () => createValidateFn(TF.string({allowedChars: {val: '0123456789abcdef'}})),
+  'STRING_FORMAT.string_allowedChars_ignoreCase': () => createValidateFn(TF.string({allowedChars: {val: 'abc', ignoreCase: true}})),
+  'STRING_FORMAT.string_allowedChars_literal': () => createValidateFn(TF.string({allowedChars: {val: '.-'}})),
+  'STRING_FORMAT.string_disallowedChars': () => createValidateFn(TF.string({disallowedChars: {val: '!@#', mockSamples: 'abc'}})),
+  'STRING_FORMAT.string_allowedValues': () => createValidateFn(TF.string({allowedValues: {val: ['red', 'green', 'blue']}})),
   'STRING_FORMAT.string_allowedValues_ignoreCase': () =>
-    createValidate(TF.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
-  'STRING_FORMAT.string_allowedValues_escaped': () => createValidate(TF.string({allowedValues: {val: ['a.b', 'c+d']}})),
+    createValidateFn(TF.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
+  'STRING_FORMAT.string_allowedValues_escaped': () => createValidateFn(TF.string({allowedValues: {val: ['a.b', 'c+d']}})),
   'STRING_FORMAT.string_disallowedValues': () =>
-    createValidate(TF.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
+    createValidateFn(TF.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
   'STRING_FORMAT.string_customErrorMessage': () =>
-    createValidate(TF.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
-  'STRING_FORMAT.alpha': () => createValidate(TF.alpha()),
-  'STRING_FORMAT.alphaNumeric': () => createValidate(TF.alphaNumeric()),
-  'STRING_FORMAT.numeric': () => createValidate(TF.numeric()),
-  'STRING_FORMAT.alpha_withLength': () => createValidate(TF.alpha({maxLength: 3})),
-  'STRING_FORMAT.lowercase_validate': () => createValidate(TF.lowercase()),
-  'STRING_FORMAT.uuidv4': () => createValidate(TF.uuidv4()),
-  'STRING_FORMAT.uuidv7': () => createValidate(TF.uuidv7()),
-  'STRING_FORMAT.date_iso': () => createValidate(TF.stringDate()),
-  'STRING_FORMAT.date_DMY': () => createValidate(TF.stringDate({format: 'DD-MM-YYYY'})),
-  'STRING_FORMAT.date_YM': () => createValidate(TF.stringDate({format: 'YYYY-MM'})),
-  'STRING_FORMAT.date_MD': () => createValidate(TF.stringDate({format: 'MM-DD'})),
+    createValidateFn(TF.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
+  'STRING_FORMAT.alpha': () => createValidateFn(TF.alpha()),
+  'STRING_FORMAT.alphaNumeric': () => createValidateFn(TF.alphaNumeric()),
+  'STRING_FORMAT.numeric': () => createValidateFn(TF.numeric()),
+  'STRING_FORMAT.alpha_withLength': () => createValidateFn(TF.alpha({maxLength: 3})),
+  'STRING_FORMAT.lowercase_validate': () => createValidateFn(TF.lowercase()),
+  'STRING_FORMAT.uuidv4': () => createValidateFn(TF.uuidv4()),
+  'STRING_FORMAT.uuidv7': () => createValidateFn(TF.uuidv7()),
+  'STRING_FORMAT.date_iso': () => createValidateFn(TF.stringDate()),
+  'STRING_FORMAT.date_DMY': () => createValidateFn(TF.stringDate({format: 'DD-MM-YYYY'})),
+  'STRING_FORMAT.date_YM': () => createValidateFn(TF.stringDate({format: 'YYYY-MM'})),
+  'STRING_FORMAT.date_MD': () => createValidateFn(TF.stringDate({format: 'MM-DD'})),
   'STRING_FORMAT.date_minMax_absolute': () =>
-    createValidate(TF.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
-  'STRING_FORMAT.time_iso': () => createValidate(TF.stringTime()),
-  'STRING_FORMAT.time_HHmmss': () => createValidate(TF.stringTime({format: 'HH:mm:ss'})),
-  'STRING_FORMAT.time_HHmmss_ms': () => createValidate(TF.stringTime({format: 'HH:mm:ss[.mmm]'})),
-  'STRING_FORMAT.time_minMax_absolute': () => createValidate(TF.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
-  'STRING_FORMAT.dateTime_default': () => createValidate(TF.stringDateTime()),
+    createValidateFn(TF.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
+  'STRING_FORMAT.time_iso': () => createValidateFn(TF.stringTime()),
+  'STRING_FORMAT.time_HHmmss': () => createValidateFn(TF.stringTime({format: 'HH:mm:ss'})),
+  'STRING_FORMAT.time_HHmmss_ms': () => createValidateFn(TF.stringTime({format: 'HH:mm:ss[.mmm]'})),
+  'STRING_FORMAT.time_minMax_absolute': () => createValidateFn(TF.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
+  'STRING_FORMAT.dateTime_default': () => createValidateFn(TF.stringDateTime()),
   'STRING_FORMAT.dateTime_custom': () =>
-    createValidate(TF.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
+    createValidateFn(TF.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
   'STRING_FORMAT.dateTime_minMax_absolute': () =>
-    createValidate(
+    createValidateFn(
       TF.stringDateTime({
         date: {format: 'YYYY-MM-DD'},
         time: {format: 'HH:mm:ss'},
@@ -524,90 +524,90 @@ export const schemaCases: CompetitorCases = {
         max: '2020-12-31T23:59:59',
       })
     ),
-  'STRING_FORMAT.ipv4': () => createValidate(TF.ipv4()),
-  'STRING_FORMAT.ipv6': () => createValidate(TF.ipv6()),
-  'STRING_FORMAT.ip_any': () => createValidate(TF.ip()),
-  'STRING_FORMAT.ipv4_port': () => createValidate(TF.ipv4WithPort()),
-  'STRING_FORMAT.ipv6_port': () => createValidate(TF.ipv6WithPort()),
-  'STRING_FORMAT.domain': () => createValidate(TF.domain()),
-  'STRING_FORMAT.domainStrict': () => createValidate(TF.domainStrict()),
-  'STRING_FORMAT.email': () => createValidate(TF.email()),
-  'STRING_FORMAT.emailPunycode': () => createValidate(TF.emailPunycode()),
-  'STRING_FORMAT.emailStrict': () => createValidate(TF.emailStrict()),
-  'STRING_FORMAT.url': () => createValidate(TF.url()),
-  'STRING_FORMAT.urlHttp': () => createValidate(TF.urlHttp()),
-  'STRING_FORMAT.urlFile': () => createValidate(TF.urlFile()),
+  'STRING_FORMAT.ipv4': () => createValidateFn(TF.ipv4()),
+  'STRING_FORMAT.ipv6': () => createValidateFn(TF.ipv6()),
+  'STRING_FORMAT.ip_any': () => createValidateFn(TF.ip()),
+  'STRING_FORMAT.ipv4_port': () => createValidateFn(TF.ipv4WithPort()),
+  'STRING_FORMAT.ipv6_port': () => createValidateFn(TF.ipv6WithPort()),
+  'STRING_FORMAT.domain': () => createValidateFn(TF.domain()),
+  'STRING_FORMAT.domainStrict': () => createValidateFn(TF.domainStrict()),
+  'STRING_FORMAT.email': () => createValidateFn(TF.email()),
+  'STRING_FORMAT.emailPunycode': () => createValidateFn(TF.emailPunycode()),
+  'STRING_FORMAT.emailStrict': () => createValidateFn(TF.emailStrict()),
+  'STRING_FORMAT.url': () => createValidateFn(TF.url()),
+  'STRING_FORMAT.urlHttp': () => createValidateFn(TF.urlHttp()),
+  'STRING_FORMAT.urlFile': () => createValidateFn(TF.urlFile()),
   'STRING_FORMAT.pattern_slug': () =>
-    createValidate(
+    createValidateFn(
       TF.string({
         pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'},
       })
     ),
   'STRING_FORMAT.pattern_hex': () =>
-    createValidate(TF.string({pattern: {source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']}})),
+    createValidateFn(TF.string({pattern: {source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']}})),
 
   // ── NUMBER_FORMAT ──
-  'NUMBER_FORMAT.number_max': () => createValidate(TF.number({max: 100})),
-  'NUMBER_FORMAT.number_min': () => createValidate(TF.number({min: 0})),
-  'NUMBER_FORMAT.number_lt': () => createValidate(TF.number({lt: 10})),
-  'NUMBER_FORMAT.number_gt': () => createValidate(TF.number({gt: 0})),
-  'NUMBER_FORMAT.number_integer': () => createValidate(TF.integer()),
-  'NUMBER_FORMAT.number_float': () => createValidate(TF.float()),
-  'NUMBER_FORMAT.number_multipleOf': () => createValidate(TF.number({multipleOf: 5})),
-  'NUMBER_FORMAT.number_combined': () => createValidate(TF.number({min: 0, max: 100, integer: true, multipleOf: 5})),
-  'NUMBER_FORMAT.number_int8': () => createValidate(TF.int8()),
-  'NUMBER_FORMAT.number_uint8': () => createValidate(TF.uint8()),
+  'NUMBER_FORMAT.number_max': () => createValidateFn(TF.number({max: 100})),
+  'NUMBER_FORMAT.number_min': () => createValidateFn(TF.number({min: 0})),
+  'NUMBER_FORMAT.number_lt': () => createValidateFn(TF.number({lt: 10})),
+  'NUMBER_FORMAT.number_gt': () => createValidateFn(TF.number({gt: 0})),
+  'NUMBER_FORMAT.number_integer': () => createValidateFn(TF.integer()),
+  'NUMBER_FORMAT.number_float': () => createValidateFn(TF.float()),
+  'NUMBER_FORMAT.number_multipleOf': () => createValidateFn(TF.number({multipleOf: 5})),
+  'NUMBER_FORMAT.number_combined': () => createValidateFn(TF.number({min: 0, max: 100, integer: true, multipleOf: 5})),
+  'NUMBER_FORMAT.number_int8': () => createValidateFn(TF.int8()),
+  'NUMBER_FORMAT.number_uint8': () => createValidateFn(TF.uint8()),
 
   // ── BIGINT_FORMAT ──
-  'BIGINT_FORMAT.bigint_max': () => createValidate(TF.bigInt({max: 100n})),
-  'BIGINT_FORMAT.bigint_min': () => createValidate(TF.bigInt({min: 0n})),
-  'BIGINT_FORMAT.bigint_lt': () => createValidate(TF.bigInt({lt: 10n})),
-  'BIGINT_FORMAT.bigint_gt': () => createValidate(TF.bigInt({gt: 0n})),
-  'BIGINT_FORMAT.bigint_multipleOf': () => createValidate(TF.bigInt({multipleOf: 5n})),
-  'BIGINT_FORMAT.bigint_combined': () => createValidate(TF.bigInt({min: 0n, max: 1000n, multipleOf: 10n})),
-  'BIGINT_FORMAT.bigint_int64': () => createValidate(TF.bigInt64()),
-  'BIGINT_FORMAT.bigint_uint64': () => createValidate(TF.bigUInt64()),
+  'BIGINT_FORMAT.bigint_max': () => createValidateFn(TF.bigInt({max: 100n})),
+  'BIGINT_FORMAT.bigint_min': () => createValidateFn(TF.bigInt({min: 0n})),
+  'BIGINT_FORMAT.bigint_lt': () => createValidateFn(TF.bigInt({lt: 10n})),
+  'BIGINT_FORMAT.bigint_gt': () => createValidateFn(TF.bigInt({gt: 0n})),
+  'BIGINT_FORMAT.bigint_multipleOf': () => createValidateFn(TF.bigInt({multipleOf: 5n})),
+  'BIGINT_FORMAT.bigint_combined': () => createValidateFn(TF.bigInt({min: 0n, max: 1000n, multipleOf: 10n})),
+  'BIGINT_FORMAT.bigint_int64': () => createValidateFn(TF.bigInt64()),
+  'BIGINT_FORMAT.bigint_uint64': () => createValidateFn(TF.bigUInt64()),
 
   // ── DATETIME ──
-  'DATETIME.date_minmax': () => createValidate(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-  'DATETIME.date_gtlt': () => createValidate(TF.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-  'DATETIME.date_min_lt': () => createValidate(TF.date({min: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-  'DATETIME.date_max_now': () => createValidate(TF.date({max: 'now'})),
-  'DATETIME.date_rel_window': () => createValidate(TF.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
-  'DATETIME.date_rel_datetime_components': () => createValidate(TF.date({min: 'now-P1000YT12H'})),
-  'DATETIME.instant_minmax': () => createValidate(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
-  'DATETIME.instant_gtlt': () => createValidate(TFT.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
-  'DATETIME.instant_rel': () => createValidate(TFT.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
-  'DATETIME.plainDate_minmax': () => createValidate(TFT.plainDate({min: '2020-01-01', max: '2020-12-31'})),
-  'DATETIME.plainDate_gtlt': () => createValidate(TFT.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
-  'DATETIME.plainDate_min_lt': () => createValidate(TFT.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
-  'DATETIME.plainDate_gt_max': () => createValidate(TFT.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
-  'DATETIME.plainDate_min_only': () => createValidate(TFT.plainDate({min: '2020-01-01'})),
-  'DATETIME.plainDate_max_only': () => createValidate(TFT.plainDate({max: '2020-12-31'})),
-  'DATETIME.plainDate_gt_only': () => createValidate(TFT.plainDate({gt: '2020-01-01'})),
-  'DATETIME.plainDate_lt_only': () => createValidate(TFT.plainDate({lt: '2020-12-31'})),
-  'DATETIME.plainDate_rel_window': () => createValidate(TFT.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
-  'DATETIME.plainDate_rel_ymd': () => createValidate(TFT.plainDate({min: 'now-P100Y6M15D'})),
-  'DATETIME.plainDate_rel_weeks': () => createValidate(TFT.plainDate({min: 'now-P52200W'})),
-  'DATETIME.plainTime_minmax': () => createValidate(TFT.plainTime({min: '09:00:00', max: '17:00:00'})),
-  'DATETIME.plainTime_gtlt': () => createValidate(TFT.plainTime({gt: '09:00:00', lt: '17:00:00'})),
+  'DATETIME.date_minmax': () => createValidateFn(TF.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+  'DATETIME.date_gtlt': () => createValidateFn(TF.date({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+  'DATETIME.date_min_lt': () => createValidateFn(TF.date({min: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+  'DATETIME.date_max_now': () => createValidateFn(TF.date({max: 'now'})),
+  'DATETIME.date_rel_window': () => createValidateFn(TF.date({min: 'now-P1000Y', max: 'now+P1000Y'})),
+  'DATETIME.date_rel_datetime_components': () => createValidateFn(TF.date({min: 'now-P1000YT12H'})),
+  'DATETIME.instant_minmax': () => createValidateFn(TFT.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+  'DATETIME.instant_gtlt': () => createValidateFn(TFT.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
+  'DATETIME.instant_rel': () => createValidateFn(TFT.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
+  'DATETIME.plainDate_minmax': () => createValidateFn(TFT.plainDate({min: '2020-01-01', max: '2020-12-31'})),
+  'DATETIME.plainDate_gtlt': () => createValidateFn(TFT.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
+  'DATETIME.plainDate_min_lt': () => createValidateFn(TFT.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
+  'DATETIME.plainDate_gt_max': () => createValidateFn(TFT.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
+  'DATETIME.plainDate_min_only': () => createValidateFn(TFT.plainDate({min: '2020-01-01'})),
+  'DATETIME.plainDate_max_only': () => createValidateFn(TFT.plainDate({max: '2020-12-31'})),
+  'DATETIME.plainDate_gt_only': () => createValidateFn(TFT.plainDate({gt: '2020-01-01'})),
+  'DATETIME.plainDate_lt_only': () => createValidateFn(TFT.plainDate({lt: '2020-12-31'})),
+  'DATETIME.plainDate_rel_window': () => createValidateFn(TFT.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
+  'DATETIME.plainDate_rel_ymd': () => createValidateFn(TFT.plainDate({min: 'now-P100Y6M15D'})),
+  'DATETIME.plainDate_rel_weeks': () => createValidateFn(TFT.plainDate({min: 'now-P52200W'})),
+  'DATETIME.plainTime_minmax': () => createValidateFn(TFT.plainTime({min: '09:00:00', max: '17:00:00'})),
+  'DATETIME.plainTime_gtlt': () => createValidateFn(TFT.plainTime({gt: '09:00:00', lt: '17:00:00'})),
   'DATETIME.plainDateTime_minmax': () =>
-    createValidate(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
-  'DATETIME.plainDateTime_gtlt': () => createValidate(TFT.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
-  'DATETIME.plainDateTime_rel': () => createValidate(TFT.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
-  'DATETIME.plainDateTime_rel_combo': () => createValidate(TFT.plainDateTime({min: 'now-P500YT12H'})),
-  'DATETIME.plainYearMonth_minmax': () => createValidate(TFT.plainYearMonth({min: '2020-01', max: '2020-12'})),
-  'DATETIME.plainYearMonth_gtlt': () => createValidate(TFT.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
-  'DATETIME.plainYearMonth_rel': () => createValidate(TFT.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    createValidateFn(TFT.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+  'DATETIME.plainDateTime_gtlt': () => createValidateFn(TFT.plainDateTime({gt: '2020-01-01T00:00:00', lt: '2020-12-31T23:59:59'})),
+  'DATETIME.plainDateTime_rel': () => createValidateFn(TFT.plainDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
+  'DATETIME.plainDateTime_rel_combo': () => createValidateFn(TFT.plainDateTime({min: 'now-P500YT12H'})),
+  'DATETIME.plainYearMonth_minmax': () => createValidateFn(TFT.plainYearMonth({min: '2020-01', max: '2020-12'})),
+  'DATETIME.plainYearMonth_gtlt': () => createValidateFn(TFT.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
+  'DATETIME.plainYearMonth_rel': () => createValidateFn(TFT.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
   'DATETIME.zonedDateTime_minmax': () =>
-    createValidate(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    createValidateFn(TFT.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
   'DATETIME.zonedDateTime_gtlt': () =>
-    createValidate(TFT.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
-  'DATETIME.zonedDateTime_rel': () => createValidate(TFT.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    createValidateFn(TFT.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
+  'DATETIME.zonedDateTime_rel': () => createValidateFn(TFT.zonedDateTime({min: 'now-P1000Y', max: 'now+P1000Y'})),
 
   // ── REALWORLD ──
   'REALWORLD.user': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         id: TF.number(),
         email: TF.string(),
@@ -619,7 +619,7 @@ export const schemaCases: CompetitorCases = {
       })
     ),
   'REALWORLD.order': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         id: TF.string(),
         customer: RT.object({id: TF.number(), email: TF.string()}),
@@ -643,7 +643,7 @@ export const schemaCases: CompetitorCases = {
       })
     ),
   'REALWORLD.blogPost': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         id: TF.number(),
         title: TF.string(),
@@ -657,7 +657,7 @@ export const schemaCases: CompetitorCases = {
       })
     ),
   'REALWORLD.product': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         id: TF.string(),
         name: TF.string(),
@@ -670,7 +670,7 @@ export const schemaCases: CompetitorCases = {
       })
     ),
   'REALWORLD.productPage': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         data: RT.array(
           RT.object({
@@ -691,7 +691,7 @@ export const schemaCases: CompetitorCases = {
       })
     ),
   'REALWORLD.registrationForm': () =>
-    createValidate(
+    createValidateFn(
       RT.object({
         email: TF.string(),
         password: TF.string(),

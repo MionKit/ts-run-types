@@ -22,7 +22,7 @@
 > ([value-first-marker-refactor.md](value-first-marker-refactor.md), Tiers 1–3
 > implemented):** each builder now RETURNS its branded format type directly, so
 > `typeof Model` IS the model type (no `ModelType<…>` hop on the forward path)
-> and the validator is `createValidate<typeof Model>()`. Builders are also
+> and the validator is `createValidateFn<typeof Model>()`. Builders are also
 > injectable markers — a standalone `RT.string({maxLength: 5})` / `RT.object({…})`
 > resolves to the live RunType node the type compiler produces — and the inverse
 > `RT.reflectModel<T>()` reconstructs a discriminated runtime model from the
@@ -72,7 +72,7 @@ Formats and constraints can be expressed two ways:
     email: FormatEmail;
     age: number;
   };
-  const isUser = createValidate<User>();
+  const isUser = createValidateFn<User>();
   ```
 - **Value-first** — compose per-type builders; the type is derived from the model:
   ```ts
@@ -83,7 +83,7 @@ Formats and constraints can be expressed two ways:
     nick: RT.optional(RT.string({maxLength: 50})),
   });
   type User = typeof UserModel; // builders return the brand — already the model type
-  const isUser = createValidate<User>();
+  const isUser = createValidateFn<User>();
   ```
 
 Both are useful for different audiences. The question this doc answers: **should
@@ -182,7 +182,7 @@ Two residual nuances:
 
 This is _the_ decision under every version of the idea.
 
-- **Reflect the mapped type** (`createValidate<ModelType<typeof UserModel>>()`):
+- **Reflect the mapped type** (`createValidateFn<ModelType<typeof UserModel>>()`):
   works for every _literal_ constraint (`maxLength` is captured via `const`
   generics and lifted into the brand). `pattern: /.../ ` erases to `RegExp` in
   the _type_ — but see below: the value declaration behind that erased type is
@@ -219,7 +219,7 @@ one. A large amount of real code already _has_ types — GraphQL codegen,
 reflect an _existing_ `User`, not re-declare it.
 
 ```
-type-first:   createValidate<User>()            ─┐
+type-first:   createValidateFn<User>()            ─┐
                                                 ├─→  RunType graph  ─→  validate / validationErrors / mock emitters
 value-first:  object({...}) + ModelType<...>  ─┘     (one engine, shared dedup + structural ids)
 ```
@@ -252,7 +252,7 @@ thin adapter rather than a second validator.
 > **not to be needed**. The shipped surface lowers entirely through the **type
 > channel**: `RT.object(...)` + the builders compose a `const`-narrow config
 > object, `RT.ModelType<typeof Model>` maps it to the same branded `TypeFormat`
-> types the type-first surface already reflects, and `createValidate<RT.ModelType<…>>()`
+> types the type-first surface already reflects, and `createValidateFn<RT.ModelType<…>>()`
 > reflects that _type_ — no new Go front-end, no value call form, no new rewrite
 > rule. The only Go change was a small additive read so an inline `pattern: /…/`
 > value is recovered from the property declaration the type system preserves (see
@@ -282,8 +282,8 @@ design record for if/when a value call form is added._
    the RunType graph from it directly. The shipped path instead reflects the
    `ModelType<…>` _type_, so this Go front-end was never built.
 2. **A call / rewrite shape.** A value call form (`UserModel.validate(x)` /
-   `createValidate(UserModel)`) keyed off the runtime config. Still parked; the
-   shipped path uses the existing `createValidate<RT.ModelType<…>>()` marker.
+   `createValidateFn(UserModel)`) keyed off the runtime config. Still parked; the
+   shipped path uses the existing `createValidateFn<RT.ModelType<…>>()` marker.
 3. **A plugin nuance.** Unlike `registerPureFnFactory` (whose factory the plugin
    nulls out), a value-call config would need to **survive at runtime** intact —
    a "scan-and-keep" rewrite. Moot until the value call form lands; the builder
@@ -343,7 +343,7 @@ validator" from "which mock data", which is the right separation anyway.
 The smallest spike that proves the whole thesis at once:
 
 > Hand-write `object` + `ModelType` for `string`/`number`/`date` discriminators,
-> point `createValidate<ModelType<typeof model>>()` at flat / nested / regex
+> point `createValidateFn<ModelType<typeof model>>()` at flat / nested / regex
 > models, and check: (a) does the Go binary reflect it correctly, (b) compile
 > time + error quality, (c) what happens to the inline regex — which concretely
 > decides whether the value-AST front-end is required.
@@ -387,7 +387,7 @@ checker.)
 
 **Convergence holds (the dual-front-end requirement).** A value-first model and
 the hand-written type-first equivalent resolve to the **same structural id → the
-same cached validator** (`createValidate<ModelType<…>>() === createValidate<TypeFirst>()`).
+same cached validator** (`createValidateFn<ModelType<…>>() === createValidateFn<TypeFirst>()`).
 The one wrinkle: the `object<const C>` capture stamps `readonly` on every config
 property, which propagates to the mapped type and diverges the property node's
 id from the (mutable) type-first form — the _format type itself was already
@@ -427,12 +427,12 @@ An inline value-channel regex **converges** with the type-first
 recovered `{source, flags}` → one structural id). This is one small _additive_
 Go change to the existing format scanner — **not** the value-AST front-end the
 fork anticipated. The only thing an inline `/…/` lacks is `mockSamples`, so
-`createMockData` can't generate matching values for it (use the
+`createMockDataFn` can't generate matching values for it (use the
 `registerFormatPattern` form, which carries samples, when you need mocks).
 
 ### What's still parked (Option B proper)
 
-A **value call form** (`Model.validate(x)` / `createValidate(Model)` keyed off the
+A **value call form** (`Model.validate(x)` / `createValidateFn(Model)` keyed off the
 runtime config) with its "scan-and-keep" rewrite, and the **object / array /
 union / named-format discriminators**. The params-cache de-dup below is
 orthogonal. Regex — the case the fork thought _only_ a value-AST scan could

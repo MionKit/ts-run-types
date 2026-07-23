@@ -76,7 +76,7 @@ export type UInt32 = Number<{integer: true; min: 0; max: 4294967295}>;
 // Value-first builder per named alias (`TF.int8()` → `RunType<Int8>`, …). Each
 // carries the CONCRETE alias above, so the Go scanner reflects the SAME branded
 // type off the builder's `InjectRunTypeId<…>` brand as the type-first
-// `createValidate<Int8>()` surface and the two converge on one structural id. All
+// `createValidateFn<Int8>()` surface and the two converge on one structural id. All
 // are fixed presets (no user params) → a single no-arg overload via `presetBuilder`.
 // For ad-hoc constraints use `TF.number({min, max, …})`.
 

@@ -5,7 +5,7 @@
 //   1. Spawn `go run ./cmd/extract-fn-bodies` to lift the original TS source
 //      text of every arrow-function body inside VALIDATION_SUITE.
 //   2. Load the suite through vite's ssrLoadModule with the runtypes plugin
-//      active, so `createValidate<T>()` calls resolve to real validators
+//      active, so `createValidateFn<T>()` calls resolve to real validators
 //      (cache populated by the Go daemon via the plugin's transform hook).
 //   3. Phase 3 — runtime pass: for each case + each API, call the
 //      validator against the case's `valid` / `invalid` samples to compute
@@ -65,7 +65,7 @@ const APIS = ['validate', 'validateReflect'];
 
 // Per-kind cache selection is gone with the per-entry virtual modules:
 // `includeEntryModules: true` collects every family the file's call sites
-// demand — which for these synthetic createValidate-only probes is the
+// demand — which for these synthetic createValidateFn-only probes is the
 // validate closure (plus runtype nodes and pure fns), i.e. the same work the
 // production transform performs. compileMs therefore measures the real
 // per-file scan + entry collection cost.
@@ -96,14 +96,14 @@ const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
     noIsArrayCheck?: boolean;
   }
   export type ValidateFn = (value: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
-  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createGetValidationErrorsFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
-  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
-  export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
-  export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
+  export function createJsonEncoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
+  export function createJsonDecoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export function createBinaryEncoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
+  export function createBinaryDecoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
 }
 `;
 
@@ -371,7 +371,7 @@ async function runCompilePhase(metrics, bodies) {
         await client.setSources(sourcesMap);
         const scanStart = performance.now();
         // Entry collection is demand-driven: the synthetic probe only calls
-        // createValidate, so this renders the validate closure (plus runtype
+        // createValidateFn, so this renders the validate closure (plus runtype
         // nodes / pure fns) — the work the validation suite is about.
         await client.scanFiles([relpath], {includeEntryModules: true});
         compileTimes.push(performance.now() - scanStart);
@@ -447,7 +447,7 @@ function writeCaseDump(casesDir, category, caseKey, api, resp) {
 // their real constraints. The subpath resolves off the on-disk VFS (the ambient
 // overlay only shadows the bare marker specifier, not its subpaths).
 function buildSynthetic(body) {
-  const imports = [`import {createValidate} from '@ts-runtypes/core';`];
+  const imports = [`import {createValidateFn} from '@ts-runtypes/core';`];
   if (/\bTF\./.test(body)) imports.push(`import type * as TF from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   if (/\bTFT\./.test(body)) imports.push(`import type * as TFT from '../${TEMPORAL_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   return `${imports.join('\n')}\nconst _probe = () => {\n${body}\n};\n`;

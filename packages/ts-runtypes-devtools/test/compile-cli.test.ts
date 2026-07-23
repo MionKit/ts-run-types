@@ -19,7 +19,7 @@ const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never, F4 extends string = never, F5 extends string = never, F6 extends string = never, F7 extends string = never, F8 extends string = never, F9 extends string = never, F10 extends string = never, F11 extends string = never, F12 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12]};
   export type ValidateFn = (value: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<{noLiterals?: boolean}>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<{noLiterals?: boolean}>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
 }
 `;
 
@@ -32,13 +32,13 @@ const TSCONFIG = `{
 }
 `;
 
-// The createValidate call sits on original line 5 (0-based).
-const USER_TS = `import {createValidate} from '@ts-runtypes/core';
+// The createValidateFn call sits on original line 5 (0-based).
+const USER_TS = `import {createValidateFn} from '@ts-runtypes/core';
 interface User {
   id: number;
   name: string;
 }
-export const isUser = createValidate<User>();
+export const isUser = createValidateFn<User>();
 `;
 
 describe('ts-runtypes --compile (tsc-like CLI)', () => {
@@ -61,7 +61,7 @@ describe('ts-runtypes --compile (tsc-like CLI)', () => {
       const js = fs.readFileSync(path.join(dir, 'dist', 'user.js'), 'utf8');
       expect(js).not.toContain('rtmod:');
       expect(js).toMatch(/import \{\s*__rt_[A-Za-z0-9_$]+\s*\} from '\.\.\/__runtypes\/types\/[A-Za-z0-9_$]+\.js'/);
-      expect(js).toMatch(/createValidate\(undefined, undefined, __rt_[A-Za-z0-9_$]+\)/);
+      expect(js).toMatch(/createValidateFn\(undefined, undefined, __rt_[A-Za-z0-9_$]+\)/);
 
       // (2) Composed map: the call's generated line maps back to ORIGINAL line 5,
       // and NO segment references a line beyond the original file (5) — a leaked

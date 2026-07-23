@@ -8,13 +8,13 @@
 
 import {it, expect} from 'vitest';
 import {
-  createHasUnknownKeys,
+  createHasUnknownKeysFn,
   overrideHasUnknownKeys,
-  createCloneExactShape,
+  createCloneExactShapeFn,
   overrideCloneExactShape,
-  createUnknownKeyErrors,
+  createUnknownKeyErrorsFn,
   overrideUnknownKeyErrors,
-  createFormatTransform,
+  createFormatTransformFn,
   overrideFormatTransform,
 } from '@ts-runtypes/core';
 
@@ -37,24 +37,24 @@ overrideFormatTransform<FmtTarget>(() => ({fmt: true}) as never);
 /** Registers the four object-family it()s (call inside a describe). */
 export function registerObjectFnsCase(): void {
   it('ObjectFns — hasUnknownKeys', () => {
-    const huk = createHasUnknownKeys<HukTarget>();
+    const huk = createHasUnknownKeysFn<HukTarget>();
     expect(huk({x: 1} as never)).toBe(true);
     expect(huk({x: 2} as never)).toBe(false);
   });
 
   it('ObjectFns — cloneExactShape', () => {
-    const out = createCloneExactShape<CesTarget>()({a: 1} as never) as unknown as {cloned?: boolean};
+    const out = createCloneExactShapeFn<CesTarget>()({a: 1} as never) as unknown as {cloned?: boolean};
     expect(out.cloned).toBe(true);
   });
 
   it('ObjectFns — unknownKeyErrors', () => {
-    const errors = createUnknownKeyErrors<UkeTarget>()({a: 1} as never);
+    const errors = createUnknownKeyErrorsFn<UkeTarget>()({a: 1} as never);
     expect(errors).toHaveLength(1);
     expect((errors[0] as {expected?: string}).expected).toBe('override');
   });
 
   it('ObjectFns — formatTransform', () => {
-    const out = createFormatTransform<FmtTarget>()({a: 1} as never) as {fmt?: boolean};
+    const out = createFormatTransformFn<FmtTarget>()({a: 1} as never) as {fmt?: boolean};
     expect(out.fmt).toBe(true);
   });
 }

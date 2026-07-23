@@ -10,7 +10,7 @@
 // Binary is unaffected: it always keeps the compact per-member discriminant
 // (JSON-only collapse), so binary round-trips are asserted separately.
 import {describe, expect, it} from 'vitest';
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
+import {createBinaryDecoderFn, createBinaryEncoderFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 
 // A TOP-LEVEL union that round-trips raw serialises as the bare value, so its
 // wire never starts with the `[-1,` / `[<digit>,` envelope array. A nested
@@ -22,10 +22,10 @@ type RecordUnion = Record<string, number> | {type: string; isTypeError: true};
 
 describe('serialization / record-union JSON encoding (regression)', () => {
   it('Record<string, number> | {type, isTypeError} → bare object, never enveloped', () => {
-    const clone = createJsonEncoder<RecordUnion>();
-    const direct = createJsonEncoder<RecordUnion>(undefined, {strategy: 'direct'});
-    const mutate = createJsonEncoder<RecordUnion>(undefined, {strategy: 'mutate'});
-    const compact = createJsonEncoder<RecordUnion>(undefined, {strategy: 'compact'});
+    const clone = createJsonEncoderFn<RecordUnion>();
+    const direct = createJsonEncoderFn<RecordUnion>(undefined, {strategy: 'direct'});
+    const mutate = createJsonEncoderFn<RecordUnion>(undefined, {strategy: 'mutate'});
+    const compact = createJsonEncoderFn<RecordUnion>(undefined, {strategy: 'compact'});
 
     for (const enc of [clone, direct, mutate, compact]) {
       // Object arm — declared-shape order (type, isTypeError).
@@ -41,24 +41,24 @@ describe('serialization / record-union JSON encoding (regression)', () => {
   });
 
   it('record-union round-trips through the decoder with an identity decode', () => {
-    const enc = createJsonEncoder<RecordUnion>();
-    const dec = createJsonDecoder<RecordUnion>();
+    const enc = createJsonEncoderFn<RecordUnion>();
+    const dec = createJsonDecoderFn<RecordUnion>();
     expect(dec(enc({type: 'oops', isTypeError: true})!)).toEqual({type: 'oops', isTypeError: true});
     expect(dec(enc({a: 1, b: 2})!)).toEqual({a: 1, b: 2});
     expect(dec(enc({})!)).toEqual({});
   });
 
   it('record-union binary keeps its discriminant and round-trips', () => {
-    const enc = createBinaryEncoder<RecordUnion>();
-    const dec = createBinaryDecoder<RecordUnion>();
+    const enc = createBinaryEncoderFn<RecordUnion>();
+    const dec = createBinaryDecoderFn<RecordUnion>();
     expect(dec(enc({type: 'oops', isTypeError: true}))).toEqual({type: 'oops', isTypeError: true});
     expect(dec(enc({a: 1, b: 2}))).toEqual({a: 1, b: 2});
   });
 
   it('pure object union {a: string} | {b: number} → bare object, no envelope', () => {
-    const clone = createJsonEncoder<{a: string} | {b: number}>();
-    const direct = createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'});
-    const mutate = createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'});
+    const clone = createJsonEncoderFn<{a: string} | {b: number}>();
+    const direct = createJsonEncoderFn<{a: string} | {b: number}>(undefined, {strategy: 'direct'});
+    const mutate = createJsonEncoderFn<{a: string} | {b: number}>(undefined, {strategy: 'mutate'});
 
     for (const enc of [clone, direct, mutate]) {
       expect(enc({a: 'hi'})).toBe('{"a":"hi"}');
@@ -69,8 +69,8 @@ describe('serialization / record-union JSON encoding (regression)', () => {
   });
 
   it('mixed atomic + object union string | {a: number} → bare value, no envelope', () => {
-    const clone = createJsonEncoder<string | {a: number}>();
-    const dec = createJsonDecoder<string | {a: number}>();
+    const clone = createJsonEncoderFn<string | {a: number}>();
+    const dec = createJsonDecoderFn<string | {a: number}>();
     expect(clone('hi')).toBe('"hi"');
     expect(clone({a: 1})).toBe('{"a":1}');
     expect(clone('hi')).not.toMatch(TOP_ENVELOPE);
@@ -83,7 +83,7 @@ describe('serialization / record-union JSON encoding (regression)', () => {
     // The envelope elision must not weaken decoder safety: the default (strip)
     // decoder still nukes keys the union never declared, now off the bare
     // merged object instead of the `[-1, …]` wrapper.
-    const dec = createJsonDecoder<{a: string} | {b: number}>();
+    const dec = createJsonDecoderFn<{a: string} | {b: number}>();
     const dirty = JSON.stringify({a: 'hi', evil: 'sneaky'});
     const back = dec(dirty) as Record<string, unknown>;
     expect(back.a).toBe('hi');
@@ -95,8 +95,8 @@ describe('serialization / record-union JSON encoding (regression)', () => {
     // round-trip raw — the envelope is required so the decoder knows to
     // reconstruct Dates. Round-trip must still be exact.
     type DateRecordUnion = Record<string, Date> | {type: string; isTypeError: true};
-    const enc = createJsonEncoder<DateRecordUnion>();
-    const dec = createJsonDecoder<DateRecordUnion>();
+    const enc = createJsonEncoderFn<DateRecordUnion>();
+    const dec = createJsonDecoderFn<DateRecordUnion>();
 
     const objWire = enc({type: 'oops', isTypeError: true})!;
     const recWire = enc({when: new Date('2020-01-02T03:04:05.000Z')})!;

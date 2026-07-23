@@ -10,7 +10,7 @@
 //                                   pureType, schema, generated }
 //                                 (lazy-fetched on row hover/expand)
 //
-// `pureType` is the case's type-first thunk body (e.g. `createValidate<{a:string}>()`),
+// `pureType` is the case's type-first thunk body (e.g. `createValidateFn<{a:string}>()`),
 // `schema` the value-first `RT.*` body, and `generated` the JIT function(s) the
 // resolver emits for that type — extracted from the per-case cache-module dump so
 // the docs show the actual compiled code, not a hand-written approximation.
@@ -31,8 +31,8 @@ const SUITES = {
   serialization: {
     label: 'Serialization',
     json: 'serialization-suite.json',
-    // type-first body = the default 'clone' encoder (`createJsonEncoder<T>()`);
-    // schema body = the value-first `schemaEncoder` (`createJsonEncoder(RT.…)`).
+    // type-first body = the default 'clone' encoder (`createJsonEncoderFn<T>()`);
+    // schema body = the value-first `schemaEncoder` (`createJsonEncoderFn(RT.…)`).
     pureField: 'cloneEncoder',
     schemaField: 'schemaEncoder',
   },
@@ -71,7 +71,7 @@ function asNotesArray(notes) {
 // Tidy a type-first / schema thunk body for display. Self-declaring cases write
 // their type(s) inline and end with `return createX<T>()`; drop that one `return`
 // keyword so the snippet reads as a usage example (`interface User {…}\n
-// createValidate<User>()`) instead of a function body. Expression-body thunks
+// createValidateFn<User>()`) instead of a function body. Expression-body thunks
 // (no `return`) pass through untouched.
 function forDisplay(body) {
   if (typeof body !== 'string') return '';

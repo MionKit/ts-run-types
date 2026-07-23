@@ -200,7 +200,7 @@ func overrideDiagnostics(raws []rawOverride, baseKeys []string) []diagnostics.Di
 		firstIndex[key] = i
 		// validate is a shared cross-family dependency: JSON / binary union
 		// decoders call val_<member> to narrow. Overriding it reaches past
-		// createValidate<T>(), so flag the site (Warning — the build proceeds).
+		// createValidateFn<T>(), so flag the site (Warning — the build proceeds).
 		if raw.fnKey == "val" {
 			diags = append(diags, diagnostics.New(diagnostics.CodeOverrideValidateCrossFamily, raw.site))
 		}

@@ -6,7 +6,7 @@
 //   oversized value (respectBinarySize:false) -> MUST resize, and round-trips
 //
 // Everything that makes "an in-bounds value never resizes" TRUE lives elsewhere:
-// the bounds in createMockData's `respectBinarySize` (applyInBoundsSizing) and the
+// the bounds in createMockDataFn's `respectBinarySize` (applyInBoundsSizing) and the
 // matching cold-start estimate (binary_size_estimate.go). If those two agree, an
 // in-bounds value fits the seeded buffer by construction and this oracle just
 // confirms it. The runner owns WHICH types to feed (see sizeEligible.ts).

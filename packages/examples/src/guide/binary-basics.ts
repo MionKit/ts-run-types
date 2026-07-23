@@ -1,4 +1,4 @@
-import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createBinaryDecoderFn} from '@ts-runtypes/core';
 
 type Telemetry = {
   deviceId: string;
@@ -15,8 +15,8 @@ const sample: Telemetry = {
 };
 
 // start-roundtrip
-const encode = createBinaryEncoder<Telemetry>();
-const decode = createBinaryDecoder<Telemetry>();
+const encode = createBinaryEncoderFn<Telemetry>();
+const decode = createBinaryDecoderFn<Telemetry>();
 
 const bytes = encode(sample); // a Uint8Array view of the encoded bytes — compact, no field names on the wire
 const back = decode(bytes); // decode reads the bytes directly; typed as DataOnly<Telemetry>

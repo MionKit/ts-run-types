@@ -327,7 +327,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 			// We mirror via a throw-factory: the message lands on
 			// Walker.ThrowMessage, the module renderer emits a
 			// `createRTFn(utl){ throw new Error(<msg>) }` so the
-			// throw surfaces at createValidate()-call time (the
+			// throw surfaces at createValidateFn()-call time (the
 			// createRTFunction()-call equivalent).
 			return RTCode{Code: "", Type: CodeNS}
 		}

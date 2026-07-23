@@ -29,7 +29,7 @@ straight from the type, surviving `.d.ts`.
 
 ## Background — two ways a format carries its params
 
-RunTypes resolves `createValidate<T>()` by reading `T` with the tsgo
+RunTypes resolves `createValidateFn<T>()` by reading `T` with the tsgo
 type checker. Format params reach the scanner by one of two routes:
 
 1. **Type-argument literals (survive `.d.ts`).** `FormatString<{maxLength: 5}>`,
@@ -88,7 +88,7 @@ through its published `.d.ts`, because:
 
 Both the type-level and AST-level sources are gone. The scanner can't build the
 `stringFormat` node's pattern, the entry degrades, and
-`createValidate<FormatAlpha>()` throws on instantiation.
+`createValidateFn<FormatAlpha>()` throws on instantiation.
 
 ### Why a `/regex/` literal can never be a type
 
@@ -143,7 +143,7 @@ mockSamples, message?}` shape, all string literals, still wrapped in
 
 2. **Make `registerFormatPattern` / `FormatPattern` generic over the WHOLE args
    object** — not just `source`/`flags`. Capturing only the regex would re-create
-   the bug for the other two fields: `mockSamples` (drives `createMockData`) and
+   the bug for the other two fields: `mockSamples` (drives `createMockDataFn`) and
    `message` (drives diagnostics) would widen to `readonly string[]` / `string`
    and be lost for `.d.ts` consumers, exactly like the regex is today. Carry the
    full literal args so all four fields survive:
@@ -174,7 +174,7 @@ mockSamples, message?}` shape, all string literals, still wrapped in
    the full bundle — `pattern.source`, `pattern.flags`, `pattern.mockSamples`,
    `pattern.message` — from the resolved type the same way
    (`internal/cachegen/runtype/typeid/formats.go`). All four matter: source/flags
-   build the validator, mockSamples feed `createMockData`, message feeds
+   build the validator, mockSamples feed `createMockDataFn`, message feeds
    diagnostics. The call-AST reader (`formatPatternFromSymbol`) can be kept as a
    fallback for the value-first builder path, or removed once the type path is
    authoritative.

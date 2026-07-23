@@ -4,9 +4,9 @@ Status: **IMPLEMENTED** (single PR, all phases). The spec below is the design
 document; the deltas the implementation settled differently are listed here:
 
 - **Call shape**: options ride slot 1 per house convention —
-  `createHasUnknownKeys<T>(undefined, {runsAfterValidation: true})` (or
-  schema-form `createHasUnknownKeys(rt, {runsAfterValidation: true})`), like
-  `createValidate`'s options. The bare-options examples below are shorthand.
+  `createHasUnknownKeysFn<T>(undefined, {runsAfterValidation: true})` (or
+  schema-form `createHasUnknownKeysFn(rt, {runsAfterValidation: true})`), like
+  `createValidateFn`'s options. The bare-options examples below are shorthand.
 - **huk fnHash changed**: moving `hasUnknownKeys` onto its options axis makes
   its canonical key `hasUnknownKeys|<suffix>` (consistent with `validate|`),
   so the PLAIN huk fnHash moved `trR` → `lRN` (variant `OV` = `Omg`). A
@@ -103,12 +103,12 @@ Negative results that shape the design (do NOT re-introduce these):
 
 ## 2. Decisions
 
-- **D1** — `createHasUnknownKeys<T>(options?)` gains a comptime option
+- **D1** — `createHasUnknownKeysFn<T>(options?)` gains a comptime option
   `{runsAfterValidation?: boolean}`. Eligible object nodes emit a key-count check via a new
   pure fn `rt::countEnumKeys`; ineligible nodes fall back to `hUKFA` *without* the object
   guard. Contract: calling the runsAfterValidation variant on non-validated input is undefined
   behavior.
-- **D2** — new public family **`cloneExactShape`** (factory `createCloneExactShape<T>()`,
+- **D2** — new public family **`cloneExactShape`** (factory `createCloneExactShapeFn<T>()`,
   fn type `CloneExactShapeFn`, wire key `'ces'`): non-mutating deep clone of the *declared*
   shape — unknown keys dropped by construction, runtime types preserved (`Date` stays a
   `Date`, `Map`/`Set` stay `Map`/`Set`). **No reuse shortcuts, no count gates** — always
@@ -118,10 +118,10 @@ Negative results that shape the design (do NOT re-introduce these):
   wire variant `unknownKeysToUndefinedWire` (`ukuw`) is untouched — the JSON decoder's
   `'strip'` strategy keeps using it (mutation of a freshly-parsed, exclusively-owned value
   is the one place in-place is structurally right). Breaking change, acceptable pre-1.0.
-- **D4** — `createUnknownKeyErrors` (`uke`) **stays**: it is error reporting, not a strip;
+- **D4** — `createUnknownKeyErrorsFn` (`uke`) **stays**: it is error reporting, not a strip;
   `rt::getUnknownKeysFromArray` stays for it.
 - **D5** — out of scope for this PR (future candidates): folding a strict count check into
-  `createValidate` (single-pass isStrict), re-evaluating the `pjs` Approach-3 fastpath with
+  `createValidateFn` (single-pass isStrict), re-evaluating the `pjs` Approach-3 fastpath with
   a size threshold, decoder clone-vs-`ukuw` experiment.
 
 ### Why removing the mutating strips is safe (niche-scenario audit)
@@ -132,7 +132,7 @@ Scenarios where in-place strip is genuinely wanted, and their answers:
    reassignment (`req.body = clone(req.body)`), the standard pattern anyway.
 2. *Peak-memory-bound giant payloads* (can't afford transient input+clone): the parse path
    is the decoder's job and stays mutating internally via `ukuw`. Manual flows this large
-   should use `createJsonDecoder` rather than parse-then-strip.
+   should use `createJsonDecoderFn` rather than parse-then-strip.
 3. *Reactive/proxied objects* (Vue/MobX — mutation must go through the proxy): clone +
    assign into the reactive root is the framework-recommended pattern.
 4. *"I own it, avoid the alloc"*: measured — the alloc is cheaper than the scan
@@ -146,7 +146,7 @@ wrapper if a real user need appears.
 
 ---
 
-## 3. Phase A — `runsAfterValidation` on `createHasUnknownKeys`
+## 3. Phase A — `runsAfterValidation` on `createHasUnknownKeysFn`
 
 ### Emitted code, old vs new (moltar `ToBeChecked`, all props required)
 
@@ -162,7 +162,7 @@ function IOY_d1lDhHV(v, opts = {}) {
 }
 ```
 
-New, `createHasUnknownKeys<ToBeChecked>({runsAfterValidation: true})` — fully count-eligible
+New, `createHasUnknownKeysFn<ToBeChecked>({runsAfterValidation: true})` — fully count-eligible
 shape (7 and 3 are the declared prop counts; the key arrays disappear entirely):
 
 ```js
@@ -220,7 +220,7 @@ exactly separates clean from dirty. Considered and rejected: the standalone-soun
 shortcut `cnt(v) > N ⟹ true` — when `cnt(v) === N` a full scan is still required to catch
 the swap case, and `=== N` is exactly the clean hot path, so it accelerates nothing that
 matters. The no-flag end state is folding the count into the validator itself
-(`createValidate({strict: true})`) — future work, §7.
+(`createValidateFn({strict: true})`) — future work, §7.
 
 ### Semantics notes (document in JSDoc)
 
@@ -239,15 +239,15 @@ TS side (`packages/ts-runtypes/src/`):
 - [ ] `pure-fns-utils.ts`: add `pf_countEnumKeys = registerPureFnFactory('rt::countEnumKeys', ...)`
       returning `(o) => { let n = 0; for (const k in o) n++; return n; }`.
 - [ ] `createRTFunctions.ts`: new `HasUnknownKeysCompileOptions {runsAfterValidation?: boolean}`;
-      switch `createHasUnknownKeys` from the 2-slot `createRTFunction` wiring to the 3-slot
-      options-carrying wiring (same shape as `createValidate`: schema-form + value-form
+      switch `createHasUnknownKeysFn` from the 2-slot `createRTFunction` wiring to the 3-slot
+      options-carrying wiring (same shape as `createValidateFn`: schema-form + value-form
       overloads, options at slot 1 validated by comptimeargs, injected tuple at slot 2).
 - [ ] `index.ts`: export the options type.
 - [ ] Regenerate `fnHashes.generated.ts` (options fork the entry fnHash variant — the
       pre-baked-variant mechanism `resolveEntryTupleFn` already supports).
 
 Go side (`ts-go-runtypes/internal/`):
-- [ ] `compiler/marker/marker.go` (+ scanner): `createHasUnknownKeys` now has an options
+- [ ] `compiler/marker/marker.go` (+ scanner): `createHasUnknownKeysFn` now has an options
       slot — slot index of the injected tuple moves from 1 to 2; options literal read via
       `comptimeargs` (no new machinery).
 - [ ] `cachegen/typefunctions/unknownkeys_shared.go`:
@@ -370,7 +370,7 @@ diagnostic** — a strip that silently doesn't strip is a security bug, not a fa
       conventions); diagnostic slots for dropped members (mirror `SlotMethodDropped` use).
 - [ ] TS: `CloneExactShapeFn<T> = (value: unknown) => T`… (match house style — the strip
       returned `unknown`; returning `T` is strictly better here), factory
-      `createCloneExactShape` via `createRTFunction` (2-slot, no options), schema-form +
+      `createCloneExactShapeFn` via `createRTFunction` (2-slot, no options), schema-form +
       value-form overloads, marker key `'ces'`, exports, fnHashes regen.
 - [ ] Tests (Go goldens + runtime):
       input never mutated (deep-freeze the input in tests — must not throw and must not
@@ -413,7 +413,7 @@ Checklist:
       exact clone; show frozen input working, which the delete-strip could never do).
 - [ ] Docs: ARCHITECTURE.md family list; leave `docs/done/*` untouched (historical).
 - [ ] CHANGELOG: breaking-change entry with migration snippet:
-      `createStripUnknownKeys<T>()` → `createCloneExactShape<T>()` (note: returns a NEW
+      `createStripUnknownKeys<T>()` → `createCloneExactShapeFn<T>()` (note: returns a NEW
       value; reassign instead of relying on in-place mutation), and the §2 niche-scenario
       recipes for anyone who needed aliasing/zero-alloc behavior.
 
@@ -430,13 +430,13 @@ Checklist:
       targets ≥2.5× runsAfterValidation-huk (clean), ≥2.5× ces vs old suk (clean), ≥15× (dirty1), memory
       table reproduces (clone retained ≤ input, no dictionary-mode blowup).
 - [ ] moltar follow-up (separate repo, after release): case swaps to
-      `createCloneExactShape` (drops the `getRTFunction<'pjs'>` wrapper hack) and
-      `createHasUnknownKeys<ToBeChecked>({runsAfterValidation: true})` in `isStrict`.
+      `createCloneExactShapeFn` (drops the `getRTFunction<'pjs'>` wrapper hack) and
+      `createHasUnknownKeysFn<ToBeChecked>({runsAfterValidation: true})` in `isStrict`.
       Expected: assertStrict/parseStrict ≈ 1.9×, parseSafe modestly up (pjs shortcut gone).
 
 ## 7. Explicit non-goals (this PR)
 
-- `createValidate({strict: true})` single-pass strict validator (future; est. > the 1.9×).
+- `createValidateFn({strict: true})` single-pass strict validator (future; est. > the 1.9×).
 - `pjs` Approach-3 fastpath size-threshold re-evaluation (encode path only).
 - Decoder `'strip'`-strategy clone-vs-`ukuw` experiment.
 - Union arm-discriminated cloning (v2 of `ces`; v1 diagnoses object-bearing unions).

@@ -15,7 +15,7 @@ import {Family, Severity, type Diagnostic, type DiagnosticSite} from '../protoco
 // level of each on its own. Severity, not the name, decides the tier. The
 // concrete code (e.g. `[VL011]`) always rides in the message, so per-code
 // disable comments and lookups keep working. `validate` covers both
-// `createValidate` and `createGetValidationErrors` (VL + VE).
+// `createValidateFn` and `createGetValidationErrorsFn` (VL + VE).
 export type RuleName =
   | 'invalid-marker'
   | 'redundant-marker'

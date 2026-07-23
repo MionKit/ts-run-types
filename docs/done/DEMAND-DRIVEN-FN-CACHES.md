@@ -11,7 +11,7 @@ entries; each `createX<T>()` family cache contains only the types its call sites
 request, with `val_<member>` seeded across families for union round-trips.
 `go test ./internal/...` + `pnpm test` (85 files / 5856) green. Remaining polish
 is in "Follow-ups" at the bottom. Execution tracked in the Task list.
-Owner item: `docs/TODOS.md` §2 ("createValidate and other functions are not
+Owner item: `docs/TODOS.md` §2 ("createValidateFn and other functions are not
 parsing compiler options, instead they are generating all families at once").
 
 ## ⚠️ Critical finding (discovered during implementation)
@@ -27,9 +27,9 @@ demand-scoped on its own:
   round-trip values (no error, just corrupt data).
 - `validationErrors` (`te`) delegates child checks to `val_` too.
 
-Consequence: if `it` is demand-scoped to only `createValidate` call sites, a file
-that serializes a union via `createBinaryEncoder` / `createJsonEncoder` (but
-never calls `createValidate` on it) loses the `val_<member>` entries its union
+Consequence: if `it` is demand-scoped to only `createValidateFn` call sites, a file
+that serializes a union via `createBinaryEncoderFn` / `createJsonEncoderFn` (but
+never calls `createValidateFn` on it) loses the `val_<member>` entries its union
 decoder needs. Verified empirically: demand-scoping `it`/`te` together turned
 the serialization suite from 468→ green to 22 union/binary round-trip failures.
 
@@ -92,12 +92,12 @@ The two invariants the user asserted already hold:
 
 | function | family tag(s) |
 |---|---|
-| `getRunTypeId` / `reflectRunTypeId` / RT builders / `createMockData` | reflection (`t`) only — no function family |
-| `createValidate` / `createGetValidationErrors` | `it` / `te` (+ `ValidateOptions` variant suffix) |
-| `createHasUnknownKeys` / `createStripUnknownKeys` / `createUnknownKeyErrors` / `createUnknownKeysToUndefined` / `createFormatTransform` | `huk` / `suk` / `uke` / `uku` / `fmt` |
-| `createJsonEncoder` | strategy: `direct`→`sj`, `stripClone`→`pjs`, `clone`→`pjsp`, `mutate`→`pj`, `stripMutate`→`pj`+`uku` |
-| `createJsonDecoder` | strategy: `strip`→`rj`+`ukuw`, `preserve`→`rj` |
-| `createBinaryEncoder` / `createBinaryDecoder` | `tb` / `fb` |
+| `getRunTypeId` / `reflectRunTypeId` / RT builders / `createMockDataFn` | reflection (`t`) only — no function family |
+| `createValidateFn` / `createGetValidationErrorsFn` | `it` / `te` (+ `ValidateOptions` variant suffix) |
+| `createHasUnknownKeysFn` / `createStripUnknownKeys` / `createUnknownKeyErrorsFn` / `createUnknownKeysToUndefined` / `createFormatTransformFn` | `huk` / `suk` / `uke` / `uku` / `fmt` |
+| `createJsonEncoderFn` | strategy: `direct`→`sj`, `stripClone`→`pjs`, `clone`→`pjsp`, `mutate`→`pj`, `stripMutate`→`pj`+`uku` |
+| `createJsonDecoderFn` | strategy: `strip`→`rj`+`ukuw`, `preserve`→`rj` |
+| `createBinaryEncoderFn` / `createBinaryDecoderFn` | `tb` / `fb` |
 
 The JSON `strategy` is a `CompTimeArgs` literal — knowable at build time but
 today read only at runtime (`createRTFunctions.ts`).
@@ -116,7 +116,7 @@ today read only at runtime (`createRTFunctions.ts`).
     composite JSON functions it is the strategy token (`'stripMutate'`),
     expanded to its 1–2 cache families by a shared Go↔JS registry.
 - **`InjectRunTypeId<T>` stays** for reflection-only sites (`getRunTypeId`,
-  `reflectRunTypeId`, value-first builders, `createMockData`) → injects the
+  `reflectRunTypeId`, value-first builders, `createMockDataFn`) → injects the
   bare `"<typeId>"` string → the `runTypes` reflection cache is unchanged
   (1:1 on shape, no options). **Scope of this work = function caches only.**
 - The injected tuple is the complete demand: it tells the backend exactly what
@@ -124,16 +124,16 @@ today read only at runtime (`createRTFunctions.ts`).
   duplicated key construction (Go derives the variant suffix into
   `Site.Options`; the JS runtime recomputes it via `buildVariantKey`).
 - **Migration surface:** all 11 function factories move to `InjectTypeFnArgs`
-  (`createValidate`, `createGetValidationErrors`, `createHasUnknownKeys`,
-  `createStripUnknownKeys`, `createUnknownKeyErrors`,
-  `createUnknownKeysToUndefined`, `createFormatTransform`, `createJsonEncoder`,
-  `createJsonDecoder`, `createBinaryEncoder`, `createBinaryDecoder`). The
+  (`createValidateFn`, `createGetValidationErrorsFn`, `createHasUnknownKeysFn`,
+  `createStripUnknownKeys`, `createUnknownKeyErrorsFn`,
+  `createUnknownKeysToUndefined`, `createFormatTransformFn`, `createJsonEncoderFn`,
+  `createJsonDecoderFn`, `createBinaryEncoderFn`, `createBinaryDecoderFn`). The
   reflection entry points stay on `InjectRunTypeId<T>` (`getRunTypeId`,
-  `reflectRunTypeId`, value-first RT builders, `createMockData`).
+  `reflectRunTypeId`, value-first RT builders, `createMockDataFn`).
 
 ## Prior art — the reusable template (`ValidateOptions` variants)
 
-`createValidate` / `createGetValidationErrors` are the **only** functions that already
+`createValidateFn` / `createGetValidationErrorsFn` are the **only** functions that already
 extract a compile-time arg at the call site to generate a *specific* variant
 factory in the cache (distinct key + distinct body). This is the pipeline to
 lift and generalise:
@@ -171,7 +171,7 @@ So the generalisation is: `extractValidateOptions` → a generic
 const-trace robustness), and `ValidateVariantSuffix` → one case of the shared
 `(Fn, comptime-args) → fnId` registry.
 
-**Alignment checkpoint — `createJsonEncoder`/`createJsonDecoder`.** These do NOT
+**Alignment checkpoint — `createJsonEncoderFn`/`createJsonDecoderFn`.** These do NOT
 use the template today (strategy is runtime-only). The test
 `TestResolver_EncoderOptionsShareTypeID` (`internal/compiler/resolver/atomic_test.go:1077`)
 pins "all strategy shapes share one type-id; runtime dispatches by family
@@ -241,21 +241,21 @@ families ride the back-compat all-emit path so the tree stays correct.
 
 - **Slice A — foundation + `te` (LANDED).** New marker `InjectTypeFnArgs<T, Fn>`
   + registry, scanner `Site.FnId`, `[id, fnId]` tuple injection, generalised
-  demand-driven emission, runtime tuple-read for `createValidate`/
-  `createGetValidationErrors`. Only `te` (a safe leaf) is demand-scoped; `it` and the
-  rest stay all-emit. `createValidate` already injects `[id,'val']` and works
+  demand-driven emission, runtime tuple-read for `createValidateFn`/
+  `createGetValidationErrorsFn`. Only `te` (a safe leaf) is demand-scoped; `it` and the
+  rest stay all-emit. `createValidateFn` already injects `[id,'val']` and works
   against the all-emit `it` cache, so migrating `it` later is a one-line
   `MigratedFamilies` flip once the prerequisites are met.
 - **Slice B — remaining single-family leaves.** Migrate
   `huk`/`suk`/`uke`/`uku`/`fmt` and `tb`/`fb` to `InjectTypeFnArgs` (no comptime
   variant axis — `fnId` = base tag) and add them to `MigratedFamilies`. All are
   leaves, so safe while `it` stays all-emit.
-- **Slice C — JSON precise strategy.** `createJsonEncoder`/`createJsonDecoder`:
+- **Slice C — JSON precise strategy.** `createJsonEncoderFn`/`createJsonDecoderFn`:
   read the `strategy` literal → `fnId` = strategy token → 1–2 families
   (`JsonStrategyFamilies`). Migrate + scope. Update
   `TestResolver_EncoderOptionsShareTypeID`.
 - **Slice D — scope `it` + cleanup.** Builds on the cross-family-edge capture
-  (`docs/CROSS-FAMILY-RT-DEPS.md`): compute the `it` demand as createValidate-site
+  (`docs/CROSS-FAMILY-RT-DEPS.md`): compute the `it` demand as createValidateFn-site
   closure ∪ the `val_` edges discovered while rendering the other demanded
   families (minimal, default variant), then add `it` to `MigratedFamilies`. Then
   drop `Site.Options` + the `buildVariantKey` duplication; full
@@ -299,13 +299,13 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [x] A10 `internal/cachegen/typefunctions/module.go`: `collectFamilyDemand` +
   worklist-seed + transitive closure; back-compat all-emit path; gated by
   `MigratedFamilies` (currently `{te}`).
-- [x] A11 `createRTFunctions.ts`: `createValidate`/`createGetValidationErrors` read the
+- [x] A11 `createRTFunctions.ts`: `createValidateFn`/`createGetValidationErrorsFn` read the
   `[id, fnId]` tuple via `createTypeFnArgsFunction`.
 - [x] A12 Go overlay (`inline_test.go`) declares `InjectTypeFnArgs` +
-  `createValidate`/`createGetValidationErrors`; emitter tests demand via `createValidate`.
+  `createValidateFn`/`createGetValidationErrorsFn`; emitter tests demand via `createValidateFn`.
 - [x] A13 `go test ./internal/...` green; `pnpm test` green (85 files / 5856).
 - [x] A14 Regression `internal/compiler/resolver/demand_scope_test.go`: `verr_` scoped to
-  `createGetValidationErrors`; reflection/`createValidate` files emit no `verr_`; `it`
+  `createGetValidationErrorsFn`; reflection/`createValidateFn` files emit no `verr_`; `it`
   stays all-emit (guarded by `TestDemandScope_ItStaysAllEmit`).
 
 ### Slice B — single-family fan-out (`huk`/`suk`/`uke`/`fmt`, `tb`/`fb`) — `258900d`
@@ -313,10 +313,10 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
   reads the tuple), `huk`/`suk`/`uke`/`fmt`/`tb`/`fb` added to `MigratedFamilies`,
   overlays + emitter tests switched to the matching `createX`, all green.
   NOTE: `uku`'s marker migrated here but the family was held for Slice C (shared
-  with `createJsonEncoder(stripMutate)`).
+  with `createJsonEncoderFn(stripMutate)`).
 
 ### Slice C — JSON precise strategy — `7bb023f`
-- [x] C1–C6 `createJsonEncoder`/`Decoder` read `[id, strategy]` tuple and derive
+- [x] C1–C6 `createJsonEncoderFn`/`Decoder` read `[id, strategy]` tuple and derive
   the strategy from `tuple[1]`; `pj`/`pjs`/`pjsp`/`sj`/`rj`/`uku`/`ukuw` added to
   `MigratedFamilies`; `TestResolver_EncoderOptionsShareTypeID` keeps id-sharing +
   asserts per-site `fnId`; serialization suite (all strategies) green.
@@ -327,10 +327,10 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [x] D0 `CrossFamilyValRoots` renders the 14 non-`it` families (Store-bypassed) to
   collect `val_<member>` edges → seeds the `it` demand via `RenderOpts.ExtraRoots`;
   `"val"` added to `MigratedFamilies`. Also fixed a latent map-iteration
-  non-determinism (now sorted) and a stale JS overlay (`inline.ts` createValidate
+  non-determinism (now sorted) and a stale JS overlay (`inline.ts` createValidateFn
   on the old marker). Union/serialization canary green.
-- [x] D3 `demand_scope_test.go`: reflection-only → no `val_`; `createValidate` →
-  `val_`; `createBinaryEncoder<{a:bigint}|{a:Date}>`-only → `val_<member>` seeded
+- [x] D3 `demand_scope_test.go`: reflection-only → no `val_`; `createValidateFn` →
+  `val_`; `createBinaryEncoderFn<{a:bigint}|{a:Date}>`-only → `val_<member>` seeded
   cross-family.
 - [x] D5 `gofmt`/`pnpm run lint` clean; `go test ./internal/...` + `pnpm test` green.
 
@@ -338,7 +338,7 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 
 - [x] D0b Recursive value-first schema passed to `createX` — already covered:
   `packages/ts-go-run-types/test/adapters/circular.test.ts` asserts
-  `createValidate(circularSchema) === createValidate<RecursiveType>()` (value-first id
+  `createValidateFn(circularSchema) === createValidateFn<RecursiveType>()` (value-first id
   converges with type-first under demand-scoping), plus `composeBuilders.test.ts`
   validates a recursive linked-list. No new test needed.
 - [x] D1 Removed the dead `Site.Options` + `collectValidateVariants` /

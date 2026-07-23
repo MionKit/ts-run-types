@@ -35,7 +35,7 @@ brand:
 ```ts
 string({maxLength: 5})                       // ⇒ {type: 'string', formatParams: {maxLength: 5}}
 type User = ModelType<typeof object({ ... })> // FieldConfig → FieldFormatMap → FieldType → ModelType
-const isUser = createValidate<User>();
+const isUser = createValidateFn<User>();
 ```
 
 The refactor makes the builder **return the branded format type directly**, so
@@ -44,7 +44,7 @@ the mapping layer disappears:
 ```ts
 string({maxLength: 5})                       // ⇒ FormatString<{maxLength: 5}>
 type User = typeof object({ ... });          // already the model type, no mapping
-const isUser = createValidate<User>();
+const isUser = createValidateFn<User>();
 ```
 
 …and (Tier 2, optional follow-on) lets each builder be an **injectable marker**
@@ -75,7 +75,7 @@ and fully de-risked; Tiers 2–3 are independent follow-ons.
    by reflecting the branded _type_, exactly as it does for type-first today. See
    [§ The discriminator question](#the-discriminator-question-resolved).
 3. **Unifies with the marker mechanism.** Builders become the same kind of
-   plugin-injected marker as `getRunTypeId` / `createValidate`, instead of a
+   plugin-injected marker as `getRunTypeId` / `createValidateFn`, instead of a
    parallel "config + type-channel reflection of `ModelType`" path.
 4. **Foundation for the value-call form.** Tier 2 is the cheapest realistic path
    to `Model.validate(x)` style ergonomics (the parked Option B), built on existing
@@ -88,7 +88,7 @@ binary** via the marker package's vitest plugin. Result: **5/5 pass.**
 
 | Probe                                                                 | What it proves                                                                                                                         | Result |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| `createValidate<typeof object({string fields})>()` `toBe` type-first    | branded-return builders converge, no `ModelType`                                                                                       | ✅     |
+| `createValidateFn<typeof object({string fields})>()` `toBe` type-first    | branded-return builders converge, no `ModelType`                                                                                       | ✅     |
 | same for a number-field model                                         | numeric family converges                                                                                                               | ✅     |
 | same for an **optional** field (`{__opt}` carrier + object split)     | `key?:` survives, converges                                                                                                            | ✅     |
 | same for a **temporal** field                                         | temporal family converges                                                                                                              | ✅     |
@@ -118,7 +118,7 @@ All in [`packages/ts-go-run-types/src/schema/atomic.ts`](../packages/ts-go-run-t
 - **The mapping** — `ParamsOf<F> = F['formatParams']`; `FieldFormatMap<P>` (the
   keyed lookup added recently); `FieldType<F>` (indexes the map by `F['type']`);
   `ModelType<C>` (two-group mapped type splitting optional/required, `-readonly`).
-- **Consumption** — `createValidate<ModelType<typeof Model>>()`. The Go scanner
+- **Consumption** — `createValidateFn<ModelType<typeof Model>>()`. The Go scanner
   reflects the resolved `ModelType<…>`, which is byte-identical to the
   hand-written `Format*<P>` types, so both front-ends converge on one structural
   id (asserted by
@@ -167,7 +167,7 @@ Authoring becomes:
 ```ts
 const UserModel = object({name: string({maxLength: 50}), nick: optional(number({min: 0}))});
 type User = typeof UserModel; // already {name: FormatString<…>; nick?: FormatNumber<…>}
-const isUser = createValidate<User>(); // unchanged marker, converges with type-first
+const isUser = createValidateFn<User>(); // unchanged marker, converges with type-first
 ```
 
 **Deleted by Tier 1:** `FieldConfig` + all 11 `*FieldConfig` members,
@@ -192,7 +192,7 @@ function string<const FP extends StringFamilyParams = {}>(
 
 The transformer already injects `id` for any function with this trailing
 parameter (verified — probe #5). This is what enables a future value-call form
-(`object({...}).validate(x)` or `createValidate(model)`), where the runtime return is
+(`object({...}).validate(x)` or `createValidateFn(model)`), where the runtime return is
 the live RunType/validator bundle rather than a type-only carrier.
 
 **Tier 2 is not required for Tier 1's win** and carries the open questions in
@@ -215,8 +215,8 @@ interpreter over `runTypesCache`". Instead of generating mock data, the walker
 emits a discriminated `ModelConfig`:
 
 ```ts
-createValidate<T>(); // → validator
-createMockData<T>(); // → mock generator
+createValidateFn<T>(); // → validator
+createMockDataFn<T>(); // → mock generator
 reflectModel<T>(); // NEW → typed runtime model   (inject id → getRunType(id) → walk → ModelConfigOf<T>)
 ```
 
@@ -334,7 +334,7 @@ The earlier worry was that unifying on a single discriminator would force foldin
 ## Test & doc impact (in scope to update during the port)
 
 - [`valueFirstConvergence.test.ts`](../packages/ts-go-run-types/test/adapters/valueFirstConvergence.test.ts)
-  — switch `createValidate<ModelType<typeof X>>()` → `createValidate<typeof X>()`.
+  — switch `createValidateFn<ModelType<typeof X>>()` → `createValidateFn<typeof X>()`.
   These same-hash assertions are the regression guard for the port; they MUST
   stay green (the POC already shows they do).
 - [`value-first-define/`](../packages/ts-go-run-types/test/suites/value-first-define/)
@@ -388,12 +388,12 @@ formatParams}` is human-readable schema. Options for the new builder runtime
 ## Appendix A — proof-of-concept source
 
 Verified against the real binary (5/5 pass). Stub builders stand in for the
-ported ones; the assertions use the real `createValidate` / `getRunTypeId`
+ported ones; the assertions use the real `createValidateFn` / `getRunTypeId`
 markers, so the Go binary does the reflection.
 
 ```ts
 import {describe, expect, it} from 'vitest';
-import {createValidate, getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+import {createValidateFn, getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 import type {FormatString, FormatNumber} from '@mionjs/ts-go-run-types/formats';
 import type {FormatTemporalInstant} from '@mionjs/ts-go-run-types/formats/temporal';
 import type {StringParams} from '../../src/formats/string/stringFormats.ts';
@@ -449,10 +449,10 @@ function pidstring<const FP extends StringParams = {}>(
 }
 
 describe('POC — branded-return builders converge with type-first (no ModelType)', () => {
-  it('string model', () => expect(createValidate<typeof StringFirst>()).toBe(createValidate<StringFirstTF>()));
-  it('number model', () => expect(createValidate<typeof NumberFirst>()).toBe(createValidate<NumberFirstTF>()));
-  it('optional field', () => expect(createValidate<typeof OptionalFirst>()).toBe(createValidate<OptionalFirstTF>()));
-  it('temporal field', () => expect(createValidate<typeof TemporalFirst>()).toBe(createValidate<TemporalFirstTF>()));
+  it('string model', () => expect(createValidateFn<typeof StringFirst>()).toBe(createValidateFn<StringFirstTF>()));
+  it('number model', () => expect(createValidateFn<typeof NumberFirst>()).toBe(createValidateFn<NumberFirstTF>()));
+  it('optional field', () => expect(createValidateFn<typeof OptionalFirst>()).toBe(createValidateFn<OptionalFirstTF>()));
+  it('temporal field', () => expect(createValidateFn<typeof TemporalFirst>()).toBe(createValidateFn<TemporalFirstTF>()));
   it('Tier-2: builder-as-marker gets an id injected, equal to the canonical marker', () => {
     const injected = pidstring({maxLength: 5});
     expect(injected).toBeTypeOf('string');

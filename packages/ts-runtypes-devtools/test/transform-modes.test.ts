@@ -128,9 +128,9 @@ createStandardSchema<string>();
   runTest(
     'trailing comma: edits mode reproduces go mode byte-for-byte',
     {
-      'trailing.ts': `import {createValidate} from '@ts-runtypes/core';
+      'trailing.ts': `import {createValidateFn} from '@ts-runtypes/core';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
-export const isUser = createValidate(
+export const isUser = createValidateFn(
   user,
 );
 `,
@@ -150,15 +150,15 @@ export const isUser = createValidate(
   runTest(
     'armed rejectCircularRefs (static): edits mode reproduces go mode byte-for-byte',
     {
-      'armed.ts': `import {createValidate} from '@ts-runtypes/core';
+      'armed.ts': `import {createValidateFn} from '@ts-runtypes/core';
 interface Node {name: string; next?: Node}
-export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
+export const isNode = createValidateFn<Node>(undefined, {rejectCircularRefs: true});
 `,
     },
     async (sources) => {
       await withInlineSources(sources, async ({client}) => {
         const {applied} = await assertModeParity(client, 'armed.ts', sources['armed.ts']);
-        expect(applied.code).toMatch(/createValidate<Node>\(undefined, \{rejectCircularRefs: true\}, __rt_[A-Za-z0-9_]+\)/);
+        expect(applied.code).toMatch(/createValidateFn<Node>\(undefined, \{rejectCircularRefs: true\}, __rt_[A-Za-z0-9_]+\)/);
       });
     }
   );
@@ -166,10 +166,10 @@ export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true}
   runTest(
     'armed rejectCircularRefs (reflection): edits mode reproduces go mode byte-for-byte',
     {
-      'armed-reflect.ts': `import {createValidate} from '@ts-runtypes/core';
+      'armed-reflect.ts': `import {createValidateFn} from '@ts-runtypes/core';
 interface Node {name: string; next?: Node}
 const inference: Node = {name: 'a'};
-export const isNode = createValidate(inference, {rejectCircularRefs: true});
+export const isNode = createValidateFn(inference, {rejectCircularRefs: true});
 `,
     },
     async (sources) => {

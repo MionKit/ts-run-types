@@ -1,5 +1,5 @@
 // The competitor-AGNOSTIC shared case: samples + metadata only. It carries NO
-// `createValidate` / `ts-runtypes` imports, so a competitor that
+// `createValidateFn` / `ts-runtypes` imports, so a competitor that
 // imports the shared suite never transitively pulls the marker package or the
 // plugin — the ts-runtypes validators live in the ts-go competitor module,
 // exactly like every other competitor's do.

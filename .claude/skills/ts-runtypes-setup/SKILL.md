@@ -79,7 +79,7 @@ unsupported OS or no supported package manager.
 binary + vite plugin wiring ([scripts/core/smoke.mjs](../../../scripts/core/smoke.mjs)).
 Spawns `bin/ts-runtypes` in `--inline-server` mode, installs three tiny
 in-memory fixtures (`getRunTypeId<T>()` static, `getRunTypeId(v)` reflect,
-`createValidate<T>()` to exercise the `InjectTypeFnArgs` createX path), runs
+`createValidateFn<T>()` to exercise the `InjectTypeFnArgs` createX path), runs
 the plugin's `rewrite()` over each, then calls `scanFiles` with
 `includeEntryModules: true` and asserts the resolver returned a Site per
 fixture and at least one rendered entry module. `rt dev smoke` first runs

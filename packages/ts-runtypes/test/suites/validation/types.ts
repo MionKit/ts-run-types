@@ -21,7 +21,7 @@ export type Thunk<T> = (() => T) | 'not-supported';
  *  boolean-returning call shape, the common supertype every `ValidateFn<T>`
  *  (including `ValidateFn<never>`) satisfies — a type guard is assignable to a
  *  `=> boolean` function. The validator's real typing is still checked at the
- *  thunk's `createValidate<T>()` call site; the asserts only invoke it for its
+ *  thunk's `createValidateFn<T>()` call site; the asserts only invoke it for its
  *  boolean result. **/
 type AnyValidateFn = (value: unknown) => boolean;
 type ValidateThunk = Thunk<AnyValidateFn>;
@@ -62,7 +62,7 @@ export interface ValidationCase {
    *  form. Caller supplies `T` explicitly via the type argument. */
   validate: ValidateThunk;
   /** Plugin-rewritten thunk returning the validate validator — REFLECT
-   *  form. Calls `createValidate(value)` with a runtime value annotated
+   *  form. Calls `createValidateFn(value)` with a runtime value annotated
    *  to type T; the type checker infers T from the annotation, the
    *  value itself is discarded at runtime. Paired with `validate` per
    *  the CLAUDE.md "Marker test coverage rule" to verify both call
@@ -76,7 +76,7 @@ export interface ValidationCase {
   deserializeValidate: ValidateThunk;
   /** Reflect-form companion to `deserializeValidate`. **/
   deserializeValidateReflect: ValidateThunk;
-  /** DATA-ONLY form: `() => createValidate<DataOnly<T>>()` — the SAME `T` as
+  /** DATA-ONLY form: `() => createValidateFn<DataOnly<T>>()` — the SAME `T` as
    *  `validate`, wrapped in `DataOnly<…>`. Proves the `DataOnly` type mapping
    *  drops exactly what the AOT validator emitter drops: a `DataOnly<T>` call
    *  site must resolve to the SAME structural id (hence the SAME cached
@@ -86,7 +86,7 @@ export interface ValidationCase {
    *  type argument where it is written. Set `dataOnlyDivergent` for the
    *  root-level non-data kinds whose ids cannot converge. **/
   validateDataOnly: ValidateThunk;
-  /** SCHEMA form: `() => createValidate(<value-first builder schema>)`. Builds
+  /** SCHEMA form: `() => createValidateFn(<value-first builder schema>)`. Builds
    *  the validator from a `define` builder result (a `RunType` value) instead of
    *  reflecting a type — the value-first authoring path. Run against the same
    *  samples as `validate`. Required on every case: supply a thunk, or the
@@ -111,11 +111,11 @@ export interface ValidationCase {
   deserializeGetValidationErrors: Thunk<GetValidationErrorsFn>;
   /** Reflect-form companion to `deserializeGetValidationErrors`. */
   deserializeGetValidationErrorsReflect: Thunk<GetValidationErrorsFn>;
-  /** DATA-ONLY form: `() => createGetValidationErrors<DataOnly<T>>()`. Companion to
+  /** DATA-ONLY form: `() => createGetValidationErrorsFn<DataOnly<T>>()`. Companion to
    *  `validateDataOnly` for the getValidationErrors family — must resolve the SAME
    *  cached factory as the bare-`T` `getValidationErrors` thunk. **/
   getValidationErrorsDataOnly: Thunk<GetValidationErrorsFn>;
-  /** SCHEMA form: `() => createGetValidationErrors(<value-first builder schema>)`.
+  /** SCHEMA form: `() => createGetValidationErrorsFn(<value-first builder schema>)`.
    *  Companion to `validateSchema` for the getValidationErrors family. Required on every
    *  case; supports the same `'not-supported'` sentinel for a case whose schema
    *  variant CANNOT be authored value-first. **/
@@ -179,12 +179,12 @@ export interface ValidationCase {
    *  genuinely impossible — leave UNSET for cases that should converge so a
    *  regression surfaces as a failure. (Note: option cases like `noLiterals` /
    *  `noIsArrayCheck` are NOT divergent — they converge once the schema thunk
-   *  mirrors the same option, e.g. `createValidate(RT.literal(2), {noLiterals: true})`.) **/
+   *  mirrors the same option, e.g. `createValidateFn(RT.literal(2), {noLiterals: true})`.) **/
   idDivergent?: boolean;
 
   /** Opt a case out of the DataOnly-equivalence suite
-   *  (`assertDataOnlyEquivalence`): `createValidate<DataOnly<T>>()` is KNOWN not to
-   *  validate the same way as `createValidate<T>()`, by design, because `DataOnly`
+   *  (`assertDataOnlyEquivalence`): `createValidateFn<DataOnly<T>>()` is KNOWN not to
+   *  validate the same way as `createValidateFn<T>()`, by design, because `DataOnly`
    *  is a purely STRUCTURAL projection and `T` is validated by NATIVE or NOMINAL
    *  identity (which a structural mapping can't preserve), or `T` has a shape the
    *  mapping can't reconstruct. Known divergent families:

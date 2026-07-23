@@ -446,7 +446,7 @@ It waits for the version to be resolvable (a fresh publish can lag across the re
 | `podman machine start` fails with `vfkit exited unexpectedly`  | Rosetta 2 missing on Apple Silicon                                          | `softwareupdate --install-rosetta --agree-to-license`, then re-run `podman machine start`.                                     |
 | `@ts-runtypes/devtools` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm rtx bench prep`.           |
 | Marker package `tsc --build` fails with `Cannot find namespace 'Temporal'` | Missing `esnext.temporal` in the marker `tsconfig.json` `lib`           | Restore the `esnext.temporal` entry — its absence makes tsc skip declaration emit on the offending file, leaving `markers.d.ts` / `createRTFunctions.d.ts` missing and breaking call-site resolution. |
-| Bench errors `createValidate(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
+| Bench errors `createValidateFn(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
 
 ---
 

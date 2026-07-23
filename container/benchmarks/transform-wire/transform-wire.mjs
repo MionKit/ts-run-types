@@ -56,16 +56,16 @@ const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export type ValidateFn = (value: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<{noLiterals?: boolean}>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<{noLiterals?: boolean}>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
 }
 `;
 
 // ── corpus ───────────────────────────────────────────────────────────────────
 // One file = `filler` comment lines (to grow file size independently of site
-// count) + `sites` distinct interfaces, each with a createValidate<T>() call.
+// count) + `sites` distinct interfaces, each with a createValidateFn<T>() call.
 // Distinct types per site so every site interns a real cache entry.
 function genFile(fileIndex, sites, filler) {
-  const lines = [`import {createValidate} from '@ts-runtypes/core';`];
+  const lines = [`import {createValidateFn} from '@ts-runtypes/core';`];
   for (let i = 0; i < filler; i++) {
     lines.push(`// filler ${fileIndex}-${i}: lorem ipsum dolor sit amet consectetur adipiscing elit sed do`);
   }
@@ -74,7 +74,7 @@ function genFile(fileIndex, sites, filler) {
     lines.push(
       `interface ${t} { id: number; name: string; tags: string[]; nested: {created: number; active: boolean; label: string}; }`
     );
-    lines.push(`export const v_${fileIndex}_${s} = createValidate<${t}>();`);
+    lines.push(`export const v_${fileIndex}_${s} = createValidateFn<${t}>();`);
   }
   return lines.join('\n') + '\n';
 }

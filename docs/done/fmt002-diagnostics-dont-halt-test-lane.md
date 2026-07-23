@@ -5,7 +5,7 @@
 Contradictory format params — `Number<{min: 10; gt: 5}>`, `min > max`, `multipleOf <= 0`,
 `float` + `multipleOf`, … — are validated at build time in Go and reported as FMT002 with
 SeverityError. But in the vitest/dev-transform lane the plugin only forwarded diagnostics
-via `ctx.warn`, so `createValidate<Number<{min: 10, gt: 5}>>()` silently returned a
+via `ctx.warn`, so `createValidateFn<Number<{min: 10, gt: 5}>>()` silently returned a
 working (but semantically contradictory) validator; nothing failed until a full
 `vite build`. The old mion runtime threw from the factory for these invariants; that
 coverage became unreachable in the test lane (mion deleted 7 such tests during the spec

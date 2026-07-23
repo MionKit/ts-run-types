@@ -5,8 +5,8 @@
 A vitest spec imported its subject type with an extensionless relative path
 (`import {User} from './user.runtype'`) under `moduleResolution: NodeNext`. Vite resolved
 it at RUNTIME but the resolver's scan program did not — so `User` checked as `any` at the
-`createValidate<User>()` site: the binary emitted the noop tuple, `createValidate` became
-the always-true identity, `createGetValidationErrors` returned `[]`, `createMockData`
+`createValidateFn<User>()` site: the binary emitted the noop tuple, `createValidateFn` became
+the always-true identity, `createGetValidationErrorsFn` returned `[]`, `createMockDataFn`
 returned `undefined` — 34 tests failed with ZERO diagnostics. The worst failure shape for
 a validation library.
 
@@ -26,7 +26,7 @@ skew, missing deps).
   DEADLOCKED the checker pool mid-scan under the real binary; the alias walk has no such
   hazard. Memoized per file on the Session.
 - **Escape hatch**: a written `any`/`unknown` KEYWORD type argument never diagnoses —
-  `createValidate<any>()` stays legal even in a file with an unrelated failing import
+  `createValidateFn<any>()` stays legal even in a file with an unrelated failing import
   (it still gets the pre-existing VL021 Warning). Bare side-effect imports are skipped
   (no binding → no type can flow).
 - **Surfacing gap fixed along the way**: `scanAllProgramFiles` (the eager whole-program

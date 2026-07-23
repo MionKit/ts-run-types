@@ -16,7 +16,13 @@
 // resolver client (openClient) and the low-level eval helpers.
 
 import path from 'node:path';
-import {createValidate, createJsonEncoder, createJsonDecoder, createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
+} from '@ts-runtypes/core';
 import {ResolverClient} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {RUNTYPES_DTS, evalEntryModules, instantiateRunTypes} from '../../../../ts-runtypes-devtools/test/helpers/inline.ts';
 import {Severity, type Diagnostic, type Site} from '../../../../ts-runtypes-devtools/src/protocol.ts';
@@ -67,31 +73,31 @@ export interface CompiledCodecs {
 }
 
 // One createX call site per codec strategy. Options is the SECOND positional
-// arg (`createJsonEncoder<T>(undefined, {strategy})`) — passing it first makes
+// arg (`createJsonEncoderFn<T>(undefined, {strategy})`) — passing it first makes
 // it the value and silently defaults to clone. The Go side reads the strategy
 // literal straight from the AST, so the tags resolve to jeCL/jeMU/jeDI/jeCO and
 // jdST/jdPR/jdCO regardless of the inline d.ts overlay.
 export function renderFixture(gen: GeneratedType): string {
   const {decls, rootExpr} = renderGenerated(gen);
   return `import {
-  createValidate,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createValidateFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
 } from '@ts-runtypes/core';
 ${decls}
 type T = ${rootExpr};
-createValidate<T>();
-createJsonEncoder<T>(undefined, {strategy: 'clone'});
-createJsonEncoder<T>(undefined, {strategy: 'mutate'});
-createJsonEncoder<T>(undefined, {strategy: 'direct'});
-createJsonEncoder<T>(undefined, {strategy: 'compact'});
-createJsonDecoder<T>(undefined, {strategy: 'strip'});
-createJsonDecoder<T>(undefined, {strategy: 'preserve'});
-createJsonDecoder<T>(undefined, {strategy: 'compact'});
-createBinaryEncoder<T>();
-createBinaryDecoder<T>();
+createValidateFn<T>();
+createJsonEncoderFn<T>(undefined, {strategy: 'clone'});
+createJsonEncoderFn<T>(undefined, {strategy: 'mutate'});
+createJsonEncoderFn<T>(undefined, {strategy: 'direct'});
+createJsonEncoderFn<T>(undefined, {strategy: 'compact'});
+createJsonDecoderFn<T>(undefined, {strategy: 'strip'});
+createJsonDecoderFn<T>(undefined, {strategy: 'preserve'});
+createJsonDecoderFn<T>(undefined, {strategy: 'compact'});
+createBinaryEncoderFn<T>();
+createBinaryDecoderFn<T>();
 `;
 }
 
@@ -150,7 +156,7 @@ export async function compileCodecs(client: ResolverClient, gen: GeneratedType):
   const wireErrors: CompiledCodecs['wireErrors'] = {};
 
   const validate = wire(wireErrors, 'validate', () =>
-    byTag.val ? (createValidate(undefined, undefined, byTag.val as never) as (v: unknown) => boolean) : undefined
+    byTag.val ? (createValidateFn(undefined, undefined, byTag.val as never) as (v: unknown) => boolean) : undefined
   );
 
   // strip decoder is shared by the clone and direct lanes (both emit keyed JSON).
@@ -183,7 +189,7 @@ function classifyByTag(fnSites: Site[], tuples: Record<string, readonly unknown[
 function wireDecoder(tuple: readonly unknown[] | undefined): ((wire: unknown) => unknown) | undefined {
   if (!tuple) return undefined;
   try {
-    return createJsonDecoder(undefined, undefined, tuple as never) as (wire: unknown) => unknown;
+    return createJsonDecoderFn(undefined, undefined, tuple as never) as (wire: unknown) => unknown;
   } catch {
     return undefined;
   }
@@ -202,7 +208,7 @@ function wireLane(
   const encode = wire(
     wireErrors,
     lane,
-    () => createJsonEncoder(undefined, undefined, encTuple as never) as (v: unknown) => unknown
+    () => createJsonEncoderFn(undefined, undefined, encTuple as never) as (v: unknown) => unknown
   );
   if (encode) codecs[lane] = {encode, decode};
 }
@@ -217,11 +223,11 @@ function wireBinaryLane(
   const encode = wire(
     wireErrors,
     'binary',
-    () => createBinaryEncoder(undefined, undefined, encTuple as never) as (v: unknown) => unknown
+    () => createBinaryEncoderFn(undefined, undefined, encTuple as never) as (v: unknown) => unknown
   );
   let decode: ((wire: unknown) => unknown) | undefined;
   try {
-    decode = createBinaryDecoder(undefined, undefined, decTuple as never) as (wire: unknown) => unknown;
+    decode = createBinaryDecoderFn(undefined, undefined, decTuple as never) as (wire: unknown) => unknown;
   } catch (err) {
     wireErrors.binary = wireErrors.binary ?? errMsg(err);
     decode = undefined;

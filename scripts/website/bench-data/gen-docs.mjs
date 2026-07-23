@@ -373,7 +373,7 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
     showInvalid: true,
     hasSamples: true,
     metrics: [
-      {key: 'validate', label: 'Is-valid', metricLabel: 'createValidate — boolean is-valid check (ops/sec, higher is better)'},
+      {key: 'validate', label: 'Is-valid', metricLabel: 'createValidateFn — boolean is-valid check (ops/sec, higher is better)'},
       {
         key: 'validationErrors',
         label: 'Validation errors',

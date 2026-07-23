@@ -1,6 +1,6 @@
 // id-integrity / validators — for EVERY validation + format-validation case,
-// assert the value-first schema form (`createValidate(RT.x())`) and the type-first
-// form (`createValidate<T>()`) resolve to the SAME cached factory, i.e. the same
+// assert the value-first schema form (`createValidateFn(RT.x())`) and the type-first
+// form (`createValidateFn<T>()`) resolve to the SAME cached factory, i.e. the same
 // structural type id (and therefore the same cached runtype). Reuses each case's
 // existing validate / validateSchema / getValidationErrors / getValidationErrorsSchema thunks —
 // no per-case data added. See util/idIntegrityAsserts.ts for the mechanism.

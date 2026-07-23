@@ -1,8 +1,8 @@
 // Autonomous clone-fuzz driver. Feeds three streams of data into every
-// target's compiled `createCloneExactShape<T>()` and collects oracle
+// target's compiled `createCloneExactShapeFn<T>()` and collects oracle
 // violations:
 //
-//   valid    createMockData<T>()             → O15, O16, O17
+//   valid    createMockDataFn<T>()             → O15, O16, O17
 //   extras   mutateWithExtras(valid)         → O15, O16, O17 (+ hasUnknownKeys)
 //   junk     randomJunk() (type-blind)       → robustness only
 //

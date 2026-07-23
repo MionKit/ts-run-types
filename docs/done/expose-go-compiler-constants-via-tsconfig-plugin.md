@@ -237,7 +237,7 @@ are reference-only.
 - `constants.jsonCompositeTags` — per-strategy tag suffix. Wire-format
   identifier; never expose.
 - `constants.ValidateOptions` (the `noLiterals` / `noIsArrayCheck`
-  registry). These are CALL-SITE options on `createValidate<T>()`, NOT
+  registry). These are CALL-SITE options on `createValidateFn<T>()`, NOT
   project-wide knobs — they ride the variant suffix. Project-wide
   defaults probably don't make sense; revisit only if a real use case
   appears.
@@ -416,7 +416,7 @@ Proposed structure (subject to bikeshedding):
   entry IS the config surface; a third format is the problem this todo
   exists to fix, not the solution.
 - Per-call-site overrides for things that ALREADY have per-call-site
-  shape (e.g. `ValidateOptions` on `createValidate`). The tsconfig entry
+  shape (e.g. `ValidateOptions` on `createValidateFn`). The tsconfig entry
   is for whole-project defaults, not per-call configuration.
 - Adding new tunables that don't exist in the Go binary today. This todo
   is about EXPOSING existing knobs, not inventing new ones.

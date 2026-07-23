@@ -1,15 +1,15 @@
 import {
-  createValidate,
+  createValidateFn,
   overrideValidate,
-  createGetValidationErrors,
+  createGetValidationErrorsFn,
   overrideGetValidationErrors,
-  createJsonEncoder,
+  createJsonEncoderFn,
   overrideJsonEncoder,
-  createJsonDecoder,
+  createJsonDecoderFn,
   overrideJsonDecoder,
-  createBinaryEncoder,
+  createBinaryEncoderFn,
   overrideBinaryEncoder,
-  createBinaryDecoder,
+  createBinaryDecoderFn,
   overrideBinaryDecoder,
 } from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
@@ -33,15 +33,15 @@ overrideBinaryDecoder<UnionTarget>((ret, Des) => JSON.parse(Des.desString()) as 
 
 export const UNION_OVERRIDE: OverrideCase = {
   title: 'Unions',
-  validate: () => createValidate<UnionTarget>(),
+  validate: () => createValidateFn<UnionTarget>(),
   validateSamples: {pass: [{tag: 'unionOverrideA', x: 1}], fail: [{tag: 'unionOverrideB', y: 'z'}, null]},
-  getValidationErrors: () => createGetValidationErrors<UnionTarget>(),
+  getValidationErrors: () => createGetValidationErrorsFn<UnionTarget>(),
   errorsValue: {tag: 'unionOverrideA', x: 1},
-  jsonEncoder: () => createJsonEncoder<UnionTarget>(),
-  jsonDecoder: () => createJsonDecoder<UnionTarget>(),
+  jsonEncoder: () => createJsonEncoderFn<UnionTarget>(),
+  jsonDecoder: () => createJsonDecoderFn<UnionTarget>(),
   jsonValue: {tag: 'unionOverrideA', x: 1},
   jsonString: 'OVR' + JSON.stringify({tag: 'unionOverrideA', x: 1}),
-  binaryEncoder: () => createBinaryEncoder<UnionTarget>(),
-  binaryDecoder: () => createBinaryDecoder<UnionTarget>(),
+  binaryEncoder: () => createBinaryEncoderFn<UnionTarget>(),
+  binaryDecoder: () => createBinaryDecoderFn<UnionTarget>(),
   binaryValue: {tag: 'unionOverrideB', y: 'y'},
 };

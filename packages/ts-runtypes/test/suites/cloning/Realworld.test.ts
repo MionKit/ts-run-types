@@ -3,7 +3,7 @@
 // mutate-every-position isolation proof, and the intended
 // validate-then-clone pipeline.
 import {describe, expect, it} from 'vitest';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 import {REALWORLD, makePayload, type Payload} from './Realworld.ts';
 import {assertCloneCase} from '../../util/cloningAsserts.ts';
 
@@ -25,7 +25,7 @@ describe('cloning / Realworld', () => {
   });
 
   it('composes with validate for the parseSafe flow', () => {
-    const validate = createValidate<Payload>();
+    const validate = createValidateFn<Payload>();
     const clone = REALWORLD.payload.clone();
     const parseSafe = (v: unknown): Payload => {
       if (!validate(v)) throw new Error('wrong type');

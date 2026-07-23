@@ -24,7 +24,7 @@ RunTypes is that channel:
 - **Driven by TypeScript, nothing else.** The runtime model is exactly what the type
   system can express. Your types are the schema; there is no parallel schema dialect
   to learn or keep in sync.
-- **Build time, not run time.** Every `createValidate<T>()` is a specialized function
+- **Build time, not run time.** Every `createValidateFn<T>()` is a specialized function
   written out ahead of time. No reflection when your app is live, and no first-call
   cost.
 - **Zero runtime dependencies.** The only thing in your bundle is the small
@@ -59,7 +59,7 @@ export default defineConfig({
 Then write a normal TypeScript type and ask for a validator. The build generates it:
 
 ```ts
-import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';
+import {createValidateFn, createGetValidationErrorsFn} from '@ts-runtypes/core';
 
 type User = {
   id: number;
@@ -69,7 +69,7 @@ type User = {
 };
 
 // A real, specialized function — no schema, no runtime reflection.
-const isUser = createValidate<User>();
+const isUser = createValidateFn<User>();
 
 const data: unknown = JSON.parse('{"id":1,"name":"Ada","email":"ada@x.io","roles":["admin"]}');
 if (isUser(data)) {
@@ -78,13 +78,13 @@ if (isUser(data)) {
 }
 
 // Need the reasons, not just a yes/no?
-const getUserErrors = createGetValidationErrors<User>();
+const getUserErrors = createGetValidationErrorsFn<User>();
 ```
 
 The same type drives more than validation: JSON and binary serialization
-(`createJsonEncoder` / `createJsonDecoder`, `createBinaryEncoder` /
-`createBinaryDecoder`), reflection (`getRunTypeId`), and realistic mock data
-(`createMockData`). See the documentation for the full factory reference.
+(`createJsonEncoderFn` / `createJsonDecoderFn`, `createBinaryEncoderFn` /
+`createBinaryDecoderFn`), reflection (`getRunTypeId`), and realistic mock data
+(`createMockDataFn`). See the documentation for the full factory reference.
 
 ## License
 

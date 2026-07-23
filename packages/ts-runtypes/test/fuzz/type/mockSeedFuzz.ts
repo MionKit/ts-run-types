@@ -6,9 +6,9 @@
 // Random runtypes come from the shared `core/runTypeGen.ts` generator (built
 // directly, no Go binary). It drives the walker `mockRunType(runType, options,
 // [])` — the same lower-level entry the MockData unit tests use — because
-// `createMockData` needs a plugin-injected id a runtime-built graph can't carry.
+// `createMockDataFn` needs a plugin-injected id a runtime-built graph can't carry.
 // A fresh `new MockRandom(seed)` per generation seeds the options bag exactly as
-// createMockData would, so this measures the same code.
+// createMockDataFn would, so this measures the same code.
 //
 // Each iteration runs under `withSeededRandom`, so the generated shape and the
 // tested seed replay from one number; the seeded mock path draws from its OWN
@@ -27,7 +27,7 @@ import type {RunType} from '../../../src/runtypes/types.ts';
 // so a runtype carrying a formatAnnotation resolves through the seeded path.
 import '../../../src/formats/index.ts';
 
-/** Generate a mock for `runType` exactly as createMockData would seed it: a
+/** Generate a mock for `runType` exactly as createMockDataFn would seed it: a
  *  fresh `MockRandom(seed)` on the options bag (native when `seed` is
  *  undefined). Small collection / string caps keep generations fast. **/
 export function generateMock(runType: RunType, seed: number | undefined): unknown {
@@ -45,7 +45,7 @@ export interface SeedViolation {
 }
 
 /** The do-it-twice oracle: two same-seed generations of the SAME runtype must
- *  be deep-equal (a fresh MockRandom(seed) each time, mirroring createMockData's
+ *  be deep-equal (a fresh MockRandom(seed) each time, mirroring createMockDataFn's
  *  per-invocation reset). Returns a violation or null. **/
 export function checkSeedDeterminism(runType: RunType, mockSeed: number, iterSeed: number): SeedViolation | null {
   if (!isDeepStrictEqual(generateMock(runType, mockSeed), generateMock(runType, mockSeed))) {

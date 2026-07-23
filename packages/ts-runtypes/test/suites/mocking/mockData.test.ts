@@ -1,4 +1,4 @@
-// `MockData<T>` consumption by the mock walker. `createMockData` needs the
+// `MockData<T>` consumption by the mock walker. `createMockDataFn` needs the
 // Vite-plugin-injected runtype graph, so these tests drive the lower-level
 // `mockRunType(runType, options, [])` directly over hand-built RunType graphs +
 // a MockData node — the same shape the plugin would feed in. Covers: string /
@@ -8,8 +8,8 @@
 // the random generator can't pass by luck.
 //
 // SCOPE: these tests assert the walker's pool/range RESPECT only; they never run
-// the type's own `createValidate` over a generated value, and they do NOT exercise
-// the marker API (`createMockData<T>()` static vs `createMockData(value)` reflect).
+// the type's own `createValidateFn` over a generated value, and they do NOT exercise
+// the marker API (`createMockDataFn<T>()` static vs `createMockDataFn(value)` reflect).
 // The positive mock→validate round-trip and the both-call-shape marker coverage
 // live in the validation suite (`assertMockTypeStatic` / `assertMockTypeReflect`
 // → `runMockPass`, which calls the paired validator). Don't read these unit tests

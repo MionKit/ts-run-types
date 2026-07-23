@@ -379,11 +379,11 @@ func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
 	}
 }
 
-// TestValidateModule_ArrayNoIsArrayCheck — when a createValidate site requests the
+// TestValidateModule_ArrayNoIsArrayCheck — when a createValidateFn site requests the
 // `noIsArrayCheck` ValidateOptions variant for an array runtype, the
 // emitter fans out an extra `valNA_<id>` factory whose body omits the
 // leading `if (!Array.isArray(v)) return false;` guard. A plain
-// createValidate site still emits the guarded `val_<id>` factory. Mirrors
+// createValidateFn site still emits the guarded `val_<id>` factory. Mirrors
 // the `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
 // demand-scoped: the scanner attaches each site's structured Demand, so the
 // plain `it` entry and the `NA` variant ride distinct SiteDemand entries —
@@ -398,9 +398,9 @@ func TestValidateModule_ArrayNoIsArrayCheck(t *testing.T) {
 			},
 		},
 		Sites: []protocol.Site{
-			// Plain createValidate<T[]>() — demands the guarded `val_an1`.
+			// Plain createValidateFn<T[]>() — demands the guarded `val_an1`.
 			{File: "call.ts", Pos: 0, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val"}}},
-			// createValidate<T[]>(undefined, {noIsArrayCheck: true}) — demands
+			// createValidateFn<T[]>(undefined, {noIsArrayCheck: true}) — demands
 			// the `valNA_an1` variant whose body omits the Array.isArray guard.
 			{File: "call.ts", Pos: 40, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val", VariantSuffix: "NA", Options: []string{"noIsArrayCheck"}}}},
 		},

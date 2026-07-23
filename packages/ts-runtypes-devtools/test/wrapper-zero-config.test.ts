@@ -42,17 +42,17 @@ const TSCONFIG_SRC = JSON.stringify({
   include: ['*.ts'],
 });
 
-// The wrapper imports '@ts-runtypes/core'; its forwarded createValidate call is
+// The wrapper imports '@ts-runtypes/core'; its forwarded createValidateFn call is
 // an explicit pass-through and must never be rewritten. The marker type is used
 // VERBATIM (never aliased) — alias declarations are not recognised by the
 // scanner.
-const WRAPPER_SRC = `import {createValidate} from '@ts-runtypes/core';
+const WRAPPER_SRC = `import {createValidateFn} from '@ts-runtypes/core';
 import type {InjectTypeFnArgs, ValidateFn} from '@ts-runtypes/core';
 
 type AnyHandler = (ctx: unknown, ...rest: any[]) => unknown;
 
 export function route<H extends AnyHandler>(handler: H, id?: InjectTypeFnArgs<Parameters<H>, 'val'>) {
-  const validate: ValidateFn = createValidate(undefined, undefined, id as never);
+  const validate: ValidateFn = createValidateFn(undefined, undefined, id as never);
   return {handler, validate};
 }
 `;
@@ -123,7 +123,7 @@ describe('zero-config wrapper-framework transform gating', () => {
       const moduleFile = path.resolve(path.dirname(CONSUMER), match![1]);
       expect(fs.existsSync(moduleFile), `injected import ${match![1]} must point at a written module`).toBe(true);
 
-      // Wrapper: its forwarded createValidate(undefined, undefined, id) is an
+      // Wrapper: its forwarded createValidateFn(undefined, undefined, id) is an
       // explicit pass-through — no injectable site, so the transform returns
       // null and the source ships untouched.
       const wrapperResult = await callHook(plugin.transform, ctx, WRAPPER_SRC, WRAPPER);

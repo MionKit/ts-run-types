@@ -18,7 +18,7 @@ export interface SerializationCase {
    *  round-trip behavior. Single point → string; several → array. */
   serializeNotes?: string | string[];
 
-  /** Encoder thunks — one per `createJsonEncoder` strategy exercised by the
+  /** Encoder thunks — one per `createJsonEncoderFn` strategy exercised by the
    *  suite (the field name IS the strategy):
    *  - `cloneEncoder` — strategy 'clone' (shape-derived clone, strips extras; default).
    *  - `mutateEncoder` — strategy 'mutate' (mutate in place, preserves extras).
@@ -48,17 +48,17 @@ export interface SerializationCase {
    *  handles the round-trip. **/
   safeAdapterStringifyJsonNotParseable?: boolean;
 
-  /** Decoder thunks. `stripDecoder` builds `createJsonDecoder<T>()`
+  /** Decoder thunks. `stripDecoder` builds `createJsonDecoderFn<T>()`
    *  (default strategy 'strip': undeclared keys become `undefined` via
    *  ukuWire before restoreFromJson). `preserveDecoder` builds
-   *  `createJsonDecoder<T>(undefined, {strategy: 'preserve'})` —
+   *  `createJsonDecoderFn<T>(undefined, {strategy: 'preserve'})` —
    *  undeclared keys on the parsed value pass through to the restored
    *  result untouched. The round-trip adapter pairs each encoder
    *  shape with its corresponding decoder. **/
   stripDecoder: () => JsonDecoderFn;
   preserveDecoder: () => JsonDecoderFn;
 
-  /** Decoder for the `compact` (positional-array) wire — `createJsonDecoder<T>(undefined,
+  /** Decoder for the `compact` (positional-array) wire — `createJsonDecoderFn<T>(undefined,
    *  {strategy: 'compact'})`. Rebuilds the keyed object from positions. Pairs ONLY
    *  with `compactEncoder`; round-trips strip undeclared keys (shape-derived). **/
   compactDecoder: () => JsonDecoderFn;
@@ -168,7 +168,7 @@ export interface SerializationCase {
   getBinaryByteSizes?: () => number[];
 
   /** Value-first schema variants. Each builds its `RT.*` model inline and
-   *  passes it to ONE factory via the value-first overload (`createJsonEncoder(rt)`),
+   *  passes it to ONE factory via the value-first overload (`createJsonEncoderFn(rt)`),
    *  proving the value-first authoring path resolves the same compiled factory as
    *  the type-first `<T>` form. The model is duplicated across the four BY DESIGN —
    *  every thunk stays self-contained + single-purpose (benchmarking, code
