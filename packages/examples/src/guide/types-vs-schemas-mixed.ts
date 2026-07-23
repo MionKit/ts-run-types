@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 // Mix both in one file — a pure type nested inside a schema and back again.
@@ -16,7 +16,7 @@ const invoice = RT.object({
   ),
 });
 
-const isMoney = createValidate<Money>();
-const isInvoice = createValidate(invoice);
+const isMoney = createValidateFn<Money>();
+const isInvoice = createValidateFn(invoice);
 
 export {isMoney, isInvoice};

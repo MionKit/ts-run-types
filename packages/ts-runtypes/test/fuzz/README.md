@@ -159,7 +159,7 @@ resolver's own diagnostics, not guessed at generation time.
   (`RT_FUZZ_TYPES_SOAK_MS`).
 - `nonDataTypeFuzz.integration.test.ts` — the DataOnly lane: types deliberately
   carrying symbols/functions/methods/typed-arrays/`Promise`, fed **real**
-  `createMockData` values, checking the serialize-vs-drop-vs-fail contract
+  `createMockDataFn` values, checking the serialize-vs-drop-vs-fail contract
   (`RT_FUZZ_NONDATA_SOAK_MS`).
 - `bugReprosValidTs.test.ts` — a corpus of minimal, seed-pinned repros of bugs
   the type fuzzer found (each compiles clean; includes a negative control).

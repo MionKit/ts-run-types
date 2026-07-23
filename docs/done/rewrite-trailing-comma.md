@@ -7,8 +7,8 @@ benchmark's real-world `validateSchema` thunks (PR #100).
 
 ## Symptom
 
-When a rewritten marker call (`createValidate`, `createGetValidationErrors`,
-`createJsonEncoder`, …) is written **value-first with a trailing comma in its
+When a rewritten marker call (`createValidateFn`, `createGetValidationErrorsFn`,
+`createJsonEncoderFn`, …) is written **value-first with a trailing comma in its
 argument list**, the plugin emits invalid JavaScript and the build fails with an
 esbuild parse error like:
 
@@ -22,15 +22,15 @@ ERROR: Unexpected ","
 
 ```ts
 // trailing comma after the schema arg ↓
-createValidate(
+createValidateFn(
   RT.object({ id: RT.number() }),   // ← object-literal trailing commas are FINE
-),                                  // ← THIS comma (in createValidate's arg list) breaks it
+),                                  // ← THIS comma (in createValidateFn's arg list) breaks it
 ```
 
 becomes, after the call-site injection:
 
 ```ts
-createValidate(RT.object({ id: RT.number() }), , undefined, __rt_…)
+createValidateFn(RT.object({ id: RT.number() }), , undefined, __rt_…)
 //                                            ^^ stray empty argument
 ```
 
@@ -48,15 +48,15 @@ existing comma plus the injected `, undefined` produce an empty argument
 ## Scope
 
 - Only the **value-first / argument-bearing** marker forms can hit it —
-  `createValidate(<RunType>)`, `createValidate(value)`, the JSON/binary encoder
+  `createValidateFn(<RunType>)`, `createValidateFn(value)`, the JSON/binary encoder
   factories, etc. — and only when the source has a trailing comma in the call's
   argument list (common when a formatter wraps a long single-argument call across
   multiple lines).
-- The **type-first** form `createValidate<T>()` is immune: it has no value
+- The **type-first** form `createValidateFn<T>()` is immune: it has no value
   arguments, so there is no trailing comma to collide with.
 - The trailing comma **inside** the schema object literal
   (`RT.object({ a: …, })`) is unrelated and harmless — only the comma in
-  `createValidate`'s _own_ argument list matters.
+  `createValidateFn`'s _own_ argument list matters.
 
 ## Workaround (today)
 
@@ -64,7 +64,7 @@ Author argument-bearing marker calls without a trailing comma in the call's
 argument list, e.g. keep the closing `)` directly after the argument:
 
 ```ts
-createValidate(
+createValidateFn(
   RT.object({ id: RT.number() })
 ),
 ```

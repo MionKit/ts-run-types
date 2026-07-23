@@ -1,19 +1,19 @@
 // Family 13 — Custom function overrides + custom pure functions.
-//   - overrideValidate<T>(fn) makes createValidate<T>() return the custom
+//   - overrideValidate<T>(fn) makes createValidateFn<T>() return the custom
 //     (stricter) function instead of the generated one.
 //   - registerPureFnFactory registers a self-contained helper the build inlines
 //     (guide/custom-pure-fn.ts).
 //
 // The custom pure fn is exercised HERE against the PUBLISHED package. A
 // consumer's own registerPureFnFactory alongside any built-in-referencing
-// feature (this shared app uses createGetValidationErrors, unknown-key errors,
+// feature (this shared app uses createGetValidationErrorsFn, unknown-key errors,
 // formats, …) used to trip a false-positive PFE9012 wall: the consumer's
 // registration defeated the resolver's whole-program "any registration present?"
 // guard, and every runtime-owned rt:: / rtFormats:: built-in was then flagged
 // missing, halting the build. Fixed by exempting those built-in namespaces from
 // the missing-dep check; see
 // docs/done/pfe9012-consumer-registerpurefn-false-positive.md.
-import {createValidate, overrideValidate, registerPureFnFactory, getRTUtils} from '@ts-runtypes/core';
+import {createValidateFn, overrideValidate, registerPureFnFactory, getRTUtils} from '@ts-runtypes/core';
 import {type CheckResult, ok, eq} from './check';
 
 interface Widget {
@@ -26,7 +26,7 @@ overrideValidate<Widget>(function isEvenWidget(value: unknown): value is Widget 
   const candidate = value as {id?: unknown} | null;
   return typeof candidate === 'object' && candidate !== null && typeof candidate.id === 'number' && candidate.id % 2 === 0;
 });
-export const isWidget = createValidate<Widget>();
+export const isWidget = createValidateFn<Widget>();
 
 // A consumer-registered custom pure function — self-contained, no outer
 // captures. Its mere presence is what defeated the old PFE9012 guard.

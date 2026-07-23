@@ -154,7 +154,7 @@ const (
 	// of the plain-string char/value ops allowedChars / disallowedChars /
 	// disallowedValues). Error severity, same doctrine as FMT001: a sample
 	// is a canonical valid value, so one that its own siblings reject is a
-	// type-definition bug (it would feed createMockData an invalid value,
+	// type-definition bug (it would feed createMockDataFn an invalid value,
 	// or be filtered out at mock time). Args: [comma-joined offending
 	// samples, constraint name, bound/description]. One diagnostic per
 	// violated constraint — the pipeline dedups per code per walk, so every

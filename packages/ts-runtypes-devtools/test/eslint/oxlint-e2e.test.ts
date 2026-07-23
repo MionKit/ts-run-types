@@ -36,9 +36,9 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
         "  nope: {rt$label: 'Gone'},\n" +
         '};\n',
       'widget.ts':
-        "import {createValidate} from '@ts-runtypes/core';\n\n" +
+        "import {createValidateFn} from '@ts-runtypes/core';\n\n" +
         'interface Widget {\n  label: string;\n  onClick: () => void;\n}\n\n' +
-        'export const isWidget = createValidate<Widget>();\n',
+        'export const isWidget = createValidateFn<Widget>();\n',
     });
     project.write(
       '.oxlintrc.json',
@@ -150,15 +150,15 @@ describe.runIf(ready)('oxlint end to end (jsPlugins)', () => {
 describe.runIf(ready)('oxlint tsconfig resolution end to end (settings.runtypes.tsconfig)', () => {
   let project: FixtureProject;
 
-  // both getRunTypeId shapes + createValidate over a cross-package type — the
+  // both getRunTypeId shapes + createValidateFn over a cross-package type — the
   // mion repro shape.
   const CONSUMER_SRC =
-    "import {getRunTypeId, createValidate} from '@ts-runtypes/core';\n" +
+    "import {getRunTypeId, createValidateFn} from '@ts-runtypes/core';\n" +
     "import type {CrossPkgUser} from '@app/models';\n\n" +
     'getRunTypeId<CrossPkgUser>();\n' +
     'declare const sample: CrossPkgUser;\n' +
     'getRunTypeId(sample);\n' +
-    'export const validateUser = createValidate<CrossPkgUser>();\n';
+    'export const validateUser = createValidateFn<CrossPkgUser>();\n';
 
   const tsconfig = (customConditions?: string[]): string =>
     JSON.stringify({

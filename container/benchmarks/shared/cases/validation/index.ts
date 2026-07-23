@@ -1,6 +1,6 @@
 // Slim, marker-free validation suite — mirrors src/suites/validation/index.ts
 // but recombines the marker-free group files under shared/cases/validation.
-// Every case carries samples + metadata only (no createValidate / RT.* thunks).
+// Every case carries samples + metadata only (no createValidateFn / RT.* thunks).
 
 import {ATOMIC} from './Atomic.ts';
 import {ARRAY} from './Array.ts';

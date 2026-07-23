@@ -20,7 +20,7 @@ and `features/mockSoundness.test.ts` pins it end-to-end through the plugin (dist
 `getRunTypeId`s in both call shapes + per-format samples). This is also what unlocked
 surfacing the pattern `message` as the error val (see the companion mocking-gaps doc).
 
-## 2. `createMockData` could emit values that failed their own `createValidate`
+## 2. `createMockDataFn` could emit values that failed their own `createValidateFn`
 
 `filterSamplesByLength` deliberately fell back to the UNFILTERED sample list when every
 sample violated the length bounds — e.g. returning a 4-char sample under `minLength: 5`
@@ -35,7 +35,7 @@ length bounds"). Pinned in mockSoundness.test.ts: compatible samples survive the
 
 ## Acceptance shipped
 
-- `createMockData` output satisfies the format's own `createValidate`, or the mock fails
+- `createMockDataFn` output satisfies the format's own `createValidateFn`, or the mock fails
   loudly naming the samples problem.
 - Two same-shape formats with different samples mock from their own samples (distinct
   cache entries by construction).

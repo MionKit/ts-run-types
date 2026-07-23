@@ -27,21 +27,21 @@ const FIXTURES: Record<string, string> = {
   sharedProp: boolean;
 }
 `,
-  'entry-a.ts': `import {createValidate} from '@ts-runtypes/core';
+  'entry-a.ts': `import {createValidateFn} from '@ts-runtypes/core';
 import type {SharedThing} from './shared-type.ts';
 interface AlphaOnly {
   alphaProp: string;
 }
-export const isAlpha = createValidate<AlphaOnly>();
-export const isSharedA = createValidate<SharedThing>();
+export const isAlpha = createValidateFn<AlphaOnly>();
+export const isSharedA = createValidateFn<SharedThing>();
 `,
-  'entry-b.ts': `import {createValidate} from '@ts-runtypes/core';
+  'entry-b.ts': `import {createValidateFn} from '@ts-runtypes/core';
 import type {SharedThing} from './shared-type.ts';
 interface BetaOnly {
   betaProp: number;
 }
-export const isBeta = createValidate<BetaOnly>();
-export const isSharedB = createValidate<SharedThing>();
+export const isBeta = createValidateFn<BetaOnly>();
+export const isSharedB = createValidateFn<SharedThing>();
 `,
 };
 

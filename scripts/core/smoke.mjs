@@ -12,7 +12,7 @@
 // Fixture coverage follows the marker test coverage rule (CLAUDE.md):
 //   - getRunTypeId<T>()        — static
 //   - getRunTypeId(value)      — reflect (T inferred from value)
-//   - createValidate<T>()      — exercises the InjectTypeFnArgs path
+//   - createValidateFn<T>()      — exercises the InjectTypeFnArgs path
 //
 // Exit codes: 0 PASS, 1 FAIL.
 
@@ -48,7 +48,7 @@ const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface ValidateOptions { noLiterals?: boolean; noIsArrayCheck?: boolean; }
   export type ValidateFn = (value: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
 }
 `;
 
@@ -56,7 +56,7 @@ const SOURCES = {
   'runtypes.d.ts': RUNTYPES_DTS,
   'static.ts': `import {getRunTypeId} from '@ts-runtypes/core';\ngetRunTypeId<string>();\n`,
   'reflect.ts': `import {getRunTypeId} from '@ts-runtypes/core';\nconst v: string = 'hi';\ngetRunTypeId(v);\n`,
-  'validate.ts': `import {createValidate} from '@ts-runtypes/core';\nconst isUser = createValidate<{name: string}>();\nisUser({name: 'x'});\n`,
+  'validate.ts': `import {createValidateFn} from '@ts-runtypes/core';\nconst isUser = createValidateFn<{name: string}>();\nisUser({name: 'x'});\n`,
 };
 const FILES = Object.keys(SOURCES).filter((file) => file !== 'runtypes.d.ts');
 

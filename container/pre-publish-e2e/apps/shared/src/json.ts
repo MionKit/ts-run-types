@@ -1,7 +1,7 @@
 // Family 4 — JSON codec. Mirrors guide/json-basics.ts + json-strategies.ts +
 // json-dataonly.ts. Round-trip through Date + Map, the three encoder
 // strategies, and the DataOnly decode projection.
-import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
 import {type CheckResult, ok} from './check';
 
 export interface Session {
@@ -15,14 +15,14 @@ interface Profile {
   age: number;
 }
 
-export const encodeSession = createJsonEncoder<Session>();
-export const decodeSession = createJsonDecoder<Session>();
+export const encodeSession = createJsonEncoderFn<Session>();
+export const decodeSession = createJsonDecoderFn<Session>();
 
 // The three strategies: clone (default, strips undeclared), mutate (keeps
 // extras), direct (single pass, strips).
-export const encodeClone = createJsonEncoder<Profile>(undefined, {strategy: 'clone'});
-export const encodeMutate = createJsonEncoder<Profile>(undefined, {strategy: 'mutate'});
-export const encodeDirect = createJsonEncoder<Profile>(undefined, {strategy: 'direct'});
+export const encodeClone = createJsonEncoderFn<Profile>(undefined, {strategy: 'clone'});
+export const encodeMutate = createJsonEncoderFn<Profile>(undefined, {strategy: 'mutate'});
+export const encodeDirect = createJsonEncoderFn<Profile>(undefined, {strategy: 'direct'});
 
 export function checkJson(): CheckResult[] {
   const session: Session = {

@@ -129,7 +129,7 @@ func (e ValidationErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ex
 // a format failure at a property / array element / map-or-set entry would
 // report `path: []` — the field is lost. Mirrors the push/splice envelope in
 // EmitDependencyCall: push the segments before the check, splice them off
-// after. An empty access-path (a root-position format, e.g. createValidate
+// after. An empty access-path (a root-position format, e.g. createValidateFn
 // <TF.Email>()) leaves the check unchanged, so root format errors stay `[]`.
 func wrapFormatCheckPath(ctx *EmitContext, check string) string {
 	pathLen := ctx.AccessPathLength("")
@@ -653,7 +653,7 @@ func emitObjectValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string
 	// vacuously satisfied and the bare `typeof === 'object'` lets those
 	// non-plain objects slip through with zero errors — while validate
 	// (which carries the same guard) returns false. Dropping the term
-	// breaks the createValidate/createGetValidationErrors agreement
+	// breaks the createValidateFn/createGetValidationErrorsFn agreement
 	// invariant (guarded by fuzz oracle O4).
 	if callSigChild == nil && (!hasContributingChild || allOptional || hasIndexSig) {
 		objectCheck = objectCheck + " && !Array.isArray(" + v + ") && Object.prototype.toString.call(" + v + ") === '[object Object]'"

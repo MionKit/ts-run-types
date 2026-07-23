@@ -1,6 +1,6 @@
 // ts-runtypes validators keyed by suite case key ("GROUP.case"), TYPE form.
 // Each entry is the case's own `validate` thunk copied VERBATIM from the shared
-// suites (container/benchmarks/src/suites/**) — a `() => createValidate<T>()` arrow whose
+// suites (container/benchmarks/src/suites/**) — a `() => createValidateFn<T>()` arrow whose
 // literal type argument the ts-runtypes-devtools rewrites at build time. Local
 // enum / interface / type / function declarations inside a thunk are kept exactly
 // as written so the plugin resolves `T` where it is authored. Cases the Go
@@ -10,7 +10,7 @@
 
 import type * as TF from '@ts-runtypes/core/formats';
 import type * as TFT from '@ts-runtypes/core/formats/temporal';
-import {createValidate, createGetValidationErrors, registerFormatPattern} from '@ts-runtypes/core';
+import {createValidateFn, createGetValidationErrorsFn, registerFormatPattern} from '@ts-runtypes/core';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 
 // Custom string-format patterns the STRING_FORMAT.pattern_* cases reference —
@@ -30,30 +30,30 @@ type Hex = TF.String<{pattern: typeof hex}>;
 export const cases: CompetitorCases = {
   // ── ATOMIC ──
   'ATOMIC.any': {
-    build: () => createValidate<any>(),
+    build: () => createValidateFn<any>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<any>();
+      const getErrors = createGetValidationErrorsFn<any>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.bigint': {
-    build: () => createValidate<bigint>(),
+    build: () => createValidateFn<bigint>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<bigint>();
+      const getErrors = createGetValidationErrorsFn<bigint>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.boolean': {
-    build: () => createValidate<boolean>(),
+    build: () => createValidateFn<boolean>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<boolean>();
+      const getErrors = createGetValidationErrorsFn<boolean>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.date': {
-    build: () => createValidate<Date>(),
+    build: () => createValidateFn<Date>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Date>();
+      const getErrors = createGetValidationErrorsFn<Date>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -64,7 +64,7 @@ export const cases: CompetitorCases = {
         Green = 'green',
         Blue = 2,
       }
-      return createValidate<Color>();
+      return createValidateFn<Color>();
     },
     buildErrors: () => {
       enum Color {
@@ -72,303 +72,303 @@ export const cases: CompetitorCases = {
         Green = 'green',
         Blue = 2,
       }
-      const getErrors = createGetValidationErrors<Color>();
+      const getErrors = createGetValidationErrorsFn<Color>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_2': {
-    build: () => createValidate<2>(),
+    build: () => createValidateFn<2>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<2>();
+      const getErrors = createGetValidationErrorsFn<2>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_a': {
-    build: () => createValidate<'a'>(),
+    build: () => createValidateFn<'a'>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<'a'>();
+      const getErrors = createGetValidationErrorsFn<'a'>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_true': {
-    build: () => createValidate<true>(),
+    build: () => createValidateFn<true>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<true>();
+      const getErrors = createGetValidationErrorsFn<true>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_1n': {
-    build: () => createValidate<1n>(),
+    build: () => createValidateFn<1n>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<1n>();
+      const getErrors = createGetValidationErrorsFn<1n>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_symbol': {
     build: () => {
       const sym = Symbol('hello');
-      return createValidate<typeof sym>();
+      return createValidateFn<typeof sym>();
     },
     buildErrors: () => {
       const sym = Symbol('hello');
-      const getErrors = createGetValidationErrors<typeof sym>();
+      const getErrors = createGetValidationErrorsFn<typeof sym>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.never': {
-    build: () => createValidate<never>(),
+    build: () => createValidateFn<never>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<never>();
+      const getErrors = createGetValidationErrorsFn<never>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.null': {
-    build: () => createValidate<null>(),
+    build: () => createValidateFn<null>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<null>();
+      const getErrors = createGetValidationErrorsFn<null>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.number': {
-    build: () => createValidate<number>(),
+    build: () => createValidateFn<number>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<number>();
+      const getErrors = createGetValidationErrorsFn<number>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.object': {
-    build: () => createValidate<object>(),
+    build: () => createValidateFn<object>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<object>();
+      const getErrors = createGetValidationErrorsFn<object>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.regexp': {
-    build: () => createValidate<RegExp>(),
+    build: () => createValidateFn<RegExp>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<RegExp>();
+      const getErrors = createGetValidationErrorsFn<RegExp>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.string': {
-    build: () => createValidate<string>(),
+    build: () => createValidateFn<string>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string>();
+      const getErrors = createGetValidationErrorsFn<string>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.symbol': NOT_SUPPORTED, // factoryThrows
   'ATOMIC.undefined': {
-    build: () => createValidate<undefined>(),
+    build: () => createValidateFn<undefined>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<undefined>();
+      const getErrors = createGetValidationErrorsFn<undefined>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.void': {
-    build: () => createValidate<void>(),
+    build: () => createValidateFn<void>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<void>();
+      const getErrors = createGetValidationErrorsFn<void>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_2_noLiterals': {
-    build: () => createValidate<2>(undefined, {noLiterals: true}),
+    build: () => createValidateFn<2>(undefined, {noLiterals: true}),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<2>(undefined, {noLiterals: true});
+      const getErrors = createGetValidationErrorsFn<2>(undefined, {noLiterals: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_a_noLiterals': {
-    build: () => createValidate<'a'>(undefined, {noLiterals: true}),
+    build: () => createValidateFn<'a'>(undefined, {noLiterals: true}),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<'a'>(undefined, {noLiterals: true});
+      const getErrors = createGetValidationErrorsFn<'a'>(undefined, {noLiterals: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_regexp_noLiterals': {
     build: () => {
       const reg = /abc/i;
-      return createValidate<typeof reg>(undefined, {noLiterals: true});
+      return createValidateFn<typeof reg>(undefined, {noLiterals: true});
     },
     buildErrors: () => {
       const reg = /abc/i;
-      const getErrors = createGetValidationErrors<typeof reg>(undefined, {noLiterals: true});
+      const getErrors = createGetValidationErrorsFn<typeof reg>(undefined, {noLiterals: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_true_noLiterals': {
-    build: () => createValidate<true>(undefined, {noLiterals: true}),
+    build: () => createValidateFn<true>(undefined, {noLiterals: true}),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<true>(undefined, {noLiterals: true});
+      const getErrors = createGetValidationErrorsFn<true>(undefined, {noLiterals: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_1n_noLiterals': {
-    build: () => createValidate<1n>(undefined, {noLiterals: true}),
+    build: () => createValidateFn<1n>(undefined, {noLiterals: true}),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<1n>(undefined, {noLiterals: true});
+      const getErrors = createGetValidationErrorsFn<1n>(undefined, {noLiterals: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ATOMIC.literal_symbol_noLiterals': NOT_SUPPORTED, // factoryThrows
   'ATOMIC.unknown': {
-    build: () => createValidate<unknown>(),
+    build: () => createValidateFn<unknown>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<unknown>();
+      const getErrors = createGetValidationErrorsFn<unknown>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── ARRAY ──
   'ARRAY.string_array': {
-    build: () => createValidate<string[]>(),
+    build: () => createValidateFn<string[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string[]>();
+      const getErrors = createGetValidationErrorsFn<string[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.number_array': {
-    build: () => createValidate<number[]>(),
+    build: () => createValidateFn<number[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<number[]>();
+      const getErrors = createGetValidationErrorsFn<number[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.boolean_array': {
-    build: () => createValidate<boolean[]>(),
+    build: () => createValidateFn<boolean[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<boolean[]>();
+      const getErrors = createGetValidationErrorsFn<boolean[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.bigint_array': {
-    build: () => createValidate<bigint[]>(),
+    build: () => createValidateFn<bigint[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<bigint[]>();
+      const getErrors = createGetValidationErrorsFn<bigint[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.date_array': {
-    build: () => createValidate<Date[]>(),
+    build: () => createValidateFn<Date[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Date[]>();
+      const getErrors = createGetValidationErrorsFn<Date[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.regexp_array': {
-    build: () => createValidate<RegExp[]>(),
+    build: () => createValidateFn<RegExp[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<RegExp[]>();
+      const getErrors = createGetValidationErrorsFn<RegExp[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.undefined_array': {
-    build: () => createValidate<undefined[]>(),
+    build: () => createValidateFn<undefined[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<undefined[]>();
+      const getErrors = createGetValidationErrorsFn<undefined[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.null_array': {
-    build: () => createValidate<null[]>(),
+    build: () => createValidateFn<null[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<null[]>();
+      const getErrors = createGetValidationErrorsFn<null[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.array_generic': {
-    build: () => createValidate<Array<string>>(),
+    build: () => createValidateFn<Array<string>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Array<string>>();
+      const getErrors = createGetValidationErrorsFn<Array<string>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.string_array_2d': {
-    build: () => createValidate<string[][]>(),
+    build: () => createValidateFn<string[][]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string[][]>();
+      const getErrors = createGetValidationErrorsFn<string[][]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.string_array_3d': {
-    build: () => createValidate<string[][][]>(),
+    build: () => createValidateFn<string[][][]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string[][][]>();
+      const getErrors = createGetValidationErrorsFn<string[][][]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.string_array_noIsArrayCheck': {
-    build: () => createValidate<string[]>(undefined, {noIsArrayCheck: true}),
+    build: () => createValidateFn<string[]>(undefined, {noIsArrayCheck: true}),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true});
+      const getErrors = createGetValidationErrorsFn<string[]>(undefined, {noIsArrayCheck: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.object_array': {
-    build: () => createValidate<{a: string}[]>(),
+    build: () => createValidateFn<{a: string}[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string}[]>();
+      const getErrors = createGetValidationErrorsFn<{a: string}[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.union_array': {
-    build: () => createValidate<(string | number)[]>(),
+    build: () => createValidateFn<(string | number)[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<(string | number)[]>();
+      const getErrors = createGetValidationErrorsFn<(string | number)[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.tuple_array': {
-    build: () => createValidate<[string, number][]>(),
+    build: () => createValidateFn<[string, number][]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[string, number][]>();
+      const getErrors = createGetValidationErrorsFn<[string, number][]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.circular_array': {
     build: () => {
       type CircularArray = CircularArray[];
-      return createValidate<CircularArray>();
+      return createValidateFn<CircularArray>();
     },
     buildErrors: () => {
       type CircularArray = CircularArray[];
-      const getErrors = createGetValidationErrors<CircularArray>();
+      const getErrors = createGetValidationErrorsFn<CircularArray>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.circular_object_with_array': {
     build: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return createValidate<ObjectType>();
+      return createValidateFn<ObjectType>();
     },
     buildErrors: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      const getErrors = createGetValidationErrors<ObjectType>();
+      const getErrors = createGetValidationErrorsFn<ObjectType>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'ARRAY.symbol_array': NOT_SUPPORTED, // factoryThrows
   'ARRAY.readonly_string_array': {
-    build: () => createValidate<ReadonlyArray<string>>(),
+    build: () => createValidateFn<ReadonlyArray<string>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<ReadonlyArray<string>>();
+      const getErrors = createGetValidationErrorsFn<ReadonlyArray<string>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── OBJECT ──
   'OBJECT.simple_interface': {
-    build: () => createValidate<{a: string; b: number}>(),
+    build: () => createValidateFn<{a: string; b: number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string; b: number}>();
+      const getErrors = createGetValidationErrorsFn<{a: string; b: number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.object_as_const_literals': {
-    build: () => createValidate<{readonly name: 'john'; readonly age: 30}>(),
+    build: () => createValidateFn<{readonly name: 'john'; readonly age: 30}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{readonly name: 'john'; readonly age: 30}>();
+      const getErrors = createGetValidationErrorsFn<{readonly name: 'john'; readonly age: 30}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -377,123 +377,123 @@ export const cases: CompetitorCases = {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      return createValidate<ReturnType<typeof makeUser>>();
+      return createValidateFn<ReturnType<typeof makeUser>>();
     },
     buildErrors: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
       }
-      const getErrors = createGetValidationErrors<ReturnType<typeof makeUser>>();
+      const getErrors = createGetValidationErrorsFn<ReturnType<typeof makeUser>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.object_via_property_access': {
-    build: () => createValidate<{id: number; name: string}>(),
+    build: () => createValidateFn<{id: number; name: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{id: number; name: string}>();
+      const getErrors = createGetValidationErrorsFn<{id: number; name: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.object_via_array_access': {
-    build: () => createValidate<{id: number; name: string}>(),
+    build: () => createValidateFn<{id: number; name: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{id: number; name: string}>();
+      const getErrors = createGetValidationErrorsFn<{id: number; name: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.interface_with_optional': {
-    build: () => createValidate<{a: string; b?: number}>(),
+    build: () => createValidateFn<{a: string; b?: number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string; b?: number}>();
+      const getErrors = createGetValidationErrorsFn<{a: string; b?: number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.interface_with_date': {
-    build: () => createValidate<{date: Date; name: string}>(),
+    build: () => createValidateFn<{date: Date; name: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{date: Date; name: string}>();
+      const getErrors = createGetValidationErrorsFn<{date: Date; name: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.interface_with_method': {
-    build: () => createValidate<{name: string; cb: () => any}>(),
+    build: () => createValidateFn<{name: string; cb: () => any}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{name: string; cb: () => any}>();
+      const getErrors = createGetValidationErrorsFn<{name: string; cb: () => any}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.nested_object': {
-    build: () => createValidate<{a: string; deep: {b: string; c: number}}>(),
+    build: () => createValidateFn<{a: string; deep: {b: string; c: number}}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string; deep: {b: string; c: number}}>();
+      const getErrors = createGetValidationErrorsFn<{a: string; deep: {b: string; c: number}}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.interface_string_array_prop': {
-    build: () => createValidate<{tags: string[]}>(),
+    build: () => createValidateFn<{tags: string[]}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{tags: string[]}>();
+      const getErrors = createGetValidationErrorsFn<{tags: string[]}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.circular_interface': {
     build: () => {
       type ICircular = {name: string; child?: ICircular};
-      return createValidate<ICircular>();
+      return createValidateFn<ICircular>();
     },
     buildErrors: () => {
       type ICircular = {name: string; child?: ICircular};
-      const getErrors = createGetValidationErrors<ICircular>();
+      const getErrors = createGetValidationErrorsFn<ICircular>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.circular_interface_on_array': {
     build: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      return createValidate<ICircularArray>();
+      return createValidateFn<ICircularArray>();
     },
     buildErrors: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
-      const getErrors = createGetValidationErrors<ICircularArray>();
+      const getErrors = createGetValidationErrorsFn<ICircularArray>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.circular_interface_on_nested_object': {
     build: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      return createValidate<ICircularDeep>();
+      return createValidateFn<ICircularDeep>();
     },
     buildErrors: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      const getErrors = createGetValidationErrors<ICircularDeep>();
+      const getErrors = createGetValidationErrorsFn<ICircularDeep>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.index_signature_string': {
-    build: () => createValidate<{[key: string]: string}>(),
+    build: () => createValidateFn<{[key: string]: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{[key: string]: string}>();
+      const getErrors = createGetValidationErrorsFn<{[key: string]: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.index_signature_named_props': {
-    build: () => createValidate<{a: string; b: number; [key: string]: string | number}>(),
+    build: () => createValidateFn<{a: string; b: number; [key: string]: string | number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string; b: number; [key: string]: string | number}>();
+      const getErrors = createGetValidationErrorsFn<{a: string; b: number; [key: string]: string | number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.index_signature_nested': {
-    build: () => createValidate<{[key: string]: {[key: string]: number}}>(),
+    build: () => createValidateFn<{[key: string]: {[key: string]: number}}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{[key: string]: {[key: string]: number}}>();
+      const getErrors = createGetValidationErrorsFn<{[key: string]: {[key: string]: number}}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.index_signature_date_value': {
-    build: () => createValidate<{[key: string]: {[key: string]: Date}}>(),
+    build: () => createValidateFn<{[key: string]: {[key: string]: Date}}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{[key: string]: {[key: string]: Date}}>();
+      const getErrors = createGetValidationErrorsFn<{[key: string]: {[key: string]: Date}}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -507,7 +507,7 @@ export const cases: CompetitorCases = {
         b: string;
         c: Obj1;
       }
-      return createValidate<Obj2>();
+      return createValidateFn<Obj2>();
     },
     buildErrors: () => {
       interface Obj1 {
@@ -518,28 +518,28 @@ export const cases: CompetitorCases = {
         b: string;
         c: Obj1;
       }
-      const getErrors = createGetValidationErrors<Obj2>();
+      const getErrors = createGetValidationErrorsFn<Obj2>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.function_top_level': {
-    build: () => createValidate<() => void>(),
+    build: () => createValidateFn<() => void>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<() => void>();
+      const getErrors = createGetValidationErrorsFn<() => void>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.interface_callable': {
-    build: () => createValidate<{(a: number, b: boolean): string; extra: string}>(),
+    build: () => createValidateFn<{(a: number, b: boolean): string; extra: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{(a: number, b: boolean): string; extra: string}>();
+      const getErrors = createGetValidationErrorsFn<{(a: number, b: boolean): string; extra: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.interface_all_optional': {
-    build: () => createValidate<{a?: string; b?: number}>(),
+    build: () => createValidateFn<{a?: string; b?: number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a?: string; b?: number}>();
+      const getErrors = createGetValidationErrorsFn<{a?: string; b?: number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -556,7 +556,7 @@ export const cases: CompetitorCases = {
           return 'unused';
         }
       }
-      return createValidate<MySerializableClass>();
+      return createValidateFn<MySerializableClass>();
     },
     buildErrors: () => {
       class MySerializableClass {
@@ -570,7 +570,7 @@ export const cases: CompetitorCases = {
           return 'unused';
         }
       }
-      const getErrors = createGetValidationErrors<MySerializableClass>();
+      const getErrors = createGetValidationErrorsFn<MySerializableClass>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -587,7 +587,7 @@ export const cases: CompetitorCases = {
           this.id = args.id;
         }
       }
-      return createValidate<RpcError<'test-error'>>();
+      return createValidateFn<RpcError<'test-error'>>();
     },
     buildErrors: () => {
       class RpcError<ErrType extends string> {
@@ -601,61 +601,61 @@ export const cases: CompetitorCases = {
           this.id = args.id;
         }
       }
-      const getErrors = createGetValidationErrors<RpcError<'test-error'>>();
+      const getErrors = createGetValidationErrorsFn<RpcError<'test-error'>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.call_signature_params': {
     build: () => {
       type CallSig = (a: number, b: boolean) => string;
-      return createValidate<Parameters<CallSig>>();
+      return createValidateFn<Parameters<CallSig>>();
     },
     buildErrors: () => {
       type CallSig = (a: number, b: boolean) => string;
-      const getErrors = createGetValidationErrors<Parameters<CallSig>>();
+      const getErrors = createGetValidationErrorsFn<Parameters<CallSig>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.call_signature_params_with_optional': {
     build: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      return createValidate<Parameters<CallSig>>();
+      return createValidateFn<Parameters<CallSig>>();
     },
     buildErrors: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
-      const getErrors = createGetValidationErrors<Parameters<CallSig>>();
+      const getErrors = createGetValidationErrorsFn<Parameters<CallSig>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.call_signature_params_with_rest': {
     build: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      return createValidate<Parameters<CallSig>>();
+      return createValidateFn<Parameters<CallSig>>();
     },
     buildErrors: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-      const getErrors = createGetValidationErrors<Parameters<CallSig>>();
+      const getErrors = createGetValidationErrorsFn<Parameters<CallSig>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.record_union_keys': {
-    build: () => createValidate<Record<'a' | 'b', number>>(),
+    build: () => createValidateFn<Record<'a' | 'b', number>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Record<'a' | 'b', number>>();
+      const getErrors = createGetValidationErrorsFn<Record<'a' | 'b', number>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.union_value_index': {
-    build: () => createValidate<{[key: string]: string | number}>(),
+    build: () => createValidateFn<{[key: string]: string | number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{[key: string]: string | number}>();
+      const getErrors = createGetValidationErrorsFn<{[key: string]: string | number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.object_with_union_prop': {
-    build: () => createValidate<{kind: 'a' | 'b'; n: number}>(),
+    build: () => createValidateFn<{kind: 'a' | 'b'; n: number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{kind: 'a' | 'b'; n: number}>();
+      const getErrors = createGetValidationErrorsFn<{kind: 'a' | 'b'; n: number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -667,7 +667,7 @@ export const cases: CompetitorCases = {
       interface Child extends Base {
         b: number;
       }
-      return createValidate<Child>();
+      return createValidateFn<Child>();
     },
     buildErrors: () => {
       interface Base {
@@ -676,7 +676,7 @@ export const cases: CompetitorCases = {
       interface Child extends Base {
         b: number;
       }
-      const getErrors = createGetValidationErrors<Child>();
+      const getErrors = createGetValidationErrorsFn<Child>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -688,7 +688,7 @@ export const cases: CompetitorCases = {
       class Sub extends Base {
         b: number = 0;
       }
-      return createValidate<Sub>();
+      return createValidateFn<Sub>();
     },
     buildErrors: () => {
       class Base {
@@ -697,203 +697,203 @@ export const cases: CompetitorCases = {
       class Sub extends Base {
         b: number = 0;
       }
-      const getErrors = createGetValidationErrors<Sub>();
+      const getErrors = createGetValidationErrorsFn<Sub>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'OBJECT.index_signature_number_key': {
-    build: () => createValidate<{[k: number]: string}>(),
+    build: () => createValidateFn<{[k: number]: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{[k: number]: string}>();
+      const getErrors = createGetValidationErrorsFn<{[k: number]: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── TUPLE ──
   'TUPLE.string_number_pair': {
-    build: () => createValidate<[string, number]>(),
+    build: () => createValidateFn<[string, number]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[string, number]>();
+      const getErrors = createGetValidationErrorsFn<[string, number]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.full_mion_tuple': {
-    build: () => createValidate<[Date, number, string, null, string[], bigint]>(),
+    build: () => createValidateFn<[Date, number, string, null, string[], bigint]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[Date, number, string, null, string[], bigint]>();
+      const getErrors = createGetValidationErrorsFn<[Date, number, string, null, string[], bigint]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.tuple_with_optional': {
-    build: () => createValidate<[number, bigint?, boolean?, number?]>(),
+    build: () => createValidateFn<[number, bigint?, boolean?, number?]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[number, bigint?, boolean?, number?]>();
+      const getErrors = createGetValidationErrorsFn<[number, bigint?, boolean?, number?]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.nested_tuple_in_array': {
-    build: () => createValidate<[string, number][]>(),
+    build: () => createValidateFn<[string, number][]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[string, number][]>();
+      const getErrors = createGetValidationErrorsFn<[string, number][]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.tuple_rest': {
-    build: () => createValidate<[number, ...string[]]>(),
+    build: () => createValidateFn<[number, ...string[]]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[number, ...string[]]>();
+      const getErrors = createGetValidationErrorsFn<[number, ...string[]]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.tuple_circular': {
     build: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createValidate<TupleCircular>();
+      return createValidateFn<TupleCircular>();
     },
     buildErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      const getErrors = createGetValidationErrors<TupleCircular>();
+      const getErrors = createGetValidationErrorsFn<TupleCircular>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.tuple_multiple_trailing_optionals': {
-    build: () => createValidate<[number, bigint?, boolean?, number?]>(),
+    build: () => createValidateFn<[number, bigint?, boolean?, number?]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[number, bigint?, boolean?, number?]>();
+      const getErrors = createGetValidationErrorsFn<[number, bigint?, boolean?, number?]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.tuple_named_labels': {
-    build: () => createValidate<[name: string, age: number]>(),
+    build: () => createValidateFn<[name: string, age: number]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[name: string, age: number]>();
+      const getErrors = createGetValidationErrorsFn<[name: string, age: number]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.tuple_with_non_serializable': {
-    build: () => createValidate<[number, () => any]>(),
+    build: () => createValidateFn<[number, () => any]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[number, () => any]>();
+      const getErrors = createGetValidationErrorsFn<[number, () => any]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.empty_tuple': {
-    build: () => createValidate<[]>(),
+    build: () => createValidateFn<[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[]>();
+      const getErrors = createGetValidationErrorsFn<[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.single_element_tuple': {
-    build: () => createValidate<[string]>(),
+    build: () => createValidateFn<[string]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<[string]>();
+      const getErrors = createGetValidationErrorsFn<[string]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TUPLE.readonly_tuple': {
-    build: () => createValidate<readonly [string, number]>(),
+    build: () => createValidateFn<readonly [string, number]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<readonly [string, number]>();
+      const getErrors = createGetValidationErrorsFn<readonly [string, number]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── UNION ──
   'UNION.atomic_union': {
-    build: () => createValidate<Date | number | string | null | bigint>(),
+    build: () => createValidateFn<Date | number | string | null | bigint>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Date | number | string | null | bigint>();
+      const getErrors = createGetValidationErrorsFn<Date | number | string | null | bigint>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.string_literal_union': {
-    build: () => createValidate<'UNO' | 'DOS' | 'TRES'>(),
+    build: () => createValidateFn<'UNO' | 'DOS' | 'TRES'>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<'UNO' | 'DOS' | 'TRES'>();
+      const getErrors = createGetValidationErrorsFn<'UNO' | 'DOS' | 'TRES'>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.large_union_eight_arms': {
-    build: () => createValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    build: () => createValidateFn<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<
+      const getErrors = createGetValidationErrorsFn<
         'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}
       >();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.string_or_number': {
-    build: () => createValidate<string | number>(),
+    build: () => createValidateFn<string | number>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string | number>();
+      const getErrors = createGetValidationErrorsFn<string | number>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_of_array_types': {
-    build: () => createValidate<string[] | number[] | boolean[]>(),
+    build: () => createValidateFn<string[] | number[] | boolean[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string[] | number[] | boolean[]>();
+      const getErrors = createGetValidationErrorsFn<string[] | number[] | boolean[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.array_of_union': {
-    build: () => createValidate<(string | bigint | boolean | Date)[]>(),
+    build: () => createValidateFn<(string | bigint | boolean | Date)[]>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<(string | bigint | boolean | Date)[]>();
+      const getErrors = createGetValidationErrorsFn<(string | bigint | boolean | Date)[]>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_of_object_shapes': {
-    build: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    build: () => createValidateFn<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>();
+      const getErrors = createGetValidationErrorsFn<{a: string; aa: boolean} | {b: number} | {c: bigint}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.discriminated_union': {
-    build: () => createValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    build: () => createValidateFn<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>();
+      const getErrors = createGetValidationErrorsFn<{kind: 'a'; n: number} | {kind: 'b'; s: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.circular_union': {
     build: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createValidate<UnionC>();
+      return createValidateFn<UnionC>();
     },
     buildErrors: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      const getErrors = createGetValidationErrors<UnionC>();
+      const getErrors = createGetValidationErrorsFn<UnionC>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_with_methods': {
-    build: () => createValidate<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    build: () => createValidateFn<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{name: string; getName(): string} | {age: number; getAge(): number}>();
+      const getErrors = createGetValidationErrorsFn<{name: string; getName(): string} | {age: number; getAge(): number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.intersection_to_object': {
-    build: () => createValidate<{a: string} & {b: number}>(),
+    build: () => createValidateFn<{a: string} & {b: number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string} & {b: number}>();
+      const getErrors = createGetValidationErrorsFn<{a: string} & {b: number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_with_index_arm': {
-    build: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    build: () => createValidateFn<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>();
+      const getErrors = createGetValidationErrorsFn<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_same_prop_different_types': {
-    build: () => createValidate<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    build: () => createValidateFn<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<
+      const getErrors = createGetValidationErrorsFn<
         {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}
       >();
       return (value: unknown) => getErrors(value).length === 0;
@@ -901,24 +901,24 @@ export const cases: CompetitorCases = {
   },
   'UNION.union_mixed_arrays_and_objects': {
     build: () =>
-      createValidate<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      createValidateFn<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<
+      const getErrors = createGetValidationErrorsFn<
         string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
       >();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_merged_property': {
-    build: () => createValidate<{a: boolean} | {a: number}>(),
+    build: () => createValidateFn<{a: boolean} | {a: number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{a: boolean} | {a: number}>();
+      const getErrors = createGetValidationErrorsFn<{a: boolean} | {a: number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_mixed_with_index': {
     build: () =>
-      createValidate<
+      createValidateFn<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
@@ -926,7 +926,7 @@ export const cases: CompetitorCases = {
         | {[key: string]: bigint; b: bigint}
       >(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<
+      const getErrors = createGetValidationErrorsFn<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
@@ -937,16 +937,16 @@ export const cases: CompetitorCases = {
     },
   },
   'UNION.union_with_any_fallback': {
-    build: () => createValidate<string | any>(),
+    build: () => createValidateFn<string | any>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string | any>();
+      const getErrors = createGetValidationErrorsFn<string | any>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UNION.union_with_unknown_fallback': {
-    build: () => createValidate<string | unknown>(),
+    build: () => createValidateFn<string | unknown>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<string | unknown>();
+      const getErrors = createGetValidationErrorsFn<string | unknown>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -959,7 +959,7 @@ export const cases: CompetitorCases = {
         a: string;
         b: number;
       }
-      return createValidate<SmallObj | LargeObj>();
+      return createValidateFn<SmallObj | LargeObj>();
     },
     buildErrors: () => {
       interface SmallObj {
@@ -969,7 +969,7 @@ export const cases: CompetitorCases = {
         a: string;
         b: number;
       }
-      const getErrors = createGetValidationErrors<SmallObj | LargeObj>();
+      const getErrors = createGetValidationErrorsFn<SmallObj | LargeObj>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -987,7 +987,7 @@ export const cases: CompetitorCases = {
         y: number;
         z: boolean;
       }
-      return createValidate<Tiny | Medium | Large>();
+      return createValidateFn<Tiny | Medium | Large>();
     },
     buildErrors: () => {
       interface Tiny {
@@ -1002,7 +1002,7 @@ export const cases: CompetitorCases = {
         y: number;
         z: boolean;
       }
-      const getErrors = createGetValidationErrors<Tiny | Medium | Large>();
+      const getErrors = createGetValidationErrorsFn<Tiny | Medium | Large>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1018,7 +1018,7 @@ export const cases: CompetitorCases = {
       interface Unrelated {
         value: number;
       }
-      return createValidate<Base | Extended | Unrelated>();
+      return createValidateFn<Base | Extended | Unrelated>();
     },
     buildErrors: () => {
       interface Base {
@@ -1031,88 +1031,88 @@ export const cases: CompetitorCases = {
       interface Unrelated {
         value: number;
       }
-      const getErrors = createGetValidationErrors<Base | Extended | Unrelated>();
+      const getErrors = createGetValidationErrorsFn<Base | Extended | Unrelated>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── TEMPLATE_LITERAL ──
   'TEMPLATE_LITERAL.url_with_number_id': {
-    build: () => createValidate<`api/user/${number}`>(),
+    build: () => createValidateFn<`api/user/${number}`>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<`api/user/${number}`>();
+      const getErrors = createGetValidationErrorsFn<`api/user/${number}`>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TEMPLATE_LITERAL.multi_segment_url': {
-    build: () => createValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
+    build: () => createValidateFn<`/api/v${number}/user/${string}/posts/${number}`>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<`/api/v${number}/user/${string}/posts/${number}`>();
+      const getErrors = createGetValidationErrorsFn<`/api/v${number}/user/${string}/posts/${number}`>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TEMPLATE_LITERAL.leading_string_placeholder': {
-    build: () => createValidate<`${string}/${number}`>(),
+    build: () => createValidateFn<`${string}/${number}`>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<`${string}/${number}`>();
+      const getErrors = createGetValidationErrorsFn<`${string}/${number}`>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TEMPLATE_LITERAL.regex_special_chars': {
-    build: () => createValidate<`(${number})`>(),
+    build: () => createValidateFn<`(${number})`>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<`(${number})`>();
+      const getErrors = createGetValidationErrorsFn<`(${number})`>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TEMPLATE_LITERAL.template_literal_nested_in_object': {
-    build: () => createValidate<{url: `api/user/${number}`; method: string}>(),
+    build: () => createValidateFn<{url: `api/user/${number}`; method: string}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{url: `api/user/${number}`; method: string}>();
+      const getErrors = createGetValidationErrorsFn<{url: `api/user/${number}`; method: string}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TEMPLATE_LITERAL.template_literal_index_key': {
-    build: () => createValidate<{[key: `api/${string}`]: number}>(),
+    build: () => createValidateFn<{[key: `api/${string}`]: number}>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<{[key: `api/${string}`]: number}>();
+      const getErrors = createGetValidationErrorsFn<{[key: `api/${string}`]: number}>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'TEMPLATE_LITERAL.template_literal_union_placeholder': {
-    build: () => createValidate<`${'a' | 'b'}-${number}`>(),
+    build: () => createValidateFn<`${'a' | 'b'}-${number}`>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<`${'a' | 'b'}-${number}`>();
+      const getErrors = createGetValidationErrorsFn<`${'a' | 'b'}-${number}`>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── NATIVE ──
   'NATIVE.map_string_number': {
-    build: () => createValidate<Map<string, number>>(),
+    build: () => createValidateFn<Map<string, number>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Map<string, number>>();
+      const getErrors = createGetValidationErrorsFn<Map<string, number>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NATIVE.set_string': {
-    build: () => createValidate<Set<string>>(),
+    build: () => createValidateFn<Set<string>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Set<string>>();
+      const getErrors = createGetValidationErrorsFn<Set<string>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NATIVE.promise_string': {
-    build: () => createValidate<Promise<string>>(),
+    build: () => createValidateFn<Promise<string>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Promise<string>>();
+      const getErrors = createGetValidationErrorsFn<Promise<string>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NATIVE.awaited_promise': {
-    build: () => createValidate<Awaited<Promise<string>>>(),
+    build: () => createValidateFn<Awaited<Promise<string>>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Awaited<Promise<string>>>();
+      const getErrors = createGetValidationErrorsFn<Awaited<Promise<string>>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1126,7 +1126,7 @@ export const cases: CompetitorCases = {
         c?: Circular;
         d?: Date;
       }
-      return createValidate<Circular>();
+      return createValidateFn<Circular>();
     },
     buildErrors: () => {
       interface Circular {
@@ -1135,18 +1135,18 @@ export const cases: CompetitorCases = {
         c?: Circular;
         d?: Date;
       }
-      const getErrors = createGetValidationErrors<Circular>();
+      const getErrors = createGetValidationErrorsFn<Circular>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'CIRCULAR.array_of_union_with_self_ref': {
     build: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createValidate<CuArray>();
+      return createValidateFn<CuArray>();
     },
     buildErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      const getErrors = createGetValidationErrors<CuArray>();
+      const getErrors = createGetValidationErrorsFn<CuArray>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1155,13 +1155,13 @@ export const cases: CompetitorCases = {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createValidate<CircularTuple>();
+      return createValidateFn<CircularTuple>();
     },
     buildErrors: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      const getErrors = createGetValidationErrors<CircularTuple>();
+      const getErrors = createGetValidationErrorsFn<CircularTuple>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1170,13 +1170,13 @@ export const cases: CompetitorCases = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createValidate<CircularIndex>();
+      return createValidateFn<CircularIndex>();
     },
     buildErrors: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      const getErrors = createGetValidationErrors<CircularIndex>();
+      const getErrors = createGetValidationErrorsFn<CircularIndex>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1185,13 +1185,13 @@ export const cases: CompetitorCases = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createValidate<CircularDeep>();
+      return createValidateFn<CircularDeep>();
     },
     buildErrors: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      const getErrors = createGetValidationErrors<CircularDeep>();
+      const getErrors = createGetValidationErrorsFn<CircularDeep>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1206,7 +1206,7 @@ export const cases: CompetitorCases = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createValidate<RootNotCircular>();
+      return createValidateFn<RootNotCircular>();
     },
     buildErrors: () => {
       interface ICircularDeep {
@@ -1218,7 +1218,7 @@ export const cases: CompetitorCases = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      const getErrors = createGetValidationErrors<RootNotCircular>();
+      const getErrors = createGetValidationErrorsFn<RootNotCircular>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1242,7 +1242,7 @@ export const cases: CompetitorCases = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createValidate<RootCircular>();
+      return createValidateFn<RootCircular>();
     },
     buildErrors: () => {
       interface ICircularDeep {
@@ -1263,7 +1263,7 @@ export const cases: CompetitorCases = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      const getErrors = createGetValidationErrors<RootCircular>();
+      const getErrors = createGetValidationErrorsFn<RootCircular>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1275,14 +1275,14 @@ export const cases: CompetitorCases = {
         value: number;
         next: Node | null;
       }
-      return createValidate<Node>(undefined, {rejectCircularRefs: true});
+      return createValidateFn<Node>(undefined, {rejectCircularRefs: true});
     },
     buildErrors: () => {
       interface Node {
         value: number;
         next: Node | null;
       }
-      const getErrors = createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
+      const getErrors = createGetValidationErrorsFn<Node>(undefined, {rejectCircularRefs: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1292,14 +1292,14 @@ export const cases: CompetitorCases = {
         label: string;
         children: Node[];
       }
-      return createValidate<Node>(undefined, {rejectCircularRefs: true});
+      return createValidateFn<Node>(undefined, {rejectCircularRefs: true});
     },
     buildErrors: () => {
       interface Node {
         label: string;
         children: Node[];
       }
-      const getErrors = createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
+      const getErrors = createGetValidationErrorsFn<Node>(undefined, {rejectCircularRefs: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1309,14 +1309,14 @@ export const cases: CompetitorCases = {
         name: string;
         next?: Node;
       }
-      return createValidate<Node>(undefined, {rejectCircularRefs: true});
+      return createValidateFn<Node>(undefined, {rejectCircularRefs: true});
     },
     buildErrors: () => {
       interface Node {
         name: string;
         next?: Node;
       }
-      const getErrors = createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
+      const getErrors = createGetValidationErrorsFn<Node>(undefined, {rejectCircularRefs: true});
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1329,7 +1329,7 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      return createValidate<Partial<Person>>();
+      return createValidateFn<Partial<Person>>();
     },
     buildErrors: () => {
       interface Person {
@@ -1337,7 +1337,7 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      const getErrors = createGetValidationErrors<Partial<Person>>();
+      const getErrors = createGetValidationErrorsFn<Partial<Person>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1348,7 +1348,7 @@ export const cases: CompetitorCases = {
         age?: number;
         createdAt?: Date;
       }
-      return createValidate<Required<MaybePerson>>();
+      return createValidateFn<Required<MaybePerson>>();
     },
     buildErrors: () => {
       interface MaybePerson {
@@ -1356,7 +1356,7 @@ export const cases: CompetitorCases = {
         age?: number;
         createdAt?: Date;
       }
-      const getErrors = createGetValidationErrors<Required<MaybePerson>>();
+      const getErrors = createGetValidationErrorsFn<Required<MaybePerson>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1367,7 +1367,7 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      return createValidate<Pick<Person, 'name' | 'createdAt'>>();
+      return createValidateFn<Pick<Person, 'name' | 'createdAt'>>();
     },
     buildErrors: () => {
       interface Person {
@@ -1375,7 +1375,7 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      const getErrors = createGetValidationErrors<Pick<Person, 'name' | 'createdAt'>>();
+      const getErrors = createGetValidationErrorsFn<Pick<Person, 'name' | 'createdAt'>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1386,7 +1386,7 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      return createValidate<Omit<Person, 'age'>>();
+      return createValidateFn<Omit<Person, 'age'>>();
     },
     buildErrors: () => {
       interface Person {
@@ -1394,21 +1394,21 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      const getErrors = createGetValidationErrors<Omit<Person, 'age'>>();
+      const getErrors = createGetValidationErrorsFn<Omit<Person, 'age'>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.exclude_atomic': {
-    build: () => createValidate<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    build: () => createValidateFn<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>();
+      const getErrors = createGetValidationErrorsFn<Exclude<'name' | 'age' | 'createdAt', 'age'>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.extract_atomic': {
-    build: () => createValidate<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    build: () => createValidateFn<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>();
+      const getErrors = createGetValidationErrorsFn<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1418,32 +1418,32 @@ export const cases: CompetitorCases = {
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      return createValidate<Exclude<Shape, {kind: 'circle'}>>();
+      return createValidateFn<Exclude<Shape, {kind: 'circle'}>>();
     },
     buildErrors: () => {
       type Shape =
         | {kind: 'circle'; radius: number}
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
-      const getErrors = createGetValidationErrors<Exclude<Shape, {kind: 'circle'}>>();
+      const getErrors = createGetValidationErrorsFn<Exclude<Shape, {kind: 'circle'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.non_nullable': {
-    build: () => createValidate<NonNullable<string | number | null | undefined>>(),
+    build: () => createValidateFn<NonNullable<string | number | null | undefined>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<NonNullable<string | number | null | undefined>>();
+      const getErrors = createGetValidationErrorsFn<NonNullable<string | number | null | undefined>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.return_type': {
     build: () => {
       type Fn = (a: number, b: boolean) => Date;
-      return createValidate<ReturnType<Fn>>();
+      return createValidateFn<ReturnType<Fn>>();
     },
     buildErrors: () => {
       type Fn = (a: number, b: boolean) => Date;
-      const getErrors = createGetValidationErrors<ReturnType<Fn>>();
+      const getErrors = createGetValidationErrorsFn<ReturnType<Fn>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1453,14 +1453,14 @@ export const cases: CompetitorCases = {
         name: string;
         age: number;
       }
-      return createValidate<Readonly<Person>>();
+      return createValidateFn<Readonly<Person>>();
     },
     buildErrors: () => {
       interface Person {
         name: string;
         age: number;
       }
-      const getErrors = createGetValidationErrors<Readonly<Person>>();
+      const getErrors = createGetValidationErrorsFn<Readonly<Person>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1471,7 +1471,7 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      return createValidate<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      return createValidateFn<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
     buildErrors: () => {
       interface Person {
@@ -1479,14 +1479,14 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      const getErrors = createGetValidationErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      const getErrors = createGetValidationErrorsFn<Partial<Person> & Required<Pick<Person, 'name'>>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.omit_keeping_optional': {
-    build: () => createValidate<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    build: () => createValidateFn<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>();
+      const getErrors = createGetValidationErrorsFn<Omit<{a: string; b?: number; c: boolean}, 'a'>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1497,7 +1497,7 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      return createValidate<keyof Person>();
+      return createValidateFn<keyof Person>();
     },
     buildErrors: () => {
       interface Person {
@@ -1505,18 +1505,18 @@ export const cases: CompetitorCases = {
         age: number;
         createdAt: Date;
       }
-      const getErrors = createGetValidationErrors<keyof Person>();
+      const getErrors = createGetValidationErrorsFn<keyof Person>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.typeof_variable_query': {
     build: () => {
       const config = {url: 'http://example.com', port: 8080};
-      return createValidate<typeof config>();
+      return createValidateFn<typeof config>();
     },
     buildErrors: () => {
       const config = {url: 'http://example.com', port: 8080};
-      const getErrors = createGetValidationErrors<typeof config>();
+      const getErrors = createGetValidationErrorsFn<typeof config>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1526,25 +1526,25 @@ export const cases: CompetitorCases = {
         name: string;
         age: number;
       }
-      return createValidate<Person['name']>();
+      return createValidateFn<Person['name']>();
     },
     buildErrors: () => {
       interface Person {
         name: string;
         age: number;
       }
-      const getErrors = createGetValidationErrors<Person['name']>();
+      const getErrors = createGetValidationErrorsFn<Person['name']>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.conditional_type_resolved': {
     build: () => {
       type IsString<T> = T extends string ? boolean : number;
-      return createValidate<IsString<'hello'>>();
+      return createValidateFn<IsString<'hello'>>();
     },
     buildErrors: () => {
       type IsString<T> = T extends string ? boolean : number;
-      const getErrors = createGetValidationErrors<IsString<'hello'>>();
+      const getErrors = createGetValidationErrorsFn<IsString<'hello'>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1555,7 +1555,7 @@ export const cases: CompetitorCases = {
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      return createValidate<Nullable<Source>>();
+      return createValidateFn<Nullable<Source>>();
     },
     buildErrors: () => {
       interface Source {
@@ -1563,7 +1563,7 @@ export const cases: CompetitorCases = {
         b: number;
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
-      const getErrors = createGetValidationErrors<Nullable<Source>>();
+      const getErrors = createGetValidationErrorsFn<Nullable<Source>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1582,7 +1582,7 @@ export const cases: CompetitorCases = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      return createValidate<UserForm>();
+      return createValidateFn<UserForm>();
     },
     buildErrors: () => {
       type FieldFor<T> = T extends string
@@ -1598,18 +1598,18 @@ export const cases: CompetitorCases = {
         admin: boolean;
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-      const getErrors = createGetValidationErrors<UserForm>();
+      const getErrors = createGetValidationErrorsFn<UserForm>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'UTILITY.distributive_conditional_over_union': {
     build: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      return createValidate<Wrap<string | number>>();
+      return createValidateFn<Wrap<string | number>>();
     },
     buildErrors: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
-      const getErrors = createGetValidationErrors<Wrap<string | number>>();
+      const getErrors = createGetValidationErrorsFn<Wrap<string | number>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1620,7 +1620,7 @@ export const cases: CompetitorCases = {
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      return createValidate<DeepPartial<Settings>>();
+      return createValidateFn<DeepPartial<Settings>>();
     },
     buildErrors: () => {
       interface Settings {
@@ -1628,7 +1628,7 @@ export const cases: CompetitorCases = {
         audio: {volume: number; muted: boolean};
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-      const getErrors = createGetValidationErrors<DeepPartial<Settings>>();
+      const getErrors = createGetValidationErrorsFn<DeepPartial<Settings>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1641,7 +1641,7 @@ export const cases: CompetitorCases = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      return createValidate<Prefixed<Source>>();
+      return createValidateFn<Prefixed<Source>>();
     },
     buildErrors: () => {
       interface Source {
@@ -1649,7 +1649,7 @@ export const cases: CompetitorCases = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      const getErrors = createGetValidationErrors<Prefixed<Source>>();
+      const getErrors = createGetValidationErrorsFn<Prefixed<Source>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1661,7 +1661,7 @@ export const cases: CompetitorCases = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      return createValidate<MongoForm<Source>>();
+      return createValidateFn<MongoForm<Source>>();
     },
     buildErrors: () => {
       interface Source {
@@ -1670,7 +1670,7 @@ export const cases: CompetitorCases = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      const getErrors = createGetValidationErrors<MongoForm<Source>>();
+      const getErrors = createGetValidationErrorsFn<MongoForm<Source>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -1682,7 +1682,7 @@ export const cases: CompetitorCases = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      return createValidate<Public<Source>>();
+      return createValidateFn<Public<Source>>();
     },
     buildErrors: () => {
       interface Source {
@@ -1691,295 +1691,295 @@ export const cases: CompetitorCases = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      const getErrors = createGetValidationErrors<Public<Source>>();
+      const getErrors = createGetValidationErrorsFn<Public<Source>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── DATETIME ──
   'DATETIME.date': {
-    build: () => createValidate<Date>(),
+    build: () => createValidateFn<Date>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Date>();
+      const getErrors = createGetValidationErrorsFn<Date>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.instant': {
-    build: () => createValidate<Temporal.Instant>(),
+    build: () => createValidateFn<Temporal.Instant>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.Instant>();
+      const getErrors = createGetValidationErrorsFn<Temporal.Instant>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.zonedDateTime': {
-    build: () => createValidate<Temporal.ZonedDateTime>(),
+    build: () => createValidateFn<Temporal.ZonedDateTime>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.ZonedDateTime>();
+      const getErrors = createGetValidationErrorsFn<Temporal.ZonedDateTime>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate': {
-    build: () => createValidate<Temporal.PlainDate>(),
+    build: () => createValidateFn<Temporal.PlainDate>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.PlainDate>();
+      const getErrors = createGetValidationErrorsFn<Temporal.PlainDate>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainTime': {
-    build: () => createValidate<Temporal.PlainTime>(),
+    build: () => createValidateFn<Temporal.PlainTime>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.PlainTime>();
+      const getErrors = createGetValidationErrorsFn<Temporal.PlainTime>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime': {
-    build: () => createValidate<Temporal.PlainDateTime>(),
+    build: () => createValidateFn<Temporal.PlainDateTime>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.PlainDateTime>();
+      const getErrors = createGetValidationErrorsFn<Temporal.PlainDateTime>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainYearMonth': {
-    build: () => createValidate<Temporal.PlainYearMonth>(),
+    build: () => createValidateFn<Temporal.PlainYearMonth>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.PlainYearMonth>();
+      const getErrors = createGetValidationErrorsFn<Temporal.PlainYearMonth>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainMonthDay': {
-    build: () => createValidate<Temporal.PlainMonthDay>(),
+    build: () => createValidateFn<Temporal.PlainMonthDay>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.PlainMonthDay>();
+      const getErrors = createGetValidationErrorsFn<Temporal.PlainMonthDay>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.duration': {
-    build: () => createValidate<Temporal.Duration>(),
+    build: () => createValidateFn<Temporal.Duration>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Temporal.Duration>();
+      const getErrors = createGetValidationErrorsFn<Temporal.Duration>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── STRING_FORMAT ──
   'STRING_FORMAT.string_maxLength': {
-    build: () => createValidate<TF.String<{maxLength: 5}>>(),
+    build: () => createValidateFn<TF.String<{maxLength: 5}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{maxLength: 5}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{maxLength: 5}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_minLength': {
-    build: () => createValidate<TF.String<{minLength: 3}>>(),
+    build: () => createValidateFn<TF.String<{minLength: 3}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{minLength: 3}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{minLength: 3}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_length': {
-    build: () => createValidate<TF.String<{length: 4}>>(),
+    build: () => createValidateFn<TF.String<{length: 4}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{length: 4}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{length: 4}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_range': {
-    build: () => createValidate<TF.String<{minLength: 2; maxLength: 4}>>(),
+    build: () => createValidateFn<TF.String<{minLength: 2; maxLength: 4}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{minLength: 2; maxLength: 4}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{minLength: 2; maxLength: 4}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedChars': {
-    build: () => createValidate<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
+    build: () => createValidateFn<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{allowedChars: {val: '0123456789abcdef'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedChars_ignoreCase': {
-    build: () => createValidate<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+    build: () => createValidateFn<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedChars_literal': {
-    build: () => createValidate<TF.String<{allowedChars: {val: '.-'}}>>(),
+    build: () => createValidateFn<TF.String<{allowedChars: {val: '.-'}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{allowedChars: {val: '.-'}}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{allowedChars: {val: '.-'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_disallowedChars': {
-    build: () => createValidate<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+    build: () => createValidateFn<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedValues': {
-    build: () => createValidate<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+    build: () => createValidateFn<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{allowedValues: {val: ['red', 'green', 'blue']}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedValues_ignoreCase': {
-    build: () => createValidate<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    build: () => createValidateFn<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_allowedValues_escaped': {
-    build: () => createValidate<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+    build: () => createValidateFn<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>();
+      const getErrors = createGetValidationErrorsFn<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_disallowedValues': {
-    build: () => createValidate<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+    build: () => createValidateFn<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>();
+        createGetValidationErrorsFn<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.string_customErrorMessage': {
-    build: () => createValidate<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    build: () => createValidateFn<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>();
+        createGetValidationErrorsFn<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.alpha': {
-    build: () => createValidate<TF.Alpha>(),
+    build: () => createValidateFn<TF.Alpha>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Alpha>();
+      const getErrors = createGetValidationErrorsFn<TF.Alpha>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.alphaNumeric': {
-    build: () => createValidate<TF.AlphaNumeric>(),
+    build: () => createValidateFn<TF.AlphaNumeric>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.AlphaNumeric>();
+      const getErrors = createGetValidationErrorsFn<TF.AlphaNumeric>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.numeric': {
-    build: () => createValidate<TF.Numeric>(),
+    build: () => createValidateFn<TF.Numeric>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Numeric>();
+      const getErrors = createGetValidationErrorsFn<TF.Numeric>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.alpha_withLength': {
-    build: () => createValidate<TF.Alpha<{maxLength: 3}>>(),
+    build: () => createValidateFn<TF.Alpha<{maxLength: 3}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Alpha<{maxLength: 3}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Alpha<{maxLength: 3}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.lowercase_validate': {
-    build: () => createValidate<TF.Lowercase>(),
+    build: () => createValidateFn<TF.Lowercase>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Lowercase>();
+      const getErrors = createGetValidationErrorsFn<TF.Lowercase>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.uuidv4': {
-    build: () => createValidate<TF.UUIDv4>(),
+    build: () => createValidateFn<TF.UUIDv4>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.UUIDv4>();
+      const getErrors = createGetValidationErrorsFn<TF.UUIDv4>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.uuidv7': {
-    build: () => createValidate<TF.UUIDv7>(),
+    build: () => createValidateFn<TF.UUIDv7>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.UUIDv7>();
+      const getErrors = createGetValidationErrorsFn<TF.UUIDv7>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_iso': {
-    build: () => createValidate<TF.StringDate>(),
+    build: () => createValidateFn<TF.StringDate>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringDate>();
+      const getErrors = createGetValidationErrorsFn<TF.StringDate>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_DMY': {
-    build: () => createValidate<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
+    build: () => createValidateFn<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringDate<{format: 'DD-MM-YYYY'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.StringDate<{format: 'DD-MM-YYYY'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_YM': {
-    build: () => createValidate<TF.StringDate<{format: 'YYYY-MM'}>>(),
+    build: () => createValidateFn<TF.StringDate<{format: 'YYYY-MM'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringDate<{format: 'YYYY-MM'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.StringDate<{format: 'YYYY-MM'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_MD': {
-    build: () => createValidate<TF.StringDate<{format: 'MM-DD'}>>(),
+    build: () => createValidateFn<TF.StringDate<{format: 'MM-DD'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringDate<{format: 'MM-DD'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.StringDate<{format: 'MM-DD'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.date_minMax_absolute': {
-    build: () => createValidate<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    build: () => createValidateFn<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
+        createGetValidationErrorsFn<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_iso': {
-    build: () => createValidate<TF.StringTime>(),
+    build: () => createValidateFn<TF.StringTime>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringTime>();
+      const getErrors = createGetValidationErrorsFn<TF.StringTime>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_HHmmss': {
-    build: () => createValidate<TF.StringTime<{format: 'HH:mm:ss'}>>(),
+    build: () => createValidateFn<TF.StringTime<{format: 'HH:mm:ss'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringTime<{format: 'HH:mm:ss'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.StringTime<{format: 'HH:mm:ss'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_HHmmss_ms': {
-    build: () => createValidate<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+    build: () => createValidateFn<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.time_minMax_absolute': {
-    build: () => createValidate<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+    build: () => createValidateFn<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.dateTime_default': {
-    build: () => createValidate<TF.StringDateTime>(),
+    build: () => createValidateFn<TF.StringDateTime>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.StringDateTime>();
+      const getErrors = createGetValidationErrorsFn<TF.StringDateTime>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.dateTime_custom': {
-    build: () => createValidate<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    build: () => createValidateFn<TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<
+        createGetValidationErrorsFn<
           TF.StringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>
         >();
       return (value: unknown) => getErrors(value).length === 0;
@@ -1987,7 +1987,7 @@ export const cases: CompetitorCases = {
   },
   'STRING_FORMAT.dateTime_minMax_absolute': {
     build: () =>
-      createValidate<
+      createValidateFn<
         TF.StringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
@@ -1997,7 +1997,7 @@ export const cases: CompetitorCases = {
         }>
       >(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<
+      const getErrors = createGetValidationErrorsFn<
         TF.StringDateTime<{
           date: {format: 'YYYY-MM-DD'};
           time: {format: 'HH:mm:ss'};
@@ -2010,474 +2010,474 @@ export const cases: CompetitorCases = {
     },
   },
   'STRING_FORMAT.ipv4': {
-    build: () => createValidate<TF.IPv4>(),
+    build: () => createValidateFn<TF.IPv4>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.IPv4>();
+      const getErrors = createGetValidationErrorsFn<TF.IPv4>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ipv6': {
-    build: () => createValidate<TF.IPv6>(),
+    build: () => createValidateFn<TF.IPv6>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.IPv6>();
+      const getErrors = createGetValidationErrorsFn<TF.IPv6>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ip_any': {
-    build: () => createValidate<TF.IP>(),
+    build: () => createValidateFn<TF.IP>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.IP>();
+      const getErrors = createGetValidationErrorsFn<TF.IP>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ipv4_port': {
-    build: () => createValidate<TF.IPv4WithPort>(),
+    build: () => createValidateFn<TF.IPv4WithPort>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.IPv4WithPort>();
+      const getErrors = createGetValidationErrorsFn<TF.IPv4WithPort>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.ipv6_port': {
-    build: () => createValidate<TF.IPv6WithPort>(),
+    build: () => createValidateFn<TF.IPv6WithPort>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.IPv6WithPort>();
+      const getErrors = createGetValidationErrorsFn<TF.IPv6WithPort>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.domain': {
-    build: () => createValidate<TF.Domain>(),
+    build: () => createValidateFn<TF.Domain>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Domain>();
+      const getErrors = createGetValidationErrorsFn<TF.Domain>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.domainStrict': {
-    build: () => createValidate<TF.DomainStrict>(),
+    build: () => createValidateFn<TF.DomainStrict>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.DomainStrict>();
+      const getErrors = createGetValidationErrorsFn<TF.DomainStrict>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.email': {
-    build: () => createValidate<TF.Email>(),
+    build: () => createValidateFn<TF.Email>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Email>();
+      const getErrors = createGetValidationErrorsFn<TF.Email>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.emailPunycode': {
-    build: () => createValidate<TF.EmailPunycode>(),
+    build: () => createValidateFn<TF.EmailPunycode>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.EmailPunycode>();
+      const getErrors = createGetValidationErrorsFn<TF.EmailPunycode>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.emailStrict': {
-    build: () => createValidate<TF.EmailStrict>(),
+    build: () => createValidateFn<TF.EmailStrict>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.EmailStrict>();
+      const getErrors = createGetValidationErrorsFn<TF.EmailStrict>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.url': {
-    build: () => createValidate<TF.Url>(),
+    build: () => createValidateFn<TF.Url>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Url>();
+      const getErrors = createGetValidationErrorsFn<TF.Url>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.urlHttp': {
-    build: () => createValidate<TF.UrlHttp>(),
+    build: () => createValidateFn<TF.UrlHttp>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.UrlHttp>();
+      const getErrors = createGetValidationErrorsFn<TF.UrlHttp>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.urlFile': {
-    build: () => createValidate<TF.UrlFile>(),
+    build: () => createValidateFn<TF.UrlFile>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.UrlFile>();
+      const getErrors = createGetValidationErrorsFn<TF.UrlFile>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.pattern_slug': {
-    build: () => createValidate<Slug>(),
+    build: () => createValidateFn<Slug>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Slug>();
+      const getErrors = createGetValidationErrorsFn<Slug>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'STRING_FORMAT.pattern_hex': {
-    build: () => createValidate<Hex>(),
+    build: () => createValidateFn<Hex>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<Hex>();
+      const getErrors = createGetValidationErrorsFn<Hex>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── NUMBER_FORMAT ──
   'NUMBER_FORMAT.number_max': {
-    build: () => createValidate<TF.Number<{max: 100}>>(),
+    build: () => createValidateFn<TF.Number<{max: 100}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Number<{max: 100}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Number<{max: 100}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_min': {
-    build: () => createValidate<TF.Number<{min: 0}>>(),
+    build: () => createValidateFn<TF.Number<{min: 0}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Number<{min: 0}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Number<{min: 0}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_lt': {
-    build: () => createValidate<TF.Number<{lt: 10}>>(),
+    build: () => createValidateFn<TF.Number<{lt: 10}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Number<{lt: 10}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Number<{lt: 10}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_gt': {
-    build: () => createValidate<TF.Number<{gt: 0}>>(),
+    build: () => createValidateFn<TF.Number<{gt: 0}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Number<{gt: 0}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Number<{gt: 0}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_integer': {
-    build: () => createValidate<TF.Integer>(),
+    build: () => createValidateFn<TF.Integer>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Integer>();
+      const getErrors = createGetValidationErrorsFn<TF.Integer>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_float': {
-    build: () => createValidate<TF.Float>(),
+    build: () => createValidateFn<TF.Float>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Float>();
+      const getErrors = createGetValidationErrorsFn<TF.Float>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_multipleOf': {
-    build: () => createValidate<TF.Number<{multipleOf: 5}>>(),
+    build: () => createValidateFn<TF.Number<{multipleOf: 5}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Number<{multipleOf: 5}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Number<{multipleOf: 5}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_combined': {
-    build: () => createValidate<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    build: () => createValidateFn<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Number<{min: 0; max: 100; integer: true; multipleOf: 5}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_int8': {
-    build: () => createValidate<TF.Int8>(),
+    build: () => createValidateFn<TF.Int8>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Int8>();
+      const getErrors = createGetValidationErrorsFn<TF.Int8>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'NUMBER_FORMAT.number_uint8': {
-    build: () => createValidate<TF.UInt8>(),
+    build: () => createValidateFn<TF.UInt8>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.UInt8>();
+      const getErrors = createGetValidationErrorsFn<TF.UInt8>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── BIGINT_FORMAT ──
   'BIGINT_FORMAT.bigint_max': {
-    build: () => createValidate<TF.BigInt<{max: 100n}>>(),
+    build: () => createValidateFn<TF.BigInt<{max: 100n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigInt<{max: 100n}>>();
+      const getErrors = createGetValidationErrorsFn<TF.BigInt<{max: 100n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_min': {
-    build: () => createValidate<TF.BigInt<{min: 0n}>>(),
+    build: () => createValidateFn<TF.BigInt<{min: 0n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigInt<{min: 0n}>>();
+      const getErrors = createGetValidationErrorsFn<TF.BigInt<{min: 0n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_lt': {
-    build: () => createValidate<TF.BigInt<{lt: 10n}>>(),
+    build: () => createValidateFn<TF.BigInt<{lt: 10n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigInt<{lt: 10n}>>();
+      const getErrors = createGetValidationErrorsFn<TF.BigInt<{lt: 10n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_gt': {
-    build: () => createValidate<TF.BigInt<{gt: 0n}>>(),
+    build: () => createValidateFn<TF.BigInt<{gt: 0n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigInt<{gt: 0n}>>();
+      const getErrors = createGetValidationErrorsFn<TF.BigInt<{gt: 0n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_multipleOf': {
-    build: () => createValidate<TF.BigInt<{multipleOf: 5n}>>(),
+    build: () => createValidateFn<TF.BigInt<{multipleOf: 5n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigInt<{multipleOf: 5n}>>();
+      const getErrors = createGetValidationErrorsFn<TF.BigInt<{multipleOf: 5n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_combined': {
-    build: () => createValidate<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+    build: () => createValidateFn<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>();
+      const getErrors = createGetValidationErrorsFn<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_int64': {
-    build: () => createValidate<TF.BigInt64>(),
+    build: () => createValidateFn<TF.BigInt64>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigInt64>();
+      const getErrors = createGetValidationErrorsFn<TF.BigInt64>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'BIGINT_FORMAT.bigint_uint64': {
-    build: () => createValidate<TF.BigUInt64>(),
+    build: () => createValidateFn<TF.BigUInt64>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.BigUInt64>();
+      const getErrors = createGetValidationErrorsFn<TF.BigUInt64>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
 
   // ── DATETIME ──
   'DATETIME.date_minmax': {
-    build: () => createValidate<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidateFn<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Date<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_gtlt': {
-    build: () => createValidate<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidateFn<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Date<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_min_lt': {
-    build: () => createValidate<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidateFn<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Date<{min: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_max_now': {
-    build: () => createValidate<TF.Date<{max: 'now'}>>(),
+    build: () => createValidateFn<TF.Date<{max: 'now'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Date<{max: 'now'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Date<{max: 'now'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_rel_window': {
-    build: () => createValidate<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidateFn<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Date<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.date_rel_datetime_components': {
-    build: () => createValidate<TF.Date<{min: 'now-P1000YT12H'}>>(),
+    build: () => createValidateFn<TF.Date<{min: 'now-P1000YT12H'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TF.Date<{min: 'now-P1000YT12H'}>>();
+      const getErrors = createGetValidationErrorsFn<TF.Date<{min: 'now-P1000YT12H'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.instant_minmax': {
-    build: () => createValidate<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    build: () => createValidateFn<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+        createGetValidationErrorsFn<TFT.Instant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.instant_gtlt': {
-    build: () => createValidate<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    build: () => createValidateFn<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>();
+        createGetValidationErrorsFn<TFT.Instant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.instant_rel': {
-    build: () => createValidate<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
+    build: () => createValidateFn<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.Instant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_minmax': {
-    build: () => createValidate<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_gtlt': {
-    build: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_min_lt': {
-    build: () => createValidate<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_gt_max': {
-    build: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_min_only': {
-    build: () => createValidate<TFT.PlainDate<{min: '2020-01-01'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{min: '2020-01-01'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: '2020-01-01'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{min: '2020-01-01'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_max_only': {
-    build: () => createValidate<TFT.PlainDate<{max: '2020-12-31'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{max: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{max: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{max: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_gt_only': {
-    build: () => createValidate<TFT.PlainDate<{gt: '2020-01-01'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{gt: '2020-01-01'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{gt: '2020-01-01'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{gt: '2020-01-01'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_lt_only': {
-    build: () => createValidate<TFT.PlainDate<{lt: '2020-12-31'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{lt: '2020-12-31'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{lt: '2020-12-31'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{lt: '2020-12-31'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_rel_window': {
-    build: () => createValidate<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_rel_ymd': {
-    build: () => createValidate<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{min: 'now-P100Y6M15D'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDate_rel_weeks': {
-    build: () => createValidate<TFT.PlainDate<{min: 'now-P52200W'}>>(),
+    build: () => createValidateFn<TFT.PlainDate<{min: 'now-P52200W'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDate<{min: 'now-P52200W'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDate<{min: 'now-P52200W'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainTime_minmax': {
-    build: () => createValidate<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    build: () => createValidateFn<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainTime<{min: '09:00:00'; max: '17:00:00'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainTime_gtlt': {
-    build: () => createValidate<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
+    build: () => createValidateFn<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_minmax': {
-    build: () => createValidate<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidateFn<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+        createGetValidationErrorsFn<TFT.PlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_gtlt': {
-    build: () => createValidate<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
+    build: () => createValidateFn<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
+        createGetValidationErrorsFn<TFT.PlainDateTime<{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_rel': {
-    build: () => createValidate<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidateFn<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainDateTime_rel_combo': {
-    build: () => createValidate<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>(),
+    build: () => createValidateFn<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainDateTime<{min: 'now-P500YT12H'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainYearMonth_minmax': {
-    build: () => createValidate<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    build: () => createValidateFn<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainYearMonth_gtlt': {
-    build: () => createValidate<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
+    build: () => createValidateFn<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.plainYearMonth_rel': {
-    build: () => createValidate<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidateFn<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.PlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.zonedDateTime_minmax': {
     build: () =>
-      createValidate<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+      createValidateFn<TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<
+        createGetValidationErrorsFn<
           TFT.ZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>
         >();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.zonedDateTime_gtlt': {
-    build: () => createValidate<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    build: () => createValidateFn<TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
     buildErrors: () => {
       const getErrors =
-        createGetValidationErrors<
+        createGetValidationErrorsFn<
           TFT.ZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>
         >();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
   'DATETIME.zonedDateTime_rel': {
-    build: () => createValidate<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
+    build: () => createValidateFn<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     buildErrors: () => {
-      const getErrors = createGetValidationErrors<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
+      const getErrors = createGetValidationErrorsFn<TFT.ZonedDateTime<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -2494,7 +2494,7 @@ export const cases: CompetitorCases = {
         active: boolean;
         createdAt: string;
       }
-      return createValidate<User>();
+      return createValidateFn<User>();
     },
     buildErrors: () => {
       interface User {
@@ -2506,7 +2506,7 @@ export const cases: CompetitorCases = {
         active: boolean;
         createdAt: string;
       }
-      const getErrors = createGetValidationErrors<User>();
+      const getErrors = createGetValidationErrorsFn<User>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -2534,7 +2534,7 @@ export const cases: CompetitorCases = {
         total: number;
         note?: string;
       }
-      return createValidate<Order>();
+      return createValidateFn<Order>();
     },
     buildErrors: () => {
       interface Address {
@@ -2559,7 +2559,7 @@ export const cases: CompetitorCases = {
         total: number;
         note?: string;
       }
-      const getErrors = createGetValidationErrors<Order>();
+      const getErrors = createGetValidationErrorsFn<Order>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -2576,7 +2576,7 @@ export const cases: CompetitorCases = {
         publishedAt?: string;
         meta: {views: number; likes: number};
       }
-      return createValidate<BlogPost>();
+      return createValidateFn<BlogPost>();
     },
     buildErrors: () => {
       interface BlogPost {
@@ -2590,7 +2590,7 @@ export const cases: CompetitorCases = {
         publishedAt?: string;
         meta: {views: number; likes: number};
       }
-      const getErrors = createGetValidationErrors<BlogPost>();
+      const getErrors = createGetValidationErrorsFn<BlogPost>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -2606,7 +2606,7 @@ export const cases: CompetitorCases = {
         categories: string[];
         dimensions?: {width: number; height: number; depth: number};
       }
-      return createValidate<Product>();
+      return createValidateFn<Product>();
     },
     buildErrors: () => {
       interface Product {
@@ -2619,7 +2619,7 @@ export const cases: CompetitorCases = {
         categories: string[];
         dimensions?: {width: number; height: number; depth: number};
       }
-      const getErrors = createGetValidationErrors<Product>();
+      const getErrors = createGetValidationErrorsFn<Product>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -2642,7 +2642,7 @@ export const cases: CompetitorCases = {
         total: number;
         hasMore: boolean;
       }
-      return createValidate<ProductPage>();
+      return createValidateFn<ProductPage>();
     },
     buildErrors: () => {
       interface Product {
@@ -2662,7 +2662,7 @@ export const cases: CompetitorCases = {
         total: number;
         hasMore: boolean;
       }
-      const getErrors = createGetValidationErrors<ProductPage>();
+      const getErrors = createGetValidationErrorsFn<ProductPage>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },
@@ -2674,7 +2674,7 @@ export const cases: CompetitorCases = {
         acceptedTerms: true;
         profile: {firstName: string; lastName: string; age?: number};
       }
-      return createValidate<RegistrationForm>();
+      return createValidateFn<RegistrationForm>();
     },
     buildErrors: () => {
       interface RegistrationForm {
@@ -2683,7 +2683,7 @@ export const cases: CompetitorCases = {
         acceptedTerms: true;
         profile: {firstName: string; lastName: string; age?: number};
       }
-      const getErrors = createGetValidationErrors<RegistrationForm>();
+      const getErrors = createGetValidationErrorsFn<RegistrationForm>();
       return (value: unknown) => getErrors(value).length === 0;
     },
   },

@@ -2,7 +2,7 @@
 // custom-format-pattern.ts. Named formats, the custom-param escape hatch, a
 // registered reusable pattern, and schema-first format builders.
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, registerFormatPattern, type InferType} from '@ts-runtypes/core';
+import {createValidateFn, registerFormatPattern, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {type CheckResult, ok} from './check';
 
@@ -16,7 +16,7 @@ export interface Profile {
   handle: Username;
   completion: Percentage;
 }
-export const isProfile = createValidate<Profile>();
+export const isProfile = createValidateFn<Profile>();
 
 // A reusable registered pattern (mockSamples double as canonical mock values).
 export const slug = registerFormatPattern({
@@ -29,12 +29,12 @@ export interface Post {
   slug: Slug;
   title: string;
 }
-export const isPost = createValidate<Post>();
+export const isPost = createValidateFn<Post>();
 
 // Schema-first format builders.
 export const accountSchema = RT.object({id: TF.uuidv4(), email: TF.email(), age: TF.int32(), credits: TF.positive()});
 export type FormatAccount = InferType<typeof accountSchema>;
-export const isFormatAccount = createValidate(accountSchema);
+export const isFormatAccount = createValidateFn(accountSchema);
 
 export function checkFormats(): CheckResult[] {
   const goodProfile = {id: '109156be-c4fb-41ea-b1b4-efe1671c5836', email: 'ada@example.com', handle: 'ada_99', completion: 80};

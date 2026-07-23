@@ -45,7 +45,7 @@ export const OBJECT = {
   object_via_return_type_utility: {
     title: 'Object inferred via ReturnType<typeof factory>',
     description:
-      'Static-form usage of the recommended `ReturnType<typeof fn>` idiom when you have a factory function whose return type you want to validate. The reflect form `createValidate(makeUser())` would invoke the function at runtime purely for type inference — anti-pattern that the resolver now flags as a build-time warning. The reflect-form thunk is intentionally omitted; the diagnostic test in ts-runtypes-devtools covers the warning.',
+      'Static-form usage of the recommended `ReturnType<typeof fn>` idiom when you have a factory function whose return type you want to validate. The reflect form `createValidateFn(makeUser())` would invoke the function at runtime purely for type inference — anti-pattern that the resolver now flags as a build-time warning. The reflect-form thunk is intentionally omitted; the diagnostic test in ts-runtypes-devtools covers the warning.',
     getSamples: () => ({
       valid: [
         {id: 1, name: 'john'},
@@ -58,7 +58,7 @@ export const OBJECT = {
   object_via_property_access: {
     title: 'Object inferred via property access on a parent shape',
     description:
-      "Reflect form with a property-access argument (`createValidate(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
+      "Reflect form with a property-access argument (`createValidateFn(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
     getSamples: () => ({
       valid: [
         {id: 1, name: 'john'},
@@ -70,7 +70,7 @@ export const OBJECT = {
   object_via_array_access: {
     title: 'Object inferred via array element access',
     description:
-      "Reflect form with an array-element-access argument (`createValidate(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
+      "Reflect form with an array-element-access argument (`createValidateFn(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
     getSamples: () => ({
       valid: [
         {id: 1, name: 'john'},

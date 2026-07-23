@@ -589,7 +589,7 @@ func (w *Walker) recordCrossFamilyDep(childID string) {
 // (renderer skips noop factories). isUnsupported reports whether the
 // compile reached a kind with no emit implementation — when true,
 // the renderer skips this RunType entirely (no factory at all);
-// the runtime cache miss is caught by createValidate's
+// the runtime cache miss is caught by createValidateFn's
 // hasRunType-but-no-rt fallback.
 //
 // Mirrors BaseFnCompiler.compile (rtFnCompiler.ts:279) +

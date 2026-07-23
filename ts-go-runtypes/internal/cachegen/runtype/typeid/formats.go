@@ -392,7 +392,7 @@ func FormatAnnotationStructuralKey(annotation *protocol.FormatAnnotation) string
 // EVERY format param is id-relevant, `mockSamples` and `message` included.
 // They used to be excluded as "mock/diagnostic metadata, not validation
 // behaviour" — but cache entries are shared singletons and for
-// `createMockData` the samples ARE behaviour: two same-shape formats
+// `createMockDataFn` the samples ARE behaviour: two same-shape formats
 // differing only in samples collapsed onto one entry, and whichever call
 // site interned first supplied the mock samples for BOTH (first-intern
 // nondeterminism — the same failure mode as tuple labels; see

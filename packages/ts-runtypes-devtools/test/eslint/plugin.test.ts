@@ -31,21 +31,21 @@ function load(): {name: string} {
 export const id = getRunTypeId(load());
 `;
 
-const GENERIC_MARKER_TS = `import {createValidate} from '@ts-runtypes/core';
+const GENERIC_MARKER_TS = `import {createValidateFn} from '@ts-runtypes/core';
 
 export function makeValidator<T>() {
-  return createValidate<T>();
+  return createValidateFn<T>();
 }
 `;
 
-const WIDGET_TS = `import {createValidate} from '@ts-runtypes/core';
+const WIDGET_TS = `import {createValidateFn} from '@ts-runtypes/core';
 
 interface Widget {
   label: string;
   onClick: () => void;
 }
 
-export const isWidget = createValidate<Widget>();
+export const isWidget = createValidateFn<Widget>();
 `;
 
 const USER_TS = `export interface User {
@@ -102,14 +102,14 @@ export const answer = 42;
 // would fail closed with FMT004; the lint lane instead runs the real
 // RegExp.test and reports the failing sample as FMT001. The local TypeFormat
 // brand is recognised structurally, same as the Go resolver tests.
-const UNCHECKED_PATTERN_TS = `import {createValidate} from '@ts-runtypes/core';
+const UNCHECKED_PATTERN_TS = `import {createValidateFn} from '@ts-runtypes/core';
 
 type TypeFormat<Base, Name extends string, Params> = Base & {
   readonly __rtFormatName?: Name;
   readonly __rtFormatParams?: Params;
 };
 
-export const isCode = createValidate<TypeFormat<string, 'stringFormat', {pattern: {source: '(?<=x)y'; flags: ''; mockSamples: ['nope']}}>>();
+export const isCode = createValidateFn<TypeFormat<string, 'stringFormat', {pattern: {source: '(?<=x)y'; flags: ''; mockSamples: ['nope']}}>>();
 `;
 
 // Transparency: the plugin reads timeoutMs and tsconfig. binary / cwd / socket
@@ -256,7 +256,7 @@ describe.runIf(hasBinary())(
         const reports = reportsFor('invalid-marker', 'generic-marker.ts');
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[MKR003]');
-        expect(reports[0]!.line).toBe(locate(GENERIC_MARKER_TS, 'createValidate<T>()').line);
+        expect(reports[0]!.line).toBe(locate(GENERIC_MARKER_TS, 'createValidateFn<T>()').line);
         expect(reportsFor('redundant-marker', 'generic-marker.ts')).toEqual([]);
       });
 
@@ -265,7 +265,7 @@ describe.runIf(hasBinary())(
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[VL011]');
         expect(reports[0]!.message).toContain('onClick');
-        expect(reports[0]!.line).toBe(locate(WIDGET_TS, 'createValidate<Widget>()').line);
+        expect(reports[0]!.line).toBe(locate(WIDGET_TS, 'createValidateFn<Widget>()').line);
       });
 
       it('validates RE2-unchecked pattern samples in JS, reporting a failing sample as FMT001 under runtypes/format at the definition site', () => {
@@ -276,7 +276,7 @@ describe.runIf(hasBinary())(
         // lookbehind, so it (not an FMT004 "cannot verify") is reported.
         expect(reports[0]!.message).toContain('nope');
         expect(reports[0]!.message).not.toContain('[FMT004]');
-        expect(reports[0]!.line).toBe(locate(UNCHECKED_PATTERN_TS, 'createValidate<TypeFormat').line);
+        expect(reports[0]!.line).toBe(locate(UNCHECKED_PATTERN_TS, 'createValidateFn<TypeFormat').line);
       });
     });
 

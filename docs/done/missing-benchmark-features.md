@@ -43,7 +43,7 @@ full build pipeline take, end to end, when ts-runtypes (or typia) is wired in.**
 
 For ts-runtypes that pipeline is:
 
-- tsgo type-check of the user's code (the inferred `T` at every `createValidate<T>()`
+- tsgo type-check of the user's code (the inferred `T` at every `createValidateFn<T>()`
   call site is fully resolved, just like in `bench:typecost`),
 - Go-resolver scan + emit (the Vite plugin spawns
   [`bin/ts-runtypes`](../../cmd/ts-runtypes/) per affected entry, walks the

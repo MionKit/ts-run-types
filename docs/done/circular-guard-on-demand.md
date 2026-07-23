@@ -89,7 +89,7 @@ resolver wires it by **type shape**, reusing the machinery that already exists:
 > already appends.
 
 The guarded families are unchanged (`circularGuardedFamilyTags`: `val`, `verr`,
-`tb`, and the four `createJsonEncoder` composites `jeCL`/`jeMU`/`jeDI`/`jeCO`).
+`tb`, and the four `createJsonEncoderFn` composites `jeCL`/`jeMU`/`jeDI`/`jeCO`).
 Result: the walker's pure-fn module registers precisely when a cycle-capable
 `createX` entry registers, and never otherwise.
 

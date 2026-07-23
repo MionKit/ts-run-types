@@ -64,7 +64,7 @@ correctly flagged the dangling reference as JCP001.
    drop Warnings compact was swallowing (a dropped method now warns PJS011 / RJ011 like
    its sibling).
 2. **Diagnostic hardening** — `AssertCompositeSoftDeps` now takes `ProvenanceSites` and
-   fans a breach out one diagnostic per demanding `createJsonEncoder` / `createJsonDecoder`
+   fans a breach out one diagnostic per demanding `createJsonEncoderFn` / `createJsonDecoderFn`
    call site (anchored file:line:col), and carries the offending type id as a third
    message arg (`JCP001` template `{2}`). A future invariant breach is now reproducible
    from the user's source instead of a file-less internal error with opaque cache keys.

@@ -115,7 +115,7 @@ export function titleFor(c: AssertableCase, key: VariantKey): string {
 // validate family — 5 variants
 // =========================================================================
 
-/** Static form: createValidate<T>(). **/
+/** Static form: createValidateFn<T>(). **/
 export function assertValidateStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.validate);
   if (!factory) return;
@@ -133,7 +133,7 @@ export function assertValidateStatic(c: AssertableCase): void {
   });
 }
 
-/** Reflect form: createValidate(value). T inferred from a runtime value's
+/** Reflect form: createValidateFn(value). T inferred from a runtime value's
  *  declared type; the value itself is discarded at runtime. **/
 export function assertValidateReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.validateReflect);
@@ -202,7 +202,7 @@ export function assertValidate(c: AssertableCase): void {
   assertValidateSchema(c);
 }
 
-/** Schema form: createValidate(<value-first builder schema>). Proves the
+/** Schema form: createValidateFn(<value-first builder schema>). Proves the
  *  value-first authoring path resolves a validator that agrees with the
  *  type-first surface on the same samples. **/
 export function assertValidateSchema(c: AssertableCase): void {
@@ -226,7 +226,7 @@ export function assertValidateSchema(c: AssertableCase): void {
 // getValidationErrors family — 5 variants
 // =========================================================================
 
-/** Static form: createGetValidationErrors<T>(). **/
+/** Static form: createGetValidationErrorsFn<T>(). **/
 export function assertGetValidationErrorsStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.getValidationErrors);
   if (!factory) return;
@@ -251,7 +251,7 @@ export function assertGetValidationErrorsStatic(c: AssertableCase): void {
   });
 }
 
-/** Reflect form: createGetValidationErrors(value). **/
+/** Reflect form: createGetValidationErrorsFn(value). **/
 export function assertGetValidationErrorsReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.getValidationErrorsReflect);
   if (!factory) return;
@@ -326,7 +326,7 @@ export function assertGetValidationErrorsDeserializeReflect(c: AssertableCase): 
   });
 }
 
-/** Schema form: createGetValidationErrors(<value-first builder schema>).
+/** Schema form: createGetValidationErrorsFn(<value-first builder schema>).
  *  A value-first leaf builder reflects the FORMAT of a type (e.g. `string()`
  *  → `TF.String<{}>`), so its error detail may carry format metadata the
  *  bare type-first error doesn't — we therefore assert the CONTRACT
@@ -381,7 +381,7 @@ function runMockPass(c: AssertableCase, mockFn: () => unknown, label: string): v
   }
 }
 
-/** Static form: createMockData<T>(). **/
+/** Static form: createMockDataFn<T>(). **/
 export function assertMockTypeStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.mockType);
   if (!factory) return;
@@ -394,7 +394,7 @@ export function assertMockTypeStatic(c: AssertableCase): void {
   runMockPass(c, factory(), 'static');
 }
 
-/** Reflect form: createMockData(value). **/
+/** Reflect form: createMockDataFn(value). **/
 export function assertMockTypeReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.mockTypeReflect);
   if (!factory) return;
@@ -463,11 +463,11 @@ function assertFormatGetValidationErrorsVia(
   });
 }
 
-/** Static form — type-first `createGetValidationErrors<Format…>()`. **/
+/** Static form — type-first `createGetValidationErrorsFn<Format…>()`. **/
 export function assertFormatGetValidationErrorsStatic(c: FormatValidationCase): void {
   assertFormatGetValidationErrorsVia(c, c.getValidationErrors, 'format');
 }
-/** Reflect form — `createGetValidationErrors(value)`, T inferred from a value. **/
+/** Reflect form — `createGetValidationErrorsFn(value)`, T inferred from a value. **/
 export function assertFormatGetValidationErrorsReflect(c: FormatValidationCase): void {
   assertFormatGetValidationErrorsVia(c, c.getValidationErrorsReflect, 'format-reflect');
 }

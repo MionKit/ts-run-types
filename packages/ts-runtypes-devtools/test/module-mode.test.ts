@@ -68,11 +68,11 @@ export const reflectedId = getRunTypeId(u);
   });
 
   register('allSingle createX: two validate sites dedupe into ONE family-bundle import statement', async () => {
-    const code = `import {createValidate} from '@ts-runtypes/core';
+    const code = `import {createValidateFn} from '@ts-runtypes/core';
 interface Alpha { alphaProp: string }
 interface Beta { betaProp: number }
-export const isAlpha = createValidate<Alpha>();
-export const isBeta = createValidate<Beta>();
+export const isAlpha = createValidateFn<Alpha>();
+export const isBeta = createValidateFn<Beta>();
 `;
     await withModeClient(MODULE_MODE_ALL_SINGLE, {'pair.ts': code}, async (client) => {
       const {code: out, sites} = await rewrite('pair.ts', code, client);

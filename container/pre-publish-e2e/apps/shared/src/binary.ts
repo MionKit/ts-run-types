@@ -1,6 +1,6 @@
 // Family 5 — Binary codec. Mirrors guide/binary-basics.ts + binary-reuse.ts.
 // Round-trip, the sizer, and buffer reuse via the 'intoBuffer' size strategy.
-import {createBinaryEncoder, createBinaryDecoder, createBinarySizer} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createBinaryDecoderFn, createBinarySizerFn} from '@ts-runtypes/core';
 import {type CheckResult, ok} from './check';
 
 export interface Telemetry {
@@ -15,12 +15,12 @@ interface Tick {
   price: number;
 }
 
-export const encodeTelemetry = createBinaryEncoder<Telemetry>();
-export const decodeTelemetry = createBinaryDecoder<Telemetry>();
+export const encodeTelemetry = createBinaryEncoderFn<Telemetry>();
+export const decodeTelemetry = createBinaryDecoderFn<Telemetry>();
 
-export const encodeTickInto = createBinaryEncoder<Tick>(undefined, {sizeStrategy: 'intoBuffer'});
-export const decodeTick = createBinaryDecoder<Tick>();
-export const sizeOfTick = createBinarySizer<Tick>();
+export const encodeTickInto = createBinaryEncoderFn<Tick>(undefined, {sizeStrategy: 'intoBuffer'});
+export const decodeTick = createBinaryDecoderFn<Tick>();
+export const sizeOfTick = createBinarySizerFn<Tick>();
 
 export function checkBinary(): CheckResult[] {
   const sample: Telemetry = {

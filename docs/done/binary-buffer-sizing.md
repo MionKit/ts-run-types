@@ -4,7 +4,7 @@
 > [docs/done/binary-sizing-modes.md](binary-sizing-modes.md).** This doc describes
 > the earlier baseline. Since then: the opt-in `{sizing: 'exact'}` became
 > `{sizing: 'precalculate'}`; the default `'adaptive'` became `'dynamic'`; a third
-> `'initial'` (caller `bufferSize`) mode and `createBinarySizer<T>()` shipped; the
+> `'initial'` (caller `bufferSize`) mode and `createBinarySizerFn<T>()` shipped; the
 > Go emitter now reserves at container boundaries for the inline writes; and the
 > **backstop retry loop was retired** (every write reserves via
 > `Ser.ensureCapacity?.(n)`, which is now a per-instance member — the grow function
@@ -16,7 +16,7 @@
 > capacity reservation, the streamlined backstop retry loop, and the opt-in
 > two-pass `'exact'` sizing all landed and are pinned by tests.
 
-This documents how `createBinaryEncoder<T>()` decides how big a buffer to
+This documents how `createBinaryEncoderFn<T>()` decides how big a buffer to
 allocate, the failure mode the fuzzer surfaced, and the change that fixed it.
 
 ## Where the code lives
@@ -89,7 +89,7 @@ the two changes reinforce each other.
 
 ### 3. Two-pass measure-then-allocate (opt-in) — `{sizing: 'exact'}`
 
-`createBinaryEncoder(value, {sizing: 'exact'})` runs a no-op measure pass
+`createBinaryEncoderFn(value, {sizing: 'exact'})` runs a no-op measure pass
 (`createSizingSerializer`, which points `view` at a zero-length scratch
 `DataView` and makes `ensureCapacity` a no-op) over the **same** emitted encode
 body, computes the precise on-wire byte count, then allocates exactly that. No
@@ -115,12 +115,12 @@ fires rarely, never for the string case, and never under `{sizing: 'exact'}`.
 
 ### Already possible: caller-supplied serializer
 
-`createBinaryEncoder(value, serializer)` accepts a pre-built `DataViewSerializer`
+`createBinaryEncoderFn(value, serializer)` accepts a pre-built `DataViewSerializer`
 as a second argument; the caller then owns sizing and end-of-payload semantics
 (the encoder records no history on their behalf). Building one at a known size
 and reusing it across encodes pools the buffer and avoids a fresh `ArrayBuffer`
 per call. The ergonomic wrappers for this path — a `bufferSize` encoder option
-and a `createBinarySizer<T>()` that returns the exact byte count — are **not yet
+and a `createBinarySizerFn<T>()` that returns the exact byte count — are **not yet
 built**; they are tracked in
 [binary-caller-supplied-buffer-size.md](../todos/binary-caller-supplied-buffer-size.md).
 

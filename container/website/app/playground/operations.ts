@@ -2,7 +2,7 @@
 // export; `fnKey` matches the marker overlay. `kind` selects how the engine
 // invokes it and how the result is shaped.
 //
-// Several JSON entries share the same `createJsonEncoder` / `createJsonDecoder`
+// Several JSON entries share the same `createJsonEncoderFn` / `createJsonDecoderFn`
 // factory but differ by `options` — the comptime `{strategy: '…'}` literal the
 // engine appends at the call site. That literal is folded into the injected fn
 // hash (never read at runtime), so each strategy resolves to its own cache entry,
@@ -40,12 +40,12 @@ export interface Operation {
 export const OPERATIONS: readonly Operation[] = [
   {
     key: 'validate',
-    factory: 'createValidate',
+    factory: 'createValidateFn',
     fnKey: 'val',
     kind: 'predicate',
     group: 'Validation',
     menuLabel: 'validate',
-    label: 'createValidate',
+    label: 'createValidateFn',
     blurb: 'Type guard for the type.',
     detail:
       'Returns a function that answers true when the value matches the type and false otherwise — the classic runtime type check.',
@@ -54,12 +54,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'errors',
-    factory: 'createGetValidationErrors',
+    factory: 'createGetValidationErrorsFn',
     fnKey: 'verr',
     kind: 'errors',
     group: 'Validation',
     menuLabel: 'get validation errors',
-    label: 'createGetValidationErrors',
+    label: 'createGetValidationErrorsFn',
     blurb: 'List every validation error.',
     detail:
       'Returns a function that reports each place the value diverges from the type. An empty list means the value is valid.',
@@ -68,12 +68,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'jsonEncoderClone',
-    factory: 'createJsonEncoder',
+    factory: 'createJsonEncoderFn',
     fnKey: 'jsonEncoder',
     kind: 'encode',
     group: 'JSON encode',
     menuLabel: 'clone (default)',
-    label: 'createJsonEncoder',
+    label: 'createJsonEncoderFn',
     blurb: 'Encode to JSON and removes unknown keys by cloning objects.',
     detail:
       'Clones the declared type, so unknown keys are dropped for free, then hands it to JSON.stringify. Never touches your input. This is the default strategy.',
@@ -83,12 +83,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'jsonEncoderMutate',
-    factory: 'createJsonEncoder',
+    factory: 'createJsonEncoderFn',
     fnKey: 'jsonEncoder',
     kind: 'encode',
     group: 'JSON encode',
     menuLabel: 'mutate',
-    label: 'createJsonEncoder',
+    label: 'createJsonEncoderFn',
     blurb: 'Encode in place, keeping unknown keys.',
     detail:
       'Transforms leaves in place with no clone allocation, so it is the fastest option — but it mutates the object you pass in and keeps undeclared keys on the wire. When no special encoding is needed, it is equivalent to a direct JSON.stringify.',
@@ -98,12 +98,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'jsonEncoderDirect',
-    factory: 'createJsonEncoder',
+    factory: 'createJsonEncoderFn',
     fnKey: 'jsonEncoder',
     kind: 'encode',
     group: 'JSON encode',
     menuLabel: 'direct',
-    label: 'createJsonEncoder',
+    label: 'createJsonEncoderFn',
     blurb: 'Single-pass encode straight to a string.',
     detail:
       'Serialises in one pass with no clone and no mutation, always stripping undeclared keys. Allocation-free, a touch slower on deeply nested shapes.',
@@ -113,12 +113,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'jsonEncoderCompact',
-    factory: 'createJsonEncoder',
+    factory: 'createJsonEncoderFn',
     fnKey: 'jsonEncoder',
     kind: 'encode',
     group: 'JSON encode',
     menuLabel: 'compact',
-    label: 'createJsonEncoder',
+    label: 'createJsonEncoderFn',
     blurb: 'Encode as positional arrays (smallest wire).',
     detail:
       'Emits each object as a positional array with no key names on the wire, producing the smallest JSON. Pairs with the compact decoder; both ends must share the type.',
@@ -128,12 +128,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'jsonDecoderStrip',
-    factory: 'createJsonDecoder',
+    factory: 'createJsonDecoderFn',
     fnKey: 'jsonDecoder',
     kind: 'jsonRoundtrip',
     group: 'JSON decode',
     menuLabel: 'remove unknown keys (default)',
-    label: 'createJsonDecoder',
+    label: 'createJsonDecoderFn',
     blurb: 'Decode JSON, dropping undeclared keys.',
     detail:
       'Parses the JSON and removes any key not declared in the type before rebuilding the value (undeclared keys become undefined). This is the default strategy. Your input is encoded first (mutate strategy, so extra keys reach the wire) and then decoded, so the full round trip is visible.',
@@ -144,12 +144,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'jsonDecoderPreserve',
-    factory: 'createJsonDecoder',
+    factory: 'createJsonDecoderFn',
     fnKey: 'jsonDecoder',
     kind: 'jsonRoundtrip',
     group: 'JSON decode',
     menuLabel: 'keep unknown keys',
-    label: 'createJsonDecoder',
+    label: 'createJsonDecoderFn',
     blurb: 'Decode JSON, keeping every key.',
     detail:
       'Parses the JSON and passes undeclared keys through untouched. Compare with the default: the same encoded wire keeps its extra keys here.',
@@ -160,12 +160,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'binaryEncoder',
-    factory: 'createBinaryEncoder',
+    factory: 'createBinaryEncoderFn',
     fnKey: 'tb',
     kind: 'binaryEncode',
     group: 'Binary',
     menuLabel: 'encode',
-    label: 'createBinaryEncoder',
+    label: 'createBinaryEncoderFn',
     blurb: 'Encode to a compact binary buffer.',
     detail:
       'Serialises the value into a tightly packed binary buffer, shown here as hex. Much smaller than JSON for the same data.',
@@ -174,12 +174,12 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     key: 'binaryDecoder',
-    factory: 'createBinaryDecoder',
+    factory: 'createBinaryDecoderFn',
     fnKey: 'fb',
     kind: 'binaryRoundtrip',
     group: 'Binary',
     menuLabel: 'decode',
-    label: 'createBinaryDecoder',
+    label: 'createBinaryDecoderFn',
     blurb: 'Decode a binary buffer back to data.',
     detail:
       'Reads the packed binary buffer back into the data type. Your input is encoded first and then decoded, so the full round trip is visible.',

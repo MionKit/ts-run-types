@@ -123,7 +123,7 @@ var registry = []Operation{
 	},
 
 	// JSON value-level primitives — the per-strategy prepareForJson / restoreFromJson
-	// building blocks the createJsonEncoder / createJsonDecoder composites wrap. They
+	// building blocks the createJsonEncoderFn / createJsonDecoderFn composites wrap. They
 	// have no dedicated createX factory, but a framework wrapper (mion) recovers any
 	// of them by naming its FnKey in an InjectTypeFnArgs<T, '<tag>'> marker and
 	// resolving the injected tuple through the generic getRTFunction resolver — so

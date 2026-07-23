@@ -12,12 +12,12 @@
 
 import {describe, test, expect} from 'vitest';
 import {
-  createValidate,
-  createGetValidationErrors,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
 } from '@ts-runtypes/core';
 
 // A NAMED all-stripped union — externalized as its own cache entry (the name
@@ -33,7 +33,7 @@ interface HasNativeUnion {
 
 describe('DataOnly union-member drop', () => {
   test('Date | symbol — symbol arm dropped, validates as Date', () => {
-    const isit = createValidate<Date | symbol>();
+    const isit = createValidateFn<Date | symbol>();
     expect(isit(new Date())).toBe(true);
     expect(isit(Symbol('x'))).toBe(false);
     expect(isit(123)).toBe(false);
@@ -41,46 +41,46 @@ describe('DataOnly union-member drop', () => {
 
   test('Date | symbol — JSON + binary round-trip the surviving Date', () => {
     const d = new Date('2020-01-01T00:00:00.000Z');
-    expect(createJsonDecoder<Date | symbol>()(createJsonEncoder<Date | symbol>()(d) as string)).toEqual(d);
-    expect(createBinaryDecoder<Date | symbol>()(createBinaryEncoder<Date | symbol>()(d))).toEqual(d);
+    expect(createJsonDecoderFn<Date | symbol>()(createJsonEncoderFn<Date | symbol>()(d) as string)).toEqual(d);
+    expect(createBinaryDecoderFn<Date | symbol>()(createBinaryEncoderFn<Date | symbol>()(d))).toEqual(d);
   });
 
   test('string | bigint | symbol — drops symbol, keeps string | bigint', () => {
-    const isit = createValidate<string | bigint | symbol>();
+    const isit = createValidateFn<string | bigint | symbol>();
     expect(isit('hello')).toBe(true);
     expect(isit(5n)).toBe(true);
     expect(isit(Symbol('x'))).toBe(false);
-    const enc = createJsonEncoder<string | bigint | symbol>();
-    const dec = createJsonDecoder<string | bigint | symbol>();
+    const enc = createJsonEncoderFn<string | bigint | symbol>();
+    const dec = createJsonDecoderFn<string | bigint | symbol>();
     expect(dec(enc('hello') as string)).toEqual('hello');
     expect(dec(enc(5n) as string)).toEqual(5n);
   });
 
   test('getValidationErrors reports the surviving-union shape, not a throw', () => {
-    const errs = createGetValidationErrors<Date | symbol>();
+    const errs = createGetValidationErrorsFn<Date | symbol>();
     expect(errs(new Date())).toEqual([]);
     expect(errs(Symbol('x')).length).toBeGreaterThan(0);
   });
 
   test('(Date | symbol)[] — element union drops symbol, round-trips Date[]', () => {
     const arr = [new Date('2020-01-01T00:00:00.000Z'), new Date('2021-06-15T12:00:00.000Z')];
-    const enc = createJsonEncoder<(Date | symbol)[]>();
-    const dec = createJsonDecoder<(Date | symbol)[]>();
+    const enc = createJsonEncoderFn<(Date | symbol)[]>();
+    const dec = createJsonDecoderFn<(Date | symbol)[]>();
     expect(dec(enc(arr) as string)).toEqual(arr);
   });
 });
 
 describe('DataOnly collapse-to-never / empty still throws', () => {
   test('all members of a union stripped (DataOnly = never)', () => {
-    expect(() => createValidate<symbol | (() => void)>()).toThrow();
-    expect(() => createJsonEncoder<symbol | (() => void)>()).toThrow();
+    expect(() => createValidateFn<symbol | (() => void)>()).toThrow();
+    expect(() => createJsonEncoderFn<symbol | (() => void)>()).toThrow();
   });
 
   test('array / tuple / Map / Set whose element collapses to never', () => {
-    expect(() => createJsonEncoder<symbol[]>()).toThrow();
-    expect(() => createJsonEncoder<[string, symbol]>()).toThrow();
-    expect(() => createJsonEncoder<Map<string, symbol>>()).toThrow();
-    expect(() => createJsonEncoder<Set<symbol>>()).toThrow();
+    expect(() => createJsonEncoderFn<symbol[]>()).toThrow();
+    expect(() => createJsonEncoderFn<[string, symbol]>()).toThrow();
+    expect(() => createJsonEncoderFn<Map<string, symbol>>()).toThrow();
+    expect(() => createJsonEncoderFn<Set<symbol>>()).toThrow();
   });
 
   // Regression: an all-stripped union at a NESTED, EXTERNALIZED position.
@@ -95,19 +95,19 @@ describe('DataOnly collapse-to-never / empty still throws', () => {
   test('all-stripped union at a nested externalized property still throws (gate-elision regression)', () => {
     const buf = new ArrayBuffer(4);
     expect(() => {
-      const encode = createJsonEncoder<HasNativeUnion>(undefined, {strategy: 'mutate'});
+      const encode = createJsonEncoderFn<HasNativeUnion>(undefined, {strategy: 'mutate'});
       return encode({x: buf, y: 1} as HasNativeUnion);
     }).toThrow();
     expect(() => {
-      const encode = createJsonEncoder<HasNativeUnion>(); // clone (default)
+      const encode = createJsonEncoderFn<HasNativeUnion>(); // clone (default)
       return encode({x: buf, y: 1} as HasNativeUnion);
     }).toThrow();
     expect(() => {
-      const encode = createJsonEncoder<HasNativeUnion>(undefined, {strategy: 'direct'});
+      const encode = createJsonEncoderFn<HasNativeUnion>(undefined, {strategy: 'direct'});
       return encode({x: buf, y: 1} as HasNativeUnion);
     }).toThrow();
     expect(() => {
-      const encode = createBinaryEncoder<HasNativeUnion>();
+      const encode = createBinaryEncoderFn<HasNativeUnion>();
       return encode({x: buf, y: 1} as HasNativeUnion);
     }).toThrow();
   });

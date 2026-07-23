@@ -3,7 +3,7 @@
 // type id) for every case, reusing each case's EXISTING thunks (no new per-case
 // data). Two reuse mechanisms, one per suite family:
 //
-//  - validators (validate / getValidationErrors): `createValidate` returns the CACHED
+//  - validators (validate / getValidationErrors): `createValidateFn` returns the CACHED
 //    factory for a structural id, so reference identity (`toBe`) between the
 //    schema-form factory and the type-form factory IS a same-id assertion — the
 //    proven `.toBe` cached-factory idiom, generalised here to every case. Same
@@ -16,9 +16,9 @@
 //
 // Compile options (`noLiterals` / `noIsArrayCheck`) are folded into the cached
 // factory's variant key, so an option-bearing type-first form converges only with
-// a schema form that passes the SAME options — e.g. `createValidate<2>(…,
+// a schema form that passes the SAME options — e.g. `createValidateFn<2>(…,
 // {noLiterals: true})` resolves the `itNL_<literal-2 id>` variant, matched by
-// `createValidate(RT.literal(2), {noLiterals: true})`, NOT by plain `RT.number()`.
+// `createValidateFn(RT.literal(2), {noLiterals: true})`, NOT by plain `RT.number()`.
 // The validation cases mirror their options on the schema thunk, so no special
 // casing is needed here.
 
@@ -60,7 +60,7 @@ export function assertValidatorIdIntegrity(c: ValidationCase): void {
   }
 }
 
-/** DataOnly-equivalence: the validator built from `createValidate<DataOnly<T>>()`
+/** DataOnly-equivalence: the validator built from `createValidateFn<DataOnly<T>>()`
  *  must produce the SAME verdicts on the case's samples as the bare-`T`
  *  validator — proving the `DataOnly` type mapping drops exactly the members
  *  the validator emitter drops.

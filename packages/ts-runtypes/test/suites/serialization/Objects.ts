@@ -1,9 +1,9 @@
 import * as TF from '@ts-runtypes/core/formats';
 import {
-  createBinaryDecoder,
-  createBinaryEncoder,
-  createJsonDecoder,
-  createJsonEncoder,
+  createBinaryDecoderFn,
+  createBinaryEncoderFn,
+  createJsonDecoderFn,
+  createJsonEncoderFn,
   registerClassSerializer,
 } from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
@@ -16,7 +16,7 @@ export const OBJECTS = {
       'Object literal mixing a Date field, bigint, number, string, null, a string array, a weird-named key, and an optional string, exercising Date and bigint wire round-trip plus an optional prop present in one sample and absent in the other.',
     serializeNotes: 'Date serialises to ISO string and restores to a Date; bigint round-trips through both JSON and binary.',
     mutateEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -27,7 +27,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -38,7 +38,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -49,7 +49,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(undefined, {strategy: 'direct'}),
     compactEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -60,7 +60,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(undefined, {strategy: 'compact'}),
     stripDecoder: () =>
-      createJsonDecoder<{
+      createJsonDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -71,7 +71,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(),
     preserveDecoder: () =>
-      createJsonDecoder<{
+      createJsonDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -82,7 +82,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(undefined, {strategy: 'preserve'}),
     compactDecoder: () =>
-      createJsonDecoder<{
+      createJsonDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -93,7 +93,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(undefined, {strategy: 'compact'}),
     binaryEncoder: () =>
-      createBinaryEncoder<{
+      createBinaryEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -104,7 +104,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(),
     binaryDecoder: () =>
-      createBinaryDecoder<{
+      createBinaryDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -115,7 +115,7 @@ export const OBJECTS = {
         optionalString?: string;
       }>(),
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -128,7 +128,7 @@ export const OBJECTS = {
         })
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -141,7 +141,7 @@ export const OBJECTS = {
         })
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -154,7 +154,7 @@ export const OBJECTS = {
         })
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -193,7 +193,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createJsonEncoder<ManyOptional>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ManyOptional>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       type N = number;
@@ -204,7 +204,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createJsonEncoder<ManyOptional>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ManyOptional>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       type N = number;
@@ -215,7 +215,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createJsonEncoder<ManyOptional>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ManyOptional>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       type N = number;
@@ -226,7 +226,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createJsonEncoder<ManyOptional>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ManyOptional>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       type N = number;
@@ -237,7 +237,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createJsonDecoder<ManyOptional>();
+      return createJsonDecoderFn<ManyOptional>();
     },
     preserveDecoder: () => {
       type N = number;
@@ -248,7 +248,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createJsonDecoder<ManyOptional>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ManyOptional>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       type N = number;
@@ -259,7 +259,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createJsonDecoder<ManyOptional>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ManyOptional>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       type N = number;
@@ -270,7 +270,7 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createBinaryEncoder<ManyOptional>();
+      return createBinaryEncoderFn<ManyOptional>();
     },
     binaryDecoder: () => {
       type N = number;
@@ -281,11 +281,11 @@ export const OBJECTS = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-      return createBinaryDecoder<ManyOptional>();
+      return createBinaryDecoderFn<ManyOptional>();
     },
     schemaEncoder: () => {
       const n = () => RT.optional(TF.number());
-      return createJsonEncoder(
+      return createJsonEncoderFn(
         RT.object({
           a0: n(),
           a1: n(),
@@ -324,7 +324,7 @@ export const OBJECTS = {
     },
     schemaDecoder: () => {
       const n = () => RT.optional(TF.number());
-      return createJsonDecoder(
+      return createJsonDecoderFn(
         RT.object({
           a0: n(),
           a1: n(),
@@ -363,7 +363,7 @@ export const OBJECTS = {
     },
     schemaBinaryEncoder: () => {
       const n = () => RT.optional(TF.number());
-      return createBinaryEncoder(
+      return createBinaryEncoderFn(
         RT.object({
           a0: n(),
           a1: n(),
@@ -402,7 +402,7 @@ export const OBJECTS = {
     },
     schemaBinaryDecoder: () => {
       const n = () => RT.optional(TF.number());
-      return createBinaryDecoder(
+      return createBinaryDecoderFn(
         RT.object({
           a0: n(),
           a1: n(),
@@ -467,7 +467,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<MySerializableClass>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       class MySerializableClass {
@@ -485,7 +485,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<MySerializableClass>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       class MySerializableClass {
@@ -503,7 +503,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<MySerializableClass>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       class MySerializableClass {
@@ -521,7 +521,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<MySerializableClass>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       class MySerializableClass {
@@ -539,7 +539,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder<MySerializableClass>();
+      return createJsonDecoderFn<MySerializableClass>();
     },
     preserveDecoder: () => {
       class MySerializableClass {
@@ -557,7 +557,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder<MySerializableClass>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<MySerializableClass>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       class MySerializableClass {
@@ -575,7 +575,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder<MySerializableClass>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<MySerializableClass>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class MySerializableClass {
@@ -593,7 +593,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryEncoder<MySerializableClass>();
+      return createBinaryEncoderFn<MySerializableClass>();
     },
     binaryDecoder: () => {
       class MySerializableClass {
@@ -611,7 +611,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryDecoder<MySerializableClass>();
+      return createBinaryDecoderFn<MySerializableClass>();
     },
     schemaEncoder: () => {
       class MySerializableClass {
@@ -629,7 +629,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder(RT.classType(MySerializableClass));
+      return createJsonEncoderFn(RT.classType(MySerializableClass));
     },
     schemaDecoder: () => {
       class MySerializableClass {
@@ -647,7 +647,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder(RT.classType(MySerializableClass));
+      return createJsonDecoderFn(RT.classType(MySerializableClass));
     },
     schemaBinaryEncoder: () => {
       class MySerializableClass {
@@ -665,7 +665,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryEncoder(RT.classType(MySerializableClass));
+      return createBinaryEncoderFn(RT.classType(MySerializableClass));
     },
     schemaBinaryDecoder: () => {
       class MySerializableClass {
@@ -683,7 +683,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryDecoder(RT.classType(MySerializableClass));
+      return createBinaryDecoderFn(RT.classType(MySerializableClass));
     },
     getTestData: () => {
       class MySerializableClass {
@@ -719,7 +719,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ExtendedClass>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       class BaseClass {
@@ -728,7 +728,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ExtendedClass>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       class BaseClass {
@@ -737,7 +737,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ExtendedClass>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       class BaseClass {
@@ -746,7 +746,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ExtendedClass>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       class BaseClass {
@@ -755,7 +755,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonDecoder<ExtendedClass>();
+      return createJsonDecoderFn<ExtendedClass>();
     },
     preserveDecoder: () => {
       class BaseClass {
@@ -764,7 +764,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonDecoder<ExtendedClass>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ExtendedClass>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       class BaseClass {
@@ -773,7 +773,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonDecoder<ExtendedClass>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ExtendedClass>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class BaseClass {
@@ -782,7 +782,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createBinaryEncoder<ExtendedClass>();
+      return createBinaryEncoderFn<ExtendedClass>();
     },
     binaryDecoder: () => {
       class BaseClass {
@@ -791,7 +791,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createBinaryDecoder<ExtendedClass>();
+      return createBinaryDecoderFn<ExtendedClass>();
     },
     schemaEncoder: () => {
       class BaseClass {
@@ -800,7 +800,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonEncoder(RT.classType(ExtendedClass));
+      return createJsonEncoderFn(RT.classType(ExtendedClass));
     },
     schemaDecoder: () => {
       class BaseClass {
@@ -809,7 +809,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createJsonDecoder(RT.classType(ExtendedClass));
+      return createJsonDecoderFn(RT.classType(ExtendedClass));
     },
     schemaBinaryEncoder: () => {
       class BaseClass {
@@ -818,7 +818,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createBinaryEncoder(RT.classType(ExtendedClass));
+      return createBinaryEncoderFn(RT.classType(ExtendedClass));
     },
     schemaBinaryDecoder: () => {
       class BaseClass {
@@ -827,7 +827,7 @@ export const OBJECTS = {
       class ExtendedClass extends BaseClass {
         extendedProp: string = 'extended';
       }
-      return createBinaryDecoder(RT.classType(ExtendedClass));
+      return createBinaryDecoderFn(RT.classType(ExtendedClass));
     },
     getTestData: () => {
       class BaseClass {
@@ -859,7 +859,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<NonSerializableClass>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       class NonSerializableClass {
@@ -873,7 +873,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<NonSerializableClass>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       class NonSerializableClass {
@@ -887,7 +887,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<NonSerializableClass>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       class NonSerializableClass {
@@ -901,7 +901,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<NonSerializableClass>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       class NonSerializableClass {
@@ -915,7 +915,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder<NonSerializableClass>();
+      return createJsonDecoderFn<NonSerializableClass>();
     },
     preserveDecoder: () => {
       class NonSerializableClass {
@@ -929,7 +929,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder<NonSerializableClass>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<NonSerializableClass>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       class NonSerializableClass {
@@ -943,7 +943,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder<NonSerializableClass>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<NonSerializableClass>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class NonSerializableClass {
@@ -957,7 +957,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryEncoder<NonSerializableClass>();
+      return createBinaryEncoderFn<NonSerializableClass>();
     },
     binaryDecoder: () => {
       class NonSerializableClass {
@@ -971,7 +971,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryDecoder<NonSerializableClass>();
+      return createBinaryDecoderFn<NonSerializableClass>();
     },
     schemaEncoder: () => {
       class NonSerializableClass {
@@ -985,7 +985,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonEncoder(RT.classType(NonSerializableClass));
+      return createJsonEncoderFn(RT.classType(NonSerializableClass));
     },
     schemaDecoder: () => {
       class NonSerializableClass {
@@ -999,7 +999,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createJsonDecoder(RT.classType(NonSerializableClass));
+      return createJsonDecoderFn(RT.classType(NonSerializableClass));
     },
     schemaBinaryEncoder: () => {
       class NonSerializableClass {
@@ -1013,7 +1013,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryEncoder(RT.classType(NonSerializableClass));
+      return createBinaryEncoderFn(RT.classType(NonSerializableClass));
     },
     schemaBinaryDecoder: () => {
       class NonSerializableClass {
@@ -1027,7 +1027,7 @@ export const OBJECTS = {
           return `${this.name} ${this.surname}`;
         }
       }
-      return createBinaryDecoder(RT.classType(NonSerializableClass));
+      return createBinaryDecoderFn(RT.classType(NonSerializableClass));
     },
     getTestData: () => {
       class NonSerializableClass {
@@ -1051,19 +1051,19 @@ export const OBJECTS = {
     description:
       'Object with an explicitly `undefined`-typed property alongside string and number fields, where the undefined-valued key is omitted from JSON output so the restored shape drops it (asymmetric deserializedValues).',
     serializeNotes: 'An undefined-valued property is omitted on the wire and absent after the round-trip.',
-    mutateEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
-    preserveDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<{a: string; b: number; c: undefined}>(),
-    binaryDecoder: () => createBinaryDecoder<{a: string; b: number; c: undefined}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
-    schemaDecoder: () => createJsonDecoder(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
+    mutateEncoder: () => createJsonEncoderFn<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<{a: string; b: number; c: undefined}>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<{a: string; b: number; c: undefined}>(),
+    preserveDecoder: () => createJsonDecoderFn<{a: string; b: number; c: undefined}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<{a: string; b: number; c: undefined}>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<{a: string; b: number; c: undefined}>(),
+    binaryDecoder: () => createBinaryDecoderFn<{a: string; b: number; c: undefined}>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
+    schemaDecoder: () => createJsonDecoderFn(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.object({a: TF.string(), b: TF.number(), c: RT.literal(undefined)})),
     getTestData: () => ({
       values: [{a: 'hello', b: 42, c: undefined}],
       deserializedValues: [{a: 'hello', b: 42}],
@@ -1073,38 +1073,38 @@ export const OBJECTS = {
     title: 'Optional props order',
     description:
       'Object with a required string followed by an optional string whose samples cover the optional prop present and absent, checking each round-trips without reordering or dropping the required field.',
-    mutateEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
-    preserveDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<{a: string; b?: string}>(),
-    binaryDecoder: () => createBinaryDecoder<{a: string; b?: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
-    schemaDecoder: () => createJsonDecoder(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
+    mutateEncoder: () => createJsonEncoderFn<{a: string; b?: string}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<{a: string; b?: string}>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<{a: string; b?: string}>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<{a: string; b?: string}>(),
+    preserveDecoder: () => createJsonDecoderFn<{a: string; b?: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<{a: string; b?: string}>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<{a: string; b?: string}>(),
+    binaryDecoder: () => createBinaryDecoderFn<{a: string; b?: string}>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
+    schemaDecoder: () => createJsonDecoderFn(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.object({a: TF.string(), b: RT.optional(TF.string())})),
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
   },
   all_optional_fields: {
     title: 'All optional fields',
     description:
       'Object where every property is an optional string, with samples covering both present, one present, and the empty object to verify a fully-optional shape round-trips with any subset of keys.',
-    mutateEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
-    preserveDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<{a?: string; b?: string}>(),
-    binaryDecoder: () => createBinaryDecoder<{a?: string; b?: string}>(),
-    schemaEncoder: () => createJsonEncoder(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
-    schemaDecoder: () => createJsonDecoder(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
+    mutateEncoder: () => createJsonEncoderFn<{a?: string; b?: string}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<{a?: string; b?: string}>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<{a?: string; b?: string}>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<{a?: string; b?: string}>(),
+    preserveDecoder: () => createJsonDecoderFn<{a?: string; b?: string}>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<{a?: string; b?: string}>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<{a?: string; b?: string}>(),
+    binaryDecoder: () => createBinaryDecoderFn<{a?: string; b?: string}>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
+    schemaDecoder: () => createJsonDecoderFn(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.string())})),
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
   },
   extras_passthrough_unsafe: {
@@ -1116,7 +1116,7 @@ export const OBJECTS = {
       'Decode split: the `preserve` decoder passes undeclared keys through to the restored value, while the default `strip` decoder nukes them to `undefined`.',
     ],
     mutateEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1129,7 +1129,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1142,7 +1142,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'clone'}),
     directEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1155,7 +1155,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'direct'}),
     compactEncoder: () =>
-      createJsonEncoder<{
+      createJsonEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1168,7 +1168,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'compact'}),
     stripDecoder: () =>
-      createJsonDecoder<{
+      createJsonDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1181,7 +1181,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(),
     preserveDecoder: () =>
-      createJsonDecoder<{
+      createJsonDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1194,7 +1194,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'preserve'}),
     compactDecoder: () =>
-      createJsonDecoder<{
+      createJsonDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1207,7 +1207,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'compact'}),
     binaryEncoder: () =>
-      createBinaryEncoder<{
+      createBinaryEncoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1220,7 +1220,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(),
     binaryDecoder: () =>
-      createBinaryDecoder<{
+      createBinaryDecoderFn<{
         startDate: Date;
         quantity: number;
         name: string;
@@ -1233,7 +1233,7 @@ export const OBJECTS = {
         '?other weird p': {c: string; d: number};
       }>(),
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -1248,7 +1248,7 @@ export const OBJECTS = {
         })
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -1263,7 +1263,7 @@ export const OBJECTS = {
         })
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -1278,7 +1278,7 @@ export const OBJECTS = {
         })
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.object({
           startDate: TF.date(),
           quantity: TF.number(),
@@ -1353,79 +1353,79 @@ export const OBJECTS = {
         name: string;
         child?: ICircular;
       }
-      return createJsonEncoder<ICircular>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ICircular>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createJsonEncoder<ICircular>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ICircular>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createJsonEncoder<ICircular>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ICircular>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createJsonEncoder<ICircular>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ICircular>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createJsonDecoder<ICircular>();
+      return createJsonDecoderFn<ICircular>();
     },
     preserveDecoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createJsonDecoder<ICircular>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ICircular>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createJsonDecoder<ICircular>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ICircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createBinaryEncoder<ICircular>();
+      return createBinaryEncoderFn<ICircular>();
     },
     binaryDecoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
-      return createBinaryDecoder<ICircular>();
+      return createBinaryDecoderFn<ICircular>();
     },
     schemaEncoder: () => {
       const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
-      return createJsonEncoder(ic);
+      return createJsonEncoderFn(ic);
     },
     schemaDecoder: () => {
       const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
-      return createJsonDecoder(ic);
+      return createJsonDecoderFn(ic);
     },
     schemaBinaryEncoder: () => {
       const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
-      return createBinaryEncoder(ic);
+      return createBinaryEncoderFn(ic);
     },
     schemaBinaryDecoder: () => {
       const ic = RT.circular(RT.object({name: TF.string(), child: RT.optional(RT.self())}));
-      return createBinaryDecoder(ic);
+      return createBinaryDecoderFn(ic);
     },
     getTestData: () => ({
       values: [{name: 'leaf'}, {name: 'hello', child: {name: 'world'}}, {name: 'a', child: {name: 'b', child: {name: 'c'}}}],
@@ -1440,79 +1440,79 @@ export const OBJECTS = {
         name: string;
         children?: ICircularArray[];
       }
-      return createJsonEncoder<ICircularArray>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ICircularArray>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createJsonEncoder<ICircularArray>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ICircularArray>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createJsonEncoder<ICircularArray>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ICircularArray>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createJsonEncoder<ICircularArray>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ICircularArray>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createJsonDecoder<ICircularArray>();
+      return createJsonDecoderFn<ICircularArray>();
     },
     preserveDecoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createJsonDecoder<ICircularArray>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ICircularArray>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createJsonDecoder<ICircularArray>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ICircularArray>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createBinaryEncoder<ICircularArray>();
+      return createBinaryEncoderFn<ICircularArray>();
     },
     binaryDecoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
-      return createBinaryDecoder<ICircularArray>();
+      return createBinaryDecoderFn<ICircularArray>();
     },
     schemaEncoder: () => {
       const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
-      return createJsonEncoder(ica);
+      return createJsonEncoderFn(ica);
     },
     schemaDecoder: () => {
       const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
-      return createJsonDecoder(ica);
+      return createJsonDecoderFn(ica);
     },
     schemaBinaryEncoder: () => {
       const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
-      return createBinaryEncoder(ica);
+      return createBinaryEncoderFn(ica);
     },
     schemaBinaryDecoder: () => {
       const ica = RT.circular(RT.object({name: TF.string(), children: RT.optional(RT.array(RT.self()))}));
-      return createBinaryDecoder(ica);
+      return createBinaryDecoderFn(ica);
     },
     getTestData: () => ({
       values: [
@@ -1535,7 +1535,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ICircularDeep>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface ICircularDeep {
@@ -1546,7 +1546,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ICircularDeep>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface ICircularDeep {
@@ -1557,7 +1557,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ICircularDeep>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface ICircularDeep {
@@ -1568,7 +1568,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ICircularDeep>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface ICircularDeep {
@@ -1579,7 +1579,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createJsonDecoder<ICircularDeep>();
+      return createJsonDecoderFn<ICircularDeep>();
     },
     preserveDecoder: () => {
       interface ICircularDeep {
@@ -1590,7 +1590,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createJsonDecoder<ICircularDeep>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ICircularDeep>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface ICircularDeep {
@@ -1601,7 +1601,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createJsonDecoder<ICircularDeep>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ICircularDeep>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularDeep {
@@ -1612,7 +1612,7 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createBinaryEncoder<ICircularDeep>();
+      return createBinaryEncoderFn<ICircularDeep>();
     },
     binaryDecoder: () => {
       interface ICircularDeep {
@@ -1623,31 +1623,31 @@ export const OBJECTS = {
           child?: ICircularDeep;
         };
       }
-      return createBinaryDecoder<ICircularDeep>();
+      return createBinaryDecoderFn<ICircularDeep>();
     },
     schemaEncoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      return createJsonEncoder(icd);
+      return createJsonEncoderFn(icd);
     },
     schemaDecoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      return createJsonDecoder(icd);
+      return createJsonDecoderFn(icd);
     },
     schemaBinaryEncoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      return createBinaryEncoder(icd);
+      return createBinaryEncoderFn(icd);
     },
     schemaBinaryDecoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
-      return createBinaryDecoder(icd);
+      return createBinaryDecoderFn(icd);
     },
     getTestData: () => ({
       values: [
@@ -1675,7 +1675,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<RootNotCircular>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface ICircularDeep {
@@ -1687,7 +1687,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<RootNotCircular>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface ICircularDeep {
@@ -1699,7 +1699,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<RootNotCircular>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface ICircularDeep {
@@ -1711,7 +1711,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<RootNotCircular>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface ICircularDeep {
@@ -1723,7 +1723,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createJsonDecoder<RootNotCircular>();
+      return createJsonDecoderFn<RootNotCircular>();
     },
     preserveDecoder: () => {
       interface ICircularDeep {
@@ -1735,7 +1735,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createJsonDecoder<RootNotCircular>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<RootNotCircular>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface ICircularDeep {
@@ -1747,7 +1747,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createJsonDecoder<RootNotCircular>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<RootNotCircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularDeep {
@@ -1759,7 +1759,7 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createBinaryEncoder<RootNotCircular>();
+      return createBinaryEncoderFn<RootNotCircular>();
     },
     binaryDecoder: () => {
       interface ICircularDeep {
@@ -1771,35 +1771,35 @@ export const OBJECTS = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createBinaryDecoder<RootNotCircular>();
+      return createBinaryDecoderFn<RootNotCircular>();
     },
     schemaEncoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createJsonEncoder(root);
+      return createJsonEncoderFn(root);
     },
     schemaDecoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createJsonDecoder(root);
+      return createJsonDecoderFn(root);
     },
     schemaBinaryEncoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createBinaryEncoder(root);
+      return createBinaryEncoderFn(root);
     },
     schemaBinaryDecoder: () => {
       const icd = RT.circular(
         RT.object({name: TF.string(), big: TF.bigInt(), embedded: RT.object({hello: TF.string(), child: RT.optional(RT.self())})})
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createBinaryDecoder(root);
+      return createBinaryDecoderFn(root);
     },
     getTestData: () => ({
       values: [
@@ -1839,7 +1839,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createJsonEncoder<RootCircular>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<RootCircular>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface ICircularDeep {
@@ -1860,7 +1860,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createJsonEncoder<RootCircular>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<RootCircular>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface ICircularDeep {
@@ -1881,7 +1881,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createJsonEncoder<RootCircular>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<RootCircular>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface ICircularDeep {
@@ -1902,7 +1902,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createJsonEncoder<RootCircular>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<RootCircular>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface ICircularDeep {
@@ -1923,7 +1923,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createJsonDecoder<RootCircular>();
+      return createJsonDecoderFn<RootCircular>();
     },
     preserveDecoder: () => {
       interface ICircularDeep {
@@ -1944,7 +1944,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createJsonDecoder<RootCircular>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<RootCircular>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface ICircularDeep {
@@ -1965,7 +1965,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createJsonDecoder<RootCircular>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<RootCircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularDeep {
@@ -1986,7 +1986,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createBinaryEncoder<RootCircular>();
+      return createBinaryEncoderFn<RootCircular>();
     },
     binaryDecoder: () => {
       interface ICircularDeep {
@@ -2007,7 +2007,7 @@ export const OBJECTS = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createBinaryDecoder<RootCircular>();
+      return createBinaryDecoderFn<RootCircular>();
     },
     schemaEncoder: () => {
       const icd = RT.circular(
@@ -2025,7 +2025,7 @@ export const OBJECTS = {
       const root = RT.circular(
         RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
-      return createJsonEncoder(root);
+      return createJsonEncoderFn(root);
     },
     schemaDecoder: () => {
       const icd = RT.circular(
@@ -2043,7 +2043,7 @@ export const OBJECTS = {
       const root = RT.circular(
         RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
-      return createJsonDecoder(root);
+      return createJsonDecoderFn(root);
     },
     schemaBinaryEncoder: () => {
       const icd = RT.circular(
@@ -2061,7 +2061,7 @@ export const OBJECTS = {
       const root = RT.circular(
         RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
-      return createBinaryEncoder(root);
+      return createBinaryEncoderFn(root);
     },
     schemaBinaryDecoder: () => {
       const icd = RT.circular(
@@ -2079,7 +2079,7 @@ export const OBJECTS = {
       const root = RT.circular(
         RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(RT.self()), ciDate: icDate})
       );
-      return createBinaryDecoder(root);
+      return createBinaryDecoderFn(root);
     },
     getTestData: () => {
       interface ICircularDeep {
@@ -2138,68 +2138,68 @@ export const OBJECTS = {
         name: string;
         methodProp: () => any;
       }
-      return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ObjectWithMethods>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ObjectWithMethods>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ObjectWithMethods>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ObjectWithMethods>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createJsonDecoder<ObjectWithMethods>();
+      return createJsonDecoderFn<ObjectWithMethods>();
     },
     preserveDecoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createJsonDecoder<ObjectWithMethods>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ObjectWithMethods>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createJsonDecoder<ObjectWithMethods>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ObjectWithMethods>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createBinaryEncoder<ObjectWithMethods>();
+      return createBinaryEncoderFn<ObjectWithMethods>();
     },
     binaryDecoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
-      return createBinaryDecoder<ObjectWithMethods>();
+      return createBinaryDecoderFn<ObjectWithMethods>();
     },
-    schemaEncoder: () => createJsonEncoder(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
-    schemaDecoder: () => createJsonDecoder(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
+    schemaEncoder: () => createJsonEncoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
+    schemaDecoder: () => createJsonDecoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
     getTestData: () => {
       interface ObjectWithMethods {
         name: string;
@@ -2237,7 +2237,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createJsonEncoder<Ledger>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Ledger>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       class Ledger {
@@ -2252,7 +2252,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createJsonEncoder<Ledger>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Ledger>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       class Ledger {
@@ -2267,7 +2267,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createJsonEncoder<Ledger>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Ledger>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       class Ledger {
@@ -2282,7 +2282,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createJsonEncoder<Ledger>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Ledger>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       class Ledger {
@@ -2297,7 +2297,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createJsonDecoder<Ledger>();
+      return createJsonDecoderFn<Ledger>();
     },
     preserveDecoder: () => {
       class Ledger {
@@ -2312,7 +2312,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createJsonDecoder<Ledger>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Ledger>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       class Ledger {
@@ -2327,7 +2327,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createJsonDecoder<Ledger>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Ledger>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class Ledger {
@@ -2342,7 +2342,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createBinaryEncoder<Ledger>();
+      return createBinaryEncoderFn<Ledger>();
     },
     binaryDecoder: () => {
       class Ledger {
@@ -2357,7 +2357,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Ledger, {deserialize: (d) => new Ledger(d.owner, d.opened, d.balance, d.tags)});
-      return createBinaryDecoder<Ledger>();
+      return createBinaryDecoderFn<Ledger>();
     },
     schemaEncoder: 'not-supported',
     schemaDecoder: 'not-supported',
@@ -2398,7 +2398,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createJsonEncoder<{name: string; origin: Vertex}>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<{name: string; origin: Vertex}>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       class Vertex {
@@ -2411,7 +2411,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createJsonEncoder<{name: string; origin: Vertex}>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<{name: string; origin: Vertex}>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       class Vertex {
@@ -2424,7 +2424,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createJsonEncoder<{name: string; origin: Vertex}>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<{name: string; origin: Vertex}>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       class Vertex {
@@ -2437,7 +2437,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createJsonEncoder<{name: string; origin: Vertex}>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<{name: string; origin: Vertex}>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       class Vertex {
@@ -2450,7 +2450,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createJsonDecoder<{name: string; origin: Vertex}>();
+      return createJsonDecoderFn<{name: string; origin: Vertex}>();
     },
     preserveDecoder: () => {
       class Vertex {
@@ -2463,7 +2463,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createJsonDecoder<{name: string; origin: Vertex}>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<{name: string; origin: Vertex}>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       class Vertex {
@@ -2476,7 +2476,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createJsonDecoder<{name: string; origin: Vertex}>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<{name: string; origin: Vertex}>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class Vertex {
@@ -2489,7 +2489,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createBinaryEncoder<{name: string; origin: Vertex}>();
+      return createBinaryEncoderFn<{name: string; origin: Vertex}>();
     },
     binaryDecoder: () => {
       class Vertex {
@@ -2502,7 +2502,7 @@ export const OBJECTS = {
         }
       }
       registerClassSerializer(Vertex, {deserialize: (d) => new Vertex(d.x, d.y)});
-      return createBinaryDecoder<{name: string; origin: Vertex}>();
+      return createBinaryDecoderFn<{name: string; origin: Vertex}>();
     },
     schemaEncoder: 'not-supported',
     schemaDecoder: 'not-supported',

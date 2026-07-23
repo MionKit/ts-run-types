@@ -97,9 +97,9 @@ createStandardSchema<string>();
       // Formatter-wrapped value-first call with a trailing comma in its OWN
       // argument list. The injected binding must NOT add a second comma after
       // the existing one — `f(user, , …)` is a syntax error.
-      'trailing-comma.ts': `import {createValidate} from '@ts-runtypes/core';
+      'trailing-comma.ts': `import {createValidateFn} from '@ts-runtypes/core';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
-export const isUser = createValidate(
+export const isUser = createValidateFn(
   user,
 );
 `,
@@ -114,7 +114,7 @@ export const isUser = createValidate(
         // empty argument anywhere in the rewritten output.
         expect(out).not.toMatch(/,\s*,/);
         // The binding lands at the close-paren position (right after the
-        // existing `user,`), padded so it occupies the id slot (createValidate
+        // existing `user,`), padded so it occupies the id slot (createValidateFn
         // is `val?, options?, id?` → one `undefined` placeholder), and the
         // closing `)` follows immediately. No leading comma is injected because
         // the source already supplies the separator.
@@ -122,10 +122,10 @@ export const isUser = createValidate(
         expect(out).toContain(`user,\nundefined, ${binding});`);
         // The injected call's argument list is well-formed: the close-paren
         // follows the binding with no empty argument before it (the bug emitted
-        // `createValidate(user, , undefined, …)`). Strip the TypeScript type
+        // `createValidateFn(user, , undefined, …)`). Strip the TypeScript type
         // annotation so the call statement parses as plain JS.
         const callJs = `const user = {id: 1, name: 'john'};\n${out.split('export const isUser = ')[1]}`;
-        expect(() => new Function('createValidate', `${callJs.replace(binding, 'null')}`)).not.toThrow();
+        expect(() => new Function('createValidateFn', `${callJs.replace(binding, 'null')}`)).not.toThrow();
       });
     }
   );

@@ -127,7 +127,7 @@ lane is meant for direct developer use with literals, so it does NOT need to be 
 
 Add a second function whose identity rides an INJECTED marker in the callee signature — mirroring
 `InjectRunTypeId<T>` / `InjectTypeFnArgs<T, Fn>`, so injection propagates through wrappers (the same
-reason `createValidate<T>` is wrappable):
+reason `createValidateFn<T>` is wrappable):
 
 ```ts
 registerAnonymousPureFn<F>(

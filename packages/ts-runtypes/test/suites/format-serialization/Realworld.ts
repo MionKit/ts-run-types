@@ -3,10 +3,10 @@ import type {SerializationCase} from './types.ts';
 import * as RT from '@ts-runtypes/core/schema';
 import '@ts-runtypes/core/formats';
 import {
-  createBinaryDecoder,
-  createBinaryEncoder,
-  createJsonDecoder,
-  createJsonEncoder,
+  createBinaryDecoderFn,
+  createBinaryEncoderFn,
+  createJsonDecoderFn,
+  createJsonEncoderFn,
   registerClassSerializer,
 } from '@ts-runtypes/core';
 
@@ -29,7 +29,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createJsonEncoder<User>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<User>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface User {
@@ -37,7 +37,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createJsonEncoder<User>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<User>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface User {
@@ -45,7 +45,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createJsonEncoder<User>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<User>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface User {
@@ -53,7 +53,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createJsonEncoder<User>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<User>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface User {
@@ -61,7 +61,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createJsonDecoder<User>();
+      return createJsonDecoderFn<User>();
     },
     preserveDecoder: () => {
       interface User {
@@ -69,7 +69,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createJsonDecoder<User>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<User>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface User {
@@ -77,7 +77,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createJsonDecoder<User>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<User>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface User {
@@ -85,7 +85,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createBinaryEncoder<User>();
+      return createBinaryEncoderFn<User>();
     },
     binaryDecoder: () => {
       interface User {
@@ -93,12 +93,12 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createBinaryDecoder<User>();
+      return createBinaryDecoderFn<User>();
     },
-    schemaEncoder: () => createJsonEncoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
-    schemaDecoder: () => createJsonDecoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    schemaEncoder: () => createJsonEncoderFn(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    schemaDecoder: () => createJsonDecoderFn(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
     getTestData: () => ({
       values: [
         {id: '0d8f2b1c-1e2a-4d3b-9f4c-5a6b7c8d9e0f', name: 'Ada Lovelace', email: 'ada@example.com'},
@@ -123,7 +123,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createJsonEncoder<Order>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Order>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface Order {
@@ -133,7 +133,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createJsonEncoder<Order>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Order>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface Order {
@@ -143,7 +143,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createJsonEncoder<Order>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Order>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface Order {
@@ -153,7 +153,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createJsonEncoder<Order>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Order>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface Order {
@@ -163,7 +163,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createJsonDecoder<Order>();
+      return createJsonDecoderFn<Order>();
     },
     preserveDecoder: () => {
       interface Order {
@@ -173,7 +173,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createJsonDecoder<Order>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Order>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface Order {
@@ -183,7 +183,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createJsonDecoder<Order>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Order>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface Order {
@@ -193,7 +193,7 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createBinaryEncoder<Order>();
+      return createBinaryEncoderFn<Order>();
     },
     binaryDecoder: () => {
       interface Order {
@@ -203,10 +203,10 @@ export const REALWORLD = {
         placedAt: Date;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createBinaryDecoder<Order>();
+      return createBinaryDecoderFn<Order>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.object({
           id: TF.uuidv4(),
           email: TF.email(),
@@ -216,7 +216,7 @@ export const REALWORLD = {
         })
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.object({
           id: TF.uuidv4(),
           email: TF.email(),
@@ -226,7 +226,7 @@ export const REALWORLD = {
         })
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.object({
           id: TF.uuidv4(),
           email: TF.email(),
@@ -236,7 +236,7 @@ export const REALWORLD = {
         })
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.object({
           id: TF.uuidv4(),
           email: TF.email(),
@@ -288,7 +288,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createJsonEncoder<Invoice>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Invoice>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       class Invoice {
@@ -302,7 +302,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createJsonEncoder<Invoice>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Invoice>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       class Invoice {
@@ -316,7 +316,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createJsonEncoder<Invoice>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Invoice>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       class Invoice {
@@ -330,7 +330,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createJsonEncoder<Invoice>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Invoice>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       class Invoice {
@@ -344,7 +344,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createJsonDecoder<Invoice>();
+      return createJsonDecoderFn<Invoice>();
     },
     preserveDecoder: () => {
       class Invoice {
@@ -358,7 +358,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createJsonDecoder<Invoice>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Invoice>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       class Invoice {
@@ -372,7 +372,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createJsonDecoder<Invoice>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Invoice>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       class Invoice {
@@ -386,7 +386,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createBinaryEncoder<Invoice>();
+      return createBinaryEncoderFn<Invoice>();
     },
     binaryDecoder: () => {
       class Invoice {
@@ -400,7 +400,7 @@ export const REALWORLD = {
         }
       }
       registerClassSerializer(Invoice, {deserialize: (d) => new Invoice(d.ref, d.cents, d.issued)});
-      return createBinaryDecoder<Invoice>();
+      return createBinaryDecoderFn<Invoice>();
     },
     schemaEncoder: 'not-supported',
     schemaDecoder: 'not-supported',

@@ -1,5 +1,5 @@
 // Public types for the mock-value generator. Surface mirrors the
-// `MockOptions` shape. `createMockData<T>()` merges caller options over
+// `MockOptions` shape. `createMockDataFn<T>()` merges caller options over
 // `defaultMockOptions` before walking the runtype graph.
 
 import type {MockData} from '../enrich/mockData.ts';
@@ -78,7 +78,7 @@ export interface MockOptions {
    *  value. **/
   invalidLeafProbability?: number;
   /** Steer generation against the binary cold-start size estimate (see
-   *  `createBinaryEncoder`'s `dynamic` strategy):
+   *  `createBinaryEncoderFn`'s `dynamic` strategy):
    *    - `true`  — the value fits the COLD BUFFER, so encoding it never resizes.
    *      Bounds target the per-write reserve (a string reserves `5 + 3*length`),
    *      not the wire size: collections capped at `sizeItems`, strings short
@@ -102,7 +102,7 @@ export interface MockOptions {
    *  seed so they don't drift. **/
   seed?: number;
   /** Internal: the `MockRandom` instance every random draw of a single
-   *  generation shares. Built by `createMockData` from `seed` (native when no
+   *  generation shares. Built by `createMockDataFn` from `seed` (native when no
    *  seed) and carried here so it threads through the walker for free; not part
    *  of the caller-facing surface. Absent ⇒ the mock path falls back to the
    *  shared native instance. **/
@@ -157,7 +157,7 @@ export interface RunTypeMockOptions<T = unknown> {
   dataNode?: MockDataNode;
 }
 
-/** Generator returned by `createMockData<T>()`. Call-time options may carry a
+/** Generator returned by `createMockDataFn<T>()`. Call-time options may carry a
  *  `data` enrichment map (typed loosely as `MockData<unknown>` here so the
  *  return type stays structurally stable across `T`; the precisely-typed
  *  `MockData<T>` surface is the factory's `options` param). **/

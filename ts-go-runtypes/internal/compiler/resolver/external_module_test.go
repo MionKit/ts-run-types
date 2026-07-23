@@ -71,17 +71,17 @@ export const inlineId = getRunTypeId<{name: string; age: number}>();
 }
 
 // TestExternalModule_CreateXConverges — InjectTypeFnArgs over an IMPORTED type,
-// across the static form (`createValidate<User>()`) and the value-first schema
+// across the static form (`createValidateFn<User>()`) and the value-first schema
 // form is exercised in the JS suite; here we pin fnId convergence with the
 // inline twin for both validate and the JSON encoder family.
 func TestExternalModule_CreateXConverges(t *testing.T) {
 	const types = `export interface User { name: string; age: number; }`
-	const code = `import {createValidate, createJsonEncoder} from '@ts-runtypes/core';
+	const code = `import {createValidateFn, createJsonEncoderFn} from '@ts-runtypes/core';
 import type {User} from './types';
-export const importedVal = createValidate<User>();
-export const inlineVal = createValidate<{name: string; age: number}>();
-export const importedJson = createJsonEncoder<User>();
-export const inlineJson = createJsonEncoder<{name: string; age: number}>();
+export const importedVal = createValidateFn<User>();
+export const inlineVal = createValidateFn<{name: string; age: number}>();
+export const importedJson = createJsonEncoderFn<User>();
+export const inlineJson = createJsonEncoderFn<{name: string; age: number}>();
 `
 	resp := scanExternal(t, runtypesDTS, map[string]string{"types.ts": types, "call.ts": code})
 	if codes := gateCodes(resp); len(codes) != 0 {
@@ -91,10 +91,10 @@ export const inlineJson = createJsonEncoder<{name: string; age: number}>();
 		t.Fatalf("expected 4 createX sites, got %d", len(resp.Sites))
 	}
 	if resp.Sites[0].FnId != resp.Sites[1].FnId {
-		t.Errorf("createValidate<User> must converge with the inline twin: imported FnId=%q, inline FnId=%q", resp.Sites[0].FnId, resp.Sites[1].FnId)
+		t.Errorf("createValidateFn<User> must converge with the inline twin: imported FnId=%q, inline FnId=%q", resp.Sites[0].FnId, resp.Sites[1].FnId)
 	}
 	if resp.Sites[2].FnId != resp.Sites[3].FnId {
-		t.Errorf("createJsonEncoder<User> must converge with the inline twin: imported FnId=%q, inline FnId=%q", resp.Sites[2].FnId, resp.Sites[3].FnId)
+		t.Errorf("createJsonEncoderFn<User> must converge with the inline twin: imported FnId=%q, inline FnId=%q", resp.Sites[2].FnId, resp.Sites[3].FnId)
 	}
 }
 
@@ -103,12 +103,12 @@ export const inlineJson = createJsonEncoder<{name: string; age: number}>();
 // the inlined and the spread-merged equivalents.
 func TestExternalModule_WholeConstOptionBag(t *testing.T) {
 	const opts = `export const strict = {noLiterals: true, noIsArrayCheck: true} as const;`
-	const code = `import {createValidate} from '@ts-runtypes/core';
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
 import {strict} from './opts';
-export const whole = createValidate<string>(undefined, strict);
-export const spread = createValidate<string>(undefined, {...strict});
-export const inline = createValidate<string>(undefined, {noLiterals: true, noIsArrayCheck: true});
-export const none = createValidate<string>();
+export const whole = createValidateFn<string>(undefined, strict);
+export const spread = createValidateFn<string>(undefined, {...strict});
+export const inline = createValidateFn<string>(undefined, {noLiterals: true, noIsArrayCheck: true});
+export const none = createValidateFn<string>();
 `
 	resp := scanExternal(t, runtypesDTS, map[string]string{"opts.ts": opts, "call.ts": code})
 	if codes := gateCodes(resp); len(codes) != 0 {
@@ -134,15 +134,15 @@ export const none = createValidate<string>();
 // rejected with CTA004 instead of silently selecting a possibly-wrong variant.
 func TestExternalModule_WidenedConstRejected(t *testing.T) {
 	cases := map[string]map[string]string{
-		"same-module": {"call.ts": `import {createValidate} from '@ts-runtypes/core';
+		"same-module": {"call.ts": `import {createValidateFn} from '@ts-runtypes/core';
 const loose = {noLiterals: true};
-export const bad = createValidate<string>(undefined, loose);
+export const bad = createValidateFn<string>(undefined, loose);
 `},
 		"cross-module": {
 			"opts.ts": `export const loose = {noLiterals: true};`,
-			"call.ts": `import {createValidate} from '@ts-runtypes/core';
+			"call.ts": `import {createValidateFn} from '@ts-runtypes/core';
 import {loose} from './opts';
-export const bad = createValidate<string>(undefined, loose);
+export const bad = createValidateFn<string>(undefined, loose);
 `},
 	}
 	for name, files := range cases {

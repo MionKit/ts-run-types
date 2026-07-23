@@ -33,8 +33,8 @@ const crossPkgSrc = `export interface CrossPkgUser { id: string; name: string; a
 `
 
 // consumerSrc covers BOTH getRunTypeId call shapes (marker coverage rule) plus a
-// createValidate<CrossPkgType>() site — the exact mion repro shape.
-const consumerSrc = `import {getRunTypeId, createValidate} from '@ts-runtypes/core';
+// createValidateFn<CrossPkgType>() site — the exact mion repro shape.
+const consumerSrc = `import {getRunTypeId, createValidateFn} from '@ts-runtypes/core';
 import type {CrossPkgUser} from '@app/models';
 
 // static getRunTypeId<T>()
@@ -44,8 +44,8 @@ getRunTypeId<CrossPkgUser>();
 declare const sample: CrossPkgUser;
 getRunTypeId(sample);
 
-// createValidate<CrossPkgType>() — the site that produced 59 MKR007 in mion
-export const validateUser = createValidate<CrossPkgUser>();
+// createValidateFn<CrossPkgType>() — the site that produced 59 MKR007 in mion
+export const validateUser = createValidateFn<CrossPkgUser>();
 `
 
 const tsconfigWithSource = `{
@@ -144,7 +144,7 @@ func TestInlineServer_SourceCondition_ResolvesCrossPackage(t *testing.T) {
 		t.Fatalf("customConditions:[source] must resolve @app/models — got %d MKR007 diagnostic(s): %+v", got, resp.Diagnostics)
 	}
 	if len(resp.Sites) != 3 {
-		t.Fatalf("want 3 marker sites (2 getRunTypeId shapes + createValidate), got %d: %+v", len(resp.Sites), resp.Sites)
+		t.Fatalf("want 3 marker sites (2 getRunTypeId shapes + createValidateFn), got %d: %+v", len(resp.Sites), resp.Sites)
 	}
 
 	byID := kindByID(resp)
@@ -155,7 +155,7 @@ func TestInlineServer_SourceCondition_ResolvesCrossPackage(t *testing.T) {
 		}
 	}
 
-	// createValidate is a function-family marker (carries an fnId); the two
+	// createValidateFn is a function-family marker (carries an fnId); the two
 	// getRunTypeId sites are reflection-only (empty fnId).
 	var reflectIDs []string
 	fnSites := 0
@@ -167,7 +167,7 @@ func TestInlineServer_SourceCondition_ResolvesCrossPackage(t *testing.T) {
 		}
 	}
 	if fnSites != 1 {
-		t.Errorf("want 1 createValidate site carrying an fnId, got %d", fnSites)
+		t.Errorf("want 1 createValidateFn site carrying an fnId, got %d", fnSites)
 	}
 	// Marker coverage rule: static getRunTypeId<T>() and value-first
 	// getRunTypeId(value) must resolve to the SAME reflection id.

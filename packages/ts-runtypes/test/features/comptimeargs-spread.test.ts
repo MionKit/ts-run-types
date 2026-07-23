@@ -13,7 +13,7 @@
 // shapes (static `getRunTypeId<T>()` and reflection `getRunTypeId(value)`) and
 // asserts hash equivalence between them.
 import {describe, expect, test} from 'vitest';
-import {createValidate, createJsonEncoder, getRunTypeId, type InferType} from '@ts-runtypes/core';
+import {createValidateFn, createJsonEncoderFn, getRunTypeId, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
 import '@ts-runtypes/core/formats';
@@ -40,7 +40,7 @@ describe('CompTimeArgs spread — builders', () => {
   test('object spread produces a validator over the full merged shape', () => {
     const base = {id: TF.number(), name: TF.string()};
     const User = RT.object({...base, active: RT.boolean()});
-    const isUser = createValidate<InferType<typeof User>>();
+    const isUser = createValidateFn<InferType<typeof User>>();
 
     expect(isUser({id: 1, name: 'a', active: true})).toBe(true);
     expect(isUser({id: 1, name: 'a'})).toBe(false); // missing the inline field
@@ -51,7 +51,7 @@ describe('CompTimeArgs spread — builders', () => {
   test('tuple spread validates each merged slot', () => {
     const head = [TF.number(), TF.string()] as const;
     const Tup = RT.tuple([...head, RT.boolean()]);
-    const isTup = createValidate<InferType<typeof Tup>>();
+    const isTup = createValidateFn<InferType<typeof Tup>>();
 
     expect(isTup([1, 'a', true])).toBe(true);
     expect(isTup([1, 'a', 'not-bool'])).toBe(false); // wrong type in the inline slot
@@ -67,7 +67,7 @@ describe('CompTimeFnArgs spread — option bags', () => {
 
   test('a spread preset selects the JSON strategy (mutate observed)', () => {
     const preset = {strategy: 'mutate'} as const;
-    const encode = createJsonEncoder<WithBigint>(undefined, {...preset});
+    const encode = createJsonEncoderFn<WithBigint>(undefined, {...preset});
     const input: WithBigint = {n: 123n};
     encode(input);
     // mutate rebinds in place; had the spread dropped the strategy, the default
@@ -75,7 +75,7 @@ describe('CompTimeFnArgs spread — option bags', () => {
     expect(typeof (input as unknown as {n: unknown}).n).toBe('string');
 
     // Contrast: the default (clone) leaves the input untouched.
-    const encodeDefault = createJsonEncoder<WithBigint>();
+    const encodeDefault = createJsonEncoderFn<WithBigint>();
     const untouched: WithBigint = {n: 123n};
     encodeDefault(untouched);
     expect(typeof untouched.n).toBe('bigint');
@@ -84,7 +84,7 @@ describe('CompTimeFnArgs spread — option bags', () => {
   test('an inline strategy overrides the spread preset (last write wins)', () => {
     const preset = {strategy: 'mutate'} as const;
     // Spread says mutate, inline says clone → clone wins → no mutation.
-    const encode = createJsonEncoder<WithBigint>(undefined, {...preset, strategy: 'clone'});
+    const encode = createJsonEncoderFn<WithBigint>(undefined, {...preset, strategy: 'clone'});
     const input: WithBigint = {n: 123n};
     encode(input);
     expect(typeof input.n).toBe('bigint');

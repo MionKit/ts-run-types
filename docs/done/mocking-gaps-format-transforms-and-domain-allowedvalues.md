@@ -3,7 +3,7 @@
 Three findings from the mion type-formats migration (2026-07-12), all verified against
 @ts-runtypes/core 0.9.1. All three fixed.
 
-## 1. `createMockData` never applied lowercase/uppercase/capitalize format transforms
+## 1. `createMockDataFn` never applied lowercase/uppercase/capitalize format transforms
 
 `lookupFormatTransform` looked up `'fmt_' + runType.id`, but compiled entries are keyed
 `'<fnHash>_<typeId>'` with an opaque, version-folded 3-char fnHash — the literal prefix
@@ -13,7 +13,7 @@ could never match, so mocks silently skipped declared case transforms.
 the fn cache (cold-path only; hot paths receive full keys from injected markers) — and
 `lookupFormatTransform` resolves the `fmt` family through it. Pinned in
 `features/mockSoundness.test.ts` (a `Lowercase<…>` mock comes back canonical-case when a
-`createFormatTransform` demand site exists).
+`createFormatTransformFn` demand site exists).
 
 ## 2. Domain-part `allowedValues` mocks failed their own validator
 

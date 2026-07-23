@@ -3,7 +3,7 @@
 > **Status: SHIPPED (2026-06-29).** Implemented as the `compact` JSON
 > encoder/decoder strategy. What shipped vs the design below:
 > - **Name** is `compact` (not `tuple`/`small`): the public `strategy` value on
->   BOTH `createJsonEncoder` and `createJsonDecoder`, and the benchmark column label.
+>   BOTH `createJsonEncoderFn` and `createJsonDecoderFn`, and the benchmark column label.
 > - **Optionals** use a `null` placeholder (not a presence bitmap) — the cheapest
 >   path, reusing the existing TS-tuple optional convention. Consequence: a
 >   `T | null` *optional* field cannot distinguish present-`null` from absent
@@ -40,7 +40,7 @@
 
 ## Goal
 
-A 4th `createJsonEncoder`/`createJsonDecoder` **strategy** alongside `clone`,
+A 4th `createJsonEncoderFn`/`createJsonDecoderFn` **strategy** alongside `clone`,
 `mutate`, `direct` (working name `tuple`; the user's name is "small-json") that
 produces a shorter wire payload by dropping declared key names: the declared shape
 is encoded as a positional array, decoded back to the keyed object by the
@@ -104,7 +104,7 @@ results data and the website pages:
   ([internal/constants/constants.go](../../internal/constants/constants.go)).
 - **Runtime.** Tuple build/restore in the json composite runtime +
   [packages/ts-runtypes/src/runtypes/entryTuple.ts](../../packages/ts-runtypes/src/runtypes/entryTuple.ts).
-- **Public surface.** Add the strategy to the `createJsonEncoder`/`createJsonDecoder`
+- **Public surface.** Add the strategy to the `createJsonEncoderFn`/`createJsonDecoderFn`
   `strategy` option union and document it.
 - **Tests.** Serialization suite round-trips for the new strategy (extend
   [serializationAsserts.ts](../../packages/ts-runtypes/test/util/serializationAsserts.ts)
@@ -134,7 +134,7 @@ results data and the website pages:
 
 ## Acceptance
 
-- `createJsonEncoder<T>(undefined, {strategy: '<name>'})` + its decoder round-trip
+- `createJsonEncoderFn<T>(undefined, {strategy: '<name>'})` + its decoder round-trip
   every serialization-suite case (atomic, objects, records, unions, optionals,
   nested, realworld), including the trailing-extras and pure-record paths.
 - The serialization bench shows the new column in results + on the website, with

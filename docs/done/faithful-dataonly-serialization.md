@@ -16,7 +16,7 @@ both verified against the source (one also rendered empirically):
 
 ## The idea
 
-`createJsonEncoder<T>()` / `createJsonDecoder<T>()` should produce a working,
+`createJsonEncoderFn<T>()` / `createJsonDecoderFn<T>()` should produce a working,
 round-tripping function for **every** type that is valid `DataOnly<T>` (i.e.
 `DataOnly<T>` is not `never`). Today a small set of DataOnly-valid types fail:
 the undefined-only roots do not serialize (no top-level JSON form), and a union
@@ -26,7 +26,7 @@ round-trip it (wrapping the value in a JSON envelope when the bare value is not 
 standalone JSON document, and dropping union members that `DataOnly` drops).
 
 The constraint (Case A): do **not** add an `isRoot` axis to the type id or
-fnHash. Root-ness is a property of the *call* (`createJsonEncoder<T>()` is always
+fnHash. Root-ness is a property of the *call* (`createJsonEncoderFn<T>()` is always
 the root frame), not of the type. The same `T` used at a property position must
 keep its existing cache entry and hash.
 
@@ -49,7 +49,7 @@ Why they break:
   (`json_prepare_safe.go:110-115`), and `JSON.stringify(undefined)` returns the
   JS value `undefined`, not a string. The `direct` strategy (`stringifyJson`)
   also emits bare `undefined` at root (`json_stringify.go:180-193`).
-- So `createJsonEncoder<undefined>()(undefined)` returns the value `undefined`,
+- So `createJsonEncoderFn<undefined>()(undefined)` returns the value `undefined`,
   not a JSON document. Chaining `decode(encode(undefined))` then calls
   `JSON.parse(undefined)` → `JSON.parse("undefined")` → **throws SyntaxError**.
 - The serialization suite hides this: the round-trip adapter bails with
@@ -118,7 +118,7 @@ The serializer + emitter do the opposite today, confirmed empirically:
 
   The `Date` member is a healthy noop entry; the union is poisoned by the symbol
   sibling (the `CodeNS` propagation at `union_flat.go:85-86`, `:114`,
-  `:354-355`, …). So `createJsonEncoder<Date | symbol>()` throws at the first
+  `:354-355`, …). So `createJsonEncoderFn<Date | symbol>()` throws at the first
   lookup, even though `DataOnly<Date | symbol>` = `Date`.
 
 (Caveat on the verification: this was confirmed at the serializer + emitter
@@ -141,7 +141,7 @@ Promise / `SubKindNonSerializable`), rather than propagating `CodeNS`. Keep the
 remaining members. Only when **no** member survives (e.g. `symbol | (() => void)`,
 whose `DataOnly` is `never`) does the union stay `alwaysThrow` — which then
 matches `DataOnly` exactly. Dropping is sound: a symbol value handed to
-`createJsonEncoder<Date | symbol>()` is not data, so failing the surviving `Date`
+`createJsonEncoderFn<Date | symbol>()` is not data, so failing the surviving `Date`
 member's guard (a "does not belong to the union" error) is the correct outcome.
 
 Note the interaction with the tuple-wrap rule: a *non-compatible but
@@ -157,13 +157,13 @@ goal.
 - No `isRoot` param on the type id / fnHash. No new cache axis.
 - The wrapped form must be a valid, standalone JSON document.
 - Encoder and decoder must stay symmetric for the same `(typeId, strategy)`.
-- Binary is unaffected: `createBinaryEncoder<undefined>()` already round-trips a
+- Binary is unaffected: `createBinaryEncoderFn<undefined>()` already round-trips a
   root `undefined` via a marker byte (`suites/serialization/Atomic.ts` `undefined`
   notes). This change is JSON-only.
 
 ## Feasibility of the original runtime-only sketch
 
-The first sketch was: inside `createJsonEncoder` / `createJsonDecoder`, grab the
+The first sketch was: inside `createJsonEncoderFn` / `createJsonDecoderFn`, grab the
 `RunType` from the runtypes reflection cache by id, and if it is a DataOnly-valid
 but root-unserializable kind, return a `serializeDataOnlyRoot` wrapper instead of
 the compiled entry.
@@ -181,9 +181,9 @@ Two of three legs work; one does not:
    site.** The kind-4 reflection bundle (`virtual:rt/runtypes.js`) is populated
    only by reflection-root sites, defined as `site.FnId == ""`
    (`internal/cachegen/runtype/entries.go` `reflectionRoots`).
-   `createJsonEncoder` / `createJsonDecoder` sites carry a `FnId` (the composite
+   `createJsonEncoderFn` / `createJsonDecoderFn` sites carry a `FnId` (the composite
    fnHash), so they are excluded. A file that only calls
-   `createJsonEncoder<undefined>()` and never reflects on the type emits **no**
+   `createJsonEncoderFn<undefined>()` and never reflects on the type emits **no**
    reflection row for it, so `getRunType(typeId)` returns `undefined` at runtime.
 
 So the runtime-only approach cannot detect the kind on its own. It would have to
@@ -236,7 +236,7 @@ extend cleanly to any future DataOnly-valid-but-unrepresentable kind.)
 
 ### Behavior change to call out
 
-`createJsonEncoder<undefined>()(undefined)` returns `"[null]"` (a string) instead
+`createJsonEncoderFn<undefined>()(undefined)` returns `"[null]"` (a string) instead
 of `undefined`. `JsonEncoderFn` stays `(value) => string | undefined` because the
 no-plugin fallback (`jsonStringifyFallback = JSON.stringify`) still returns
 `undefined` for a bare `undefined` input; only the plugin-emitted wrapped-root
@@ -253,7 +253,7 @@ the shared helper.
 
 ## Alternative B — runtime RunType inspection (the literal original idea)
 
-Keep the decision in `createJsonEncoder` / `createJsonDecoder` at runtime, but
+Keep the decision in `createJsonEncoderFn` / `createJsonDecoderFn` at runtime, but
 make the reflection RunType available for JSON-factory sites by adding reflection
 demand for them in the scanner (so the kind-4 row is emitted), then branch to
 `serializeDataOnlyRoot` when `getRunType(typeId)` reports an undefined/void kind.
@@ -328,7 +328,7 @@ recommended path; recorded for completeness.
   not currently exist** in the tree. Either create it (the diag-code comments
   already point at it) or fix the dangling references while documenting the
   wrapped-root behavior.
-- The `createJsonEncoder` JSDoc (`createRTFunctions.ts:145-147`,
+- The `createJsonEncoderFn` JSDoc (`createRTFunctions.ts:145-147`,
   `:324-355`) — clarify that a wrapped root returns a string document, while the
   no-plugin fallback still mirrors `JSON.stringify` (`string | undefined`).
 
@@ -344,7 +344,7 @@ recommended path; recorded for completeness.
    stripped union members) is verified real and belongs to the same goal, but it
    touches every family that walks unions, so it is a larger change than the
    root wrap. Recommend separate slices under one tracking doc.
-4. **`createJsonEncoder<undefined>` return value:** keep status quo
+4. **`createJsonEncoderFn<undefined>` return value:** keep status quo
    (`undefined`, faithful to `JSON.stringify`) or the wrapped string (faithful to
    `DataOnly`)? Choosing `DataOnly` faithfulness is the whole point of this todo,
    but it is a behavior change worth a changelog note.
@@ -357,7 +357,7 @@ recommended path; recorded for completeness.
 
 - Binary serialization (already round-trips `undefined` / `void` at root).
 - Any change to the type id, fnHash, or disk cache format / fingerprint.
-- Refining `createValidate` / `DataOnly` return types or renaming factories
+- Refining `createValidateFn` / `DataOnly` return types or renaming factories
   (separate roadmap item; see `docs/ROADMAP.md`).
 
 Case B (dropping stripped union members) IS in scope for the "faithful to

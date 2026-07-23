@@ -79,8 +79,8 @@ so there is no single place to add the option:
 | --- | --- | --- | --- |
 | validate | `val` | `AxisValidateOptions` | add a letter to the `ValidateOptions` bag ([constants.go](../../ts-go-runtypes/internal/constants/constants.go) `ValidateOptions` = `{noLiterals:L, noIsArrayCheck:A}`) → a new variant suffix (e.g. `validate|C`, `validate|LC`, …) |
 | getValidationErrors | `verr` | `AxisValidateOptions` | same bag, same new suffixes |
-| createBinaryEncoder | `tb` | **`AxisNone`** | `tb` has NO option axis today — it needs a brand-new axis (or a bag) built from scratch |
-| createJsonEncoder | `jeCL`/`jeMU`/`jeDI`/`jeCO` | `AxisJsonStrategy` | orthogonal to `strategy` → the composite fnHash must fold `strategy × {reject on/off}`, and the change must reach the **composed primitives** (`pj`/`pjs`/`cj`, all `AxisNone`) that actually walk the value |
+| createBinaryEncoderFn | `tb` | **`AxisNone`** | `tb` has NO option axis today — it needs a brand-new axis (or a bag) built from scratch |
+| createJsonEncoderFn | `jeCL`/`jeMU`/`jeDI`/`jeCO` | `AxisJsonStrategy` | orthogonal to `strategy` → the composite fnHash must fold `strategy × {reject on/off}`, and the change must reach the **composed primitives** (`pj`/`pjs`/`cj`, all `AxisNone`) that actually walk the value |
 
 Consequences of that:
 
@@ -118,7 +118,7 @@ baked into the emitted body at build time, a body either has the checks or it do
 not — you cannot turn them on at runtime. So one of:
 
 - **Drop the global flag** — `rejectCircularRefs` becomes **per-call comptime
-  only** (`createValidate<T>({rejectCircularRefs: true})`). This is a **breaking
+  only** (`createValidateFn<T>({rejectCircularRefs: true})`). This is a **breaking
   API change** and removes the "arm everything at once" ergonomic.
 - **Keep a runtime toggle** by always emitting the checks and gating them on a
   runtime flag read inside the body — but that ships the checks unconditionally,

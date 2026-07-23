@@ -2,7 +2,7 @@
 // undeclared-key handlers: has / cloneExactShape / errors. (The mutating
 // strip / toUndefined factories were removed in 0.10.0 — cloneExactShape is
 // the non-mutating replacement.)
-import {createCloneExactShape, createHasUnknownKeys, createUnknownKeyErrors} from '@ts-runtypes/core';
+import {createCloneExactShapeFn, createHasUnknownKeysFn, createUnknownKeyErrorsFn} from '@ts-runtypes/core';
 import {type CheckResult, ok} from './check';
 
 interface User {
@@ -10,9 +10,9 @@ interface User {
   name: string;
 }
 
-export const hasExtra = createHasUnknownKeys<User>();
-export const cloneExact = createCloneExactShape<User>();
-export const extraKeyErrors = createUnknownKeyErrors<User>();
+export const hasExtra = createHasUnknownKeysFn<User>();
+export const cloneExact = createCloneExactShapeFn<User>();
+export const extraKeyErrors = createUnknownKeyErrorsFn<User>();
 
 export function checkUnknownKeys(): CheckResult[] {
   const clean = {id: 1, name: 'Ada'};

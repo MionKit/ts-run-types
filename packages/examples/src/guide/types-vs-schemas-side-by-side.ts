@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type InferType} from '@ts-runtypes/core';
+import {createValidateFn, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 // start-type
@@ -11,7 +11,7 @@ type Product = {
   status: 'draft' | 'live';
 };
 
-const isProductA = createValidate<Product>();
+const isProductA = createValidateFn<Product>();
 // end-type
 
 // start-schema
@@ -26,7 +26,7 @@ const productSchema = RT.object({
 // Recover the TypeScript type from the schema whenever you need it.
 type ProductFromSchema = InferType<typeof productSchema>;
 
-const isProductB = createValidate(productSchema);
+const isProductB = createValidateFn(productSchema);
 // end-schema
 
 export {isProductA, isProductB};

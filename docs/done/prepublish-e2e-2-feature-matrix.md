@@ -16,7 +16,7 @@ This multi-app build IS the "consumer suite" that harness's
 ## Context
 
 [`container/pre-publish-e2e/test/e2e.test.ts`](../../container/pre-publish-e2e/test/e2e.test.ts) is a
-single smoke: `createValidate<User>()` + `getRunTypeId<User>()` under Vite. It
+single smoke: `createValidateFn<User>()` + `getRunTypeId<User>()` under Vite. It
 exercises two of ~14 public feature families through **one** of the **seven**
 published bundler adapters. `@ts-runtypes/devtools` ships adapters for
 `vite · unplugin · rollup · webpack · rspack · esbuild · rolldown` and lint
@@ -88,16 +88,16 @@ logged gap — never a silent skip).
 
 | # | Feature family | What the shared app exercises (happy path + cheap negative) | Public API (`packages/ts-runtypes/src/index.ts`) | Mirror example |
 |---|----------------|-------------------------------------------------------------|--------------------------------------------------|----------------|
-| 1 | **Validation & errors** | valid→`true`, invalid→`false`; `getValidationErrors` path+message | `createValidate`, `createGetValidationErrors` | `validation-*` |
+| 1 | **Validation & errors** | valid→`true`, invalid→`false`; `getValidationErrors` path+message | `createValidateFn`, `createGetValidationErrorsFn` | `validation-*` |
 | 2 | **Types ⇄ Schemas duality** | type-first reflection ≡ value-first `define` builder; `Static<typeof schema>` | `getRunType`, `RunType`, `Static` | `types-vs-schemas-*`, `define-*` |
 | 3 | **Reflection / typeIds** | `getRunTypeId` static **and** value-first → same id for equal `T`; `getRunType` walk | `getRunTypeId`, `getRunType`, `RunTypeKind` | `markers-reflection`, `runtype-walk`, `one-type-one-id` |
-| 4 | **JSON codec** | round-trip; `clone`/`mutate`/`direct` strategies; `DataOnly` decode | `createJsonEncoder/Decoder` | `json-*` |
-| 5 | **Binary codec** | round-trip; sizer; buffer reuse; `DataOnly` decode | `createBinaryEncoder/Decoder`, `createBinarySizer`, `createDataView*` | `binary-*` |
+| 4 | **JSON codec** | round-trip; `clone`/`mutate`/`direct` strategies; `DataOnly` decode | `createJsonEncoderFn/Decoder` | `json-*` |
+| 5 | **Binary codec** | round-trip; sizer; buffer reuse; `DataOnly` decode | `createBinaryEncoderFn/Decoder`, `createBinarySizerFn`, `createDataView*` | `binary-*` |
 | 6 | **Serialization edge** | circular guard throws; custom class serializer rebuilds instance | `setRejectCircularRefs`, `CircularReferenceError`, `registerClassSerializer` | `serialization-circular`, `custom-class-serializer` |
-| 7 | **Unknown-keys family** | has / strip / errors / toUndefined on an object with extras | `createHasUnknownKeys` + the four `create*UnknownKey*` | `unknown-keys-*` |
-| 8 | **Type formats** | branded format good/bad; custom `registerFormatPattern`; `createFormatTransform` | `TypeFormat`, `registerFormatPattern`, `createFormatTransform` | `type-formats-*`, `custom-format-pattern` |
+| 7 | **Unknown-keys family** | has / strip / errors / toUndefined on an object with extras | `createHasUnknownKeysFn` + the four `create*UnknownKey*` | `unknown-keys-*` |
+| 8 | **Type formats** | branded format good/bad; custom `registerFormatPattern`; `createFormatTransformFn` | `TypeFormat`, `registerFormatPattern`, `createFormatTransformFn` | `type-formats-*`, `custom-format-pattern` |
 | 9 | **Markers** | wrap/parse helper rewritten + runs; comptime literal selects variant; not-triggered stays inert | `InjectRunTypeId`, `InjectTypeFnArgs`, `CompTimeArgs`, `CompTimeFnArgs` | `markers-*` |
-| 10 | **Mocking** | `createMockData<T>()` output passes `createValidate<T>()`; options/formats; custom generator | `createMockData`, `registerMockingFunction` | `mocking-*`, `custom-mocking-function` |
+| 10 | **Mocking** | `createMockDataFn<T>()` output passes `createValidateFn<T>()`; options/formats; custom generator | `createMockDataFn`, `registerMockingFunction` | `mocking-*`, `custom-mocking-function` |
 | 11 | **Enrichment / FriendlyText** | see **Enrichment** below (higher setup) | `FriendlyText`, `MockData`, `createFriendlyText`, `createFriendlyTextI18n` | `3.ai-integration` + enrich skill |
 | 12 | **Standard Schema** | `~standard.validate` good→`{value}`, bad→`{issues}`; `runTypeErrorsToIssues` | `createStandardSchema`, `runTypeErrorsToIssues` | `standard-schema` |
 | 13 | **Custom pure fn / overrides** | `overrideValidate<T>(fn)` wins; `PureFunction` | the `override*` group, `PureFunction` | `custom-pure-fn` |
@@ -131,7 +131,7 @@ linter is wired):
    non-empty string equal across both shapes, mock passes validate, friendly
    message renders. Proves the transform is correct *after* that bundler mangled it.
 3. **Rewrite evidence (static).** Grep the dist bytes: no residual un-rewritten
-   `getRunTypeId<…>` / `createValidate<…>` markers; the injected cache-id bindings
+   `getRunTypeId<…>` / `createValidateFn<…>` markers; the injected cache-id bindings
    / `virtual:rt/*` wiring are present. Proves the plugin actually transformed —
    not silently no-op'd — inside that bundler.
 4. **Lint transport.** Run each app's configured linter
@@ -174,7 +174,7 @@ means a **republish** (per the image-inputs-changed rule).
 `@rtType`), and each builder's tsconfig gains the enrichment config the plugin
 reads (`enrichDir`, the i18n block; the `friendlyErrors` plugin option). Assert
 (post-build): `createFriendlyText` renders a message, `createFriendlyTextI18n` selects a
-second locale + a plural, `createMockData` draws from the pool. Most likely family
+second locale + a plural, `createMockDataFn` draws from the pool. Most likely family
 to hide a packaging bug in the enrich subtree — worth the extra wiring.
 
 ## Acceptance criteria
@@ -218,7 +218,7 @@ filed):**
 2. **The `InjectRunTypeId` wrap-helper reflection** (`getRTUtils().getRunType(id)`,
    family #9) returns undefined at runtime in a built consumer, so `markers.ts`
    asserts injection + direct `getRunType<T>()` instead. Two sibling guide
-   patterns (`createValidate<T>()` in a generic body; value-first
+   patterns (`createValidateFn<T>()` in a generic body; value-first
    `getRunTypeId(localVar)`) also don't run. Tracked in
    [inject-runtypeid-helper-getruntype-undefined.md](../todos/inject-runtypeid-helper-getruntype-undefined.md).
 

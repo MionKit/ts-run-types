@@ -11,7 +11,7 @@
 //
 // Marker coverage rule (CLAUDE.md): the consumer fixture uses BOTH getRunTypeId
 // shapes — static `getRunTypeId<T>()` and value-first `getRunTypeId(value)` —
-// plus a createValidate<CrossPkgType>() site (the mion repro shape).
+// plus a createValidateFn<CrossPkgType>() site (the mion repro shape).
 
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {rules} from '../../src/eslint/index.ts';
@@ -39,7 +39,7 @@ describe('buildResolverArgs — server mode forwards --tsconfig', () => {
 const CROSS_PKG_JSON = '{"name":"@app/models","exports":{".":{"source":"./src/index.ts","import":"./dist/index.js"}}}';
 const CROSS_PKG_SRC = 'export interface CrossPkgUser { id: string; name: string; age: number }\n';
 
-const CONSUMER_SRC = `import {getRunTypeId, createValidate} from '@ts-runtypes/core';
+const CONSUMER_SRC = `import {getRunTypeId, createValidateFn} from '@ts-runtypes/core';
 import type {CrossPkgUser} from '@app/models';
 
 // static getRunTypeId<T>()
@@ -49,8 +49,8 @@ getRunTypeId<CrossPkgUser>();
 declare const sample: CrossPkgUser;
 getRunTypeId(sample);
 
-// createValidate<CrossPkgType>() — the site that produced 59 MKR007 in mion
-export const validateUser = createValidate<CrossPkgUser>();
+// createValidateFn<CrossPkgType>() — the site that produced 59 MKR007 in mion
+export const validateUser = createValidateFn<CrossPkgUser>();
 `;
 
 const TSCONFIG_SOURCE = JSON.stringify({

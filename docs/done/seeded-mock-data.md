@@ -5,13 +5,13 @@ status: ready
 created: 2026-07-22
 ---
 
-# Seeded, repeatable mock data (`createMockData({ seed })`)
+# Seeded, repeatable mock data (`createMockDataFn({ seed })`)
 
 Status: **READY.** New feature. Planned for the next release.
 
 ## Problem
 
-`createMockData<T>()` produces fresh random values on every call, built on
+`createMockDataFn<T>()` produces fresh random values on every call, built on
 `Math.random()` and `crypto.randomUUID()`. Test environments that rely on
 repeatability (snapshot tests, deterministic fixtures, reproducible failures)
 have no way to pin the output. We want an optional `seed` on the mock options
@@ -71,7 +71,7 @@ implementation, they are the easy-to-miss parts):
   default of `undefined` in
   [constants.mock.ts](../../packages/ts-runtypes/src/mocking/constants.mock.ts),
   and surface it on the public `RunTypeMockOptions` so callers can pass
-  `createMockData(schema, { mock: { seed: 123 } })`.
+  `createMockDataFn(schema, { mock: { seed: 123 } })`.
 - Construct one `MockRandom` from `mockOptions.mock.seed` when the merged
   options are built (`mergeMockOptions` /the factory closure in
   [createMockData.ts](../../packages/ts-runtypes/src/mocking/createMockData.ts))
@@ -79,7 +79,7 @@ implementation, they are the easy-to-miss parts):
   through `mockRunType` → `mockSwitch` → the per-kind mock fns
   ([mockType.ts](../../packages/ts-runtypes/src/mocking/mockType.ts)), so the
   instance rides along for free — prefer this over a module-level ambient
-  singleton (reentrancy: nested/concurrent `createMockData` calls must not share
+  singleton (reentrancy: nested/concurrent `createMockDataFn` calls must not share
   a cursor). If threading the instance through every helper signature is too
   invasive, a per-invocation context set at the top of the factory call is the
   fallback, but keep it call-scoped, not module-global.
@@ -105,7 +105,7 @@ test area) asserting:
 
 - **Same seed ⇒ identical output** for a spread of kinds: primitive
   (number, string, bigint, boolean), uuid v4 **and** v7, date/temporal, array,
-  object, discriminated union, and a nested/composite type. Two `createMockData`
+  object, discriminated union, and a nested/composite type. Two `createMockDataFn`
   calls with the same seed produce deep-equal values.
 - **Different seed ⇒ different output** (probabilistically; assert not-equal on
   a type with enough entropy).
@@ -114,12 +114,12 @@ test area) asserting:
 - **Option merge** — seed honored from both the factory options and the
   per-call options, with call overriding factory (matches the existing
   call < factory < defaults merge in `mergeMockOptions`).
-- Cover both `createMockData` shapes where natural: schema-first
-  (`createMockData<T>(schema, …)`) and value-first (`createMockData(value, …)`).
+- Cover both `createMockDataFn` shapes where natural: schema-first
+  (`createMockDataFn<T>(schema, …)`) and value-first (`createMockDataFn(value, …)`).
 
 ## Docs
 
-- Document `seed` in the createMockData API reference and the website mocking
+- Document `seed` in the createMockDataFn API reference and the website mocking
   docs ([container/website/content/](../../container/website/content/), plain
   voice, no em-dashes). A one-line example: pass `seed` for reproducible
   fixtures.
@@ -129,7 +129,7 @@ test area) asserting:
 
 ## Done when
 
-- `createMockData(schema, { mock: { seed } })` is deterministic for every type
+- `createMockDataFn(schema, { mock: { seed } })` is deterministic for every type
   above; no-seed behavior is byte-for-byte unchanged.
 - No remaining direct `Math.random` / `crypto` call on the mock path bypasses
   `MockRandom`.
@@ -168,7 +168,7 @@ Built as planned, with these refinements decided during implementation:
   options), plus a "Reproducible data with a seed" section and a `seed` example in
   `packages/examples/src/guide/mocking-options.ts`.
 - **Tests.** `test/suites/mocking/mockSeed.test.ts` (same-seed / different-seed /
-  no-seed / factory+per-call merge, both `createMockData` call shapes with a
+  no-seed / factory+per-call merge, both `createMockDataFn` call shapes with a
   convergence assert) plus a determinism "do-it-twice" **fuzz** suite
   (`test/fuzz/type/mockSeedFuzz.ts` + `mockSeedDeterminism.unit.test.ts`, opted
   in) over random runtypes with a negative control. All green.

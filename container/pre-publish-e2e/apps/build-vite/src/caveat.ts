@@ -1,6 +1,6 @@
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
-// A type with a non-serializable member. createValidate drops `onClick` and the
+// A type with a non-serializable member. createValidateFn drops `onClick` and the
 // build emits a VL0xx Warning — the known RT diagnostic the lint transport test
 // asserts fires (the transport, not the catalog, is what's under test).
 export interface WithHandler {
@@ -8,4 +8,4 @@ export interface WithHandler {
   onClick: () => void;
 }
 
-export const isWithHandler = createValidate<WithHandler>();
+export const isWithHandler = createValidateFn<WithHandler>();

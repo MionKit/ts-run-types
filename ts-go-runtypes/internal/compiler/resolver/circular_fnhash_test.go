@@ -14,12 +14,12 @@ import (
 // ValidateOptions, so `noLiterals` and `noLiterals + rejectCircularRefs` also
 // fork.
 func TestRejectCircularRefsForksFnHash(t *testing.T) {
-	const src = `import {createValidate} from '@ts-runtypes/core';
+	const src = `import {createValidateFn} from '@ts-runtypes/core';
 interface Node {name: string; next?: Node}
-createValidate<Node>();
-createValidate<Node>(undefined, {rejectCircularRefs: true});
-createValidate<Node>(undefined, {noLiterals: true});
-createValidate<Node>(undefined, {noLiterals: true, rejectCircularRefs: true});
+createValidateFn<Node>();
+createValidateFn<Node>(undefined, {rejectCircularRefs: true});
+createValidateFn<Node>(undefined, {noLiterals: true});
+createValidateFn<Node>(undefined, {noLiterals: true, rejectCircularRefs: true});
 `
 	r := setupInline(t, map[string]string{"a.ts": src})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
@@ -42,10 +42,10 @@ createValidate<Node>(undefined, {noLiterals: true, rejectCircularRefs: true});
 		return ""
 	}
 
-	plain := fnIDAt("createValidate<Node>()")
-	circular := fnIDAt("createValidate<Node>(undefined, {rejectCircularRefs: true})")
-	noLiterals := fnIDAt("createValidate<Node>(undefined, {noLiterals: true})")
-	noLiteralsCircular := fnIDAt("createValidate<Node>(undefined, {noLiterals: true, rejectCircularRefs: true})")
+	plain := fnIDAt("createValidateFn<Node>()")
+	circular := fnIDAt("createValidateFn<Node>(undefined, {rejectCircularRefs: true})")
+	noLiterals := fnIDAt("createValidateFn<Node>(undefined, {noLiterals: true})")
+	noLiteralsCircular := fnIDAt("createValidateFn<Node>(undefined, {noLiterals: true, rejectCircularRefs: true})")
 
 	if plain == "" || circular == "" || noLiterals == "" || noLiteralsCircular == "" {
 		t.Fatalf("expected non-empty fnIds, got plain=%q circular=%q noLiterals=%q noLiteralsCircular=%q", plain, circular, noLiterals, noLiteralsCircular)

@@ -27,7 +27,7 @@ untouched and never diagnosed; MKR003 still fires when the slot is empty and T i
 unresolved.
 
 Siblings:
-1. `createValidate<T>()` in a generic body is NOT a silent throw — it already
+1. `createValidateFn<T>()` in a generic body is NOT a silent throw — it already
    emits **MKR003** (Error severity, halts production builds via the plugin's
    `surfaceDiagnostics`), added in commit 2b8f022 (2026-07-06), predating this
    spec. The guide `markers-wrap-parse.ts` was rewritten to the working pattern
@@ -41,7 +41,7 @@ Siblings:
 Regression coverage:
 - Go: `internal/compiler/resolver/marker_wrapper_forward_test.go` —
   `TestScan_WrapperForwardsHandle_NoMKR003`, `TestScan_ValueFirstLocalConst_NonGeneric`,
-  `TestScan_MarkerInGenericBody_EmitsMKR003` (getRunTypeId + createValidate).
+  `TestScan_MarkerInGenericBody_EmitsMKR003` (getRunTypeId + createValidateFn).
 - JS: `packages/ts-runtypes-devtools/test/marker-diagnostics.test.ts` (forward
   pattern emits no MKR003) + `packages/ts-runtypes/test/features/getRunType.test.ts`
   ("user wrapper forwarding an injected handle" — runs through the real plugin,
@@ -90,8 +90,8 @@ accessor doesn't accept the tuple.
 
 Both are guide patterns that type-check but do NOT work when actually run:
 
-1. **`createValidate<T>()` inside a generic body** (guide/`markers-wrap-parse.ts`):
-   throws `createValidate(): no id injected` at runtime. A nested factory marker
+1. **`createValidateFn<T>()` inside a generic body** (guide/`markers-wrap-parse.ts`):
+   throws `createValidateFn(): no id injected` at runtime. A nested factory marker
    whose `T` is the enclosing generic parameter can't be resolved at build time
    (T is unknown at that call site) and is never injected.
 2. **value-first `getRunTypeId(localVar)`** on a `const` declared *inside a function
@@ -122,7 +122,7 @@ Decide the intended contract, then make example + runtime agree:
 - [x] `getRTUtils().getRunType(<InjectRunTypeId handle>)` resolves the node, OR the
       guide/docs are corrected to the working pattern. → guide/docs corrected to the
       forwarding pattern (`getRunType<T>(undefined, id)`).
-- [x] `createValidate<T>()`-in-generic and local-var value-first `getRunTypeId` are
+- [x] `createValidateFn<T>()`-in-generic and local-var value-first `getRunTypeId` are
       supported or emit a build-time diagnostic (never a silent runtime throw). →
       generic body emits MKR003 (Error); non-generic local-var value-first works.
 - [x] Restore the fuller marker assertions in

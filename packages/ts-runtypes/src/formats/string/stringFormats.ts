@@ -111,7 +111,7 @@ export interface StringParams {
   allowedValues?: AllowedValuesParam;
   disallowedValues?: DisallowedValuesParam;
   mockSamples?: readonly string[];
-  // Transformer flags — applied only by the `createFormatTransform<T>`
+  // Transformer flags — applied only by the `createFormatTransformFn<T>`
   // RT-fn, NOT by validate / validationErrors validation.
   trim?: boolean;
   lowercase?: boolean;
@@ -308,7 +308,7 @@ export type UrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTER
 // Value-first builder per named alias (`TF.email()` → `RunType<Email>`,
 // `TF.ipv4()`, `TF.uuidv4()`, `TF.stringDate({format: 'DD-MM-YYYY'})`, …), each
 // carrying the CONCRETE alias above so the value-first id converges with the
-// type-first `createValidate<Email>()`. Two shapes: fixed presets (no params) via
+// type-first `createValidateFn<Email>()`. Two shapes: fixed presets (no params) via
 // `presetBuilder`, and parameterised families (alpha / stringDate / …) with the
 // no-params/plain ↔ params two-overload split. For ad-hoc constraints use
 // `TF.string({…})`.
@@ -330,7 +330,7 @@ export const alphaNumeric = presetBuilder<AlphaNumeric>('stringFormat');
 /** Digits-only string (`Numeric`). **/
 export const numeric = presetBuilder<Numeric>('stringFormat');
 /** Lowercase string (`Lowercase`) — the transform applies only via
- *  `createFormatTransform`; validate validates it as a plain string. **/
+ *  `createFormatTransformFn`; validate validates it as a plain string. **/
 export const lowercase = presetBuilder<Lowercase>('stringFormat');
 /** Uppercase string (`Uppercase`). **/
 export const uppercase = presetBuilder<Uppercase>('stringFormat');

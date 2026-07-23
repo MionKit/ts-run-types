@@ -12,7 +12,13 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
 import '@ts-runtypes/core/formats';
-import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createStandardSchema,
+  type DataOnly,
+} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 import * as RT from '@ts-runtypes/core/schema';
 
@@ -31,7 +37,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createValidate<User>();
+      return createValidateFn<User>();
     },
     standardSchema: () => {
       interface User {
@@ -73,9 +79,9 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createValidate<DataOnly<User>>();
+      return createValidateFn<DataOnly<User>>();
     },
-    validateSchema: () => createValidate(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+    validateSchema: () => createValidateFn(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
     deserializeValidate: () => {
       interface User {
         id: TF.UUIDv4;
@@ -95,7 +101,7 @@ export const REALWORLD = {
         name: 'Ada Lovelace',
         email: 'ada@example.com' as TF.Email,
       };
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface User {
@@ -116,7 +122,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createGetValidationErrors<User>();
+      return createGetValidationErrorsFn<User>();
     },
     getValidationErrorsDataOnly: () => {
       interface User {
@@ -124,10 +130,10 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createGetValidationErrors<DataOnly<User>>();
+      return createGetValidationErrorsFn<DataOnly<User>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
+      createGetValidationErrorsFn(RT.object({id: TF.uuidv4(), name: TF.string(), email: TF.email()})),
     deserializeGetValidationErrors: () => {
       interface User {
         id: TF.UUIDv4;
@@ -147,7 +153,7 @@ export const REALWORLD = {
         name: 'Ada Lovelace',
         email: 'ada@example.com' as TF.Email,
       };
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface User {
@@ -168,7 +174,7 @@ export const REALWORLD = {
         name: string;
         email: TF.Email;
       }
-      return createMockData<User>();
+      return createMockDataFn<User>();
     },
     mockTypeReflect: () => {
       interface User {
@@ -181,7 +187,7 @@ export const REALWORLD = {
         name: 'Ada Lovelace',
         email: 'ada@example.com' as TF.Email,
       };
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -210,7 +216,7 @@ export const REALWORLD = {
         total: number;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createValidate<Order>();
+      return createValidateFn<Order>();
     },
     standardSchema: () => {
       interface Order {
@@ -228,10 +234,10 @@ export const REALWORLD = {
         total: number;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createValidate<DataOnly<Order>>();
+      return createValidateFn<DataOnly<Order>>();
     },
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.object({
           id: TF.uuidv4(),
           email: TF.email(),
@@ -261,7 +267,7 @@ export const REALWORLD = {
         total: 78,
         status: 'paid',
       };
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface Order {
@@ -285,7 +291,7 @@ export const REALWORLD = {
         total: number;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createGetValidationErrors<Order>();
+      return createGetValidationErrorsFn<Order>();
     },
     getValidationErrorsDataOnly: () => {
       interface Order {
@@ -294,10 +300,10 @@ export const REALWORLD = {
         total: number;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createGetValidationErrors<DataOnly<Order>>();
+      return createGetValidationErrorsFn<DataOnly<Order>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.object({
           id: TF.uuidv4(),
           email: TF.email(),
@@ -327,7 +333,7 @@ export const REALWORLD = {
         total: 78,
         status: 'paid',
       };
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface Order {
@@ -351,7 +357,7 @@ export const REALWORLD = {
         total: number;
         status: 'pending' | 'paid' | 'shipped' | 'cancelled';
       }
-      return createMockData<Order>();
+      return createMockDataFn<Order>();
     },
     mockTypeReflect: () => {
       interface Order {
@@ -366,7 +372,7 @@ export const REALWORLD = {
         total: 78,
         status: 'paid',
       };
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [

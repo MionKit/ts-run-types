@@ -8,31 +8,31 @@
 // test/suites/cloning/.
 
 import {describe, expect, it} from 'vitest';
-import {createHasUnknownKeys, createUnknownKeyErrors, createValidate} from '@ts-runtypes/core';
+import {createHasUnknownKeysFn, createUnknownKeyErrorsFn, createValidateFn} from '@ts-runtypes/core';
 
 describe('hasUnknownKeys', () => {
   it('returns false when the value matches the schema', () => {
-    const has = createHasUnknownKeys<{a: string; b: number}>();
+    const has = createHasUnknownKeysFn<{a: string; b: number}>();
     expect(has({a: 'x', b: 1})).toBe(false);
   });
 
   it('returns true when an extra key is present', () => {
-    const has = createHasUnknownKeys<{a: string; b: number}>();
+    const has = createHasUnknownKeysFn<{a: string; b: number}>();
     expect(has({a: 'x', b: 1, extra: true})).toBe(true);
   });
 
   it('returns false on atomic types', () => {
-    const has = createHasUnknownKeys<string>();
+    const has = createHasUnknownKeysFn<string>();
     expect(has('hello')).toBe(false);
   });
 
   it('returns false when an optional property is absent', () => {
-    const has = createHasUnknownKeys<{a: string; b?: number}>();
+    const has = createHasUnknownKeysFn<{a: string; b?: number}>();
     expect(has({a: 'x'})).toBe(false);
   });
 
   it('returns true for an extra key on an interface with all optional props', () => {
-    const has = createHasUnknownKeys<{a?: string; b?: number}>();
+    const has = createHasUnknownKeysFn<{a?: string; b?: number}>();
     expect(has({extra: true})).toBe(true);
   });
 });
@@ -52,37 +52,37 @@ describe('hasUnknownKeys — runsAfterValidation variant', () => {
   }
 
   it('agrees with the plain variant on clean validated input', () => {
-    const has = createHasUnknownKeys<Flat>(undefined, {runsAfterValidation: true});
+    const has = createHasUnknownKeysFn<Flat>(undefined, {runsAfterValidation: true});
     expect(has({a: 'x', b: 1})).toBe(false);
   });
 
   it('detects a root extra key', () => {
-    const has = createHasUnknownKeys<Flat>(undefined, {runsAfterValidation: true});
+    const has = createHasUnknownKeysFn<Flat>(undefined, {runsAfterValidation: true});
     expect(has({a: 'x', b: 1, extra: true})).toBe(true);
   });
 
   it('detects a nested-only extra key', () => {
-    const has = createHasUnknownKeys<Nested>(undefined, {runsAfterValidation: true});
+    const has = createHasUnknownKeysFn<Nested>(undefined, {runsAfterValidation: true});
     expect(has({name: 'jane', address: {street: '10', city: 'sf', extra: 1}})).toBe(true);
     expect(has({name: 'jane', address: {street: '10', city: 'sf'}})).toBe(false);
   });
 
   it('optional-prop shapes fall back to the scan and stay correct', () => {
-    const has = createHasUnknownKeys<{a: string; b?: number}>(undefined, {runsAfterValidation: true});
+    const has = createHasUnknownKeysFn<{a: string; b?: number}>(undefined, {runsAfterValidation: true});
     expect(has({a: 'x'})).toBe(false);
     expect(has({a: 'x', b: 2})).toBe(false);
     expect(has({a: 'x', extra: 1})).toBe(true);
   });
 
   it('array elements use the fast path per element', () => {
-    const has = createHasUnknownKeys<Array<{a: string}>>(undefined, {runsAfterValidation: true});
+    const has = createHasUnknownKeysFn<Array<{a: string}>>(undefined, {runsAfterValidation: true});
     expect(has([{a: 'x'}, {a: 'y'}])).toBe(false);
     expect(has([{a: 'x'}, {a: 'y', extra: 1}])).toBe(true);
   });
 
   it('both variants of the same type coexist (distinct cache entries)', () => {
-    const plain = createHasUnknownKeys<Flat>();
-    const fast = createHasUnknownKeys<Flat>(undefined, {runsAfterValidation: true});
+    const plain = createHasUnknownKeysFn<Flat>();
+    const fast = createHasUnknownKeysFn<Flat>(undefined, {runsAfterValidation: true});
     const clean = {a: 'x', b: 1};
     const dirty = {a: 'x', b: 1, extra: true};
     expect(plain(clean)).toBe(false);
@@ -92,8 +92,8 @@ describe('hasUnknownKeys — runsAfterValidation variant', () => {
   });
 
   it('composes with validate for the assertStrict flow', () => {
-    const validate = createValidate<Nested>();
-    const has = createHasUnknownKeys<Nested>(undefined, {runsAfterValidation: true});
+    const validate = createValidateFn<Nested>();
+    const has = createHasUnknownKeysFn<Nested>(undefined, {runsAfterValidation: true});
     const isStrict = (v: unknown) => validate(v) && !has(v);
     expect(isStrict({name: 'jane', address: {street: '10', city: 'sf'}})).toBe(true);
     expect(isStrict({name: 'jane', address: {street: '10', city: 'sf', extra: 1}})).toBe(false);
@@ -103,23 +103,23 @@ describe('hasUnknownKeys — runsAfterValidation variant', () => {
 
 describe('unknownKeyErrors', () => {
   it('returns an empty array when the value matches the schema', () => {
-    const validate = createUnknownKeyErrors<{a: string; b: number}>();
+    const validate = createUnknownKeyErrorsFn<{a: string; b: number}>();
     expect(validate({a: 'x', b: 1})).toEqual([]);
   });
 
   it('reports one error per unknown key with path including the key', () => {
-    const validate = createUnknownKeyErrors<{a: string}>();
+    const validate = createUnknownKeyErrorsFn<{a: string}>();
     const errors = validate({a: 'x', extra: 1});
     expect(errors).toEqual([{path: ['extra'], expected: 'never'}]);
   });
 
   it('returns an empty array for atomic types', () => {
-    const validate = createUnknownKeyErrors<string>();
+    const validate = createUnknownKeyErrorsFn<string>();
     expect(validate('hello')).toEqual([]);
   });
 
   it('collects multiple errors when many unknown keys present', () => {
-    const validate = createUnknownKeyErrors<{a: string}>();
+    const validate = createUnknownKeyErrorsFn<{a: string}>();
     const errors = validate({a: 'x', extra1: 1, extra2: 2});
     expect(errors).toHaveLength(2);
     expect(errors.map((e) => e.path[0]).sort()).toEqual(['extra1', 'extra2']);
@@ -134,27 +134,27 @@ describe('nested unknown-keys cases (hasUnknownKeys)', () => {
   }
 
   it('detects unknowns in nested object', () => {
-    const has = createHasUnknownKeys<User>();
+    const has = createHasUnknownKeysFn<User>();
     expect(has({name: 'jane', address: {street: '10', city: 'sf', extra: true}})).toBe(true);
   });
 
   it('returns false for arrays of objects without extras', () => {
-    const has = createHasUnknownKeys<Array<{a: string}>>();
+    const has = createHasUnknownKeysFn<Array<{a: string}>>();
     expect(has([{a: 'x'}, {a: 'y'}])).toBe(false);
   });
 
   it('returns true when an array element has an extra key', () => {
-    const has = createHasUnknownKeys<Array<{a: string}>>();
+    const has = createHasUnknownKeysFn<Array<{a: string}>>();
     expect(has([{a: 'x'}, {a: 'y', extra: 1}])).toBe(true);
   });
 
   it('returns false when the schema has an index signature (any key allowed)', () => {
-    const has = createHasUnknownKeys<{[key: string]: number}>();
+    const has = createHasUnknownKeysFn<{[key: string]: number}>();
     expect(has({a: 1, b: 2, anyOther: 3})).toBe(false);
   });
 
   it('reports unknown keys on a tuple inside an array', () => {
-    const has = createHasUnknownKeys<Array<[string, {a: number}]>>();
+    const has = createHasUnknownKeysFn<Array<[string, {a: number}]>>();
     expect(
       has([
         ['x', {a: 1}],
@@ -164,7 +164,7 @@ describe('nested unknown-keys cases (hasUnknownKeys)', () => {
   });
 
   it('default ignores the checkNonRTProps option for a RT-only schema', () => {
-    const has = createHasUnknownKeys<{a: string}>();
+    const has = createHasUnknownKeysFn<{a: string}>();
     expect(has({a: 'x'}, {checkNonRTProps: true})).toBe(false);
     expect(has({a: 'x', extra: 1}, {checkNonRTProps: true})).toBe(true);
   });
@@ -184,17 +184,17 @@ describe('union types — has/keyErrors merged allowlist', () => {
   type Disjoint = {a: string} | {b: number};
 
   it('hasUnknownKeys returns false when only union-declared keys are present', () => {
-    const has = createHasUnknownKeys<Disjoint>();
+    const has = createHasUnknownKeysFn<Disjoint>();
     expect(has({a: 'x', b: 5})).toBe(false);
   });
 
   it('hasUnknownKeys returns true when any undeclared key is present', () => {
-    const has = createHasUnknownKeys<Disjoint>();
+    const has = createHasUnknownKeysFn<Disjoint>();
     expect(has({a: 'x', evil: true})).toBe(true);
   });
 
   it('unknownKeyErrors reports one error per undeclared key', () => {
-    const errs = createUnknownKeyErrors<Disjoint>();
+    const errs = createUnknownKeyErrorsFn<Disjoint>();
     const out = errs({a: 'x', evil: 'e1', stranger: 'e2'});
     expect(out).toHaveLength(2);
     expect(out.every((e) => e.expected === 'never')).toBe(true);
@@ -214,7 +214,7 @@ interface SmallObject {
 
 describe('iterables — Map<K, V> unknown-keys', () => {
   it('hasUnknownKeys: false when no inner object carries extras', () => {
-    const has = createHasUnknownKeys<Map<string, SmallObject>>();
+    const has = createHasUnknownKeysFn<Map<string, SmallObject>>();
     const m = new Map<string, SmallObject>([
       ['k1', {a: 'x', b: 1}],
       ['k2', {a: 'y', b: 2}],
@@ -223,7 +223,7 @@ describe('iterables — Map<K, V> unknown-keys', () => {
   });
 
   it('hasUnknownKeys: true when an inner value object has an extra key', () => {
-    const has = createHasUnknownKeys<Map<string, SmallObject>>();
+    const has = createHasUnknownKeysFn<Map<string, SmallObject>>();
     const m = new Map<string, unknown>([
       ['k1', {a: 'x', b: 1, extra: 'gone'}],
       ['k2', {a: 'y', b: 2}],
@@ -232,13 +232,13 @@ describe('iterables — Map<K, V> unknown-keys', () => {
   });
 
   it('unknownKeyErrors: empty when no inner extras', () => {
-    const errs = createUnknownKeyErrors<Map<string, SmallObject>>();
+    const errs = createUnknownKeyErrorsFn<Map<string, SmallObject>>();
     const m = new Map<string, SmallObject>([['k1', {a: 'x', b: 1}]]);
     expect(errs(m)).toEqual([]);
   });
 
   it('unknownKeyErrors: reports per-entry unknown key with path', () => {
-    const errs = createUnknownKeyErrors<Map<string, SmallObject>>();
+    const errs = createUnknownKeyErrorsFn<Map<string, SmallObject>>();
     const m = new Map<string, unknown>([['k1', {a: 'x', b: 1, extra: 'gone'}]]);
     const out = errs(m as Map<string, SmallObject>);
     expect(out).toHaveLength(1);
@@ -249,19 +249,19 @@ describe('iterables — Map<K, V> unknown-keys', () => {
 
 describe('iterables — Set<T> unknown-keys', () => {
   it('hasUnknownKeys: false when no element object carries extras', () => {
-    const has = createHasUnknownKeys<Set<SmallObject>>();
+    const has = createHasUnknownKeysFn<Set<SmallObject>>();
     const s = new Set<SmallObject>([{a: 'x', b: 1}]);
     expect(has(s)).toBe(false);
   });
 
   it('hasUnknownKeys: true when an element object has an extra key', () => {
-    const has = createHasUnknownKeys<Set<SmallObject>>();
+    const has = createHasUnknownKeysFn<Set<SmallObject>>();
     const s: Set<SmallObject> = new Set([{a: 'x', b: 1, extra: 'gone'} as SmallObject]);
     expect(has(s)).toBe(true);
   });
 
   it('unknownKeyErrors: reports unknown keys on elements', () => {
-    const errs = createUnknownKeyErrors<Set<SmallObject>>();
+    const errs = createUnknownKeyErrorsFn<Set<SmallObject>>();
     const s = new Set([{a: 'x', b: 1, extra: 'gone'} as SmallObject]);
     const out = errs(s);
     expect(out).toHaveLength(1);

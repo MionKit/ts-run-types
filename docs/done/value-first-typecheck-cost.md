@@ -1,9 +1,9 @@
 # Value-first schema type-checking cost
 
-**Status: solved.** The value-first `createValidate(RT.…)` schema form used to
+**Status: solved.** The value-first `createValidateFn(RT.…)` schema form used to
 type-check more expensively than TypeBox (≈823 vs 546 TS instantiations/case,
 apples-to-apples). Three fixes brought it to **≈208/case — below TypeBox** (full
-suite: 165055 → 43515, **−74%**). The type-definition form `createValidate<T>()`
+suite: 165055 → 43515, **−74%**). The type-definition form `createValidateFn<T>()`
 was always ≈0 and is unaffected. This doc keeps only what stays useful: the
 guardrails protecting those fixes, and the methodology for any future type-cost
 work. Reproduce the guardrail measurements with

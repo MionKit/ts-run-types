@@ -38,7 +38,7 @@ mion's monorepo sets `customConditions: ["source"]` in its root tsconfig so `@mi
 to each package's `src`/`index.ts` (no per-package build in dev/CI). After adopting
 `@ts-runtypes/devtools/eslint`, a cold `pnpm run lint` (no build, no Nx cache, no
 `node_modules/.cache/ts-runtypes`) produced **59 MKR007 errors** in two router spec files that
-do `createValidate<HeadersSubset<…>>()` / `createValidate<ClientReturn>()` over `@mionjs/core`
+do `createValidateFn<HeadersSubset<…>>()` / `createValidateFn<ClientReturn>()` over `@mionjs/core`
 types — all `unresolved import ('@mionjs/core')`. Building `@mionjs/core`'s dist (so the `types`
 condition resolves) or warming the caches masks it; cold CI fails. The same specs pass 25/25
 under vitest (build path honors `customConditions`). mion has disabled the two rules meanwhile

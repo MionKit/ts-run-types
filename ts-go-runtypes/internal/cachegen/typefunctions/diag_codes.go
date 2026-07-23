@@ -36,7 +36,7 @@ func (m rootCodeMap) codeFor(leaf *protocol.RunType) string {
 	case protocol.KindLiteral:
 		// A symbol-flavored literal under the `noLiterals` ValidateOptions
 		// variant degrades to the bare-symbol validator — same misleading
-		// shape as plain `createValidate<symbol>()`, so we route to the
+		// shape as plain `createValidateFn<symbol>()`, so we route to the
 		// symbol root code and let the alwaysThrow path emit the same
 		// diagnostic. See istype.go's emitLiteralBaseKind symbol arm.
 		for _, flag := range leaf.Flags {

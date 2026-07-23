@@ -10,13 +10,13 @@ import (
 // families: a family has an entry module for a type ONLY when a createX call
 // site of that family references it. `te` (validationErrors) is one leaf — a
 // type reached only through getRunTypeId (reflection) or through
-// createValidate leaves no verr entry.
+// createValidateFn leaves no verr entry.
 //
 // `it` (validate) is demand-scoped too. Because the JSON/binary union decoders
 // + validationErrors discriminate members via `val_<member>` cross-family
 // edges, those edges ride each entry's module deps and the resolver's
 // cross-family fixpoint renders the referenced val_ entries. So a
-// reflection-only file emits ZERO val_ entries, a createValidate file emits
+// reflection-only file emits ZERO val_ entries, a createValidateFn file emits
 // them, and a file that ONLY serializes a (non-merging) union still gets the
 // per-member val_ entries its decoder needs.
 // See docs/DEMAND-DRIVEN-FN-CACHES.md.
@@ -37,7 +37,7 @@ func scopeScan(t *testing.T, code string) protocol.Response {
 }
 
 // TestDemandScope_ValidationErrorsScopedToItsCallSites — verr entries are emitted only
-// for createGetValidationErrors call sites, not for getRunTypeId or createValidate.
+// for createGetValidationErrorsFn call sites, not for getRunTypeId or createValidateFn.
 func TestDemandScope_ValidationErrorsScopedToItsCallSites(t *testing.T) {
 	// Reflection only: no verr.
 	reflect := scopeScan(t, `import {getRunTypeId} from '@ts-runtypes/core';
@@ -50,31 +50,31 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 		t.Errorf("validationErrors entries must be absent for a reflection-only file, got %v", familyEntryKeys(reflect, "validationErrors"))
 	}
 
-	// createValidate demands `it`, not `te` — so still no verr.
-	validate := scopeScan(t, `import {createValidate} from '@ts-runtypes/core';
-export const _ = createValidate<{a: string}>();
+	// createValidateFn demands `it`, not `te` — so still no verr.
+	validate := scopeScan(t, `import {createValidateFn} from '@ts-runtypes/core';
+export const _ = createValidateFn<{a: string}>();
 `)
 	if hasFamilyEntry(validate, "validationErrors") {
-		t.Errorf("createValidate must NOT emit a verr entry, got %v", familyEntryKeys(validate, "validationErrors"))
+		t.Errorf("createValidateFn must NOT emit a verr entry, got %v", familyEntryKeys(validate, "validationErrors"))
 	}
 
-	// createGetValidationErrors demands `te`.
-	validationErrors := scopeScan(t, `import {createGetValidationErrors} from '@ts-runtypes/core';
-export const _ = createGetValidationErrors<{a: string}>();
+	// createGetValidationErrorsFn demands `te`.
+	validationErrors := scopeScan(t, `import {createGetValidationErrorsFn} from '@ts-runtypes/core';
+export const _ = createGetValidationErrorsFn<{a: string}>();
 `)
 	if !hasFamilyEntry(validationErrors, "validationErrors") {
-		t.Errorf("createGetValidationErrors must emit a verr entry, got none")
+		t.Errorf("createGetValidationErrorsFn must emit a verr entry, got none")
 	}
 }
 
-// TestDemandScope_ValidationErrorsTransitiveChildren — createGetValidationErrors on a parent
+// TestDemandScope_ValidationErrorsTransitiveChildren — createGetValidationErrorsFn on a parent
 // emits verr entries for the parent AND its non-inlined children (so dependency
 // calls resolve), even though only the parent has a call site.
 func TestDemandScope_ValidationErrorsTransitiveChildren(t *testing.T) {
-	resp := scopeScan(t, `import {createGetValidationErrors} from '@ts-runtypes/core';
+	resp := scopeScan(t, `import {createGetValidationErrorsFn} from '@ts-runtypes/core';
 interface Child { c: string }
 interface Parent { child: Child[] }
-export const _ = createGetValidationErrors<Parent>();
+export const _ = createGetValidationErrorsFn<Parent>();
 `)
 	count := len(familyEntryKeys(resp, "validationErrors"))
 	if count < 2 {
@@ -83,7 +83,7 @@ export const _ = createGetValidationErrors<Parent>();
 }
 
 // TestDemandScope_ItScopedReflectionOnly — `it` is demand-scoped: a
-// getRunTypeId-only (reflection) file emits ZERO val_ entries (no createValidate
+// getRunTypeId-only (reflection) file emits ZERO val_ entries (no createValidateFn
 // site, no other family referencing val_ cross-family).
 func TestDemandScope_ItScopedReflectionOnly(t *testing.T) {
 	resp := scopeScan(t, `import {getRunTypeId} from '@ts-runtypes/core';
@@ -97,36 +97,36 @@ export const _ = getRunTypeId<{a: string; b: number}>();
 	}
 }
 
-// TestDemandScope_ItScopedToCreateValidate — a createValidate call site demands the
+// TestDemandScope_ItScopedToCreateValidate — a createValidateFn call site demands the
 // `it` family, so its val entry is emitted.
 func TestDemandScope_ItScopedToCreateValidate(t *testing.T) {
-	resp := scopeScan(t, `import {createValidate} from '@ts-runtypes/core';
-export const _ = createValidate<{a: string}>();
+	resp := scopeScan(t, `import {createValidateFn} from '@ts-runtypes/core';
+export const _ = createValidateFn<{a: string}>();
 `)
 	if !hasFamilyEntry(resp, "validate") {
-		t.Errorf("createValidate must emit a val entry, got none")
+		t.Errorf("createValidateFn must emit a val entry, got none")
 	}
 }
 
 // TestDemandScope_ItSeededByCrossFamilyUnion — the cross-family proof: a
 // file that ONLY serializes a NON-merging union (conflicting shared prop, so
 // the binary union decoder discriminates members via the per-member validate
-// validators) and NEVER calls createValidate MUST still emit val_ entries — the
+// validators) and NEVER calls createValidateFn MUST still emit val_ entries — the
 // union members — because the toBinary entry's cross-family module deps name
 // them and the resolver's fixpoint renders them. Without that the union
 // round-trip silently corrupts (missing val_<member> ⇒ `?? true` ⇒ first
 // member always matches).
 func TestDemandScope_ItSeededByCrossFamilyUnion(t *testing.T) {
-	resp := scopeScan(t, `import {createBinaryEncoder} from '@ts-runtypes/core';
-export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
+	resp := scopeScan(t, `import {createBinaryEncoderFn} from '@ts-runtypes/core';
+export const _ = createBinaryEncoderFn<{a: {n: number}} | {a: {s: string}}>();
 `)
-	// Sanity: the binary family IS demanded by createBinaryEncoder.
+	// Sanity: the binary family IS demanded by createBinaryEncoderFn.
 	if !hasFamilyEntry(resp, "toBinary") {
-		t.Fatalf("createBinaryEncoder must emit tb entries, got none")
+		t.Fatalf("createBinaryEncoderFn must emit tb entries, got none")
 	}
-	// The proof: no createValidate site, yet the union's per-member val entries
+	// The proof: no createValidateFn site, yet the union's per-member val entries
 	// are rendered from the toBinary entry's cross-family edges.
 	if !hasFamilyEntry(resp, "validate") {
-		t.Fatalf("cross-family fixpoint broken: a createBinaryEncoder-only union file must still emit val member entries, got keys: %v", familyEntryKeys(resp, "toBinary"))
+		t.Fatalf("cross-family fixpoint broken: a createBinaryEncoderFn-only union file must still emit val member entries, got keys: %v", familyEntryKeys(resp, "toBinary"))
 	}
 }

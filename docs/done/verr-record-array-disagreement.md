@@ -48,7 +48,7 @@ Scope: pure validation-family work (one emitter term + tests). Does not touch JS
 
 ## The invariant + the oracle that guards it
 
-`createValidate<T>()` and `createGetValidationErrors<T>()` must **always agree**:
+`createValidateFn<T>()` and `createGetValidationErrorsFn<T>()` must **always agree**:
 for every value `v`, `validate(v) === (getValidationErrors(v).length === 0)`.
 
 That guarantee has a fuzz oracle — **O4 (`checkErrorsAgree`)** in
@@ -59,8 +59,8 @@ what caught the failures below; no new oracle was needed.
 ## Minimal repro (now fixed)
 
 ```ts
-const validate = createValidate<Record<string, number>>();
-const errors = createGetValidationErrors<Record<string, number>>();
+const validate = createValidateFn<Record<string, number>>();
+const errors = createGetValidationErrorsFn<Record<string, number>>();
 
 validate([]); // false  — correct: an array is not a valid Record
 errors([]);   // [{path: [], expected: 'objectLiteral'}]  — now agrees (was [])

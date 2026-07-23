@@ -26,10 +26,10 @@ export interface SampleOverride {
 
 /** Every case is measured on up to TWO functions, each independently
  *  supported/overridable:
- *   - `build`        → the CHEAP boolean validator (ts-go `createValidate`,
+ *   - `build`        → the CHEAP boolean validator (ts-go `createValidateFn`,
  *                      typebox `.Check`, ajv default `validate`, typia `createIs`).
- *   - `buildErrors`  → the VALIDATION-ERRORS function (ts-go `createGetValidationErrors`,
- *                      typebox `.Errors`, ajv `allErrors:true`, typia `createValidate`,
+ *   - `buildErrors`  → the VALIDATION-ERRORS function (ts-go `createGetValidationErrorsFn`,
+ *                      typebox `.Errors`, ajv `allErrors:true`, typia `createValidateFn`,
  *                      zod `safeParse`), wrapped to a boolean (true = no errors) so the
  *                      runner can check correctness + time it identically. This path is
  *                      meant to run only after `validate` fails, so it is much heavier.

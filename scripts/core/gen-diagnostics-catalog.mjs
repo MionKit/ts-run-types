@@ -39,7 +39,7 @@ const SUBSYSTEMS = [
   {
     key: 'validation',
     label: 'Validation',
-    description: 'From createValidate and createGetValidationErrors.',
+    description: 'From createValidateFn and createGetValidationErrorsFn.',
     prefixes: ['VL', 'VE'],
   },
   {

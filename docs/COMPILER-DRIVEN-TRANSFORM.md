@@ -98,7 +98,7 @@ These are non-negotiable and constrain every phase:
 
 Add a `Transform` request to [`ts-go-runtypes/internal/protocol`](../ts-go-runtypes/internal/protocol/): input is `{ filePath, sourceBytes, options }`; output is `{ transformedCode, sourceMap, emittedModules[] }` (the list of cache specifiers this file now imports / that were (re)written). The transform:
 
-- applies call-site rewrites (`createValidate<T>()` → `createValidate(__rt_<fnHash>_<id>)`) and the single deduped import block at offset 0, all in **UTF-8 bytes** (the byte→char conversion is deleted);
+- applies call-site rewrites (`createValidateFn<T>()` → `createValidateFn(__rt_<fnHash>_<id>)`) and the single deduped import block at offset 0, all in **UTF-8 bytes** (the byte→char conversion is deleted);
 - generates a standard source map by porting the `EditBuffer` boundary algorithm from [`edit-buffer.ts`](../packages/ts-runtypes-devtools/src/edit-buffer.ts) into Go (mechanical — the algorithm was already ported once from magic-string; credit/license header carries over).
 
 Net effect: the offset protocol seam between Go and JS is removed; rewrite + map are tested by the Go suite alongside the resolver that produced the offsets.

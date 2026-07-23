@@ -1,4 +1,4 @@
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
 // Your TypeScript type. The single source of truth — nothing else to write.
 type User = {
@@ -8,7 +8,7 @@ type User = {
 };
 
 // A validator generated from that type at build time. No schema, no drift.
-const isUser = createValidate<User>();
+const isUser = createValidateFn<User>();
 
 isUser({id: 1, name: 'Ada', roles: ['admin']}); // true
 isUser({id: '1', name: 'Ada'}); // false — id is not a number

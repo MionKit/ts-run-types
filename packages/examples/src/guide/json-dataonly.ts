@@ -1,4 +1,4 @@
-import {createJsonDecoder} from '@ts-runtypes/core';
+import {createJsonDecoderFn} from '@ts-runtypes/core';
 
 // A type with a method — methods don't survive a JSON round-trip.
 type Cart = {
@@ -8,7 +8,7 @@ type Cart = {
 };
 
 // start-dataonly
-const decode = createJsonDecoder<Cart>();
+const decode = createJsonDecoderFn<Cart>();
 
 // The decoder returns DataOnly<Cart>, not Cart — the method is gone from the
 // type because it was never on the wire. TS now stops you from calling it.

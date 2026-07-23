@@ -99,7 +99,7 @@ Use [worksheet-A.md](worksheet-A.md) and the templates.
 
 - **Look before you build.** Grep the repo for what already exists: an input maker /
   mock generator, a seeded random source, a test runner, a shrinker. In THIS repo:
-  `createMockData`, `mutateToInvalid`, `randomJunk`, `withSeededRandom` / `mixSeed`.
+  `createMockDataFn`, `mutateToInvalid`, `randomJunk`, `withSeededRandom` / `mixSeed`.
   Report what's there so you don't rebuild it.
 - **Pick the input maker with the user**, based on what describes a valid input (the
   table in worksheet-A). Propose, confirm, adjust.

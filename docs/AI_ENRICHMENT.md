@@ -3,7 +3,7 @@
 > **Status: implemented** (branch `feat/ai-enrichment`). **Shipped + tested:**
 > - the `FriendlyText<T>` / `MockData<T>` DSL types (type-checked against `T`, with
 >   structural node shapes — solution A), the pure-data `createFriendlyText<T>(map)`
->   renderer, and the `createMockData<T>({ data })` integration — all exported from
+>   renderer, and the `createMockDataFn<T>({ data })` integration — all exported from
 >   `@ts-runtypes/core`;
 > - the Go CLI trio `describe` / `check` / `gen` (`ts-go-runtypes/internal/enrichment`, a separate
 >   package), incl. **named-type-driven emission** (one `const` per named type) and
@@ -88,7 +88,7 @@ The two artifacts:
   type. Pure data. Used for validation-error rendering today; powers form-building
   UI later.
 - **`MockData<T>`** — realistic sample **value pools / ranges** per field. Feeds the
-  existing `createMockData<T>()` generator (which already accepts custom pools and
+  existing `createMockDataFn<T>()` generator (which already accepts custom pools and
   per-property overrides), so the mechanical generator stays deterministic and the
   AI only supplies realistic values.
 
@@ -169,7 +169,7 @@ Container meta keys: arrays/tuples use `rt$items` (element node); maps/sets use
 ### Error keys = the verified `(format.name, formatPath-tail)` discriminator
 
 Each `rt$errors` key names the failed sub-constraint. This is **not** an invented
-key set — it maps 1:1 onto what `createGetValidationErrors<T>()` actually emits.
+key set — it maps 1:1 onto what `createGetValidationErrorsFn<T>()` actually emits.
 A validation failure is a `RTValidationError` (see
 [`createRTFunctions.ts`](../packages/ts-runtypes/src/createRTFunctions.ts)):
 
@@ -221,8 +221,8 @@ the type is annotated.
 
 ### Aggregation: errors accumulate
 
-`createGetValidationErrors` **accumulates** — a value that violates `minLength`
-*and* `pattern` produces two `RTValidationError`s, not one. (The boolean `createValidate`
+`createGetValidationErrorsFn` **accumulates** — a value that violates `minLength`
+*and* `pattern` produces two `RTValidationError`s, not one. (The boolean `createValidateFn`
 path short-circuits; irrelevant here.) The only short-circuits are structurally
 necessary: no separator ⇒ datetime skips `date`/`time`; no `@` ⇒ email skips
 `localPart`/`domain`. So the data DSL yields **one message per violated
@@ -376,7 +376,7 @@ no new registry needed (see [Consumption](#consumption--committed-imports)).
 ### Node model
 
 Per-field pools, ranges, and per-format hints that feed the **existing**
-`createMockData<T>()` generator (`createMockData` already supports custom pools and
+`createMockDataFn<T>()` generator (`createMockDataFn` already supports custom pools and
 per-property overrides — `MockData<T>` is just the typed, validated form of those):
 
 ```ts
@@ -390,7 +390,7 @@ const mockUser: MockData<User> = {
   },
 };
 
-const newUser = createMockData<User>(undefined, { data: mockUser });   // existing factory + the `data` option
+const newUser = createMockDataFn<User>(undefined, { data: mockUser });   // existing factory + the `data` option
 ```
 
 ### The pool-validation superpower (MD003)
@@ -571,8 +571,8 @@ tree entirely.
 
 ```
 <rootDir>/models/user.ts          interface User { … }          ← definition
-<rootDir>/services/userApi.ts     createMockData<User>()        ← consumer
-<rootDir>/test/fixtures.ts        createMockData<User>()        ← consumer
+<rootDir>/services/userApi.ts     createMockDataFn<User>()        ← consumer
+<rootDir>/test/fixtures.ts        createMockDataFn<User>()        ← consumer
                                   ──────────────────────────────────
 gen ⇒  <genDir>/enriched/friendly/models/user.ts   export const friendlyUser: FriendlyText<User> = { … }
        <genDir>/enriched/mock/models/user.ts       export const mockUser:     MockData<User>     = { … }
@@ -709,7 +709,7 @@ emitter and the DSL types now agree structurally for every kind.
 | Artifact         | Generated for…                                                              |
 | ---------------- | --------------------------------------------------------------------------- |
 | `FriendlyText<T>`| **any** type referenced by **any** RunTypes marker (broad — friendly also serves future UI, so we scaffold eagerly) |
-| `MockData<T>`    | only types consumed by a **`createMockData`** call (demand-driven by the mock consumer) |
+| `MockData<T>`    | only types consumed by a **`createMockDataFn`** call (demand-driven by the mock consumer) |
 
 ### `gen` semantics
 
@@ -939,7 +939,7 @@ translates like any other leaf) — a partial translation never throws.
 | Named type in user `.ts`                      | per-family mirror files at its definition's mirror path — the rule      |
 | Several types in one file                     | one mirror file per family, one export per type                         |
 | Re-exported / `import type` aliased           | follow to the original declaration; the mirror tracks that file         |
-| Anonymous/inline `createMockData<{a:string}>()` | no named home → **skip** (no mirror file)                             |
+| Anonymous/inline `createMockDataFn<{a:string}>()` | no named home → **skip** (no mirror file)                             |
 | Generic instantiations `Box<string>` vs `Box<number>` | separate entries in `Box`'s mirror file, one per structural id, name-disambiguated |
 | Type declared only in a `.d.ts`               | mirror is always a `.ts` (it holds runtime const values), at the `.d.ts`'s mirror path |
 | Existing hand-edited mirror file              | default: create-only — skip present entries, append missing ones, never clobber. `--update`: value-preserving reconcile (property merge + rename + orphan), never clobbers authored values |
@@ -955,11 +955,11 @@ match wins:**
 1. **`T` defined in your source** → its mirror file under `genDir`. *(generated by `gen`)*
 2. **`T` from a dependency that ships enrichment** → use the library's named enrichment exports. *(read-only — we consume, never generate)*
 3. **`T` from a dependency, user opted in** via a `@rtEnrich` JSDoc tag → user-authored override in a configured dir (`rt-overrides/`). *(opt-in only)*
-4. **No match** → emit nothing; factories fall back (mock = mechanical `createMockData`; friendly = raw field names).
+4. **No match** → emit nothing; factories fall back (mock = mechanical `createMockDataFn`; friendly = raw field names).
 
 So **by default we emit nothing for external types** — they land at #4 unless the
 library provides (#2) or the user explicitly opts in (#3). Built-ins (`Date`,
-`Map`, …) are #4 by nature; `createMockData` already mocks them mechanically.
+`Map`, …) are #4 by nature; `createMockDataFn` already mocks them mechanically.
 
 Two implications:
 
@@ -990,15 +990,15 @@ greppable, IDE-managed code — no injection, no id-routing, no registry:
 import { mockUser }     from 'src/__runtypes/enriched/mock/models/user';
 import { friendlyUser } from 'src/__runtypes/enriched/friendly/models/user';
 
-createMockData<User>({ data: mockUser });
+createMockDataFn<User>({ data: mockUser });
 const friendly = createFriendlyText<User>(friendlyUser);
 ```
 
-`createFriendlyText<T>(map)` and `createMockData<T>({ data })` are already **explicit**
+`createFriendlyText<T>(map)` and `createMockDataFn<T>({ data })` are already **explicit**
 in their shipped signatures (the map/data are real arguments), so this model is the
 *smaller* change — the engine is untouched; the only new machinery is `gen`
 producing the committed mirror files. `createFriendlyText` stays a pure-data function
-(no marker, no type id); `createMockData<T>` keeps its runtype injection (that is the
+(no marker, no type id); `createMockDataFn<T>` keeps its runtype injection (that is the
 *ephemeral* cache, correctly invisible), with `data` as the *committed* import.
 
 ### Why not inject the link (rejected)
@@ -1025,7 +1025,7 @@ call site, not through a shared id table.
 
 Friendly labels/messages belong in the prod bundle (UI); 50+-item mock pools almost
 never do. Because consumption is an ordinary `import`, this is handled by **normal
-tree-shaking + import hygiene** — keep `createMockData({ data: … })` calls in
+tree-shaking + import hygiene** — keep `createMockDataFn({ data: … })` calls in
 dev/test entry points (or behind a dev condition) so the mock pools never reach a
 production graph. No special registration-gating mechanism required.
 

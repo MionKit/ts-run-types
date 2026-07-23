@@ -7,7 +7,7 @@
 //     → entryModules (the per-entry virtual modules the plugin would serve)
 //     → evalEntryModules (execute them into their positional tuples)
 //     → pass each fn tuple as the injected id to the REAL createX factory
-//       (createValidate(undefined, undefined, tuple) → initFromTuple links the
+//       (createValidateFn(undefined, undefined, tuple) → initFromTuple links the
 //        whole dependency closure into the live rtUtils).
 //
 // Crucially this is run on the WIDEST type space (typeGen.ts) — classes,
@@ -20,14 +20,14 @@
 
 import path from 'node:path';
 import {
-  createValidate,
-  createGetValidationErrors,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
-  createBinarySizer,
-  createMockData,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
+  createBinarySizerFn,
+  createMockDataFn,
 } from '@ts-runtypes/core';
 import {binarySizeEstimateFromTuple} from '../../../src/runtypes/entryTuple.ts';
 import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
@@ -85,9 +85,9 @@ export interface CompiledType {
   /** The cold-start buffer estimate baked into the `tb` entry, or undefined when
    *  the type produced no estimate slot. **/
   seed?: number;
-  /** The exact-wire-size sizer (`createBinarySizer`), reusing the `tb` entry. **/
+  /** The exact-wire-size sizer (`createBinarySizerFn`), reusing the `tb` entry. **/
   binarySizer?: (value: unknown) => number;
-  /** The reflection entry tuple — the size lane drives its own `createMockData`
+  /** The reflection entry tuple — the size lane drives its own `createMockDataFn`
    *  off it (e.g. with `respectBinarySize`). **/
   reflectionTuple?: readonly unknown[];
 }
@@ -106,22 +106,22 @@ export function openClient(
 export function renderFixture(gen: GeneratedType): string {
   const {decls, rootExpr} = renderGenerated(gen);
   return `import {
-  createValidate,
-  createGetValidationErrors,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
   getRunTypeId,
 } from '@ts-runtypes/core';
 ${decls}
 type T = ${rootExpr};
-createValidate<T>();
-createGetValidationErrors<T>();
-createJsonEncoder<T>();
-createJsonDecoder<T>();
-createBinaryEncoder<T>();
-createBinaryDecoder<T>();
+createValidateFn<T>();
+createGetValidationErrorsFn<T>();
+createJsonEncoderFn<T>();
+createJsonDecoderFn<T>();
+createBinaryEncoderFn<T>();
+createBinaryDecoderFn<T>();
 getRunTypeId<T>();
 `;
 }
@@ -187,41 +187,46 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
   const byFamily = classifyFnSites(fnSites, tuples);
   const wired: WiredFns = {};
   const wireErrors: CompiledType['wireErrors'] = {};
-  wire(wired, wireErrors, 'validate', () => createValidate(undefined, undefined, byFamily.val as never) as WiredFns['validate']);
+  wire(
+    wired,
+    wireErrors,
+    'validate',
+    () => createValidateFn(undefined, undefined, byFamily.val as never) as WiredFns['validate']
+  );
   wire(
     wired,
     wireErrors,
     'getValidationErrors',
-    () => createGetValidationErrors(undefined, undefined, byFamily.verr as never) as WiredFns['getValidationErrors']
+    () => createGetValidationErrorsFn(undefined, undefined, byFamily.verr as never) as WiredFns['getValidationErrors']
   );
   wire(
     wired,
     wireErrors,
     'jsonEncode',
-    () => createJsonEncoder(undefined, undefined, byFamily.jenc as never) as WiredFns['jsonEncode']
+    () => createJsonEncoderFn(undefined, undefined, byFamily.jenc as never) as WiredFns['jsonEncode']
   );
   wire(
     wired,
     wireErrors,
     'jsonDecode',
-    () => createJsonDecoder(undefined, undefined, byFamily.jdec as never) as WiredFns['jsonDecode']
+    () => createJsonDecoderFn(undefined, undefined, byFamily.jdec as never) as WiredFns['jsonDecode']
   );
   wire(
     wired,
     wireErrors,
     'binaryEncode',
-    () => createBinaryEncoder(undefined, undefined, byFamily.tb as never) as WiredFns['binaryEncode']
+    () => createBinaryEncoderFn(undefined, undefined, byFamily.tb as never) as WiredFns['binaryEncode']
   );
   wire(
     wired,
     wireErrors,
     'binaryDecode',
-    () => createBinaryDecoder(undefined, undefined, byFamily.fb as never) as WiredFns['binaryDecode']
+    () => createBinaryDecoderFn(undefined, undefined, byFamily.fb as never) as WiredFns['binaryDecode']
   );
 
-  // Mock value source — the REAL createMockData driven off the reflection ENTRY
+  // Mock value source — the REAL createMockDataFn driven off the reflection ENTRY
   // TUPLE (the per-root facade, basename === the reflection site id). Passing
-  // the tuple mirrors what the plugin injects in production: createMockData runs
+  // the tuple mirrors what the plugin injects in production: createMockDataFn runs
   // initFromTuple itself, linking the reflection runtype graph into the live
   // rtUtils, then resolves the root by id. (The six function factories register
   // their own demand-driven caches, not the reflection bundle, so the id alone
@@ -231,7 +236,7 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
   const reflectionTuple = reflectionId !== undefined ? tuples[reflectionId] : undefined;
   if (reflectionTuple !== undefined) {
     wire(wired, wireErrors, 'mock', () => {
-      const mockFn = createMockData(undefined, {mock: {nonDataTypes: true}}, reflectionTuple as never);
+      const mockFn = createMockDataFn(undefined, {mock: {nonDataTypes: true}}, reflectionTuple as never);
       return (() => mockFn()) as WiredFns['mock'];
     });
   }
@@ -244,7 +249,7 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
   let binarySizer: CompiledType['binarySizer'];
   if (byFamily.tb) {
     try {
-      binarySizer = createBinarySizer(undefined, byFamily.tb as never) as CompiledType['binarySizer'];
+      binarySizer = createBinarySizerFn(undefined, byFamily.tb as never) as CompiledType['binarySizer'];
     } catch {
       binarySizer = undefined;
     }

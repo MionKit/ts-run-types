@@ -18,8 +18,8 @@ overrideJsonEncoder<User>((u) => `{"id":${u.id},"n":${JSON.stringify(u.name)}}`)
 overrideValidate<User>((v): v is User => typeof v === 'object' && v !== null && typeof (v as User).id === 'number');
 
 // Anywhere else, untouched:
-const encode = createJsonEncoder<User>();   // returns the custom encoder
-const isUser = createValidate<User>();      // returns the custom validator
+const encode = createJsonEncoderFn<User>();   // returns the custom encoder
+const isUser = createValidateFn<User>();      // returns the custom validator
 ```
 
 The shape (`overrideX<T>(pureFn)`) deliberately mirrors `createX<T>()`. Same
@@ -136,7 +136,7 @@ must not silently weaken them.
    — collapse to "the override wins for every strategy of that family on
    that T" and document it. Per-strategy overrides multiply the rule surface
    and make the override conceptually leakier.
-3. **Override `createValidate` only, or every family?** Likely answer: every
+3. **Override `createValidateFn` only, or every family?** Likely answer: every
    public op in the registry (validate, verr, huk, suk, uke, uku, fmt, tb, fb,
    jsonEncoder, jsonDecoder) gets an `overrideX` twin. The internal primitives
    (`pj`, `pjs`, `rj`, `sj`, `ukuw`) do NOT get one — they aren't user-facing.

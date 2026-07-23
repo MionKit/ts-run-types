@@ -1,7 +1,7 @@
 // Autonomous fuzz driver. Feeds three streams of data into every target's
 // validation/serialization functions and collects oracle violations:
 //
-//   valid    createMockData<T>()        → O1, O3, O4, O5, O6, O7
+//   valid    createMockDataFn<T>()        → O1, O3, O4, O5, O6, O7
 //   invalid  mutateToInvalid(valid)     → O2, O3, O4
 //   junk     randomJunk() (type-blind)  → O3, O4
 //

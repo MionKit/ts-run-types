@@ -26,12 +26,12 @@ const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> 
 
 // TestFormatSamples_MismatchEmitsFMT001 — a mockSample that doesn't
 // match the format's own pattern must surface as an FMT001 error at
-// build time (the sample would otherwise feed createMockData an
+// build time (the sample would otherwise feed createMockDataFn an
 // invalid value).
 func TestFormatSamples_MismatchEmitsFMT001(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
   mockSamples: ['42', 'not-a-number', '7'];
 }>>();
@@ -67,9 +67,9 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 // TestFormatSamples_AllValidNoDiagnostic — when every sample matches
 // the pattern, no FMT001 fires.
 func TestFormatSamples_AllValidNoDiagnostic(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
   mockSamples: ['42', '7', '007'];
 }>>();
@@ -119,9 +119,9 @@ func scanBuild(t testing.TB, session *resolver.Session) protocol.Response {
 // every offending sample in the one message (the diagnostic pipeline
 // dedups per code per walk).
 func TestFormatSamples_BoundsEmitFMT003(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   minLength: 5;
   pattern: {source: '^b+$'; flags: ''; mockSamples: ['b', 'bb']};
 }>>();
@@ -149,9 +149,9 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 // here (only the all-violate case throws). Guards the false positive found on
 // the `Alpha<{maxLength:3}>` / `['aa','aaaaaa']` fixtures.
 func TestFormatSamples_PartialLengthSurvivorNoFMT003(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   minLength: 5;
   pattern: {source: '^a+$'; flags: ''; mockSamples: ['aa', 'aaaaaa']};
 }>>();
@@ -169,9 +169,9 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 // runtime.
 func TestFormatSamples_AstralLengthUTF16(t *testing.T) {
 	// maxLength 1: the astral sample is length 2 in UTF-16 → violation.
-	tooLong := `import {createValidate} from '@ts-runtypes/core';
+	tooLong := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   maxLength: 1;
   mockSamples: ['𝟘'];
 }>>();
@@ -183,9 +183,9 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 	}
 
 	// maxLength 2: the same sample fits exactly → no violation.
-	fits := `import {createValidate} from '@ts-runtypes/core';
+	fits := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   maxLength: 2;
   mockSamples: ['𝟘'];
 }>>();
@@ -199,9 +199,9 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 // uncheckedPatternSource is a pattern using a JS-only lookbehind that
 // RE2 can't compile, carrying a mockSample. Shared by the FMT004 lane
 // tests.
-const uncheckedPatternSource = `import {createValidate} from '@ts-runtypes/core';
+const uncheckedPatternSource = `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   pattern: {source: '(?<=a)b'; flags: ''; mockSamples: ['ab']};
 }>>();
 `

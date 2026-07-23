@@ -226,7 +226,7 @@ back into a live object requires the app to hand the runtime two things: the **c
 **deserialize** function. That is the whole reason the registry exists — the build
 cannot import your class or know its rules, but your app can register them once.
 
-This is why `createValidate` is unaffected: it only ever checks the *structural shape*
+This is why `createValidateFn` is unaffected: it only ever checks the *structural shape*
 of the data and never needs to bring an instance back to life.
 
 ## Current state (what exists today)
@@ -610,7 +610,7 @@ Extend [`test/features/classSerializer.test.ts`](../../packages/ts-runtypes/test
 3. **Union vs open-world scope.** Phase 1 covers **closed-set** JSON unions (members are
    known registered classes). Confirm **open-world polymorphism** (base-class / interface
    field → any registered subclass) is Phase 2, out of the first PR.
-4. **`validate` and the tag.** `createValidate` runs on **in-memory** values, not the wire
+4. **`validate` and the tag.** `createValidateFn` runs on **in-memory** values, not the wire
    form, so it should never see `rt$classID`. Confirm no path validates a still-tagged
    decoded payload; if one exists, `validate` must tolerate the reserved key.
 5. **Fold or delete the dead `rtUtils` methods** (`setSerializableClass` /

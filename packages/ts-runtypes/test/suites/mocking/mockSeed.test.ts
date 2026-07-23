@@ -1,15 +1,15 @@
-// Seeded, repeatable mock data: `createMockData(..., { mock: { seed } })` must
+// Seeded, repeatable mock data: `createMockDataFn(..., { mock: { seed } })` must
 // produce the SAME value for the same seed across every kind, differ across
 // seeds, and stay random with no seed. The broad kind sweep runs schema-first
 // (RT / TF / TFT builders carry their own runtype, so no plugin is needed); a
-// second block drives the plugin to pin BOTH createMockData call shapes (static
+// second block drives the plugin to pin BOTH createMockDataFn call shapes (static
 // `<T>()` and value-first) and their convergence — the marker coverage rule.
 //
 // A fresh factory per call is deliberate: it exercises the per-invocation reset
 // (the same seed reproduces the same value even across separate factories).
 
 import {describe, it, expect} from 'vitest';
-import {createMockData} from '@ts-runtypes/core';
+import {createMockDataFn} from '@ts-runtypes/core';
 import type {RunType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
@@ -19,7 +19,7 @@ import * as TFT from '@ts-runtypes/core/formats/temporal';
 import '@ts-runtypes/core/formats';
 
 function gen(schema: RunType<unknown>, seed: number | undefined): unknown {
-  return createMockData(schema, {mock: {seed}})();
+  return createMockDataFn(schema, {mock: {seed}})();
 }
 
 // A deep composite spanning the atomic kinds, formats (uuid v4/v7, date), a
@@ -81,24 +81,24 @@ describe('seeded mock data — seed changes and no-seed randomness', () => {
 
 describe('seed honored from factory and per-call options (call overrides factory)', () => {
   it('a factory seed reproduces across separate factories', () => {
-    const a = createMockData(composite, {mock: {seed: 7}});
-    const b = createMockData(composite, {mock: {seed: 7}});
+    const a = createMockDataFn(composite, {mock: {seed: 7}});
+    const b = createMockDataFn(composite, {mock: {seed: 7}});
     expect(a()).toEqual(b());
   });
 
   it('a per-call seed overrides the factory seed', () => {
-    const factory = createMockData(composite, {mock: {seed: 7}});
+    const factory = createMockDataFn(composite, {mock: {seed: 7}});
     const viaCall = factory({mock: {seed: 9}});
-    const viaSeed9 = createMockData(composite, {mock: {seed: 9}})();
+    const viaSeed9 = createMockDataFn(composite, {mock: {seed: 9}})();
     expect(viaCall).toEqual(viaSeed9); // the per-call seed 9 wins
     expect(viaCall).not.toEqual(factory()); // and differs from the factory seed 7
   });
 });
 
-// Marker coverage rule: BOTH createMockData call shapes, plus a per-form
+// Marker coverage rule: BOTH createMockDataFn call shapes, plus a per-form
 // convergence assert. These use the plugin (it injects the runtype id / tuple),
 // like test/features/mockSoundness.test.ts.
-describe('both createMockData call shapes are seed-deterministic and converge', () => {
+describe('both createMockDataFn call shapes are seed-deterministic and converge', () => {
   interface Point {
     x: number;
     y: number;
@@ -107,21 +107,21 @@ describe('both createMockData call shapes are seed-deterministic and converge', 
   }
   const sample: Point = {x: 0, y: 0, label: '', tags: []};
 
-  it('static createMockData<T>() reproduces with a seed', () => {
-    const a = createMockData<Point>(undefined, {mock: {seed: 555}})();
-    const b = createMockData<Point>(undefined, {mock: {seed: 555}})();
+  it('static createMockDataFn<T>() reproduces with a seed', () => {
+    const a = createMockDataFn<Point>(undefined, {mock: {seed: 555}})();
+    const b = createMockDataFn<Point>(undefined, {mock: {seed: 555}})();
     expect(a).toEqual(b);
   });
 
-  it('value-first createMockData(value) reproduces with a seed', () => {
-    const a = createMockData(sample, {mock: {seed: 555}})();
-    const b = createMockData(sample, {mock: {seed: 555}})();
+  it('value-first createMockDataFn(value) reproduces with a seed', () => {
+    const a = createMockDataFn(sample, {mock: {seed: 555}})();
+    const b = createMockDataFn(sample, {mock: {seed: 555}})();
     expect(a).toEqual(b);
   });
 
   it('the two shapes converge on the same value for equivalent T and seed', () => {
-    const viaStatic = createMockData<Point>(undefined, {mock: {seed: 555}})();
-    const viaValue = createMockData(sample, {mock: {seed: 555}})();
+    const viaStatic = createMockDataFn<Point>(undefined, {mock: {seed: 555}})();
+    const viaValue = createMockDataFn(sample, {mock: {seed: 555}})();
     expect(viaStatic).toEqual(viaValue);
   });
 });

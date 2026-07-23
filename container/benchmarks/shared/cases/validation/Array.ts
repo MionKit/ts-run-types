@@ -184,7 +184,7 @@ export const ARRAY = {
   symbol_array: {
     title: 'Array of symbols (non-serializable — factory throws)',
     description:
-      'ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (ref: nodes/member/array.ts:148): throws at RT-compile. The CodeNS propagates from the symbol element to the root, rendering an alwaysThrow factory (T3), so createValidate<symbol[]>() / createGetValidationErrors<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
+      'ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (ref: nodes/member/array.ts:148): throws at RT-compile. The CodeNS propagates from the symbol element to the root, rendering an alwaysThrow factory (T3), so createValidateFn<symbol[]>() / createGetValidationErrorsFn<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
     factoryThrows: true,
     getSamples: () => ({valid: [], invalid: []}),
   },

@@ -210,9 +210,9 @@ export const id = getRunTypeId<MapThing>();
 // OpTransform's injected import block points at relative on-disk module paths
 // (under OutDir/types) instead of rtmod: specifiers.
 func TestTransform_FilesModeInjectsRelativeImports(t *testing.T) {
-	const src = `import {createValidate} from '@ts-runtypes/core';
+	const src = `import {createValidateFn} from '@ts-runtypes/core';
 interface Thing { id: string }
-export const isThing = createValidate<Thing>();
+export const isThing = createValidateFn<Thing>();
 `
 	r := setupInline(t, map[string]string{"a.ts": src})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpTransform, Files: []string{"a.ts"}, OutDir: "__runtypes"})

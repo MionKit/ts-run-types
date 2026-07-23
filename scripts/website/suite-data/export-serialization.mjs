@@ -69,7 +69,7 @@ const MD_PATH = path.join(REPO_ROOT, `gendocs/${SUITE}-suite.md`);
 const FN_FIELDS = ['cloneEncoder', 'schemaEncoder', 'mutateEncoder', 'directEncoder', 'stripDecoder', 'preserveDecoder'];
 
 // One API descriptor per measured shape. Three encoders cover the
-// JsonEncoderStrategy axis exposed by createJsonEncoder:
+// JsonEncoderStrategy axis exposed by createJsonEncoderFn:
 //   clone  → strategy='clone'  (pjs — shape-derived, strips by construction; default)
 //   mutate → strategy='mutate' (pj — in place, preserves extras)
 //   direct → strategy='direct' (sj — single-pass stringify)
@@ -106,14 +106,14 @@ const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
     noIsArrayCheck?: boolean;
   }
   export type ValidateFn = (value: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
-  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createGetValidationErrorsFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct'};
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
-  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
-  export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
-  export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
+  export function createJsonEncoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
+  export function createJsonDecoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export function createBinaryEncoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
+  export function createBinaryDecoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
 }
 `;
 
@@ -568,7 +568,7 @@ async function runCompilePhase(metrics, bodies) {
       metrics[category][caseKey][api.key].tsCompileMs = statsOf(tsCompileTimes);
 
       // Dump the generated modules once per case — the 'clone' strategy is the
-      // type-first default (`createJsonEncoder<T>()`), the doc "pure type"
+      // type-first default (`createJsonEncoderFn<T>()`), the doc "pure type"
       // representative. Untimed extra scan; the synth file is the same shape.
       if (api.key === 'clone') {
         await client.reset();
@@ -605,13 +605,13 @@ function writeCaseDump(casesDir, category, caseKey, resp) {
 }
 
 // Wraps the extracted factory body in an arrow probe. The body is the
-// RHS of a thunk like `() => createJsonEncoder<X>(...)`, so the
+// RHS of a thunk like `() => createJsonEncoderFn<X>(...)`, so the
 // synthetic file imports both encoder + decoder constructors.
 function buildSynthetic(body) {
   // Self-declaring cases name format types via the `TF.*` / `TFT.*` namespaces with no
   // file-level import; inject the namespace overlays so they keep their brand and the
   // generated codec shows the real format handling instead of a plain-string fallback.
-  const imports = [`import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';`];
+  const imports = [`import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';`];
   if (/\bTF\./.test(body)) imports.push(`import type * as TF from '../${FORMATS_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   if (/\bTFT\./.test(body)) imports.push(`import type * as TFT from '../${TEMPORAL_MODULE_PATH.replace(/\.ts$/, '')}.ts';`);
   return `${imports.join('\n')}\nconst _probe = () => {\n${body}\n};\n`;

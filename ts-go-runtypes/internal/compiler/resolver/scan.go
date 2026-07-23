@@ -318,7 +318,7 @@ type pendingCall struct {
 	fnIds  []string
 	demand []protocol.SiteDemand
 	// trailingComma is true when the call's own argument list already ends
-	// with a comma (e.g. a formatter-wrapped `createValidate(\n  schema,\n)`).
+	// with a comma (e.g. a formatter-wrapped `createValidateFn(\n  schema,\n)`).
 	// The TS-side injector reads it to splice the binding WITHOUT a leading
 	// comma — otherwise the pre-existing comma plus the injected `, …` yield
 	// an empty argument `f(a, , …)`, which is invalid JS.
@@ -548,7 +548,7 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 		// wrapper's own free type parameter, so there is no concrete id to inject
 		// until the wrapper is itself instantiated. (A wrapper that forwards its
 		// handle returned above; this is the genuinely-unsupported case, e.g.
-		// `createValidate<T>()` in a generic body.) Emit MKR003 so the user gets a
+		// `createValidateFn<T>()` in a generic body.) Emit MKR003 so the user gets a
 		// build-time breadcrumb instead of only the runtime "no id injected" throw.
 		sourceFile := ast.GetSourceFileOfNode(call)
 		if sourceFile == nil {
@@ -570,7 +570,7 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	if inReflectForm {
 		argZero := callExpression.Arguments.Nodes[0]
 		// FUNCTION-CALL-ARGUMENT ANTI-PATTERN: passing a call expression
-		// as the reflect-form value (`createValidate(getX())`) invokes the
+		// as the reflect-form value (`createValidateFn(getX())`) invokes the
 		// function at runtime purely for type inference — side effects,
 		// exceptions, async work, all fire for nothing. The validator
 		// still works (T comes from the inferred return type), but the
@@ -595,12 +595,12 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 		// the apparent type at the call site is `typeof literal`, not the
 		// declared union/enum. Reading the annotation directly makes the
 		// reflect-form hash equal to the static-form hash for the natural
-		// `const v: T = literal; createValidate(v);` idiom. Non-identifier
+		// `const v: T = literal; createValidateFn(v);` idiom. Non-identifier
 		// reflect-form args (property access, function calls, element
 		// access) don't go through const-binding CFA and don't exhibit
 		// the trap, so they fall through to the apparent-type path.
 		// Skip annotation honoring for the SCHEMA overload: when argZero is a
-		// RunType-typed const (`createValidate(schemaConst)` where
+		// RunType-typed const (`createValidateFn(schemaConst)` where
 		// `const schemaConst: RunType<T> = …`), the declared type is `RunType<T>`,
 		// but the injection's typeArgument is already the UNWRAPPED `T` (inferred
 		// from the schema overload's `RunType<T>` param). Overriding it with
@@ -637,7 +637,7 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	// `valNA`) and the emitter renders one factory per (typeid, fnId) pair
 	// under the canonical variant cache key (e.g. `itNL_<id>`, `valNA_<id>`).
 	// Same invariant the encoder strategy / decoder strategy already honour.
-	// See createRTFunctions.ts's `createJsonEncoder` dispatch + the
+	// See createRTFunctions.ts's `createJsonEncoderFn` dispatch + the
 	// `ValidateVariantSuffix` helper in internal/constants. RegExp has no
 	// literal type in TS (`/abc/i` widens to `RegExp` even under `as const`),
 	// so `typeof /abc/i`, `typeof /xyz/`, and `RegExp` all resolve to the
@@ -865,7 +865,7 @@ func computeSiteFn(typeChecker *checker.Checker, fnKey string, options validateO
 // optionsArgumentAt returns the AST node at the compile-time options slot —
 // the slot immediately before the trailing id slot — or nil when the call
 // doesn't fill it. Layout convention: options always lives at (lastIndex-1);
-// for `createValidate<T>(val?, options?, id?)` that's slot 1. Marker
+// for `createValidateFn<T>(val?, options?, id?)` that's slot 1. Marker
 // functions without an options param (`getRunTypeId<T>(_value?, id?)`) are
 // inherently safe — slot 0 holds a value, which may be an object literal
 // but won't carry known option keys.
@@ -1122,7 +1122,7 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 }
 
 // hasUnknownKeysOptions mirrors validateOptions for the HasUnknownKeysOptions
-// bag (createHasUnknownKeys's compile-time options). Table-driven off
+// bag (createHasUnknownKeysFn's compile-time options). Table-driven off
 // constants.HasUnknownKeysOptions.
 type hasUnknownKeysOptions struct {
 	enabled map[string]bool
@@ -1264,7 +1264,7 @@ func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
 }
 
 // markerDiagFunctionCallArg builds an MKR001 diagnostic flagging a reflect-form
-// marker call that received a function-call argument (`createValidate(getX())`).
+// marker call that received a function-call argument (`createValidateFn(getX())`).
 // The function gets invoked at runtime purely so TypeScript can infer T from
 // its return type, which can produce side effects, exceptions, or async work
 // for no reason. The recommended replacement is the static form using

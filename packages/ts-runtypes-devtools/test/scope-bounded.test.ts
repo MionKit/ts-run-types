@@ -16,7 +16,7 @@ describe('@ts-runtypes/devtools / bounded-scope contract', () => {
   runTest(
     'unreferenced type aliases do not appear in the rendered cache',
     {
-      'scope.ts': `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+      'scope.ts': `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 
 // Referenced — has a marker call; should be projected.
 type Referenced = {a: string; b: number};
@@ -28,7 +28,7 @@ type UnusedA = {x: bigint};                  // ReflectionKind.bigint
 type UnusedB = {y: Date};                    // class with date subkind
 export type UnusedC = boolean[];             // array of boolean
 
-export const check = createValidate<Referenced>();
+export const check = createValidateFn<Referenced>();
 // Reflection demand — the runtype bundle is demand-driven on reflection
 // sites; without this the rendered cache would be empty for this file.
 getRunTypeId<Referenced>();

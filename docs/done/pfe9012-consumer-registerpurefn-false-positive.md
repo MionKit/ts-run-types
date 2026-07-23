@@ -30,7 +30,7 @@ Regression coverage:
   moved to a user namespace (`app::`) since built-ins are no longer validated.
 - `internal/compiler/resolver/pure_fn_dep_validation_test.go`:
   `TestPureFnDepValidation_ConsumerOwnPureFnNoFalsePositive` (the exact bug: `.d.ts`
-  core + `createGetValidationErrors` + a consumer `registerPureFnFactory` → no
+  core + `createGetValidationErrorsFn` + a consumer `registerPureFnFactory` → no
   PFE9012 on scanFiles / lint / dump) + the registration-present + stub cases.
 
 ## Symptom
@@ -38,7 +38,7 @@ Regression coverage:
 A consumer app that installs the **published** `@ts-runtypes/core` and both
 
 1. calls its own `registerPureFnFactory('ns::fn', …)`, **and**
-2. uses any feature that references a built-in pure fn (`createGetValidationErrors`,
+2. uses any feature that references a built-in pure fn (`createGetValidationErrorsFn`,
    the unknown-key **errors** family, `createStandardSchema`, any `TF` format
    whose validator calls `rtFormats::…`, …)
 
@@ -86,8 +86,8 @@ Built the shared feature library through the real devtools Vite plugin +
 
 | Program | Result |
 |---|---|
-| `createGetValidationErrors<T>()` alone (no own pure fn) | builds — guard skips (entries == 0) |
-| `createGetValidationErrors<T>()` **+ own `registerPureFnFactory`** | **PFE9012 halt** |
+| `createGetValidationErrorsFn<T>()` alone (no own pure fn) | builds — guard skips (entries == 0) |
+| `createGetValidationErrorsFn<T>()` **+ own `registerPureFnFactory`** | **PFE9012 halt** |
 | full shared app **+ `registerPureFnFactory('e2e::slugify')`** | 42× PFE9012 halt |
 | full shared app, own `registerPureFnFactory` **removed** | builds green (65/65 checks pass) |
 
@@ -115,7 +115,7 @@ the diagnostic's value for user pure fns.
 
 ## Acceptance
 
-- [x] A consumer program with its own `registerPureFnFactory` + `createGetValidationErrors`
+- [x] A consumer program with its own `registerPureFnFactory` + `createGetValidationErrorsFn`
       (or any built-in-referencing feature) builds against the published package.
 - [x] A genuine user typo (`ns::typoFn` referenced but never registered) still fires PFE9012.
 - [x] Re-add the `custom-pure-fn` (`registerPureFnFactory`) coverage to

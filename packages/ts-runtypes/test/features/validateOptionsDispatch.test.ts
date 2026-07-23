@@ -10,7 +10,7 @@
 //   3. The variant body actually changes behaviour: the `noLiterals`
 //      variant accepts the base kind beyond the exact literal; the
 //      `noIsArrayCheck` variant skips the leading `Array.isArray` guard.
-//   4. Schema-form (`createValidate`) converges with marker-form for
+//   4. Schema-form (`createValidateFn`) converges with marker-form for
 //      the same `T + options` — both go through `buildVariantKey` and
 //      resolve to a factory that exhibits the same behaviour.
 //
@@ -23,7 +23,7 @@
 
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, createGetValidationErrors, getRunTypeId} from '@ts-runtypes/core';
+import {createValidateFn, createGetValidationErrorsFn, getRunTypeId} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 describe('ValidateOptions — type-id stays structural across option combinations', () => {
@@ -38,7 +38,7 @@ describe('ValidateOptions — type-id stays structural across option combination
     const bareId: string = getRunTypeId<string[]>();
     // Build the variant factory at this call site too — its sole job is
     // to prove the id-emitting marker doesn't fold options into the id.
-    const variantFactory = createValidate<string[]>(undefined, {noIsArrayCheck: true});
+    const variantFactory = createValidateFn<string[]>(undefined, {noIsArrayCheck: true});
     expect(variantFactory).toBeTypeOf('function');
     const afterId: string = getRunTypeId<string[]>();
     expect(afterId).toBe(bareId);
@@ -46,25 +46,25 @@ describe('ValidateOptions — type-id stays structural across option combination
 });
 
 describe('ValidateOptions — different option tuples dispatch to distinct cached factories', () => {
-  it("`createValidate<'a'>()` and `createValidate<'a'>(undefined, {noLiterals: true})` are different cached fns", () => {
-    expect(createValidate<'a'>()).not.toBe(createValidate<'a'>(undefined, {noLiterals: true}));
+  it("`createValidateFn<'a'>()` and `createValidateFn<'a'>(undefined, {noLiterals: true})` are different cached fns", () => {
+    expect(createValidateFn<'a'>()).not.toBe(createValidateFn<'a'>(undefined, {noLiterals: true}));
   });
 
-  it('`createValidate<string[]>()` and `createValidate<string[]>(undefined, {noIsArrayCheck: true})` are different cached fns', () => {
-    expect(createValidate<string[]>()).not.toBe(createValidate<string[]>(undefined, {noIsArrayCheck: true}));
+  it('`createValidateFn<string[]>()` and `createValidateFn<string[]>(undefined, {noIsArrayCheck: true})` are different cached fns', () => {
+    expect(createValidateFn<string[]>()).not.toBe(createValidateFn<string[]>(undefined, {noIsArrayCheck: true}));
   });
 
   it('the same T with the same options resolves to ONE cached factory', () => {
-    expect(createValidate<string[]>(undefined, {noIsArrayCheck: true})).toBe(
-      createValidate<string[]>(undefined, {noIsArrayCheck: true})
+    expect(createValidateFn<string[]>(undefined, {noIsArrayCheck: true})).toBe(
+      createValidateFn<string[]>(undefined, {noIsArrayCheck: true})
     );
   });
 });
 
 describe('ValidateOptions — variant bodies actually differ in behaviour', () => {
   it("plain `'a'` rejects `'b'`; `noLiterals` variant accepts every string", () => {
-    const plain = createValidate<'a'>();
-    const variant = createValidate<'a'>(undefined, {noLiterals: true});
+    const plain = createValidateFn<'a'>();
+    const variant = createValidateFn<'a'>(undefined, {noLiterals: true});
     expect(plain('a')).toBe(true);
     expect(plain('b')).toBe(false);
     expect(variant('a')).toBe(true);
@@ -73,8 +73,8 @@ describe('ValidateOptions — variant bodies actually differ in behaviour', () =
   });
 
   it('plain `string[]` rejects a non-array; `noIsArrayCheck` variant lets non-array values past the guard', () => {
-    const plain = createValidate<string[]>();
-    const variant = createValidate<string[]>(undefined, {noIsArrayCheck: true});
+    const plain = createValidateFn<string[]>();
+    const variant = createValidateFn<string[]>(undefined, {noIsArrayCheck: true});
     // Plain validator rejects 42 (typeof !== array).
     expect(plain(42)).toBe(false);
     // Variant strips the Array.isArray guard — 42 has no .length, the
@@ -91,7 +91,7 @@ describe('ValidateOptions — variant bodies actually differ in behaviour', () =
 
 describe('ValidateOptions — getValidationErrors variant parity with validate', () => {
   it('`noLiterals` variant of getValidationErrors uses the base-kind label', () => {
-    const errors = createGetValidationErrors<'a'>(undefined, {noLiterals: true});
+    const errors = createGetValidationErrorsFn<'a'>(undefined, {noLiterals: true});
     // `noLiterals` accepts any string — including the non-matching 'b' —
     // so the expected error array is empty.
     expect(errors('b')).toEqual([]);
@@ -102,7 +102,7 @@ describe('ValidateOptions — getValidationErrors variant parity with validate',
   });
 
   it('`noIsArrayCheck` variant of getValidationErrors skips the top-level array guard', () => {
-    const errors = createGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true});
+    const errors = createGetValidationErrorsFn<string[]>(undefined, {noIsArrayCheck: true});
     // Non-array input: no top-level error, no inner element loop runs.
     expect(errors(42)).toEqual([]);
     // Array with a bad element: the element check still fires.
@@ -112,15 +112,15 @@ describe('ValidateOptions — getValidationErrors variant parity with validate',
 
 describe('ValidateOptions — schema-form ⇄ marker-form convergence', () => {
   it('plain schema-form and plain marker-form both reject `[42]` for `string[]`', () => {
-    const marker = createValidate<string[]>();
-    const schema = createValidate(RT.array(TF.string()));
+    const marker = createValidateFn<string[]>();
+    const schema = createValidateFn(RT.array(TF.string()));
     expect(marker([42])).toBe(false);
     expect(schema([42])).toBe(false);
   });
 
   it('schema-form `noIsArrayCheck` variant skips the guard, just like the marker form', () => {
-    const marker = createValidate<string[]>(undefined, {noIsArrayCheck: true});
-    const schema = createValidate(RT.array(TF.string()), {noIsArrayCheck: true});
+    const marker = createValidateFn<string[]>(undefined, {noIsArrayCheck: true});
+    const schema = createValidateFn(RT.array(TF.string()), {noIsArrayCheck: true});
     // Both let a non-array slip past the guard…
     expect(marker(42)).toBe(true);
     expect(schema(42)).toBe(true);
@@ -130,8 +130,8 @@ describe('ValidateOptions — schema-form ⇄ marker-form convergence', () => {
   });
 
   it('schema-form `noIsArrayCheck` variant agrees with marker-form on getValidationErrors output', () => {
-    const marker = createGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true});
-    const schema = createGetValidationErrors(RT.array(TF.string()), {noIsArrayCheck: true});
+    const marker = createGetValidationErrorsFn<string[]>(undefined, {noIsArrayCheck: true});
+    const schema = createGetValidationErrorsFn(RT.array(TF.string()), {noIsArrayCheck: true});
     expect(marker(42)).toEqual([]);
     expect(schema(42)).toEqual([]);
     expect(marker([42])).toEqual(schema([42]));
@@ -141,10 +141,10 @@ describe('ValidateOptions — schema-form ⇄ marker-form convergence', () => {
 describe('ValidateOptions — combined variants build the multi-letter suffix', () => {
   it('`{noLiterals: true, noIsArrayCheck: true}` resolves to a factory distinct from each single-option variant', () => {
     type T = readonly 'x'[];
-    const plain = createValidate<T>();
-    const nlOnly = createValidate<T>(undefined, {noLiterals: true});
-    const naOnly = createValidate<T>(undefined, {noIsArrayCheck: true});
-    const both = createValidate<T>(undefined, {noLiterals: true, noIsArrayCheck: true});
+    const plain = createValidateFn<T>();
+    const nlOnly = createValidateFn<T>(undefined, {noLiterals: true});
+    const naOnly = createValidateFn<T>(undefined, {noIsArrayCheck: true});
+    const both = createValidateFn<T>(undefined, {noLiterals: true, noIsArrayCheck: true});
     // All four are distinct cache entries — proves the variant suffix
     // is constructed from both options together (`NLA`), not collapsed
     // to one of the singles.

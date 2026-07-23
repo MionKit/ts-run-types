@@ -504,7 +504,7 @@ type Order = {
   email: string;
 };
 
-const isUser = createValidate<User>();
+const isUser = createValidateFn<User>();
 ```
 ::::
 
@@ -518,7 +518,7 @@ type Order = {
   email: string;
 };
 
-const isUser = createValidate<User>(__rt_a1b_Xk7);
+const isUser = createValidateFn<User>(__rt_a1b_Xk7);
 ```
 ::::
 

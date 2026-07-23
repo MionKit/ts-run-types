@@ -1,7 +1,7 @@
 // Static assertions over the dist BYTES: prove the RunTypes plugin actually
 // transformed the source inside each bundler (not silently no-op'd). Two checks
 // per app:
-//   1. No residual un-rewritten generic marker calls (`createValidate<…>`,
+//   1. No residual un-rewritten generic marker calls (`createValidateFn<…>`,
 //      `getRunTypeId<…>`) survive — the transform + TS strip removed them.
 //   2. The injected cache wiring is present (the `__rt_` tuple bindings the
 //      rewrite threads into each call site), so the output carries generated code.
@@ -17,7 +17,7 @@ const ALL = ['build-vite', 'smoke-esbuild', 'smoke-rollup', 'smoke-rolldown', 's
 
 // An un-rewritten generic marker call still carries its `<…>` type argument.
 // After a successful transform + TS strip, no `markerName<` pattern remains.
-const RESIDUAL = /\b(?:createValidate|getRunTypeId|getRunType|createJsonEncoder|createJsonDecoder|createBinaryEncoder)\s*</;
+const RESIDUAL = /\b(?:createValidateFn|getRunTypeId|getRunType|createJsonEncoderFn|createJsonDecoderFn|createBinaryEncoderFn)\s*</;
 
 for (const app of ALL) {
   test(`${app}: dist shows rewrite evidence (no residual markers, injected wiring present)`, () => {

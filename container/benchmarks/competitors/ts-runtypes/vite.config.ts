@@ -7,7 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const binary = process.env.RT_BINARY ?? path.join(here, 'bin', 'ts-runtypes');
 
 // The runtypes plugin spawns the Go binary, rewrites each literal
-// `createValidate<T>()` call site in cases.ts, and emits the per-entry virtual
+// `createValidateFn<T>()` call site in cases.ts, and emits the per-entry virtual
 // modules — so unlike the other competitors this build IS the plugin.
 export default defineConfig({
   plugins: [runtypes({binary, cwd: here, tsconfig: 'tsconfig.json'})],

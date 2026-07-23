@@ -22,18 +22,18 @@
 // `Format*` brands, and because typia supports a different subset of cases.
 //
 // The probe sources are EXTRACTED (TS compiler API) from the real competitor maps:
-//   - ts-go (type):   the `createValidate<TYPE>()` type argument per case in
+//   - ts-go (type):   the `createValidateFn<TYPE>()` type argument per case in
 //                     competitors/ts-runtypes/cases.ts.
 //   - typia:          the `typia.createIs<TYPE>()` type argument per case in
 //                     competitors/typia/cases.ts.
-//   - ts-go (schema): the `createValidate(EXPR)` argument per case in
+//   - ts-go (schema): the `createValidateFn(EXPR)` argument per case in
 //                     competitors/ts-runtypes/schemaCases.ts.
 //   - zod / typebox:  the `const schema = EXPR` declared inside each case's
 //                     build / buildErrors thunk in competitors/{zod,typebox}/cases.ts.
 // The type forms (ts-go type, typia) author each entry as a `{build, buildErrors}`
 // object — optionally wrapped in an IIFE `(() => { …local decls…; return {…}; })()`
 // so a case can declare a local enum/interface/type the `<T>` references; the
-// literal type argument rides the `build` thunk's `createValidate<T>()` /
+// literal type argument rides the `build` thunk's `createValidateFn<T>()` /
 // `typia.createIs<T>()` call. The schema form (ts-go) is a LAZY `() => …` thunk;
 // zod/typebox build their schema as `const schema = EXPR` inside a build/buildErrors
 // thunk. Each extractor unwraps its wrapper, preserving the local declarations so
@@ -288,7 +288,7 @@ const CASE_FILTER = (process.env.RT_BENCH_CASE ?? '').toLowerCase();
 const matchesFilter = (key) => !CASE_FILTER || key.toLowerCase().includes(CASE_FILTER);
 
 async function main() {
-  const tsType = extractTypeForm(path.join(TSGO_DIR, 'cases.ts'), 'cases', 'createValidate');
+  const tsType = extractTypeForm(path.join(TSGO_DIR, 'cases.ts'), 'cases', 'createValidateFn');
   const tsSchema = extractTsGo(path.join(TSGO_DIR, 'schemaCases.ts'), 'schemaCases', 'schema');
   const zod = extractSchemaCompetitor(path.join(ZOD_DIR, 'cases.ts'), 'cases');
   const typebox = extractSchemaCompetitor(path.join(TYPEBOX_DIR, 'cases.ts'), 'cases');

@@ -85,8 +85,8 @@ export function makeExtractors(ts) {
   }
 
   /** ts-go cases.ts / schemaCases.ts → {preamble, entries:{key:{locals, arg}}, keys}.
-   *  `arg` is `{kind:'type', text}` for `createValidate<T>()` or `{kind:'schema',
-   *  text}` for `createValidate(EXPR)`. Entries that are NOT_SUPPORTED are skipped,
+   *  `arg` is `{kind:'type', text}` for `createValidateFn<T>()` or `{kind:'schema',
+   *  text}` for `createValidateFn(EXPR)`. Entries that are NOT_SUPPORTED are skipped,
    *  but `keys` lists EVERY map key in file order (drives the table + row order). */
   function extractTsGo(file, mapName, want) {
     const source = sf(file);
@@ -101,7 +101,7 @@ export function makeExtractors(ts) {
         const thunk = unwrapThunk(prop.initializer);
         if (!thunk) continue; // NOT_SUPPORTED
         const call = unwrapExpr(thunk.expr);
-        if (!call || !ts.isCallExpression(call) || call.expression.getText(source) !== 'createValidate') continue;
+        if (!call || !ts.isCallExpression(call) || call.expression.getText(source) !== 'createValidateFn') continue;
         const localsText = thunk.locals.map((s) => s.getText(source));
         if (want === 'type') {
           if (call.typeArguments?.length) entries[key] = {locals: localsText, arg: {kind: 'type', text: call.typeArguments[0].getText(source)}};
@@ -160,7 +160,7 @@ export function makeExtractors(ts) {
   }
 
   /** DFS for the first `callName<…>(…)` call carrying a type argument under `node`
-   *  (callName is the call's source text — `createValidate` or `typia.createIs`). */
+   *  (callName is the call's source text — `createValidateFn` or `typia.createIs`). */
   function findTypedCall(node, callName, source) {
     let found = null;
     const visit = (n) => {
@@ -180,7 +180,7 @@ export function makeExtractors(ts) {
    *  optionally wrapped in an IIFE `(() => { …local decls…; return {…}; })()` whose
    *  pre-return statements declare the enum/interface/type the `<T>` references. The
    *  literal type argument lives on the `build` thunk's `callName<T>(…)` call —
-   *  `createValidate` for ts-go, `typia.createIs` for typia. NOT_SUPPORTED entries
+   *  `createValidateFn` for ts-go, `typia.createIs` for typia. NOT_SUPPORTED entries
    *  are skipped; `keys` lists EVERY map key in file order (drives table/row order). */
   function extractTypeForm(file, mapName, callName) {
     const source = sf(file);
@@ -218,7 +218,7 @@ export function makeExtractors(ts) {
         // typia authors the type's local decls INSIDE the build block — `() => { type
         // Person = …; const check = typia.createIs<Pick<Person, …>>(); return … }` —
         // whereas ts-go uses an outer IIFE (captured above). Gather the build-block
-        // declarations too, skipping the `return` and the createIs/createValidate
+        // declarations too, skipping the `return` and the createIs/createValidateFn
         // statement itself so `<T>` resolves without dragging the runtime call in.
         const buildArrow = build.initializer;
         if (ts.isArrowFunction(buildArrow) && ts.isBlock(buildArrow.body)) {

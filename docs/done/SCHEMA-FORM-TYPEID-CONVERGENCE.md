@@ -7,12 +7,12 @@
 > holds the composers + `object`, and `static.ts` holds the type helpers (incl.
 > `LeafType`); `TypeFromRT` is now `Static`. File line numbers below are approximate.
 
-> **Status: LANDED — schema form is now a `createValidate` overload.** Convergence
-> still holds (`createValidate(RT.array(RT.string()))` resolves the same id as
-> `createValidate<string[]>()`), but the mechanism changed when `CompTimeRunType`
+> **Status: LANDED — schema form is now a `createValidateFn` overload.** Convergence
+> still holds (`createValidateFn(RT.array(RT.string()))` resolves the same id as
+> `createValidateFn<string[]>()`), but the mechanism changed when `CompTimeRunType`
 > ref-tracing + demand emission were reverted. The schema form is no longer a
-> separate `createValidateFor` function; it is an OVERLOAD of `createValidate` /
-> `createGetValidationErrors` taking a `RunType<T>` first arg. `T` is reflected off the
+> separate `createValidateFor` function; it is an OVERLOAD of `createValidateFn` /
+> `createGetValidationErrorsFn` taking a `RunType<T>` first arg. `T` is reflected off the
 > trailing `InjectRunTypeId<T>` like the type-first marker (so options ride the
 > call's OWN slot — no `schemaFormOptions` builder-fold, which was removed), while
 > the runtime dispatches on the schema's `.id` (`isRunTypeSchema` in
@@ -25,13 +25,13 @@
 
 ## Problem
 
-`createValidate<string[]>()` and `createValidateFor(RT.array(RT.string()))`
+`createValidateFn<string[]>()` and `createValidateFor(RT.array(RT.string()))`
 should resolve to the **same** structural type id — they validate the
 same `string[]`. Today they don't:
 
 | call | resolved TS type the scanner sees | structural id |
 | --- | --- | --- |
-| `createValidate<string[]>()` | `string[]` | `dZPrjl` |
+| `createValidateFn<string[]>()` | `string[]` | `dZPrjl` |
 | `createValidateFor(RT.array(RT.string()))` | `Array<FormatString<{}>>` | `C0wQGO` |
 
 The same divergence exists for **every parameterised format builder
@@ -107,7 +107,7 @@ After the fix:
 - `RT.string({maxLength: 5})` → overload 2 → `RunType<LeafType<…>>` →
   branded id (unchanged from today).
 - `RT.array(RT.string())` → item is `RunType<string>` → T = `string` →
-  `RunType<string[]>` → same id as `createValidate<string[]>()`.
+  `RunType<string[]>` → same id as `createValidateFn<string[]>()`.
 
 ### Patcher slot-index handling
 
@@ -282,7 +282,7 @@ and stays as-is:
 
 1. Spike on one builder (`string`) in a branch. Verify TS overload
    resolution, run the full test suite, observe whether
-   `createValidateFor(RT.string()) === createValidate<string>()`.
+   `createValidateFor(RT.string()) === createValidateFn<string>()`.
 2. If green, repeat for `number`, `bigint`, `date`.
 3. Refactor `temporalBuilder` to overload the factory's return type
    per call shape (or split into six explicit two-overload exports).

@@ -8,7 +8,7 @@
 ## Symptom
 
 A registered class serializer whose `serialize` returns a value that is **not**
-an object with the class's declared property names breaks `createJsonDecoder`.
+an object with the class's declared property names breaks `createJsonDecoderFn`.
 The clearest case is a string:
 
 ```ts
@@ -20,8 +20,8 @@ registerClassSerializer('billing', Money, {
   deserialize: (d) => { const [a, c] = String(d).split(' '); return new Money(Number(a), c); },
 });
 
-const decode = createJsonDecoder<Money>();
-decode(createJsonEncoder<Money>()(new Money(4999, 'USD')));
+const decode = createJsonDecoderFn<Money>();
+decode(createJsonEncoderFn<Money>()(new Money(4999, 'USD')));
 // TypeError: Cannot assign to read only property '0' of string '4999 USD'
 ```
 
@@ -48,7 +48,7 @@ example returned a string but was only type-checked, never executed).
 
 - **Binary is unaffected.** The binary decoder is `deserialize(JSON.parse(des.desString()))`
   with no structural pre-pass, so a custom `serialize` returning any JSON value
-  round-trips through `createBinaryDecoder` today.
+  round-trips through `createBinaryDecoderFn` today.
 - **JSON with a declared-shape object works.** `serialize` may re-shape values
   within the declared property names (e.g. store a number as a string).
 
@@ -64,5 +64,5 @@ example returned a string but was only type-checked, never executed).
    unknown-keys pre-pass entirely.
 
 Either way, add a test that a string-returning (and a renamed-key) custom
-`serialize` round-trips through `createJsonDecoder`, and update
+`serialize` round-trips through `createJsonDecoderFn`, and update
 `packages/examples/src/guide/custom-class-serializer.ts` to demonstrate it.

@@ -151,7 +151,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
   const mOps = options.mock as MockOptions;
   // The generation's shared random source (seeded or native), threaded on the
   // options bag; every draw below goes through it. Falls back to the shared
-  // native instance for a mock path that bypassed createMockData (e.g. a test
+  // native instance for a mock path that bypassed createMockDataFn (e.g. a test
   // calling mockRunType directly).
   const random = mOps.random ?? nativeMockRandom;
   const kind = runType.kind as number;

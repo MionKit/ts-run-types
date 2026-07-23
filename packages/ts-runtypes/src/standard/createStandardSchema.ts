@@ -46,8 +46,8 @@ export interface RTStandardSchemaV1<Input = unknown, Output = Input> {
   };
 }
 
-// Identity fallbacks for the no-plugin case (mirror createValidate /
-// createGetValidationErrors): a boolean validator that accepts everything and an
+// Identity fallbacks for the no-plugin case (mirror createValidateFn /
+// createGetValidationErrorsFn): a boolean validator that accepts everything and an
 // error collector that finds nothing.
 const validateFallback = (() => true) as unknown as ValidateFn;
 const errorsFallback: GetValidationErrorsFn = () => [];
@@ -56,7 +56,7 @@ const errorsFallback: GetValidationErrorsFn = () => [];
  *  success (the input, narrowed to `DataOnly<T>` — RunTypes validates the
  *  serialisable projection) or the richer `{issues}` on failure. Synchronous,
  *  `vendor: 'ts-runtypes'`. Accepts either a value-first `RunType` schema or the
- *  type/value reflection form, mirroring `createValidate`. **/
+ *  type/value reflection form, mirroring `createValidateFn`. **/
 export function createStandardSchema<T>(
   schema: RunType<T>,
   options?: CompTimeFnArgs<ValidateOptions>,
@@ -83,9 +83,14 @@ export function createStandardSchema<T>(
   // compile-time: `{rejectCircularRefs: true}` forked each family's fnHash, so
   // the armed tuples self-guard (validate -> false on a cycle;
   // getValidationErrors -> a `{expected:'circular'}` issue).
-  const validate = resolveEntryTupleFn<ValidateFn<T>>('createValidate', validateFallback as ValidateFn<T>, schemaId, valInjected);
+  const validate = resolveEntryTupleFn<ValidateFn<T>>(
+    'createValidateFn',
+    validateFallback as ValidateFn<T>,
+    schemaId,
+    valInjected
+  );
   const getErrors = resolveEntryTupleFn<GetValidationErrorsFn>(
-    'createGetValidationErrors',
+    'createGetValidationErrorsFn',
     errorsFallback,
     schemaId,
     verrInjected

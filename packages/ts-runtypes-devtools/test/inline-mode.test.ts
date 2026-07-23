@@ -37,7 +37,7 @@ async function withClient<T>(
 async function valKeysFor(client: ResolverClient, file: string) {
   const scan = await client.scanFiles([file], {includeEntryModules: true});
   const site = scan.sites.find((s) => s.fnId);
-  if (!site?.fnId) throw new Error('expected a createValidate site');
+  if (!site?.fnId) throw new Error('expected a createValidateFn site');
   const keys = Object.keys(scan.entryModules ?? {}).filter((k) => k.startsWith(site.fnId + '_'));
   return {scan, site, keys};
 }
@@ -46,9 +46,9 @@ describe('@ts-runtypes/devtools / inlining policy', () => {
   register('DEFAULT: interface A {a: number; b: string[]} emits ONE validation module', async () => {
     // The headline contract: the unnamed string[] member rides the
     // interface's own module as a context fn — no separate array module.
-    const code = `import {createValidate} from '@ts-runtypes/core';
+    const code = `import {createValidateFn} from '@ts-runtypes/core';
 interface A {a: number; b: string[]}
-export const isA = createValidate<A>();
+export const isA = createValidateFn<A>();
 `;
     await withClient(undefined, {'iface.ts': code}, async (client) => {
       const {scan, keys} = await valKeysFor(client, 'iface.ts');
@@ -71,9 +71,9 @@ export const isA = createValidate<A>();
   });
 
   register('DEFAULT reflect: getRunTypeId over the same parent keeps the single-module layout', async () => {
-    const code = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+    const code = `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 type Parent = {tags: string[]};
-export const isParent = createValidate<Parent>();
+export const isParent = createValidateFn<Parent>();
 const p = {tags: ['a']} as Parent;
 export const reflectedId = getRunTypeId(p);
 `;
@@ -90,10 +90,10 @@ export const reflectedId = getRunTypeId(p);
   });
 
   register('DEFAULT: a NAMED alias array stays an external shared module (dedupe)', async () => {
-    const code = `import {createValidate} from '@ts-runtypes/core';
+    const code = `import {createValidateFn} from '@ts-runtypes/core';
 type Tags = string[];
 type Parent = {tags: Tags};
-export const isParent = createValidate<Parent>();
+export const isParent = createValidateFn<Parent>();
 `;
     await withClient(undefined, {'named.ts': code}, async (client) => {
       const {keys} = await valKeysFor(client, 'named.ts');
@@ -102,10 +102,10 @@ export const isParent = createValidate<Parent>();
   });
 
   register('allInternal: name-blind — even the NAMED alias array inlines', async () => {
-    const code = `import {createValidate} from '@ts-runtypes/core';
+    const code = `import {createValidateFn} from '@ts-runtypes/core';
 type Tags = string[];
 type Parent = {tags: Tags};
-export const isParent = createValidate<Parent>();
+export const isParent = createValidateFn<Parent>();
 `;
     await withClient('allInternal', {'named-internal.ts': code}, async (client) => {
       const {keys} = await valKeysFor(client, 'named-internal.ts');
@@ -121,7 +121,7 @@ export const isParent = createValidate<Parent>();
     // carries TypeName="DataOnly<NamedInterface>", so DefaultIsRTInlined
     // keeps it external and the nested ICircular reference rides its own
     // shared entry.
-    const code = `import {createValidate, type DataOnly} from '@ts-runtypes/core';
+    const code = `import {createValidateFn, type DataOnly} from '@ts-runtypes/core';
 interface ICircular {
   name: string;
   child?: ICircular;
@@ -130,7 +130,7 @@ interface Root {
   isRoot: true;
   child: ICircular;
 }
-export const isRoot = createValidate<DataOnly<Root>>();
+export const isRoot = createValidateFn<DataOnly<Root>>();
 `;
     await withClient(undefined, {'dataonly.ts': code}, async (client) => {
       const {scan, keys} = await valKeysFor(client, 'dataonly.ts');
