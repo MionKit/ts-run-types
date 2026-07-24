@@ -53,6 +53,10 @@ export interface ResolverClientOptions {
   sizeItems?: number;
   sizeStringBytes?: number;
   sizeMaxBytes?: number;
+  // Forwarded as --number-mode. Project-wide default for the validate
+  // `numberMode` option: 'isFinite' (default) / 'typeof' / 'notNaN'. A
+  // per-call-site numberMode overrides it.
+  numberMode?: string;
   // Parallelism opt-outs. The Go binary runs its parallel marker scan
   // and parallel cache renders by default; an explicit `false` forwards
   // --no-parallel-scan / --no-parallel-render to force the serial paths
@@ -499,6 +503,7 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   if (opts.sizeItems !== undefined) args.push('--size-items', String(opts.sizeItems));
   if (opts.sizeStringBytes !== undefined) args.push('--size-string-bytes', String(opts.sizeStringBytes));
   if (opts.sizeMaxBytes !== undefined) args.push('--size-max-bytes', String(opts.sizeMaxBytes));
+  if (opts.numberMode) args.push('--number-mode', opts.numberMode);
   if (opts.parallelScan === false) args.push('--no-parallel-scan');
   if (opts.parallelRender === false) args.push('--no-parallel-render');
   if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);

@@ -165,3 +165,68 @@ describe('@ts-runtypes/devtools / tsconfig plugin config (build path)', () => {
     60_000
   );
 });
+
+// A project-wide validate.numberMode default: the Go binary reads it off the
+// tsconfig `validate` object and folds it into every validate site's fnId
+// variant, with a forwarded --number-mode winning tsc-style. The signal is the
+// createValidateFn site's fnId — it forks when the default is non-isFinite.
+const VAL_ENTRY = `import {createValidateFn} from '@ts-runtypes/core';
+export const isNum = createValidateFn<number>();
+`;
+
+function makeValFixture(pluginEntry: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-numbermode-'));
+  fs.writeFileSync(path.join(dir, 'runtypes.d.ts'), RUNTYPES_DTS);
+  fs.writeFileSync(path.join(dir, 'entry.ts'), VAL_ENTRY);
+  fs.writeFileSync(path.join(dir, 'tsconfig.json'), tsconfig(pluginEntry));
+  return dir;
+}
+
+async function valFnId(dir: string, opts: {numberMode?: string} = {}): Promise<string> {
+  const client = new ResolverClient(BIN, dir, 'tsconfig.json', {cacheDir: '', ...opts});
+  try {
+    const resp = await client.scanFiles(['entry.ts']);
+    const site = resp.sites.find((s) => s.fnId);
+    if (!site?.fnId) throw new Error('expected a createValidateFn site with an injected fnId');
+    return site.fnId;
+  } finally {
+    client.close();
+  }
+}
+
+describe('@ts-runtypes/devtools / tsconfig validate.numberMode (build path)', () => {
+  register(
+    'tsconfig validate.numberMode:typeof forks the validate fnId project-wide',
+    async () => {
+      const plainDir = makeValFixture(`{ "name": "ts-runtypes" }`);
+      const typeofDir = makeValFixture(`{ "name": "ts-runtypes", "validate": { "numberMode": "typeof" } }`);
+      try {
+        // The only difference between the two projects is the tsconfig default,
+        // so a differing fnId proves the build path read validate.numberMode.
+        expect(await valFnId(typeofDir)).not.toBe(await valFnId(plainDir));
+      } finally {
+        fs.rmSync(plainDir, {recursive: true, force: true});
+        fs.rmSync(typeofDir, {recursive: true, force: true});
+      }
+    },
+    60_000
+  );
+
+  register(
+    'a forwarded --number-mode overrides the tsconfig validate.numberMode (flag > tsconfig)',
+    async () => {
+      const plainDir = makeValFixture(`{ "name": "ts-runtypes" }`);
+      const typeofDir = makeValFixture(`{ "name": "ts-runtypes", "validate": { "numberMode": "typeof" } }`);
+      try {
+        const plain = await valFnId(plainDir);
+        // tsconfig says typeof, but the forwarded flag forces isFinite (the
+        // default) back — so the fnId collapses to the plain one.
+        expect(await valFnId(typeofDir, {numberMode: 'isFinite'})).toBe(plain);
+      } finally {
+        fs.rmSync(plainDir, {recursive: true, force: true});
+        fs.rmSync(typeofDir, {recursive: true, force: true});
+      }
+    },
+    60_000
+  );
+});

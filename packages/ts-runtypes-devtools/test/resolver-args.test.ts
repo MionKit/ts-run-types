@@ -42,4 +42,15 @@ describe('buildResolverArgs — bundler-lane project knobs', () => {
     expect(args).not.toContain('--single-threaded');
     expect(args).not.toContain('--no-single-threaded');
   });
+
+  it('forwards numberMode as `--number-mode <value>`', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {numberMode: 'typeof'});
+    const idx = args.indexOf('--number-mode');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(args[idx + 1]).toBe('typeof');
+  });
+
+  it('omits --number-mode when numberMode is unset', () => {
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {})).not.toContain('--number-mode');
+  });
 });

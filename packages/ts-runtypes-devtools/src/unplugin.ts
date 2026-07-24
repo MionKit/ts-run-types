@@ -65,6 +65,14 @@ export interface PluginOptions {
   //   All four ride the single `size` object (like the tsconfig `size` key):
   //   {bias, items, stringBytes, maxBytes}.
   size?: {bias?: number; items?: number; stringBytes?: number; maxBytes?: number};
+  // Project-wide defaults for the per-call-site ValidateOptions bag, grouped
+  // under one `validate` object (like `size`). Merged per field into every
+  // validate / validationErrors call site by the compiler (a per-call option
+  // wins over the default for that field).
+  //   - numberMode: the base `number` check every validator uses — 'isFinite'
+  //     (default; rejects NaN/Infinity), 'typeof' (accepts them), or 'notNaN'
+  //     (rejects NaN, accepts Infinity). Eases migration from a looser library.
+  validate?: {numberMode?: 'isFinite' | 'typeof' | 'notNaN'};
   // NB: there is deliberately NO cacheDir option. The on-disk RT artifact cache
   // (the incremental build cache under node_modules/.cache/ts-runtypes, separate
   // from `genDir`) follows TypeScript's own `incremental` / `composite` switch —
@@ -294,6 +302,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.size?.items !== undefined ? {sizeItems: options.size.items} : {}),
       ...(options.size?.stringBytes !== undefined ? {sizeStringBytes: options.size.stringBytes} : {}),
       ...(options.size?.maxBytes !== undefined ? {sizeMaxBytes: options.size.maxBytes} : {}),
+      ...(options.validate?.numberMode ? {numberMode: options.validate.numberMode} : {}),
       ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),

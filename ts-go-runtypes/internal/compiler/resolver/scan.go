@@ -630,6 +630,20 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 			}
 		}
 	}
+	// Resolve numberMode per field: the site's own value wins; otherwise the
+	// project-wide default (validate.numberMode) fills in. Only this field is
+	// taken from the global defaults — a site that set noLiterals / noIsArrayCheck
+	// keeps them untouched (per-field merge, site-wins-per-field). isFinite —
+	// the default and any unrecognized value — adds no variant name, so plain
+	// keys stay stable. Done after the noop-diagnostic block above so a global
+	// default never makes options.Any() fire those warnings.
+	effectiveNumberMode := options.numberMode
+	if effectiveNumberMode == "" {
+		effectiveNumberMode = state.sess.opts.ValidateDefaults.NumberMode
+	}
+	if canonicalName := constants.NumberModeOptionName(effectiveNumberMode); canonicalName != "" {
+		options.enable(canonicalName)
+	}
 	// Structural id resolution happens in commitPending and is purely a
 	// function of the resolved TS type. `ValidateOptions` (`noLiterals` /
 	// `noIsArrayCheck`) does NOT fold into the id; instead, the option set
@@ -1065,6 +1079,18 @@ func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 // rule in analyzeCall) need teaching.
 type validateOptions struct {
 	enabled map[string]bool
+	// numberMode holds the raw `numberMode` string literal read at the site
+	// ("" = unset). It's an enum, not a boolean, so it lives outside `enabled`
+	// until the project-default merge resolves it to a canonical variant name.
+	numberMode string
+}
+
+// enable marks a canonical option name present, allocating the set lazily.
+func (opts *validateOptions) enable(name string) {
+	if opts.enabled == nil {
+		opts.enabled = make(map[string]bool, len(constants.ValidateOptions))
+	}
+	opts.enabled[name] = true
 }
 
 // Any reports whether at least one option was set at the call site.
@@ -1094,6 +1120,19 @@ func (opts validateOptions) Names() []string {
 func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int) validateOptions {
 	var opts validateOptions
 	eachOptionProperty(typeChecker, call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		if initializer == nil {
+			return
+		}
+		// numberMode is a string-enum option, not a boolean. Read its literal
+		// value here (last-write-wins over spreads, like extractStrategyOption);
+		// the canonical variant name is materialized after the project-default
+		// merge in analyzeCall.
+		if name == constants.NumberModeOption {
+			if initializer.Kind == ast.KindStringLiteral || initializer.Kind == ast.KindNoSubstitutionTemplateLiteral {
+				opts.numberMode = initializer.Text()
+			}
+			return
+		}
 		known := false
 		for _, option := range constants.ValidateOptions {
 			if option.Name == name {
@@ -1106,10 +1145,7 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 		}
 		switch initializer.Kind {
 		case ast.KindTrueKeyword:
-			if opts.enabled == nil {
-				opts.enabled = make(map[string]bool, len(constants.ValidateOptions))
-			}
-			opts.enabled[name] = true
+			opts.enable(name)
 		case ast.KindFalseKeyword:
 			// Last-write-wins: an explicit `false` (an inline override of a
 			// spread-in `true`, or a later spread) disables the option. A

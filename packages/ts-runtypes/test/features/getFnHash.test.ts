@@ -75,6 +75,14 @@ describe('getFnHash — unit (resolves the version-independent fnHash per family
     expect(getFnHash('val', {noIsArrayCheck: true, noLiterals: true})).toBe('GYK');
     expect(getFnHash('verr')).toBe('pBb');
     expect(getFnHash('verr', {noLiterals: true, noIsArrayCheck: true})).toBe('Yk4');
+    // numberMode is an enum, not a boolean: its two non-default values ride as
+    // distinct variant letters, and 'isFinite' (default) collapses to the plain.
+    expect(getFnHash('val', {numberMode: 'isFinite'})).toBe('nPZ');
+    expect(getFnHash('val', {numberMode: 'typeof'})).toBe('xLB');
+    expect(getFnHash('val', {numberMode: 'notNaN'})).toBe('ycI');
+    expect(getFnHash('verr', {numberMode: 'typeof'})).toBe('vhX');
+    // numberMode composes with the boolean options (declaration-order suffix NLT).
+    expect(getFnHash('val', {noLiterals: true, numberMode: 'typeof'})).toBe('hvr');
   });
 
   test('JSON encoder / decoder resolve their strategies (default when omitted)', () => {
@@ -131,6 +139,21 @@ describe('getFnHash — matches the plugin-injected fnHash (table ⟷ live binar
     expect(injectedNoLiterals).not.toBe(injectedPlain);
     expect(getFnHash('val')).toBe(injectedPlain);
     expect(getFnHash('val', {noLiterals: true})).toBe(injectedNoLiterals);
+  });
+
+  test('validate numberMode variant equals its injected fnHash', () => {
+    // Proves the JS numberMode → variant-letter mapping (fnHash.ts) agrees with
+    // what the live binary injects for each enum value.
+    const injectedPlain = injectedHash(grabValOpts<Payload>());
+    const injectedTypeof = injectedHash(grabValOpts<Payload>(undefined, {numberMode: 'typeof'}));
+    const injectedNotNaN = injectedHash(grabValOpts<Payload>(undefined, {numberMode: 'notNaN'}));
+    expect(injectedTypeof).not.toBe(injectedPlain);
+    expect(injectedNotNaN).not.toBe(injectedPlain);
+    expect(injectedNotNaN).not.toBe(injectedTypeof);
+    expect(getFnHash('val', {numberMode: 'typeof'})).toBe(injectedTypeof);
+    expect(getFnHash('val', {numberMode: 'notNaN'})).toBe(injectedNotNaN);
+    // Explicit 'isFinite' is the default → collapses to the plain injected hash.
+    expect(getFnHash('val', {numberMode: 'isFinite'})).toBe(injectedPlain);
   });
 
   test('hasUnknownKeys runsAfterValidation variant equals its injected fnHash', () => {

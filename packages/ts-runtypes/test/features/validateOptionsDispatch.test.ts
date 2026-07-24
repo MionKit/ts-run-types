@@ -138,6 +138,71 @@ describe('ValidateOptions — schema-form ⇄ marker-form convergence', () => {
   });
 });
 
+describe('ValidateOptions — numberMode selects the base number check', () => {
+  it('numberMode variants dispatch to distinct cached factories; explicit isFinite collapses to the plain entry', () => {
+    const plain = createValidateFn<number>();
+    const asTypeof = createValidateFn<number>(undefined, {numberMode: 'typeof'});
+    const notNaN = createValidateFn<number>(undefined, {numberMode: 'notNaN'});
+    expect(plain).not.toBe(asTypeof);
+    expect(plain).not.toBe(notNaN);
+    expect(asTypeof).not.toBe(notNaN);
+    // 'isFinite' is the default → no variant → same cached factory as plain.
+    expect(createValidateFn<number>(undefined, {numberMode: 'isFinite'})).toBe(plain);
+  });
+
+  it('plain (isFinite) rejects NaN/Infinity; typeof accepts them; notNaN rejects NaN but accepts Infinity', () => {
+    const isFiniteFn = createValidateFn<number>();
+    const asTypeof = createValidateFn<number>(undefined, {numberMode: 'typeof'});
+    const notNaN = createValidateFn<number>(undefined, {numberMode: 'notNaN'});
+    // Finite numbers pass under every mode.
+    for (const fn of [isFiniteFn, asTypeof, notNaN]) expect(fn(1.5)).toBe(true);
+    // NaN: rejected by isFinite + notNaN, accepted by typeof.
+    expect(isFiniteFn(NaN)).toBe(false);
+    expect(asTypeof(NaN)).toBe(true);
+    expect(notNaN(NaN)).toBe(false);
+    // Infinity: rejected only by isFinite.
+    expect(isFiniteFn(Infinity)).toBe(false);
+    expect(asTypeof(Infinity)).toBe(true);
+    expect(notNaN(Infinity)).toBe(true);
+    expect(notNaN(-Infinity)).toBe(true);
+    // Non-numbers are rejected regardless of mode.
+    expect(asTypeof('x')).toBe(false);
+    expect(notNaN({})).toBe(false);
+  });
+
+  it('value-first createValidateFn(value) honours numberMode too (marker coverage rule); id stays structural', () => {
+    const n: number = 1;
+    const asTypeof = createValidateFn(n, {numberMode: 'typeof'});
+    expect(asTypeof(NaN)).toBe(true);
+    expect(asTypeof('x')).toBe(false);
+    // numberMode never folds into the type id — static and reflect ids agree.
+    expect(getRunTypeId<number>()).toBe(getRunTypeId(n));
+  });
+
+  it('getValidationErrors honours numberMode: typeof accepts NaN where isFinite reports an error', () => {
+    const errFinite = createGetValidationErrorsFn<number>();
+    const errTypeof = createGetValidationErrorsFn<number>(undefined, {numberMode: 'typeof'});
+    expect(errFinite(NaN)).toHaveLength(1);
+    expect(errFinite(NaN)[0]).toMatchObject({path: [], expected: 'number'});
+    expect(errTypeof(NaN)).toEqual([]);
+  });
+
+  it('numberMode combines with noLiterals on a numeric literal (distinct factories, typeof base)', () => {
+    type Three = 3;
+    const plain = createValidateFn<Three>();
+    const noLit = createValidateFn<Three>(undefined, {noLiterals: true});
+    const noLitTypeof = createValidateFn<Three>(undefined, {noLiterals: true, numberMode: 'typeof'});
+    expect(plain).not.toBe(noLit);
+    expect(noLit).not.toBe(noLitTypeof);
+    // plain: exactly 3; noLiterals: any finite number; +typeof: any number incl NaN.
+    expect(plain(3)).toBe(true);
+    expect(plain(4)).toBe(false);
+    expect(noLit(4)).toBe(true);
+    expect(noLit(NaN)).toBe(false);
+    expect(noLitTypeof(NaN)).toBe(true);
+  });
+});
+
 describe('ValidateOptions — combined variants build the multi-letter suffix', () => {
   it('`{noLiterals: true, noIsArrayCheck: true}` resolves to a factory distinct from each single-option variant', () => {
     type T = readonly 'x'[];

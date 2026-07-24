@@ -150,6 +150,14 @@ non-finite numbers, agreeing with RunTypes. So on this cluster RunTypes sits
 with the majority (RunTypes, zod, TypeBox) and ajv and typia are the looser
 pair.
 
+**Now configurable.** `Number.isFinite` remains the default, but the divergence is
+no longer fixed: the `numberMode` ValidateOption selects the base number check per
+validator (`typeof` accepts `NaN`/`Infinity` like ajv and typia; `notNaN` rejects
+`NaN` but keeps `Infinity`), and a project-wide `validate.numberMode` plugin/tsconfig
+default applies it everywhere. So a codebase migrating off ajv or typia can adopt
+their number semantics with one setting instead of hitting this cluster of
+differences. See the validation guide for details.
+
 ### 2. Invalid Date
 
 typia validates `Date` by `instanceof` only (22 findings), so an Invalid Date (one

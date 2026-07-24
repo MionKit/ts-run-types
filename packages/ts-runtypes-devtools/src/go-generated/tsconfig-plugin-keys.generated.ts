@@ -21,6 +21,7 @@ export const TSCONFIG_PLUGIN_KEYS = [
   'pureFnReport',
   'singleThreaded',
   'size',
+  'validate',
 ] as const;
 
 export type TsconfigPluginKey = (typeof TSCONFIG_PLUGIN_KEYS)[number];

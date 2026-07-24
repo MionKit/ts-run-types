@@ -14,6 +14,7 @@ const PLUGIN_OPTION_KEY_TABLE = {
   genDir: true,
   emitMode: true,
   size: true,
+  validate: true,
   parallelScan: true,
   parallelRender: true,
   singleThreaded: true,
