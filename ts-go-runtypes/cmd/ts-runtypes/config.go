@@ -48,8 +48,9 @@ const defaultI18nDirName = "i18n"
 const defaultSourceLocale = "en"
 
 // enrichConfig is the resolved enrichment configuration for a gen target. It is
-// the merge of (in precedence order) the --enrich-dir CLI flag, the tsconfig
-// `compilerOptions.plugins[name=ts-runtypes]` entry, and the built-in defaults.
+// the merge of (in precedence order) the --gen-dir CLI flag and the tsconfig
+// `compilerOptions.plugins[name=ts-runtypes]` `genDir` entry, then the built-in
+// default; EnrichDir is derived as <genDir>/enriched (convention, not config).
 //
 // Paths are absolute and normalized to OS separators. EnrichDir is the absolute
 // mirror root; RootDir is the absolute source root the mirror tree shadows;
@@ -81,7 +82,7 @@ type enrichConfig struct {
 // only host-specific knobs (binary path, cwd) plus any explicit per-build
 // override. Unknown keys are ignored.
 //
-// The string knobs (enrichDir / moduleMode / emitMode / inlineMode) decode to
+// The string knobs (genDir / moduleMode / emitMode / inlineMode) decode to
 // their zero value when absent; the build-path knobs below use POINTERS so an
 // absent key (nil) is distinguishable from an explicit false / 0 — the merge in
 // buildconfig.go only overrides a binary default when the key is actually
@@ -152,16 +153,13 @@ type sizePluginConfig struct {
 
 // i18nPluginConfig is the `i18n` object under the ts-runtypes plugin entry:
 //
-//	{ "sourceLocale": "en", "dir": "runtypes/generated/i18n",
-//	  "locales": ["es", "pl"], "formats": "runtypes/i18n.formats.ts",
-//	  "strict": false }
+//	{ "sourceLocale": "en", "locales": ["es", "pl"], "strict": false }
 //
 // sourceLocale names the language the source FriendlyText maps are authored in
-// (it selects the plural arms the scaffold emits). dir is the translation
-// subtree root (locale is a PATH SEGMENT under it), resolved like enrichDir
-// (relative → under the project root); default <enrichDir>/i18n. locales is
-// the target set — the source locale is NOT listed. strict turns
-// `check --translate` findings into errors; the runtime is always lenient.
+// (it selects the plural arms the scaffold emits). locales is the target set —
+// the source locale is NOT listed. strict turns `check --translate` findings
+// into errors; the runtime is always lenient. The translation subtree location
+// is convention (<genDir>/enriched/i18n/<locale>/…), never configurable.
 type i18nPluginConfig struct {
 	SourceLocale string   `json:"sourceLocale"`
 	Locales      []string `json:"locales"`
@@ -177,15 +175,15 @@ type tsconfigShape struct {
 }
 
 // resolveEnrichConfig computes the enrichment config for a gen target file.
-// enrichDirFlag is the --enrich-dir CLI value (empty when unset) and takes
-// precedence over the tsconfig entry, which takes precedence over the default.
+// genDirFlag is the --gen-dir CLI value (empty when unset) and takes precedence
+// over the tsconfig `genDir` entry, which takes precedence over the default.
 //
 // It walks up from absTargetFile's directory to the nearest tsconfig.json. When
 // found, ProjectRoot is the tsconfig dir, RootDir is compilerOptions.rootDir
 // (resolved against the tsconfig dir; defaulting to the tsconfig dir when
-// unset), and EnrichDir comes from the plugins entry (defaulting to
-// defaultEnrichDir). When no tsconfig is found, ProjectRoot and RootDir both
-// default to the target file's directory and EnrichDir to the default.
+// unset), and genDir comes from the plugins entry (defaulting to
+// <RootDir>/__runtypes); EnrichDir is then <genDir>/enriched. When no tsconfig is
+// found, ProjectRoot and RootDir both default to the target file's directory.
 //
 // A missing or malformed tsconfig falls back to the no-tsconfig defaults — it
 // never errors.

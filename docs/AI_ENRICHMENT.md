@@ -741,7 +741,7 @@ emitter and the DSL types now agree structurally for every kind.
 `gen <file> <Type> --update` reconciles an EXISTING committed mirror against the
 freshly regenerated desired set, instead of skipping it (create-only) or
 clobbering it. It is **mutually exclusive** with `--check` and `--files` (fatal
-if combined) and honors `--out` / `--enrich-dir` / `--mock` / `--friendly`. An
+if combined) and honors `--out` / `--gen-dir` / `--mock` / `--friendly`. An
 empty / missing mirror falls back to the create-only fresh-file path.
 
 The whole point is that mirror files are **hand- and AI-authored** — labels,
@@ -880,8 +880,8 @@ set and sibling-reference renames — no file under `generated/` ever feeds the
 generation of another, so the generated dirs can be treated as write-only.
 
 - **Files + naming.** One translation file per friendly mirror per locale:
-  `<i18nDir>/<locale>/<rel>.ts`, `i18nDir` defaulting to `<genDir>/enriched/i18n`
-  (tsconfig `i18n.dir`, resolved under the project root; the locale is a PATH
+  `<i18nDir>/<locale>/<rel>.ts`, `i18nDir` being `<genDir>/enriched/i18n`
+  (convention, not configurable; the locale is a PATH
   SEGMENT, so `pt-BR` works verbatim). Each source `friendly<Name>` gets a
   `<locale>_friendly<Name>` const (BCP-47 `-` becomes `_`: `pt_BR_friendlyUser`),
   annotated `FriendlyText<Name>` — the SAME type as the source map — carrying
@@ -916,7 +916,6 @@ generation of another, so the generated dirs can be treated as write-only.
   ```jsonc
   "i18n": {
     "sourceLocale": "en",              // language the source FriendlyText maps are written in
-    "dir": "src/__runtypes/enriched/i18n",  // translation subtree root (default <genDir>/enriched/i18n)
     "locales": ["es", "pl", "pt-BR"],  // target locales (the source locale is NOT listed)
     "strict": false                    // check --translate gate severity (CI)
   }

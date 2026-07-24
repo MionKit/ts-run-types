@@ -1448,7 +1448,7 @@
       "subsystem": "enrichment",
       "severity": "warning",
       "headline": "Mirror location drift — the source maps to `{0}` but this file lives at `{1}`; re-run `ts-runtypes gen` to relocate.",
-      "detail": "Each source file mirrors to ONE computed path per family under the\nenrich root (friendly/… and mock/…, plus per-locale translation twins).\nThis file is not at its computed location — usually after a source move,\nan enrich-dir change, or a pre-split combined mirror that still needs\nmigrating.\n\nFix — re-run the generator; it writes the per-family files at the right\npaths and migrates a legacy combined mirror:\n  ts-runtypes gen <source.ts> <Type> --update",
+      "detail": "Each source file mirrors to ONE computed path per family under the\nenrich root (friendly/… and mock/…, plus per-locale translation twins).\nThis file is not at its computed location — usually after a source move,\na genDir change, or a pre-split combined mirror that still needs\nmigrating.\n\nFix — re-run the generator; it writes the per-family files at the right\npaths and migrates a legacy combined mirror:\n  ts-runtypes gen <source.ts> <Type> --update",
       "summary": null,
       "fix": null,
       "example": null
