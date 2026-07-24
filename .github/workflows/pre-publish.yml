@@ -30,10 +30,42 @@ jobs:
         run: |
           version=$(jq -r .version version.json)
           if npm view "@ts-runtypes/core@${version}" version >/dev/null 2>&1; then
-            echo "::error title=version ${version} is already on npm::This PR would merge and then fail publish.yml's preflight. Land a version-bump PR on main first (pnpm rtx release bump - see .claude/skills/release-to-prod/SKILL.md); because this PR's head is main, it picks the bump up automatically."
+            echo "::error title=version ${version} is already on npm::This PR would merge and then fail publish.yml's preflight. Land a version-bump PR on main first (pnpm rtx release bump - see .claude/skills/release-to-prod/SKILL.md), then re-cut release/vX.Y.Z at a main commit that includes the bump."
             exit 1
           fi
           echo "OK: ${version} is not on npm yet — safe to promote."
+
+  # ── main-ancestor: the release head must be a frozen prefix of main ──────────
+  # The release PR's head is a release/vX.Y.Z branch cut from main (not main
+  # itself once the team grows). This gate keeps prod main-pure: the head must be
+  # an ANCESTOR of origin/main, so prod only ever receives merge commits of
+  # commits that already live on main. A commit authored directly on the release
+  # branch — the one forbidden fix-forward move — makes the tip a non-main SHA and
+  # fails here; every fix lands on main first, then the branch is re-cut forward.
+  # A head that is literally main (the legacy flow, and publish.yml's merge-shape
+  # recovery empty-merge) is trivially its own ancestor and still passes. Uses git
+  # objects only — no secrets — so fork PRs run it too. Add this check to the prod
+  # ruleset's required status checks (see .claude/skills/release-to-prod/SKILL.md).
+  main-ancestor:
+    name: release head is an ancestor of main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # full history so merge-base can walk head down to origin/main
+      - name: head must be an ancestor of origin/main
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin main
+          if git merge-base --is-ancestor "${HEAD_SHA}" origin/main; then
+            echo "OK: release head ${HEAD_SHA} is an ancestor of origin/main — prod stays main-pure."
+          else
+            echo "::error title=release head is not an ancestor of main::This release PR's head is not a frozen prefix of main, so merging it would put a non-main commit into prod's ancestry. A commit was likely authored directly on the release branch. Land every fix on main first, then re-cut the branch forward to a main commit that includes it (git branch -f release/vX.Y.Z origin/main && git push --force-with-lease). Never cherry-pick or commit onto the release branch. Full process: .claude/skills/release-to-prod/SKILL.md"
+            exit 1
+          fi
 
   gate:
     # A called workflow can never exceed the calling job's permissions, and the
