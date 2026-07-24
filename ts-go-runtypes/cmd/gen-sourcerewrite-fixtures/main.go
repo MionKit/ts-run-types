@@ -1,7 +1,7 @@
-// gen-sourcemap-fixtures regenerates the source-map fixtures the
+// gen-sourcerewrite-fixtures regenerates the rewrite + source-map fixtures the
 // internal/compiler/sourcerewrite tests pin against:
 //
-//   - testdata/<name>.json      — one object per primary case (TestApply_SourceMapFixtures,
+//   - testdata/<name>.json      — one object per primary case (TestApply_Fixtures,
 //     TestComputeEdits_MatchesApply)
 //   - testdata/extra/cases.json — one array of named cases (TestApply_ExtraDiff)
 //
@@ -16,7 +16,7 @@
 // function the tests exercise — so this generator calls Apply directly. No binary,
 // no JS, no type-checking.
 //
-// With the independent JS oracle gone, TestApply_SourceMapFixtures is a SNAPSHOT/regression
+// With the independent JS oracle gone, TestApply_Fixtures is a SNAPSHOT/regression
 // test: the committed JSON is the reviewed baseline, and any change to Apply /
 // EditBuffer / the VLQ source-map math fails it until the fixtures are regenerated
 // and the diff re-reviewed. The surviving differential is internal —
@@ -30,7 +30,7 @@
 // Run (from anywhere in the module; the testdata dir is anchored to this source
 // file, so CWD does not matter):
 //
-//	go -C ts-go-runtypes run ./cmd/gen-sourcemap-fixtures
+//	go -C ts-go-runtypes run ./cmd/gen-sourcerewrite-fixtures
 package main
 
 import (
@@ -75,7 +75,7 @@ type fixtureCase struct {
 func byteIndexOf(code, needle string, from int) int {
 	rel := strings.Index(code[from:], needle)
 	if rel < 0 {
-		log.Fatalf("gen-sourcemap-fixtures: needle %q not found in %q (from %d)", needle, code, from)
+		log.Fatalf("gen-sourcerewrite-fixtures: needle %q not found in %q (from %d)", needle, code, from)
 	}
 	return from + rel
 }
@@ -260,18 +260,18 @@ func marshalPretty(value any) []byte {
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(value); err != nil {
-		log.Fatalf("gen-sourcemap-fixtures: marshal: %v", err)
+		log.Fatalf("gen-sourcerewrite-fixtures: marshal: %v", err)
 	}
 	return buf.Bytes()
 }
 
 // testdataDir anchors the output directory to THIS source file (via runtime.Caller)
-// so the generator works from any CWD: cmd/gen-sourcemap-fixtures → the package's
+// so the generator works from any CWD: cmd/gen-sourcerewrite-fixtures → the package's
 // testdata dir is ../../internal/compiler/sourcerewrite/testdata.
 func testdataDir() string {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
-		log.Fatal("gen-sourcemap-fixtures: runtime.Caller failed")
+		log.Fatal("gen-sourcerewrite-fixtures: runtime.Caller failed")
 	}
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "internal", "compiler", "sourcerewrite", "testdata")
 }
@@ -283,7 +283,7 @@ func main() {
 		out := marshalPretty(buildFixture("", gc))
 		path := filepath.Join(dir, gc.name+".json")
 		if err := os.WriteFile(path, out, 0o644); err != nil {
-			log.Fatalf("gen-sourcemap-fixtures: write %s: %v", path, err)
+			log.Fatalf("gen-sourcerewrite-fixtures: write %s: %v", path, err)
 		}
 	}
 	log.Printf("wrote %d primary fixtures to testdata/", len(primaryCases))
@@ -294,7 +294,7 @@ func main() {
 	}
 	extraPath := filepath.Join(dir, "extra", "cases.json")
 	if err := os.WriteFile(extraPath, marshalPretty(extra), 0o644); err != nil {
-		log.Fatalf("gen-sourcemap-fixtures: write %s: %v", extraPath, err)
+		log.Fatalf("gen-sourcerewrite-fixtures: write %s: %v", extraPath, err)
 	}
 	log.Printf("wrote %d extra cases to testdata/extra/cases.json", len(extraCases))
 }

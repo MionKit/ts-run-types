@@ -45,7 +45,7 @@ func TestComputeEdits_MatchesApply(t *testing.T) {
 		t.Fatalf("glob testdata: %v", err)
 	}
 	if len(paths) == 0 {
-		t.Fatal("no fixture testdata/*.json found — run: go run ./cmd/gen-sourcemap-fixtures")
+		t.Fatal("no fixture testdata/*.json found — run: go run ./cmd/gen-sourcerewrite-fixtures")
 	}
 	for _, path := range paths {
 		name := filepath.Base(path)
