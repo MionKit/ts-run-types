@@ -15,6 +15,25 @@ export {
 // at module top level through any ESM cycle.
 export {getRTUtils, getRTFnCaches, type RTUtils} from './runtypes/rtUtils.ts';
 
+// Compiled-fn data model + reconstruction — the surface a consumer needs to ship
+// compiled RT functions over the wire and rebuild them on the far side: send the
+// closure-free `CompiledFnData` (its `code` is the factory body), restore the
+// factory with `buildFactoryFromCode(code)` (the `new Function('utl', code)` step;
+// `buildPureFnFactoryFromCode` is the pure-fn-lane twin), assemble a `CompiledTypeFn`,
+// write it back through the already-public `RTUtils.addToRTCache` / `.addPureFn`, then
+// materialise + call via `getRTUtils().getRT(hash)`. Only the argument types and the
+// restore helpers were unreachable before — the cache-write methods were already public.
+export {
+  type CompiledFnData,
+  type CompiledTypeFn,
+  type InitializedTypeFn,
+  type CompiledFnArgs,
+  type CompiledPureFunction,
+  type PureFunctionData,
+  type AnyFn,
+} from './runtypes/types.ts';
+export {buildFactoryFromCode, buildPureFnFactoryFromCode, entryCode} from './runtypes/rtUtils.ts';
+
 // The generic runtime type node + the helper that recovers the source TS type
 // a `RunType<T>` carries (`InferType<typeof schema>`). Both are part of the
 // value-first surface: builders return `RunType<T>`, `InferType` maps back.
