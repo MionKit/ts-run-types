@@ -36,7 +36,7 @@ func applyComputed(file, source, importBlock string, edits []protocol.Edit) (str
 	return eb.string(), eb.generateMap(file, source)
 }
 
-// TestComputeEdits_MatchesApply runs every golden oracle through ComputeEdits +
+// TestComputeEdits_MatchesApply runs every fixture through ComputeEdits +
 // applyComputed and asserts the result is byte-identical to Apply — the
 // structural parity that lets 'go' and 'edits' modes share one Go transform.
 func TestComputeEdits_MatchesApply(t *testing.T) {
@@ -45,7 +45,7 @@ func TestComputeEdits_MatchesApply(t *testing.T) {
 		t.Fatalf("glob testdata: %v", err)
 	}
 	if len(paths) == 0 {
-		t.Fatal("no golden testdata/*.json found — run: go run ./cmd/gen-sourcerewrite-golden")
+		t.Fatal("no fixture testdata/*.json found — run: go run ./cmd/gen-sourcemap-fixtures")
 	}
 	for _, path := range paths {
 		name := filepath.Base(path)
@@ -54,7 +54,7 @@ func TestComputeEdits_MatchesApply(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", path, err)
 			}
-			var tc goldenCase
+			var tc fixtureCase
 			if err := json.Unmarshal(raw, &tc); err != nil {
 				t.Fatalf("unmarshal %s: %v", path, err)
 			}

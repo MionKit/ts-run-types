@@ -1,7 +1,7 @@
-// gen-sourcerewrite-golden regenerates the golden fixtures the
+// gen-sourcemap-fixtures regenerates the source-map fixtures the
 // internal/compiler/sourcerewrite tests pin against:
 //
-//   - testdata/<name>.json      — one object per primary case (TestApply_Golden,
+//   - testdata/<name>.json      — one object per primary case (TestApply_SourceMapFixtures,
 //     TestComputeEdits_MatchesApply)
 //   - testdata/extra/cases.json — one array of named cases (TestApply_ExtraDiff)
 //
@@ -16,7 +16,7 @@
 // function the tests exercise — so this generator calls Apply directly. No binary,
 // no JS, no type-checking.
 //
-// With the independent JS oracle gone, TestApply_Golden is a SNAPSHOT/regression
+// With the independent JS oracle gone, TestApply_SourceMapFixtures is a SNAPSHOT/regression
 // test: the committed JSON is the reviewed baseline, and any change to Apply /
 // EditBuffer / the VLQ source-map math fails it until the fixtures are regenerated
 // and the diff re-reviewed. The surviving differential is internal —
@@ -30,7 +30,7 @@
 // Run (from anywhere in the module; the testdata dir is anchored to this source
 // file, so CWD does not matter):
 //
-//	go -C ts-go-runtypes run ./cmd/gen-sourcerewrite-golden
+//	go -C ts-go-runtypes run ./cmd/gen-sourcemap-fixtures
 package main
 
 import (
@@ -46,8 +46,8 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// fixture is the JSON shape each golden file (or array element) carries. It
-// mirrors goldenCase in transform_test.go, plus the optional Name the extra/
+// fixture is the JSON shape each fixture file (or array element) carries. It
+// mirrors fixtureCase in transform_test.go, plus the optional Name the extra/
 // array form stamps (the primary per-file form omits it — the filename is the
 // name). Field order matches the committed files so a regen stays a clean diff.
 type fixture struct {
@@ -60,10 +60,10 @@ type fixture struct {
 	ExpectedMap  *protocol.SourceMap    `json:"expectedMap"`
 }
 
-// goldenCase is one corpus entry: a name, the source, and a builder that computes
+// fixtureCase is one corpus entry: a name, the source, and a builder that computes
 // its synthetic sites/replacements from the source text (so offsets recompute
 // whenever the source is perturbed — never hand-pinned).
-type goldenCase struct {
+type fixtureCase struct {
 	name  string
 	file  string
 	code  string
@@ -75,7 +75,7 @@ type goldenCase struct {
 func byteIndexOf(code, needle string, from int) int {
 	rel := strings.Index(code[from:], needle)
 	if rel < 0 {
-		log.Fatalf("gen-sourcerewrite-golden: needle %q not found in %q (from %d)", needle, code, from)
+		log.Fatalf("gen-sourcemap-fixtures: needle %q not found in %q (from %d)", needle, code, from)
 	}
 	return from + rel
 }
@@ -90,7 +90,7 @@ func site(pos int, id string) protocol.Site {
 // illustrative callees (createStandardSchema multi-fn demo, marker,
 // registerPureFnFactory) keep their original identifiers — the callee text is
 // immaterial to the byte-offset / source-map mechanics under test.
-var primaryCases = []goldenCase{
+var primaryCases = []fixtureCase{
 	// 1. static getRunTypeId<T>() — id only, paramIndex 1, argsCount 0.
 	{"static_get", "a.ts", "const id = getRunTypeId<string>();\n", func(code string) ([]protocol.Site, []protocol.Replacement) {
 		return []protocol.Site{site(byteIndexOf(code, ")", 0), "Abc1234")}, nil
@@ -174,7 +174,7 @@ var primaryCases = []goldenCase{
 
 // extraCases mirror the old diff_extra.mjs corpus — harder multibyte / boundary
 // permutations, emitted as the single testdata/extra/cases.json array.
-var extraCases = []goldenCase{
+var extraCases = []fixtureCase{
 	// CRLF line endings — the \r is an ordinary non-word char; split is on \n.
 	{"crlf", "a.ts", "const a = 1;\r\nconst id = getRunTypeId<string>();\r\n", func(code string) ([]protocol.Site, []protocol.Replacement) {
 		return []protocol.Site{site(byteIndexOf(code, ")", strings.Index(code, "getRunTypeId")), "Crlf001")}, nil
@@ -231,7 +231,7 @@ var extraCases = []goldenCase{
 
 // buildFixture runs a case's builder, applies Apply, and returns the fixture. The
 // name is stamped only for the array (extra) form; pass "" for the per-file form.
-func buildFixture(name string, gc goldenCase) fixture {
+func buildFixture(name string, gc fixtureCase) fixture {
 	sites, replacements := gc.build(gc.code)
 	if sites == nil {
 		sites = []protocol.Site{}
@@ -260,18 +260,18 @@ func marshalPretty(value any) []byte {
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(value); err != nil {
-		log.Fatalf("gen-sourcerewrite-golden: marshal: %v", err)
+		log.Fatalf("gen-sourcemap-fixtures: marshal: %v", err)
 	}
 	return buf.Bytes()
 }
 
 // testdataDir anchors the output directory to THIS source file (via runtime.Caller)
-// so the generator works from any CWD: cmd/gen-sourcerewrite-golden → the package's
+// so the generator works from any CWD: cmd/gen-sourcemap-fixtures → the package's
 // testdata dir is ../../internal/compiler/sourcerewrite/testdata.
 func testdataDir() string {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
-		log.Fatal("gen-sourcerewrite-golden: runtime.Caller failed")
+		log.Fatal("gen-sourcemap-fixtures: runtime.Caller failed")
 	}
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "internal", "compiler", "sourcerewrite", "testdata")
 }
@@ -283,7 +283,7 @@ func main() {
 		out := marshalPretty(buildFixture("", gc))
 		path := filepath.Join(dir, gc.name+".json")
 		if err := os.WriteFile(path, out, 0o644); err != nil {
-			log.Fatalf("gen-sourcerewrite-golden: write %s: %v", path, err)
+			log.Fatalf("gen-sourcemap-fixtures: write %s: %v", path, err)
 		}
 	}
 	log.Printf("wrote %d primary fixtures to testdata/", len(primaryCases))
@@ -294,7 +294,7 @@ func main() {
 	}
 	extraPath := filepath.Join(dir, "extra", "cases.json")
 	if err := os.WriteFile(extraPath, marshalPretty(extra), 0o644); err != nil {
-		log.Fatalf("gen-sourcerewrite-golden: write %s: %v", extraPath, err)
+		log.Fatalf("gen-sourcemap-fixtures: write %s: %v", extraPath, err)
 	}
 	log.Printf("wrote %d extra cases to testdata/extra/cases.json", len(extraCases))
 }

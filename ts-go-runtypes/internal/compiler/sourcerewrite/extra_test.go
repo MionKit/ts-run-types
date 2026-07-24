@@ -14,9 +14,9 @@ import (
 func TestApply_ExtraDiff(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "extra", "cases.json"))
 	if err != nil {
-		t.Skipf("testdata/extra/cases.json absent (run: go run ./cmd/gen-sourcerewrite-golden): %v", err)
+		t.Skipf("testdata/extra/cases.json absent (run: go run ./cmd/gen-sourcemap-fixtures): %v", err)
 	}
-	var cases []goldenCase
+	var cases []fixtureCase
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatalf("unmarshal extra_cases.json: %v", err)
 	}
