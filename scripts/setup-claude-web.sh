@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
-SETUP_DATE="2026-07-07"
+SETUP_DATE="2026-07-24"
 # ----------------------------------------------------------------------------
 set -uo pipefail
 
@@ -207,7 +207,7 @@ install_go_tarball() {
   bold "Installing Go $GO_INSTALL_VERSION (tarball -> /usr/local/go)"
   local goarch; case "$(uname -m)" in
     x86_64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;;
-    *) err "unsupported arch $(uname -m) for Go auto-install"; FAILED=1; return 1 ;;
+    *) err "unsupported arch $(uname -m) for Go auto-install"; return 2 ;;
   esac
   local tgz="go${GO_INSTALL_VERSION}.linux-${goarch}.tar.gz"
   if curl -fsSL "https://go.dev/dl/${tgz}" -o "/tmp/${tgz}" \
@@ -216,9 +216,9 @@ install_go_tarball() {
     # every later step in this run (resolver build, devtools dist, etc.).
     export PATH="/usr/local/go/bin:$PATH"
     ok "go installed ($(go version 2>/dev/null | awk '{print $3}'))"
-  else
-    err "go install failed"; FAILED=1
+    return 0
   fi
+  return 1
 }
 
 ensure_go() {
@@ -228,11 +228,19 @@ ensure_go() {
     if version_ge "${cur:-0}" "$GO_MIN"; then ok "go ${cur:-?} (>= $GO_MIN)"; return 0; fi
     warn "go ${cur:-?} present but repo needs >= $GO_MIN - upgrading to $GO_INSTALL_VERSION"
     [ "$CHECK_ONLY" = 1 ] && { warn "go too old - re-run without --check to upgrade"; return 0; }
-    install_go_tarball
+    if install_go_tarball; then return 0; fi
+    # Tarball fetch can 403 (release renamed on go.dev/dl, or an egress proxy that
+    # blocks binary blobs even when go.dev DNS/TLS are allowed). We already have a
+    # usable older Go on PATH, and go.mod's `go 1.26` directive means `go build` in
+    # step 8 will auto-fetch the required toolchain via proxy.golang.org
+    # (GOTOOLCHAIN=auto is Go's default). Warn and continue.
+    warn "go.dev tarball fetch failed - continuing with go ${cur:-?}; 'go build' will auto-fetch the required toolchain via proxy.golang.org"
     return 0
   fi
   [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
-  install_go_tarball
+  # No Go at all: the toolchain-auto fallback needs a bootstrap `go` to invoke,
+  # so this branch really does need the tarball. Fail hard if it can't be fetched.
+  install_go_tarball || { err "go install failed and no existing go on PATH to bootstrap the toolchain fetch"; FAILED=1; return 1; }
 }
 
 # -----------------------------------------------------------------------------
@@ -520,4 +528,36 @@ main "$@"
 #
 # Usage:  bash setup-claude-web.sh [--check]
 # Exit:   0 ok | 1 a required step failed | 3 unsupported platform
+# =============================================================================
+#
+# ---------------------------------------------------------------------------
+# EGRESS WHITELIST (managed / air-gapped cloud dev envs)
+# ---------------------------------------------------------------------------
+# Wildcard entries covering every host this script reaches. Add these to the
+# environment's outbound-traffic policy before the first run:
+#
+#   *.nodejs.org                    step 1: Node release index + tarball
+#   *.go.dev                        step 3: Go tarball (go.dev/dl)
+#   *.golang.org                    step 3+8: proxy.golang.org, sum.golang.org
+#                                             (Go module proxy + checksum DB,
+#                                             also carries the toolchain
+#                                             auto-download fallback used when
+#                                             the go.dev tarball 403s)
+#   *.github.com                    step 4: github.com + codeload.github.com
+#                                           (submodule clones)
+#   *.githubusercontent.com         step 4+11: objects.githubusercontent.com
+#                                              (git pack objects) AND
+#                                              pkg-containers.githubusercontent.com
+#                                              (GHCR image BLOBS - see step 11
+#                                              note; ghcr.io auth alone won't
+#                                              pull images without this)
+#   ghcr.io                         step 11: GHCR auth + manifest (apex domain,
+#                                            NOT wildcarded)
+#   *.npmjs.org                     step 6: registry.npmjs.org (pnpm install)
+#   *.debian.org  *.ubuntu.com      step 2 (+ others): OS package mirrors -
+#                                                       include whichever set
+#                                                       matches the base image
+#                                                       (Debian vs Ubuntu, and
+#                                                       ports.ubuntu.com on
+#                                                       arm64 Ubuntu)
 # =============================================================================
