@@ -111,7 +111,7 @@ func (e ValidationErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ex
 			check := emitter.EmitValidationErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er", ctx)
 			if check != "" {
 				check = wrapFormatCheckPath(ctx, check)
-				guard := baseKindGuard(rt, ctx.Vλl)
+				guard := baseKindGuard(rt, ctx.Vλl, ctx.NumberMode())
 				if guard == "" {
 					base.Code = base.Code + ";" + check
 				} else {
@@ -147,7 +147,7 @@ func wrapFormatCheckPath(ctx *EmitContext, check string) string {
 // so they don't run on type-mismatched values. Returns "" when no
 // guard applies (no format emitter should ever land on an unkinded
 // node, but keep this defensive).
-func baseKindGuard(rt *protocol.RunType, vλl string) string {
+func baseKindGuard(rt *protocol.RunType, vλl, numberMode string) string {
 	if rt == nil {
 		return ""
 	}
@@ -155,7 +155,7 @@ func baseKindGuard(rt *protocol.RunType, vλl string) string {
 	case protocol.KindString:
 		return "typeof " + vλl + " === 'string'"
 	case protocol.KindNumber:
-		return "Number.isFinite(" + vλl + ")"
+		return numberBaseCheck(numberMode, vλl)
 	case protocol.KindBigInt:
 		return "typeof " + vλl + " === 'bigint'"
 	case protocol.KindClass:
@@ -188,10 +188,12 @@ func (ValidationErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitCo
 		}
 
 	case protocol.KindNumber:
-		// (ref: nodes/atomic/number.ts:emitTypeErrors). Number.isFinite
-		// rejects NaN / Infinity / -Infinity along with non-numbers.
+		// (ref: nodes/atomic/number.ts:emitTypeErrors). Default Number.isFinite
+		// rejects NaN / Infinity / -Infinity along with non-numbers; the
+		// numberMode ValidateOption swaps in the looser typeof / notNaN base
+		// check (kept in lockstep with the validate emitter via numberBaseCheck).
 		return RTCode{
-			Code: "if (!(Number.isFinite(" + v + "))) " + callRTErr(ctx, "number", ""),
+			Code: "if (!(" + numberBaseCheck(ctx.NumberMode(), v) + ")) " + callRTErr(ctx, "number", ""),
 			Type: CodeS,
 		}
 
@@ -499,7 +501,7 @@ func emitLiteralValidationErrors(rt *protocol.RunType, ctx *EmitContext) RTCode 
 	noLiterals := ctx.HasVariantOption("noLiterals")
 	var validateExpr RTCode
 	if noLiterals {
-		validateExpr = emitLiteralBaseKind(rt, ctx.Vλl)
+		validateExpr = emitLiteralBaseKind(rt, ctx.Vλl, ctx.NumberMode())
 	} else {
 		validateExpr = emitLiteral(rt, ctx.Vλl)
 	}

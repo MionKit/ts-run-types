@@ -6,9 +6,27 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
+	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
+
+// numberBaseCheck returns the base `number` kind guard for the given numberMode
+// (validateOptions.numberMode): isFinite (default) keeps Number.isFinite;
+// typeof accepts NaN / Infinity; notNaN rejects NaN but keeps Infinity. The
+// notNaN form is parenthesized so it composes safely when AND/OR-chained into
+// object-property and union-member guards. Shared by every base-number emit
+// site across validate.go and validationerrors.go so the two stay in lockstep.
+func numberBaseCheck(numberMode, v string) string {
+	switch numberMode {
+	case constants.NumberModeTypeof:
+		return "typeof " + v + " === 'number'"
+	case constants.NumberModeNotNaN:
+		return "(typeof " + v + " === 'number' && !Number.isNaN(" + v + "))"
+	default:
+		return "Number.isFinite(" + v + ")"
+	}
+}
 
 // ValidateEmitter implements the `validate` rt function — produces a
 // boolean validator per RunType. The factory shape it emits:
@@ -215,10 +233,11 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		return RTCode{Code: "typeof " + v + " === 'string'", Type: CodeE}
 
 	case protocol.KindNumber:
-		// (ref: nodes/atomic/number.ts:14). `Number.isFinite` rejects
-		// Infinity / -Infinity / NaN and non-numbers without coercion —
-		// this encodes the bug-flavor case from number.spec.ts.
-		return RTCode{Code: "Number.isFinite(" + v + ")", Type: CodeE}
+		// (ref: nodes/atomic/number.ts:14). Default `Number.isFinite` rejects
+		// Infinity / -Infinity / NaN and non-numbers without coercion; the
+		// numberMode ValidateOption swaps in the looser typeof / notNaN checks
+		// to align with other libraries.
+		return RTCode{Code: numberBaseCheck(ctx.NumberMode(), v), Type: CodeE}
 
 	case protocol.KindBoolean:
 		// (ref: nodes/atomic/boolean.ts:14)
@@ -375,7 +394,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		// can validate a wider runtime shape without changing the
 		// type id — see `emitLiteralBaseKind`.
 		if ctx.HasVariantOption("noLiterals") {
-			return emitLiteralBaseKind(rt, v)
+			return emitLiteralBaseKind(rt, v, ctx.NumberMode())
 		}
 		return emitLiteral(rt, v)
 
@@ -1469,10 +1488,9 @@ func emitLiteral(rt *protocol.RunType, v string) RTCode {
 //
 // Base-kind picked from `rt.Flags` markers (`bigint`/`symbol`)
 // or — when no marker is set — from the Go-side type of `rt.Literal`.
-// Boolean → `typeof v === 'boolean'`; number → `Number.isFinite(v)`
-// (mirrors the KindNumber arm, NaN/Infinity rejected like atomic
-// number); string → `typeof v === 'string'`.
-func emitLiteralBaseKind(rt *protocol.RunType, v string) RTCode {
+// Boolean → `typeof v === 'boolean'`; number → the numberMode-selected base
+// check (mirrors the KindNumber arm); string → `typeof v === 'string'`.
+func emitLiteralBaseKind(rt *protocol.RunType, v, numberMode string) RTCode {
 	flagSet := make(map[string]bool, len(rt.Flags))
 	for _, flag := range rt.Flags {
 		flagSet[flag] = true
@@ -1491,7 +1509,7 @@ func emitLiteralBaseKind(rt *protocol.RunType, v string) RTCode {
 	case bool:
 		return RTCode{Code: "typeof " + v + " === 'boolean'", Type: CodeE}
 	case int64, float64:
-		return RTCode{Code: "Number.isFinite(" + v + ")", Type: CodeE}
+		return RTCode{Code: numberBaseCheck(numberMode, v), Type: CodeE}
 	case string:
 		return RTCode{Code: "typeof " + v + " === 'string'", Type: CodeE}
 	}

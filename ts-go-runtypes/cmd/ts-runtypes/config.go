@@ -144,6 +144,13 @@ type tsRuntypesPlugin struct {
 	// knobs under one `size` object (like `i18n`). A nil object (absent key)
 	// keeps every binary default.
 	Size *sizePluginConfig `json:"size"`
+	// Validate groups project-wide defaults for the per-call-site ValidateOptions
+	// bag under one `validate` object (like `size`). A nil object (absent key)
+	// keeps every validator on its built-in default. Merged per field into each
+	// validate / validationErrors call site by the scanner (site value wins per
+	// field); folds into each entry's fnHash variant, so it is NOT a disk
+	// fingerprint input.
+	Validate *validatePluginConfig `json:"validate"`
 }
 
 // sizePluginConfig is the `size` object under the ts-runtypes plugin entry:
@@ -158,6 +165,17 @@ type sizePluginConfig struct {
 	Items       *int     `json:"items"`
 	StringBytes *int     `json:"stringBytes"`
 	MaxBytes    *int     `json:"maxBytes"`
+}
+
+// validatePluginConfig is the `validate` object under the ts-runtypes plugin
+// entry — project-wide defaults for the per-call-site ValidateOptions bag:
+//
+//	{ "numberMode": "typeof" }
+//
+// numberMode defaults ValidateOptions.numberMode ("isFinite" | "typeof" |
+// "notNaN"); empty / absent leaves every validator on the isFinite default.
+type validatePluginConfig struct {
+	NumberMode string `json:"numberMode"`
 }
 
 // i18nPluginConfig is the `i18n` object under the ts-runtypes plugin entry:

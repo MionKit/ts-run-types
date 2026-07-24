@@ -138,6 +138,7 @@ func main() {
 		sizeItems              int
 		sizeStringBytes        int
 		sizeMaxBytes           int
+		numberMode             string
 		pprofCPU               string
 		pprofHeap              string
 		help                   bool
@@ -194,6 +195,10 @@ func main() {
 		"assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)")
 	flag.IntVar(&sizeMaxBytes, "size-max-bytes", constants.DefaultSizeMaxBytes,
 		"per-type cap on the binary cold-start estimate so a huge declared bound never seeds a multi-MB buffer (default 65536)")
+	flag.StringVar(&numberMode, "number-mode", "",
+		"project-wide default for the validate `numberMode` option (validate.numberMode): "+
+			"isFinite (default — Number.isFinite; rejects NaN/Infinity), typeof (typeof v === 'number'; accepts them), "+
+			"or notNaN (rejects NaN, accepts Infinity); a per-call-site numberMode overrides it")
 	flag.StringVar(&pprofCPU, "pprof-cpu", "",
 		"write a CPU profile to PATH, covering the whole serve loop (started at boot, stopped at exit)")
 	flag.StringVar(&pprofHeap, "pprof-heap", "",
@@ -306,6 +311,7 @@ func main() {
 		sizeItems:              sizeItems,
 		sizeStringBytes:        sizeStringBytes,
 		sizeMaxBytes:           sizeMaxBytes,
+		numberMode:             numberMode,
 	}, plugin, absCwd)
 
 	// Stdio decoder/encoder is built up front because in inline-sources mode
@@ -333,6 +339,12 @@ func main() {
 	}
 	if !constants.InlineMode(merged.inlineMode).Valid() {
 		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid inline-mode %q (want default | allInternal)\n", merged.inlineMode)
+		os.Exit(2)
+	}
+	switch merged.numberMode {
+	case "", constants.NumberModeIsFinite, constants.NumberModeTypeof, constants.NumberModeNotNaN:
+	default:
+		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid number-mode %q (want isFinite | typeof | notNaN)\n", merged.numberMode)
 		os.Exit(2)
 	}
 
@@ -372,6 +384,7 @@ func main() {
 		SizeItems:               merged.sizeItems,
 		SizeStringBytes:         merged.sizeStringBytes,
 		SizeMaxBytes:            merged.sizeMaxBytes,
+		ValidateDefaults:        resolver.ValidateDefaults{NumberMode: merged.numberMode},
 	}
 
 	// Compile mode is a batch build, not a stdio session: it drives the two-pass

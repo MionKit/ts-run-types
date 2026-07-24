@@ -192,12 +192,35 @@ type ValidateOption struct {
 	Letter string // single uppercase letter appended to the variant suffix, e.g. "L"
 }
 
+// numberMode (the `ValidateOptions.numberMode` string enum) selects the
+// emitted base `number` kind check so validators can align with other
+// libraries' number semantics. Its value is NOT a boolean, so it can't be a
+// plain registry entry: the two non-default values ride as INTERNAL canonical
+// option names (numberModeTypeofName / numberModeNotNaNName) appended to the
+// registry below, and the default isFinite adds no variant name at all —
+// keeping existing `val_<id>` / `valNL_<id>` keys byte-stable.
+const (
+	NumberModeOption   = "numberMode" // the JS property name on ValidateOptions
+	NumberModeIsFinite = "isFinite"   // default — Number.isFinite(v)
+	NumberModeTypeof   = "typeof"     // typeof v === 'number' (accepts NaN / Infinity)
+	NumberModeNotNaN   = "notNaN"     // typeof v === 'number' && !Number.isNaN(v)
+)
+
+// Internal canonical variant names for the two non-default numberMode values.
+// These are NOT user-facing properties (the public property is the string
+// `numberMode`); they exist so the enum rides the boolean ValidateOptions
+// name-set / letter machinery unchanged.
+const (
+	numberModeTypeofName = "numberTypeof"
+	numberModeNotNaNName = "numberNotNaN"
+)
+
 // ValidateOptions is the ordered registry of supported `ValidateOptions`
 // keys. Order is load-bearing: the variant suffix concatenates letters
 // in this order so existing variant keys stay stable as new options
 // append to the tail (declaration-order, not alphabetic).
 //
-// To add a new option:
+// To add a new boolean option:
 //  1. Append an entry here — the scanner's extraction is table-driven
 //     off this registry, so the option is read automatically.
 //  2. Add the field to `ValidateOptions` in
@@ -205,9 +228,42 @@ type ValidateOption struct {
 //  3. Teach the emitters to honour it (plus any per-option scanner
 //     semantics, e.g. a noop-option diagnostic in analyzeCall).
 //  4. Regenerate the TS mirror (`pnpm run gen:ts-constants`).
+//
+// A string-enum option (see numberMode above) instead maps each non-default
+// value to a canonical name here and is read by a dedicated scanner arm.
 var ValidateOptions = []ValidateOption{
 	{Name: "noLiterals", Letter: "L"},
 	{Name: "noIsArrayCheck", Letter: "A"},
+	{Name: numberModeTypeofName, Letter: "T"},
+	{Name: numberModeNotNaNName, Letter: "M"},
+}
+
+// NumberModeOptionName maps a numberMode value to its canonical variant
+// option name (a ValidateOptions member), or "" for the default isFinite and
+// for any unset / unrecognized value (both fall back to the default check).
+func NumberModeOptionName(mode string) string {
+	switch mode {
+	case NumberModeTypeof:
+		return numberModeTypeofName
+	case NumberModeNotNaN:
+		return numberModeNotNaNName
+	default:
+		return ""
+	}
+}
+
+// NumberModeFromOptions returns the numberMode implied by an enabled
+// option-name set (queried through has) — the inverse of NumberModeOptionName.
+// Defaults to isFinite when neither variant name is present.
+func NumberModeFromOptions(has func(string) bool) string {
+	switch {
+	case has(numberModeTypeofName):
+		return NumberModeTypeof
+	case has(numberModeNotNaNName):
+		return NumberModeNotNaN
+	default:
+		return NumberModeIsFinite
+	}
 }
 
 // ValidateVariantSuffix returns the canonical variant suffix for a sorted

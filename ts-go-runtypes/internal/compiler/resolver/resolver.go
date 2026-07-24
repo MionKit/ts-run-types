@@ -153,6 +153,22 @@ type Options struct {
 	// part of the module manifest nor resolvable as an rtmod:/ specifier) — it is
 	// not configurable, matching every other path under the output root.
 	PureFnReportFile bool
+	// ValidateDefaults carries project-wide defaults for the per-call-site
+	// ValidateOptions bag (validate / validationErrors). The scanner merges it
+	// per field into every call site (site value wins per field). NOT a
+	// disk-fingerprint input: it forks each entry's fnHash variant exactly like
+	// a per-site option, so distinct defaults key distinct cache entries on
+	// their own.
+	ValidateDefaults ValidateDefaults
+}
+
+// ValidateDefaults is the project-wide default subset of ValidateOptions a
+// build may set through the `validate` plugin / tsconfig object. An empty
+// field means "unset" — the call site's own value, else the built-in default,
+// applies.
+type ValidateDefaults struct {
+	// NumberMode defaults ValidateOptions.numberMode ("" = unset → isFinite).
+	NumberMode string
 }
 
 // Session owns a Program and answers type queries against it. The serializer

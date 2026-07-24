@@ -37,6 +37,15 @@ export interface ValidateOptions {
    *  and a plain validator for the same `T` compile to distinct entries — the
    *  armed one bakes the cycle check into its body (pay-for-use). **/
   rejectCircularRefs?: boolean;
+  /** Selects how the emitted validator checks a `number`, to align with other
+   *  libraries when migrating. `'isFinite'` (default) uses `Number.isFinite`,
+   *  rejecting `NaN` / `Infinity` / `-Infinity`; `'typeof'` uses
+   *  `typeof v === 'number'`, accepting the non-finite values (matches ajv /
+   *  typia / JSON Schema); `'notNaN'` rejects `NaN` but accepts `Infinity`.
+   *  COMPILE-TIME (like `noLiterals`): it forks the injected fnHash. A project
+   *  can set the default for every validator via the `validate.numberMode`
+   *  plugin / tsconfig option; a per-call value overrides that default. **/
+  numberMode?: 'isFinite' | 'typeof' | 'notNaN';
 }
 
 /** Validator function returned by `createValidateFn<T>()`. The type guard narrows

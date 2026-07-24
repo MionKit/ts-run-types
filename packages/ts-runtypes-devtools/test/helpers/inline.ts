@@ -47,6 +47,7 @@ export const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export interface ValidateOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
+    numberMode?: 'isFinite' | 'typeof' | 'notNaN';
   }
   export type ValidateFn = (value: unknown) => boolean;
   export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;

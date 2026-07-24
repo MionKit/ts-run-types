@@ -6,14 +6,15 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/constants"
 )
 
-// expectedCanonicalKeyCount is a canary. Base set = 29: 12 AxisNone ops × 1,
-// huk's 2 HasUnknownKeysOptions subsets, val+verr's 4 ValidateOptions subsets
-// each (8), jsonEncoder's 4 + jsonDecoder's 3 strategies (7). On top, the four
+// expectedCanonicalKeyCount is a canary. Base set = 53: 12 AxisNone ops × 1,
+// huk's 2 HasUnknownKeysOptions subsets, val+verr's 16 ValidateOptions subsets
+// each (32; 4 options — noLiterals, noIsArrayCheck, numberTypeof, numberNotNaN —
+// → 2^4), jsonEncoder's 4 + jsonDecoder's 3 strategies (7). On top, the four
 // CircularGuarded ops fork on rejectCircular, ADDING one armed key per plain
-// variant: val +4, verr +4, tb +1, jsonEncoder +4 = +13. If this trips, an
+// variant: val +16, verr +16, tb +1, jsonEncoder +4 = +37. If this trips, an
 // operation (or the circular fork) changed without updating the count (and you
 // should re-confirm the collision guard still holds).
-const expectedCanonicalKeyCount = 29 + 13
+const expectedCanonicalKeyCount = 53 + 37
 
 func TestFnHashCollisionFree(t *testing.T) {
 	// Runs at init too, but assert here so the failure is a test, not a panic.

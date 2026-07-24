@@ -32,6 +32,7 @@ type buildFlags struct {
 	sizeItems              int
 	sizeStringBytes        int
 	sizeMaxBytes           int
+	numberMode             string
 }
 
 // buildOptions is the merged build configuration the resolver consumes.
@@ -51,6 +52,7 @@ type buildOptions struct {
 	sizeItems              int
 	sizeStringBytes        int
 	sizeMaxBytes           int
+	numberMode             string
 }
 
 // mergeBuildOptions resolves the effective build configuration from the CLI
@@ -77,6 +79,7 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		sizeItems:              flags.sizeItems,
 		sizeStringBytes:        flags.sizeStringBytes,
 		sizeMaxBytes:           flags.sizeMaxBytes,
+		numberMode:             flags.numberMode,
 	}
 
 	if !flags.set["emit-mode"] && strings.TrimSpace(plugin.EmitMode) != "" {
@@ -136,6 +139,12 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		if !flags.set["size-max-bytes"] && size.MaxBytes != nil {
 			out.sizeMaxBytes = *size.MaxBytes
 		}
+	}
+
+	// numberMode default (validate.numberMode): a tsconfig value fills in only
+	// when --number-mode was not explicitly passed, tsc-style.
+	if !flags.set["number-mode"] && plugin.Validate != nil && strings.TrimSpace(plugin.Validate.NumberMode) != "" {
+		out.numberMode = strings.TrimSpace(plugin.Validate.NumberMode)
 	}
 
 	// parallelScan / parallelRender read true=on (matching the host plugin's

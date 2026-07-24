@@ -3,6 +3,7 @@ package typefunctions
 import (
 	"strconv"
 
+	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -156,6 +157,14 @@ func (ctx *EmitContext) HasVariantOption(name string) bool {
 		return false
 	}
 	return ctx.walker.VariantOptions[name]
+}
+
+// NumberMode returns the numberMode (validateOptions.numberMode) the current
+// variant root is rendering — "typeof" / "notNaN" / "isFinite" (default).
+// Root-scoped like HasVariantOption: nested same-kind nodes render with the
+// default check and dispatch to plain factories.
+func (ctx *EmitContext) NumberMode() string {
+	return constants.NumberModeFromOptions(ctx.HasVariantOption)
 }
 
 // ResolveRef dereferences a KindRef sentinel via the walker's ref
