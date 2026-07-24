@@ -7,8 +7,9 @@ created: 2026-07-24
 
 # CLI architecture: consolidate on tsgo-style subcommands
 
-**Sequencing: implement AFTER [tsconfig-alignment.md](tsconfig-alignment.md). It
-must inherit that todo's single config-resolution seam untouched.**
+**Sequencing: implement AFTER [tsconfig-alignment.md](../done/tsconfig-alignment.md)
+(SHIPPED 2026-07-24 — unblocked). It must inherit that todo's single
+config-resolution seam untouched.**
 
 ## Intent
 

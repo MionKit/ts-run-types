@@ -1,11 +1,19 @@
 ---
 type: fix
 spec: full-plan
-status: ready
+status: done
 created: 2026-07-24
 ---
 
 # Configuration architecture: one tsconfig, one behavior
+
+**Status: SHIPPED (2026-07-24).** Implemented as planned, with the deltas
+recorded in "Shipped notes" at the bottom (the notable ones: `TsconfigFailOnError`
+was NOT removed — that symbol is the option-parity `failOnError` echo, unrelated
+to parse strictness, kept by owner decision; and the strictness work uncovered
+and fixed a deeper pre-existing gap — config CONTENT errors ride
+`ParsedCommandLine.GetConfigFileParsingDiagnostics()`, which even `program.New`
+never checked).
 
 **Sequencing: implement FIRST, before
 [cli-subcommand-consolidation.md](cli-subcommand-consolidation.md), which builds on
@@ -60,9 +68,14 @@ the tsgo CLI on every entry point. We never curate per-option behavior.
   applies ONLY when no config exists at all — tsc's own loose-file behavior. The
   WASM playground, bare test spawns and `gen-builtin-purefns` stay there.
 - The JS side passes the implicit `tsconfig.json` default only when the file
-  exists; an explicitly configured path is always passed and always strict. The
-  opt-in `TsconfigFailOnError` becomes the default and its option/flag plumbing is
-  removed (binary and JS packages ship in lockstep, so argv changes are atomic).
+  exists; an explicitly configured path is always passed and always strict.
+  ~~The opt-in `TsconfigFailOnError` becomes the default and its option/flag
+  plumbing is removed.~~ **Corrected at implementation (owner decision):**
+  `TsconfigFailOnError` is the option-parity `failOnError` echo (Error-severity
+  BUILD diagnostics halting the host build,
+  [option-parity-tsconfig-plugin.md](../partially/option-parity-tsconfig-plugin.md)),
+  unrelated to parse strictness — it stays. No parse-strictness toggle ever
+  existed; strictness is simply unconditional now, no option involved.
 
 **The per-lane contract.**
 
@@ -138,18 +151,23 @@ returns nil on any failure) where tsc errors loudly.
 3. **[dispatch.go:1149-1152](../../ts-go-runtypes/internal/compiler/resolver/dispatch.go)
    + [resolver.go:177-178](../../ts-go-runtypes/internal/compiler/resolver/resolver.go)** —
    the once-per-session parse now propagates the error path: a failed parse fails
-   the `setSources` op with a structured error. Remove `TsconfigFailOnError`
-   (resolver option + `main.go:346` + JS plumbing); strict is the default.
+   the `setSources` op with a structured error (tagged with the new catalog code
+   `CFG001`, and NOT cached — the next setSources re-parses, so a fixed config
+   heals without a respawn). ~~Remove `TsconfigFailOnError`~~ — kept; see the
+   corrected Error-semantics bullet above.
 4. **[main.go:404-434](../../ts-go-runtypes/cmd/ts-runtypes/main.go)** (inline
    one-shot) — same strictness via the shared parse.
 5. **Enrich CLI** ([enrich_cli.go](../../ts-go-runtypes/cmd/ts-runtypes/enrich_cli.go),
    [config.go](../../ts-go-runtypes/cmd/ts-runtypes/config.go)) — add `--tsconfig`
-   to the `describe`/`gen`/`check` FlagSets and the `valueFlags` map (:465).
-   Resolution order: explicit flag → `findNearestTsconfig(filepath.Dir(absPath))` →
-   none. Thread ONE resolved path into `buildProgram`/`buildProgramMulti`
-   (`ParseInferredConfig(cwd, path, "source")`) AND `resolveEnrichConfig`
-   (:190-242, replacing its separate discovery) so genDir/i18n and type resolution
-   read the SAME config. A named-or-discovered config that fails → fatal.
+   to the `describe`/`gen`/`check` FlagSets (check's lives in `enrich_check.go`)
+   and the `valueFlags` map (`enrich_cli.go:465`, not config.go). Resolution
+   order: explicit flag → `findNearestTsconfig(filepath.Dir(absPath))` → none —
+   the new `resolveEnrichTsconfig` helper, called by `resolveEnrichConfig` (which
+   records the pick on `enrichConfig.TsconfigPath` and no longer discovers on its
+   own). `buildProgram`/`buildProgramMulti` take the same resolved path
+   (`ParseInferredConfig(cwd, path, "source")`), so genDir/i18n and type
+   resolution read the SAME config. A named-or-discovered config that fails →
+   fatal (an explicitly named path must also exist).
 6. **JS side** ([resolver-client.ts:485-516](../../packages/ts-runtypes-devtools/src/resolver-client.ts),
    `unplugin.ts:287`, `eslint/session.ts:105-108`, `lint-worker.ts`) — pass
    `--tsconfig` only when explicitly configured OR the default `tsconfig.json`
@@ -172,8 +190,12 @@ returns nil on any failure) where tsc errors loudly.
   `getRunTypeId(v)` — with id equality asserted across shapes AND lanes
   (Marker rule; pattern: `TestAtomic_FormEquivalence`).
 - **Error semantics.** Named-but-broken config → `setSources` op errors and lint
-  surfaces it; named-but-missing → error; nothing named → fallback works. Update
-  the `fail-on-error` tests to pin strict-by-default.
+  surfaces it; named-but-missing → error; nothing named → fallback works.
+  ~~Update the `fail-on-error` tests to pin strict-by-default.~~ (Moot under the
+  corrected `failOnError` reading — `fail-on-error.test.ts` is untouched and
+  green; the new strictness pins live in `TestSetSources_TsconfigErrors`,
+  `tsconfig-alignment.test.ts`, and the reworked
+  `TestResolveEnrichConfig_GarbageTsconfig`.)
 - **Program-level** (`internal/compiler/program/`): options adopted wholesale
   (including `module: node16` honored — full parity, nothing kept fixed);
   `extraConditions` merge preserves `"source"` without mutating the shared parse;
@@ -228,3 +250,56 @@ returns nil on any failure) where tsc errors loudly.
 - Option-sensitive regressions are pinned on both public surfaces (lint + daemon).
 - Existing resolution/marker/enrichment suites stay green; docs updated; both
   `getRunTypeId` shapes covered with id-equivalence assertions.
+
+## Shipped notes (2026-07-24)
+
+Every Done-when criterion landed. Deltas and discoveries vs the plan as written:
+
+- **`TsconfigFailOnError` kept** (owner decision at implementation). The plan's
+  step 3 misidentified it as a parse-strictness opt-in; it is the option-parity
+  `failOnError` echo (Error-severity build diagnostics halting the host build)
+  and is orthogonal to this work. Parse strictness shipped with no option at
+  all. `fail-on-error.test.ts` untouched.
+- **Deeper strictness gap found and fixed.** Config CONTENT errors (malformed
+  JSON, invalid option values) ride
+  `ParsedCommandLine.GetConfigFileParsingDiagnostics()`, NOT the second return
+  of `GetParsedCommandLineOfConfigFile` (file-read failures only) — so even
+  `program.New` silently built default-options Programs from garbage configs.
+  Both constructors now gate on it (`firstConfigContentError` in
+  `inferred_config.go`); the inferred lanes skip only TS18003 "no inputs"
+  (their roots come from the caller, never the config's include set).
+- **Latent walker crash exposed and fixed.** Honoring real configs on the
+  enrich lane made `ts-runtypes gen` stack-overflow for ANY type under
+  `target: ESNext` or target unset (tsgo defaults to its latest lib):
+  `walkDeclFiles` AssignID'd LIB-declared types, and lib.esnext's
+  `IteratorObject` family instantiates fresh `*checker.Type`s per member query,
+  defeating the typeid walker's pointer-based cycle detection. Fixed at the
+  caller — `walkDeclFiles` now stops at lib-declared types (`bundledLibPrefix`
+  guard in `bridge.go`, honoring the "lib members are never walked" rule; type
+  arguments still descend so `Map<string, User>` finds `User`) — pinned by
+  `TestResolveTypeRaw_EsnextLibNeverWalksLibDecls`. The walker's missing depth
+  backstop is filed separately:
+  [typeid-walk-depth-backstop.md](../todos/typeid-walk-depth-backstop.md).
+- **CFG001** is the new catalog code (`codes_config.go`, `project-config`
+  website subsystem) tagged into the `setSources` op error. The JS lint worker
+  synthesizes the catalog diagnostic from it (new `broken-tsconfig` rule, error
+  by default, in `RULE_SPECS` + `oxlint-recommended.json`); vite HMR logs the
+  failure loudly instead of swallowing it. A failed parse is never cached — the
+  next setSources re-parses, so a fixed config heals without a respawn (pinned
+  by test on both surfaces).
+- **JS implicit-default gating** lives in one exported helper
+  (`defaultTsconfig` in `resolver-client.ts`), shared by the bundler plugin,
+  the eslint session, and the lint worker.
+- **Enrich threading**: `resolveEnrichTsconfig` (flag → upward discovery →
+  none, named-must-exist) + `enrichConfig.TsconfigPath` carry the ONE resolved
+  path through every gen/check/translate/prune lane; a discovered-but-broken
+  config is fatal (`TestResolveEnrichConfig_GarbageTsconfig` re-pinned via the
+  subprocess pattern).
+- **New suites**: `TestTsconfigParity_BuildLaneEqualsDaemonLane` (the 4-row
+  matrix parity oracle) + `TestSetSources_TsconfigErrors` (resolver);
+  `inferred_config_test.go` (program-level, incl. the `program.New` content
+  gate and the Clone/no-mutation extras pin);
+  `tsconfig-alignment.test.ts` (JS: daemon Temporal sensitivity both ways,
+  CFG001 reject/heal, eslint TMP001 pair, `broken-tsconfig` route,
+  `defaultTsconfig` gate). Marker rule held everywhere (both shapes, id
+  equality across shapes AND lanes).

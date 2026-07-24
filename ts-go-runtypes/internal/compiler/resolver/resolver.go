@@ -168,14 +168,16 @@ type Session struct {
 	sites        []protocol.Site
 	marker       marker.Options
 	opts         Options
-	// inferredResolution caches the resolution options parsed from opts.TsconfigPath
-	// (customConditions / paths / baseUrl), threaded into every setSources-built
-	// Program so lint-time resolution matches the build. Parsed ONCE (cwd + tsconfig
-	// path are fixed per session) and cached; nil means "no usable tsconfig" (the
-	// best-effort fallback to the inferred defaults). Session-lifetime, not reset on
-	// a Program swap.
-	inferredResolution     *program.InferredResolution
-	inferredResolutionDone bool
+	// inferredConfig caches the project tsconfig parsed from opts.TsconfigPath —
+	// the FULL frozen CompilerOptions, adopted wholesale by every setSources-built
+	// Program so daemon rebuilds type-check exactly like the build. Parsed ONCE
+	// (cwd + tsconfig path are fixed per session); nil with the done flag set
+	// means "no tsconfig named" (the inferred-defaults fallback). A FAILED parse
+	// leaves the done flag unset: the op errors (strict like tsc, CFG001) and the
+	// next setSources re-parses, so a fixed config heals without a respawn.
+	// Session-lifetime, not reset on a Program swap.
+	inferredConfig     *program.InferredConfig
+	inferredConfigDone bool
 	// pureFnHashes is the session-wide index of every pure-fn entry
 	// the resolver has observed so far, keyed by "<ns>::<fnName>" with
 	// the entry's bodyHash as the value. Used by dispatchScanFiles to

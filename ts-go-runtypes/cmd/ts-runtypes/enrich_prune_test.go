@@ -16,7 +16,7 @@ func TestCollectPruneTargets_FileUsedAsIs(t *testing.T) {
 	mirrorFile := filepath.Join(dir, "custom-out", "models", "user.ts")
 	writeTestFile(t, mirrorFile, "export const friendlyUser = {};\n")
 
-	got := collectPruneTargets([]string{mirrorFile}, "")
+	got := collectPruneTargets([]string{mirrorFile}, "", "")
 	if len(got) != 1 || !strings.HasSuffix(got[0], "custom-out/models/user.ts") {
 		t.Fatalf("collectPruneTargets(%q) = %v, want the file itself", mirrorFile, got)
 	}

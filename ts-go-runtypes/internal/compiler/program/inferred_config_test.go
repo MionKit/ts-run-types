@@ -1,0 +1,167 @@
+package program
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/microsoft/typescript-go/shim/core"
+)
+
+func writeConfigFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// TestParseInferredConfig_NoPathIsNilNil — no tsconfig named means no config
+// and no error: the caller falls back to the fixed inferred defaults (tsc's
+// loose-file posture).
+func TestParseInferredConfig_NoPathIsNilNil(t *testing.T) {
+	inferredConfig, err := ParseInferredConfig(t.TempDir(), "")
+	if inferredConfig != nil || err != nil {
+		t.Fatalf("ParseInferredConfig(cwd, \"\") = (%v, %v), want (nil, nil)", inferredConfig, err)
+	}
+}
+
+// TestParseInferredConfig_MissingNamedConfigErrors — a NAMED config that does
+// not exist is an error (strict like tsc), never a silent fallback.
+func TestParseInferredConfig_MissingNamedConfigErrors(t *testing.T) {
+	inferredConfig, err := ParseInferredConfig(t.TempDir(), "tsconfig.json")
+	if err == nil || inferredConfig != nil {
+		t.Fatalf("missing named tsconfig must error; got (%v, %v)", inferredConfig, err)
+	}
+	if !strings.Contains(err.Error(), "tsconfig not found") {
+		t.Errorf("error should name the missing config; got %q", err)
+	}
+}
+
+// TestParseInferredConfig_BrokenConfigErrors — a named config that fails to
+// parse errors, carrying tsgo's own diagnostic.
+func TestParseInferredConfig_BrokenConfigErrors(t *testing.T) {
+	dir := t.TempDir()
+	writeConfigFile(t, filepath.Join(dir, "tsconfig.json"), `this is not json at all {{{`)
+
+	inferredConfig, err := ParseInferredConfig(dir, "tsconfig.json")
+	if err == nil || inferredConfig != nil {
+		t.Fatalf("broken tsconfig must error; got (%v, %v)", inferredConfig, err)
+	}
+	if !strings.Contains(err.Error(), "tsconfig parse failed") {
+		t.Errorf("error should carry the parse diagnostic; got %q", err)
+	}
+}
+
+// TestNew_BrokenTsconfigErrors — the build lane rejects a config whose CONTENT
+// is broken, not just a missing file: syntax/validation diagnostics ride the
+// ParsedCommandLine, and New must read them (it used to check only the
+// file-read diagnostics, silently building default-options Programs from
+// garbage configs).
+func TestNew_BrokenTsconfigErrors(t *testing.T) {
+	dir := t.TempDir()
+	writeConfigFile(t, filepath.Join(dir, "tsconfig.json"), `this is not json at all {{{`)
+	writeConfigFile(t, filepath.Join(dir, "main.ts"), "export const answer = 42;\n")
+
+	prog, err := New(Options{Cwd: dir, SingleThreaded: true})
+	if err == nil {
+		t.Fatalf("New over a garbage tsconfig must error; got a Program (%v)", prog)
+	}
+	if !strings.Contains(err.Error(), "tsconfig parse failed") {
+		t.Errorf("error should carry the parse diagnostic; got %q", err)
+	}
+}
+
+// TestNewInferred_AdoptsOptionsWholesale — with a parsed config, the FULL
+// CompilerOptions govern the Program (module: node16 honored, strict flags off
+// when the config says so): full parity with the build lane, nothing kept fixed.
+func TestNewInferred_AdoptsOptionsWholesale(t *testing.T) {
+	dir := t.TempDir()
+	writeConfigFile(t, filepath.Join(dir, "tsconfig.json"), `{
+		"compilerOptions": {
+			"module": "node16",
+			"moduleResolution": "node16",
+			"target": "ES2020",
+			"strict": false,
+			"customConditions": []
+		}
+	}`)
+	sourcePath := filepath.Join(dir, "main.ts")
+	writeConfigFile(t, sourcePath, "export const answer = 42;\n")
+
+	inferredConfig, err := ParseInferredConfig(dir, "tsconfig.json")
+	if err != nil {
+		t.Fatalf("ParseInferredConfig: %v", err)
+	}
+	prog, err := NewInferred(Options{Cwd: dir, Config: inferredConfig, SingleThreaded: true}, []string{sourcePath})
+	if err != nil {
+		t.Fatalf("NewInferred: %v", err)
+	}
+	options := prog.TS.Options()
+	if options != inferredConfig.options {
+		t.Errorf("Program must alias the frozen parsed options pointer (tsgo's LSP pattern); got a different pointer")
+	}
+	if options.Module != core.ModuleKindNode16 {
+		t.Errorf("Module = %v, want Node16 — the config was not adopted wholesale", options.Module)
+	}
+	if options.Target != core.ScriptTargetES2020 {
+		t.Errorf("Target = %v, want ES2020", options.Target)
+	}
+	if options.Strict == core.TSTrue || options.StrictNullChecks == core.TSTrue {
+		t.Errorf("strict:false in the config must not be overridden by the old hardcoded strict flags")
+	}
+}
+
+// TestNewInferred_FallbackLiteralWithoutConfig — with no config anywhere the
+// fixed bundler-style defaults still apply, and Options.Conditions feeds them.
+func TestNewInferred_FallbackLiteralWithoutConfig(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "main.ts")
+	writeConfigFile(t, sourcePath, "export const answer = 42;\n")
+
+	prog, err := NewInferred(Options{Cwd: dir, Conditions: []string{"source"}, SingleThreaded: true}, []string{sourcePath})
+	if err != nil {
+		t.Fatalf("NewInferred: %v", err)
+	}
+	options := prog.TS.Options()
+	if options.Module != core.ModuleKindESNext || options.ModuleResolution != core.ModuleResolutionKindBundler {
+		t.Errorf("no-config fallback must keep the fixed bundler-style literal; got module=%v resolution=%v", options.Module, options.ModuleResolution)
+	}
+	if len(options.CustomConditions) != 1 || options.CustomConditions[0] != "source" {
+		t.Errorf("Options.Conditions must feed the fallback literal; got %v", options.CustomConditions)
+	}
+}
+
+// TestParseInferredConfig_ExtraConditionsCloneNotMutate — extras are folded on
+// a Clone(); the bare parse of the same file keeps its own CustomConditions
+// untouched, so the shared no-extras pointer is never mutated.
+func TestParseInferredConfig_ExtraConditionsCloneNotMutate(t *testing.T) {
+	dir := t.TempDir()
+	writeConfigFile(t, filepath.Join(dir, "tsconfig.json"), `{
+		"compilerOptions": {"customConditions": ["dev"]}
+	}`)
+
+	bare, err := ParseInferredConfig(dir, "tsconfig.json")
+	if err != nil {
+		t.Fatalf("ParseInferredConfig (bare): %v", err)
+	}
+	withExtras, err := ParseInferredConfig(dir, "tsconfig.json", "source")
+	if err != nil {
+		t.Fatalf("ParseInferredConfig (extras): %v", err)
+	}
+
+	if got := bare.options.CustomConditions; len(got) != 1 || got[0] != "dev" {
+		t.Errorf("bare parse CustomConditions mutated: %v, want [dev]", got)
+	}
+	want := []string{"source", "dev"}
+	got := withExtras.options.CustomConditions
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("extras merge = %v, want %v (extras first, then the config's own)", got, want)
+	}
+	if bare.options == withExtras.options {
+		t.Errorf("extras must fold on a Clone(), not on the shared parsed pointer")
+	}
+}

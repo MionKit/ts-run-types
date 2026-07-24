@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
@@ -40,7 +43,7 @@ func TestResolveEnrichConfig_NoTsconfig(t *testing.T) {
 	target := filepath.Join(dir, "models", "user.ts")
 	mustMkdirAll(t, filepath.Dir(target))
 
-	config := resolveEnrichConfig(target, "")
+	config := resolveEnrichConfig(target, "", "")
 	if config.ProjectRoot != filepath.Join(dir, "models") {
 		t.Errorf("ProjectRoot = %q, want %q", config.ProjectRoot, filepath.Join(dir, "models"))
 	}
@@ -77,7 +80,7 @@ func TestResolveEnrichConfig_TsconfigPlugin(t *testing.T) {
 	target := filepath.Join(dir, "src", "models", "user.ts")
 	mustMkdirAll(t, filepath.Dir(target))
 
-	config := resolveEnrichConfig(target, "")
+	config := resolveEnrichConfig(target, "", "")
 	if config.ProjectRoot != dir {
 		t.Errorf("ProjectRoot = %q, want %q", config.ProjectRoot, dir)
 	}
@@ -101,25 +104,35 @@ func TestResolveEnrichConfig_FlagWins(t *testing.T) {
 }`)
 	target := filepath.Join(dir, "user.ts")
 
-	config := resolveEnrichConfig(target, "flag/dir")
+	config := resolveEnrichConfig(target, "flag/dir", "")
 	if config.EnrichDir != filepath.Join(dir, "flag/dir", enrichedSubdir) {
 		t.Errorf("EnrichDir = %q, want %q (flag should win)", config.EnrichDir, filepath.Join(dir, "flag/dir", enrichedSubdir))
 	}
 }
 
-// TestResolveEnrichConfig_GarbageTsconfig: an unparseable tsconfig falls back to
-// tsconfig-dir defaults (projectRoot/rootDir = tsconfig dir) without crashing.
+// TestResolveEnrichConfig_GarbageTsconfig: an unparseable DISCOVERED tsconfig is
+// fatal — strict like tsc, never a silent fall-back to defaults that could
+// resolve types differently. resolveEnrichConfig calls fatal() (os.Exit), so
+// the assertion runs in a re-exec'd subprocess (same pattern as
+// TestUpdate_FatalOnUnparseableFile).
 func TestResolveEnrichConfig_GarbageTsconfig(t *testing.T) {
+	if childDir := os.Getenv("RT_CFGFAIL_DIR"); childDir != "" {
+		resolveEnrichConfig(filepath.Join(childDir, "user.ts"), "", "")
+		return // unreachable if fatal fired
+	}
+
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `this is not json at all {{{`)
-	target := filepath.Join(dir, "user.ts")
 
-	config := resolveEnrichConfig(target, "")
-	if config.ProjectRoot != dir || config.RootDir != dir {
-		t.Errorf("garbage tsconfig should fall back to tsconfig dir; got %+v", config)
+	cmd := exec.Command(os.Args[0], "-test.run=TestResolveEnrichConfig_GarbageTsconfig")
+	cmd.Env = append(os.Environ(), "RT_CFGFAIL_DIR="+dir)
+	output, err := cmd.CombinedOutput()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("garbage tsconfig must be fatal; got err=%v, output:\n%s", err, output)
 	}
-	if config.EnrichDir != filepath.Join(dir, defaultGenDirName, enrichedSubdir) {
-		t.Errorf("EnrichDir = %q, want default", config.EnrichDir)
+	if !strings.Contains(string(output), "cannot parse") {
+		t.Errorf("fatal output should name the parse failure; got:\n%s", output)
 	}
 }
 
@@ -207,7 +220,7 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
 }`)
 	target := filepath.Join(dir, "src", "user.ts")
 
-	config := resolveEnrichConfig(target, "")
+	config := resolveEnrichConfig(target, "", "")
 	if config.SourceLocale != "pl" {
 		t.Errorf("SourceLocale = %q, want pl", config.SourceLocale)
 	}
@@ -224,7 +237,7 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
 	// No i18n object → dormant defaults.
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
 		`{ "compilerOptions": { "plugins": [{ "name": "ts-runtypes" }] } }`)
-	dormant := resolveEnrichConfig(target, "")
+	dormant := resolveEnrichConfig(target, "", "")
 	if dormant.SourceLocale != "en" || len(dormant.I18nLocales) != 0 || dormant.I18nStrict {
 		t.Errorf("dormant i18n defaults wrong: %+v", dormant)
 	}
@@ -236,7 +249,7 @@ func TestResolveEnrichConfig_I18n(t *testing.T) {
 	// translations stay at <genDir>/enriched/i18n.
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
 		`{ "compilerOptions": { "plugins": [{ "name": "ts-runtypes", "i18n": { "dir": "translations" } }] } }`)
-	custom := resolveEnrichConfig(target, "")
+	custom := resolveEnrichConfig(target, "", "")
 	if want := filepath.Join(dir, defaultGenDirName, enrichedSubdir, "i18n"); custom.I18nDir != want {
 		t.Errorf("legacy i18n.dir must be ignored; I18nDir = %q, want %q", custom.I18nDir, want)
 	}

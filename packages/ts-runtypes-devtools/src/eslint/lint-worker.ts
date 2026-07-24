@@ -26,7 +26,13 @@ import {fileURLToPath} from 'node:url';
 import {parentPort, workerData} from 'node:worker_threads';
 import {getExePath} from '@ts-runtypes/bin';
 import {Family, Severity, type Diagnostic, type UncheckedPattern} from '../protocol.ts';
-import {buildResolverArgs, ResolverClient, ResolverStreamClient, type ResolverConnection} from '../resolver-client.ts';
+import {
+  buildResolverArgs,
+  defaultTsconfig,
+  ResolverClient,
+  ResolverStreamClient,
+  type ResolverConnection,
+} from '../resolver-client.ts';
 import {WAKE_INDEX, type LintWorkerData, type LintWorkerRequest, type LintWorkerResponse} from './session-protocol.ts';
 
 const data = workerData as LintWorkerData;
@@ -129,7 +135,7 @@ async function lintOne(request: LintWorkerRequest): Promise<LintWorkerResponse> 
   for (let attempt = 0; ; attempt++) {
     let stage: 'connect' | 'scan' = 'connect';
     try {
-      const resolver = await ensureConnection(request.tsconfig ?? 'tsconfig.json');
+      const resolver = await ensureConnection(request.tsconfig ?? defaultTsconfig(process.cwd()));
       stage = 'scan';
       const rel = path.relative(process.cwd(), request.file) || request.file;
       await resolver.setSources({[rel]: request.text});
@@ -143,13 +149,33 @@ async function lintOne(request: LintWorkerRequest): Promise<LintWorkerResponse> 
       ];
       return {seq: request.seq, diagnostics};
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // A CFG001-tagged op error is the daemon refusing to load the project
+      // tsconfig (strict like tsc) — deterministic, so retrying is pointless.
+      // Surface it as a real Error-severity lint diagnostic at the file top
+      // (the config problem is the actionable finding) instead of reporting
+      // the engine unavailable. The connection stays up: the daemon re-parses
+      // on the next setSources, so a fixed config heals the very next lint.
+      if (message.includes('CFG001')) {
+        return {
+          seq: request.seq,
+          diagnostics: [
+            {
+              code: 'CFG001',
+              family: Family.Marker,
+              severity: Severity.Error,
+              args: [message.replace(/^.*CFG001\s*/, '')],
+              site: {filePath: request.file, startLine: 1, startCol: 1},
+            },
+          ],
+        };
+      }
       connection?.close();
       connection = null;
       if (attempt === 0) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
-      const message = error instanceof Error ? error.message : String(error);
       return {seq: request.seq, error: message, fatal: stage === 'connect' || connectionLostPattern.test(message)};
     }
   }
