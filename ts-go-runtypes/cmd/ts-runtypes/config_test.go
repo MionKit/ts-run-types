@@ -40,6 +40,7 @@ func TestStripJSONC(t *testing.T) {
 // default (resolved under the file's dir).
 func TestResolveEnrichConfig_NoTsconfig(t *testing.T) {
 	dir := t.TempDir()
+	t.Chdir(dir)
 	target := filepath.Join(dir, "models", "user.ts")
 	mustMkdirAll(t, filepath.Dir(target))
 
@@ -61,6 +62,7 @@ func TestResolveEnrichConfig_NoTsconfig(t *testing.T) {
 // the tsconfig dir.
 func TestResolveEnrichConfig_TsconfigPlugin(t *testing.T) {
 	dir := t.TempDir()
+	t.Chdir(dir)
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{
   // ts-runtypes config
   "compilerOptions": {
@@ -99,6 +101,7 @@ func TestResolveEnrichConfig_TsconfigPlugin(t *testing.T) {
 // default.
 func TestResolveEnrichConfig_FlagWins(t *testing.T) {
 	dir := t.TempDir()
+	t.Chdir(dir)
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{
   "compilerOptions": { "plugins": [ { "name": "ts-runtypes", "genDir": "rt/gen" } ] }
 }`)
@@ -117,6 +120,11 @@ func TestResolveEnrichConfig_FlagWins(t *testing.T) {
 // TestUpdate_FatalOnUnparseableFile).
 func TestResolveEnrichConfig_GarbageTsconfig(t *testing.T) {
 	if childDir := os.Getenv("RT_CFGFAIL_DIR"); childDir != "" {
+		// Discovery anchors at the process cwd (exactly tsc) — enter the
+		// fixture dir so the garbage config is the one discovered.
+		if err := os.Chdir(childDir); err != nil {
+			return
+		}
 		resolveEnrichConfig(filepath.Join(childDir, "user.ts"), "", "")
 		return // unreachable if fatal fired
 	}
@@ -131,8 +139,8 @@ func TestResolveEnrichConfig_GarbageTsconfig(t *testing.T) {
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("garbage tsconfig must be fatal; got err=%v, output:\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "cannot parse") {
-		t.Errorf("fatal output should name the parse failure; got:\n%s", output)
+	if !strings.Contains(string(output), "tsconfig parse failed") {
+		t.Errorf("fatal output should carry tsgo's parse diagnostic; got:\n%s", output)
 	}
 }
 
@@ -204,6 +212,7 @@ func TestTranslationPathFor(t *testing.T) {
 // config; defaults stay dormant without it.
 func TestResolveEnrichConfig_I18n(t *testing.T) {
 	dir := t.TempDir()
+	t.Chdir(dir)
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"), `{
   "compilerOptions": {
     "rootDir": "src",

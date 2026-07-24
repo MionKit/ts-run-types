@@ -28,19 +28,26 @@ the tsgo CLI on every entry point. We never curate per-option behavior.
 
 ## The architecture
 
-**Config resolution.**
+**Config resolution.** *(SUPERSEDED at implementation — owner decision, see
+"Shipped notes": resolution is UNIFORM and exactly tsc's on EVERY lane. An
+explicit `--tsconfig` wins; otherwise `program.DiscoverTsconfig` searches
+upward from cwd, mirroring tsgo's own `findConfigFile`, resolved once at
+process entry — daemon, lint, enrich, build and one-shot all identical. The
+per-lane split below was the original plan and did not ship.)*
 
-- Every lane takes an explicit tsconfig at startup (`--tsconfig`; the vite plugin
+- ~~Every lane takes an explicit tsconfig at startup (`--tsconfig`; the vite plugin
   and the lint worker already always pass one — `unplugin.ts:287`,
-  `eslint/lint-worker.ts:132`).
-- The human-driven enrich CLI additionally falls back to tsc-style upward
+  `eslint/lint-worker.ts:132`).~~
+- ~~The human-driven enrich CLI additionally falls back to tsc-style upward
   discovery from the target file's directory when no flag is given (the existing
   `findNearestTsconfig`, [config.go:334](../../ts-go-runtypes/cmd/ts-runtypes/config.go),
-  mirrors tsc's own `findConfigFile` walk).
-- The daemon protocol never discovers: explicit or nothing. Bare spawns (smoke
+  mirrors tsc's own `findConfigFile` walk).~~
+- ~~The daemon protocol never discovers: explicit or nothing. Bare spawns (smoke
   script, benchmarks, inline test suites, fuzz harness) run with an empty
   `--tsconfig` at the repo root; upward discovery there would silently adopt an
-  unrelated ancestor config and flip resolution/caching behavior.
+  unrelated ancestor config and flip resolution/caching behavior.~~ (Bare test
+  spawns pin the no-config posture with a config-less temp cwd instead —
+  `BARE_CWD` in the JS inline helpers, tempdirs in the Go suites.)
 
 **Lifecycle.**
 
@@ -67,8 +74,11 @@ the tsgo CLI on every entry point. We never curate per-option behavior.
 - The inferred-defaults fallback (today's hardcoded literal in `NewInferred`)
   applies ONLY when no config exists at all — tsc's own loose-file behavior. The
   WASM playground, bare test spawns and `gen-builtin-purefns` stay there.
-- The JS side passes the implicit `tsconfig.json` default only when the file
-  exists; an explicitly configured path is always passed and always strict.
+- ~~The JS side passes the implicit `tsconfig.json` default only when the file
+  exists; an explicitly configured path is always passed and always strict.~~
+  **Superseded (uniform-resolution rework):** the JS side forwards ONLY an
+  explicit `tsconfig` option and carries zero config logic; the Go side
+  discovers exactly as tsc does (upward from cwd) when nothing is forwarded.
   ~~The opt-in `TsconfigFailOnError` becomes the default and its option/flag
   plumbing is removed.~~ **Corrected at implementation (owner decision):**
   `TsconfigFailOnError` is the option-parity `failOnError` echo (Error-severity
@@ -79,13 +89,17 @@ the tsgo CLI on every entry point. We never curate per-option behavior.
 
 **The per-lane contract.**
 
-| Lane | tsconfig source | Missing / broken | Programs built from |
+*(As shipped, the "tsconfig source" column is IDENTICAL for every lane:
+explicit `--tsconfig`, else tsc-style upward discovery from cwd, resolved once
+at process entry — the per-lane sources below were the original plan.)*
+
+| Lane | tsconfig source (as shipped) | Missing / broken | Programs built from |
 |---|---|---|---|
-| build / vite initial (`program.New`) | `--tsconfig` (default `<cwd>/tsconfig.json`) | hard error (unchanged) | full config (unchanged) |
-| `--compile` | same | hard error (unchanged) | full config (unchanged) |
-| daemon `setSources` rebuilds (lint, HMR) | `--tsconfig` argv, parsed once per session | **loud error (new — was silent fallback)** | **full config (new — was 4 fields)** |
+| build / vite initial (`program.New`) | explicit flag, else discovery from cwd | hard error (incl. discovery finding nothing) | full config (unchanged) |
+| `--compile` | same | hard error | full config (unchanged) |
+| daemon `setSources` rebuilds (lint, HMR) | same, parsed once per session | **loud error (new — was silent fallback)** | **full config (new — was 4 fields)** |
 | inline one-shot stdin | same | **loud error (new)** | **full config (new)** |
-| enrich CLI `describe`/`gen`/`check` | **new `--tsconfig` flag; fallback: upward discovery from the target file** | **loud error (new)** | **full config (new — was none)** |
+| enrich CLI `describe`/`gen`/`check` | same (**new `--tsconfig` flag**) | **loud error (new)** | **full config (new — was none)** |
 | no config anywhere (WASM, bare spawns, `gen-builtin-purefns`) | none | — | hardcoded inferred defaults (unchanged) |
 
 ## Why this architecture is sound (verified against the vendored tsgo)
@@ -173,7 +187,8 @@ returns nil on any failure) where tsc errors loudly.
    `--tsconfig` only when explicitly configured OR the default `tsconfig.json`
    exists; surface the daemon's config error as a lint diagnostic / plugin error.
 7. **Deliberate divergences from tsc, documented:** tsconfig `references` dropped
-   (existing decision, `program.go:91-93`); the daemon never walk-up discovers;
+   (existing decision, `program.go:91-93`); ~~the daemon never walk-up
+   discovers~~ (superseded — every lane discovers identically, tsc-style);
    server-mode `rtStore` stays override-only (`resolver.go:358-360` — cache
    posture is ours; the vite build lane already honors the full program's
    `IsIncremental`); `gen-builtin-purefns` and the WASM playground stay on the
@@ -254,6 +269,24 @@ returns nil on any failure) where tsc errors loudly.
 ## Shipped notes (2026-07-24)
 
 Every Done-when criterion landed. Deltas and discoveries vs the plan as written:
+
+- **Uniform tsc-style resolution on EVERY lane (owner decision, superseding the
+  spec's per-lane split).** The spec's "daemon never discovers / enrich
+  discovers from the target file / build defaults to `<cwd>/tsconfig.json`"
+  design was rejected at review: ONE rule — behave exactly as TypeScript.
+  `program.DiscoverTsconfig` (mirroring tsgo's own `findConfigFile`: upward
+  walk from cwd) is the shared discovery; main resolves the path ONCE at
+  process entry (explicit `--tsconfig` wins) and threads it into the plugin
+  read, the daemon session, the one-shot, `--compile`, and `program.New`
+  (which no longer invents a `<cwd>/tsconfig.json` default). The enrich CLI
+  anchors at cwd too (`resolveEnrichTsconfig`; `findNearestTsconfig` deleted),
+  and its `rootDir` now comes from tsgo's parse (`InferredConfig.RootDir()`,
+  extends-aware) — the JSONC side-read survives ONLY for the ts-runtypes
+  `plugins` entry, which tsc ignores and tsgo does not parse. The JS side lost
+  its config logic entirely (`defaultTsconfig` deleted; plugins/lint forward
+  only an explicit option). Bare test spawns pin the no-config posture via
+  config-less temp cwds (`BARE_CWD`). The no-config-anywhere fallback literal
+  stays (playground/tests posture; real projects always resolve a config).
 
 - **`TsconfigFailOnError` kept** (owner decision at implementation). The plan's
   step 3 misidentified it as a parse-strictness opt-in; it is the option-parity

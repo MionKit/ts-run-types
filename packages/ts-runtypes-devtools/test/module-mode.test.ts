@@ -8,7 +8,7 @@ import {describe, expect, it} from 'vitest';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {BIN, hasBinary, RUNTYPES_DTS, rewrite} from './helpers/inline.ts';
+import {BARE_CWD, BIN, hasBinary, RUNTYPES_DTS, rewrite} from './helpers/inline.ts';
 import {
   ENTRY_BINDING_PREFIX,
   FNS_BUNDLE_DIR,
@@ -18,7 +18,6 @@ import {
   ENTRY_MODULE_PREFIX,
 } from '../src/go-generated/runtypes-constants.generated.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;
 
 async function withModeClient<T>(
@@ -26,7 +25,7 @@ async function withModeClient<T>(
   sources: Record<string, string>,
   fn: (client: ResolverClient) => Promise<T>
 ): Promise<T> {
-  const client = new ResolverClient(BIN, ROOT, '', {serverMode: true, moduleMode: mode});
+  const client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, moduleMode: mode});
   try {
     await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
     return await fn(client);

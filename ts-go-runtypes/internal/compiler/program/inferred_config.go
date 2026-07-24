@@ -29,6 +29,43 @@ type InferredConfig struct {
 	options *core.CompilerOptions
 }
 
+// DiscoverTsconfig walks upward from cwd looking for a tsconfig.json,
+// mirroring tsc's own discovery exactly (tsgo's findConfigFile over
+// ForEachAncestorDirectory, vendored internal/execute/tsc.go — the shim does
+// not export it, so the identical loop lives here): the nearest tsconfig.json
+// in cwd or any ancestor directory wins. Returns "" when none exists — the
+// caller's no-config posture applies. This is THE shared discovery: every lane
+// (build, daemon, one-shot, enrich) resolves the config identically — explicit
+// path, else this walk, else nothing — a lane never invents its own scheme.
+func DiscoverTsconfig(cwd string) string {
+	if cwd == "" {
+		return ""
+	}
+	fileSystem := bundled.WrapFS(cachedvfs.From(osvfs.FS()))
+	directory := tspath.NormalizePath(cwd)
+	for {
+		candidate := tspath.CombinePaths(directory, "tsconfig.json")
+		if fileSystem.FileExists(candidate) {
+			return candidate
+		}
+		parent := tspath.GetDirectoryPath(directory)
+		if parent == directory {
+			return ""
+		}
+		directory = parent
+	}
+}
+
+// RootDir returns the parsed config's compilerOptions.rootDir ("" when unset),
+// as tsgo resolved it (extends-aware). Consumers read TypeScript-owned values
+// from the parse — never from a side JSONC read of the file.
+func (inferredConfig *InferredConfig) RootDir() string {
+	if inferredConfig == nil || inferredConfig.options == nil {
+		return ""
+	}
+	return inferredConfig.options.RootDir
+}
+
 // ParseInferredConfig resolves tsconfigPath relative to cwd and parses it with
 // tsgo's own config loader (follows `extends`), freezing the effective
 // CompilerOptions for the process lifetime.

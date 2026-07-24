@@ -35,8 +35,8 @@ marked `@todo`; your job is to fill those gaps with believable, valid content.
 8. **`check --translate <locale|all>`** — the translation completeness gate for CI
    (TR001–TR004; see **Translations** below).
 
-Every verb takes **`--tsconfig <path>`**. Without it the CLI walks up from the target
-file to the nearest `tsconfig.json` (tsc-style discovery). The ONE resolved config feeds
+Every verb takes **`--tsconfig <path>`**. Without it the CLI finds the config exactly as
+tsc does — searching upward from the working directory. The ONE resolved config feeds
 both the genDir/i18n settings AND type resolution — the CLI reads types under the same
 compiler options as the build. A config that was named or discovered but is missing or
 broken stops the command with an error; only a project with no tsconfig at all falls back

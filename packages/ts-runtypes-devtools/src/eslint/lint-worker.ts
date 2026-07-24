@@ -26,13 +26,7 @@ import {fileURLToPath} from 'node:url';
 import {parentPort, workerData} from 'node:worker_threads';
 import {getExePath} from '@ts-runtypes/bin';
 import {Family, Severity, type Diagnostic, type UncheckedPattern} from '../protocol.ts';
-import {
-  buildResolverArgs,
-  defaultTsconfig,
-  ResolverClient,
-  ResolverStreamClient,
-  type ResolverConnection,
-} from '../resolver-client.ts';
+import {buildResolverArgs, ResolverClient, ResolverStreamClient, type ResolverConnection} from '../resolver-client.ts';
 import {WAKE_INDEX, type LintWorkerData, type LintWorkerRequest, type LintWorkerResponse} from './session-protocol.ts';
 
 const data = workerData as LintWorkerData;
@@ -75,8 +69,9 @@ async function ensureConnection(tsconfig: string): Promise<ResolverConnection> {
   // Resolve the host-platform binary from the ts-runtypes-bin launcher (the same
   // resolution the bundler plugins use; throws with a clear message if none is
   // installed), rooted at process.cwd() — the directory the linter itself runs in,
-  // like any other linter. The tsconfig (default 'tsconfig.json') is passed so the
-  // Go side applies the project's resolution options (customConditions / paths).
+  // like any other linter. Only an explicitly configured tsconfig is forwarded;
+  // otherwise the Go side discovers it exactly as tsc does (upward from cwd) and
+  // adopts its FULL options, so lint type-checks like the build.
   // Single-threaded: the session lints one file at a time, and a light child keeps
   // editor/CI hosts well under process/memory limits.
   const binaryPath = getExePath();
@@ -135,7 +130,7 @@ async function lintOne(request: LintWorkerRequest): Promise<LintWorkerResponse> 
   for (let attempt = 0; ; attempt++) {
     let stage: 'connect' | 'scan' = 'connect';
     try {
-      const resolver = await ensureConnection(request.tsconfig ?? defaultTsconfig(process.cwd()));
+      const resolver = await ensureConnection(request.tsconfig ?? '');
       stage = 'scan';
       const rel = path.relative(process.cwd(), request.file) || request.file;
       await resolver.setSources({[rel]: request.text});

@@ -18,9 +18,7 @@ import {describe, expect, it} from 'vitest';
 import {formatTscDiagnostic} from '../src/index.ts';
 import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {BIN, hasBinary, withInlineSources, evalEntryModules, RUNTYPES_DTS} from './helpers/inline.ts';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+import {BARE_CWD, BIN, hasBinary, withInlineSources, evalEntryModules, RUNTYPES_DTS} from './helpers/inline.ts';
 
 function pureFnDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
   return (response.diagnostics ?? []).filter((d) => d.family === Family.PureFn);
@@ -335,7 +333,7 @@ export const x = registerPureFnFactory('rt::rounder', function () {
     sources: Record<string, string>,
     fn: (client: ResolverClient) => Promise<T>
   ): Promise<T> {
-    const client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode});
+    const client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, emitMode});
     try {
       await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
       return await fn(client);

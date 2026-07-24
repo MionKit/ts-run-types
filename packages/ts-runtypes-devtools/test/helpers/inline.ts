@@ -14,6 +14,7 @@
 // global slot survives.
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
@@ -22,6 +23,13 @@ import {type Replacement, type Site, type RunType, type SourceMap} from '../../s
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-runtypes');
 export const hasBinary = (): boolean => fs.existsSync(BIN);
+
+// BARE_CWD is the working directory for bare (config-less) server spawns. The
+// daemon resolves the tsconfig exactly as tsc does — searching upward from
+// cwd — so a spawn rooted at the repo would adopt the repo's own tsconfig.
+// Bare suites pin the no-config posture instead: a temp dir with no
+// tsconfig.json above it (nothing sits above the system temp root).
+export const BARE_CWD = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-bare-'));
 
 // Mirror of internal/testfixtures/runtypes.d.ts. Always overlaid by
 // `withInlineSources` so per-test fixtures don't have to redeclare the
@@ -155,7 +163,7 @@ function getClient(): ResolverClient {
   // diagnostic-style tests can assert against either form. Per-test cases that
   // need the production default ('code', no inline factory) spin up a one-shot
   // client with that mode when needed.
-  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode: 'both'});
+  stash.client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, emitMode: 'both'});
   if (!stash.atExitWired) {
     stash.atExitWired = true;
     // Best-effort cleanup if the worker exits without going through the

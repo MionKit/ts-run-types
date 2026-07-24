@@ -11,10 +11,9 @@ import {fileURLToPath} from 'node:url';
 import {ResolverClient} from '../src/resolver-client.ts';
 import {applyEdits, sourceHash} from '../src/apply-edits.ts';
 import type {SourceMap} from '../src/protocol.ts';
-import {BIN, hasBinary, RUNTYPES_DTS, runTest, withInlineSources} from './helpers/inline.ts';
+import {BARE_CWD, BIN, hasBinary, RUNTYPES_DTS, runTest, withInlineSources} from './helpers/inline.ts';
 import {MODULE_MODE_ALL_SINGLE} from '../src/go-generated/runtypes-constants.generated.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;
 
 // assertModeParity runs `file` through BOTH modes on `client` and asserts the
@@ -226,7 +225,7 @@ getRunTypeId<User>();
 type User = {id: number; name: string};
 export const staticId = getRunTypeId<User>();
 `;
-    const client = new ResolverClient(BIN, ROOT, '', {serverMode: true, moduleMode: MODULE_MODE_ALL_SINGLE});
+    const client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, moduleMode: MODULE_MODE_ALL_SINGLE});
     try {
       await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'user.ts': source});
       const {sites, applied} = await assertModeParity(client, 'user.ts', source);

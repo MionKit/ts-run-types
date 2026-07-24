@@ -20,7 +20,6 @@ import {existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {MessageChannel, receiveMessageOnPort, Worker, type MessagePort} from 'node:worker_threads';
 import type {Diagnostic} from '../protocol.ts';
-import {defaultTsconfig} from '../resolver-client.ts';
 import {WAKE_INDEX, type LintSessionOptions, type LintWorkerRequest, type LintWorkerResponse} from './session-protocol.ts';
 
 export type {LintSessionOptions} from './session-protocol.ts';
@@ -103,12 +102,11 @@ export class LintSession {
     }
 
     const seq = ++this.seq;
-    // An explicit tsconfig setting is always passed (strict: the daemon fails
-    // the op when it is missing or broken); the implicit 'tsconfig.json'
-    // default is passed only when the file exists at cwd, mirroring the
-    // bundler plugins, so a config-less project still lints on the inferred
-    // defaults.
-    port.postMessage({seq, file, text, tsconfig: options.tsconfig ?? defaultTsconfig(process.cwd())} satisfies LintWorkerRequest);
+    // Forward ONLY an explicit tsconfig setting (strict: the daemon fails the
+    // op when it is missing or broken). When unset, the Go side resolves the
+    // config exactly as tsc does — searching upward from cwd — mirroring the
+    // bundler plugins; the lint session carries no config logic of its own.
+    port.postMessage({seq, file, text, tsconfig: options.tsconfig ?? ''} satisfies LintWorkerRequest);
 
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;

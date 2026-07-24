@@ -6,9 +6,7 @@
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {BIN, RUNTYPES_DTS, hasBinary} from './helpers/inline.ts';
-
-const ROOT = path.resolve(__dirname, '../../..');
+import {BARE_CWD, BIN, RUNTYPES_DTS, hasBinary} from './helpers/inline.ts';
 
 const SOURCE = `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 export interface User {id: number; name: string}
@@ -20,7 +18,7 @@ export const idReflect = getRunTypeId(u);
 
 describe.skipIf(!hasBinary())('parallelism opt-outs', () => {
   it('serves a full scan with both parallel tracks disabled', async () => {
-    const client = new ResolverClient(BIN, ROOT, '', {
+    const client = new ResolverClient(BIN, BARE_CWD, '', {
       serverMode: true,
       parallelScan: false,
       parallelRender: false,
