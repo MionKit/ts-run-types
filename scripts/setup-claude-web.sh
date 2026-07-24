@@ -6,7 +6,9 @@ set -uo pipefail
 
 NODE_MAJOR_MIN=26
 PODMAN_MIN=4.0
-GO_MIN=1.26
+# GO_MIN is derived from ts-go-runtypes/go.mod after REPO_DIR is resolved (below),
+# so a go.mod bump auto-propagates here with no drift risk. GO_INSTALL_VERSION
+# must be an actual published patch (bump when the Go directive bumps).
 GO_INSTALL_VERSION=1.26.0 # installed when Go is absent OR older than GO_MIN
 
 CHECK_ONLY=0
@@ -83,6 +85,12 @@ fi
 # pnpm version the repo pins via package.json "packageManager" (fallback if unparsable)
 PNPM_PIN="$(sed -n 's/.*"packageManager": *"pnpm@\([0-9.]*\)".*/\1/p' "$REPO_DIR/package.json" 2>/dev/null | head -1)"
 [ -n "$PNPM_PIN" ] || PNPM_PIN="11.8.0"
+
+# Minimum Go version, derived from ts-go-runtypes/go.mod's `go X.Y[.Z]` directive.
+# Fallback matches GO_INSTALL_VERSION so a malformed / missing go.mod does not
+# silently downgrade the version check.
+GO_MIN="$(sed -n 's/^go \([0-9][0-9.]*\).*/\1/p' "$REPO_DIR/ts-go-runtypes/go.mod" 2>/dev/null | head -1)"
+[ -n "$GO_MIN" ] || GO_MIN="$GO_INSTALL_VERSION"
 
 # -----------------------------------------------------------------------------
 # 1. Node 26: install (nvm first, nodejs.org tarball fallback), then make it win
@@ -203,23 +211,44 @@ ensure_podman() {
 #    place when it is too old (not just when it is absent). Tarball -> /usr/local/go
 #    keeps this standalone.
 # -----------------------------------------------------------------------------
-# Wire /usr/local/go so it wins on the harness's PATH (mirrors the Node step).
+# Wire a Go install so it wins on the harness's PATH (mirrors the Node step).
 # The harness runs NON-login shells that inherit PATH from the image and do NOT
 # source /etc/profile.d, so a profile.d file alone would not take effect. Symlink
 # go/gofmt into $HOME/.local/bin (first on the inherited PATH, ahead of the
 # image's older /usr/bin/go), and write a profile.d file for login shells too.
+# $1 is the GOROOT to link from (defaults to /usr/local/go for the tarball path;
+# the proxy-toolchain fallback passes the module-cache toolchain root).
 wire_local_go() {
+  local goroot="${1:-/usr/local/go}"
   local localbin="$HOME/.local/bin" exe; mkdir -p "$localbin"
-  for exe in /usr/local/go/bin/*; do ln -sfn "$exe" "$localbin/$(basename "$exe")"; done
+  for exe in "$goroot"/bin/*; do ln -sfn "$exe" "$localbin/$(basename "$exe")"; done
   case ":$PATH:" in *":$localbin:"*) : ;; *) warn "$localbin is not on PATH - add it ahead of /usr/bin" ;; esac
   if [ -w /etc/profile.d ] || [ "$(id -u)" = 0 ]; then
     cat > /etc/profile.d/zz-go.sh <<EOF
 # ts-runtypes claude-web setup: prefer Go $GO_INSTALL_VERSION (repo requires >= $GO_MIN)
-export PATH="\$HOME/.local/bin:/usr/local/go/bin:\$PATH"
+export PATH="\$HOME/.local/bin:$goroot/bin:\$PATH"
 EOF
     chmod 0644 /etc/profile.d/zz-go.sh 2>/dev/null || true
   fi
   hash -r 2>/dev/null || true
+}
+
+# Fallback path when the go.dev tarball is blocked (403) but proxy.golang.org is
+# reachable: trigger Go's own toolchain-download mechanism via GOTOOLCHAIN, then
+# wire the resulting toolchain GOROOT onto PATH. Requires a bootstrap `go` on
+# PATH that understands GOTOOLCHAIN (>= 1.21).
+install_go_via_proxy() {
+  bold "Installing Go $GO_INSTALL_VERSION via proxy.golang.org (go.dev blocked)"
+  command -v go >/dev/null 2>&1 || return 1
+  local root
+  # GOTOOLCHAIN=goX.Y.Z makes `go env GOROOT` download that toolchain (if not
+  # already cached under $GOMODCACHE/golang.org/toolchain@*), switch to it, and
+  # print ITS GOROOT - which is exactly what we need to wire.
+  root="$(GOTOOLCHAIN="go$GO_INSTALL_VERSION" go env GOROOT 2>/dev/null)"
+  [ -n "$root" ] && [ -x "$root/bin/go" ] || { err "proxy toolchain fetch did not yield a usable GOROOT"; return 1; }
+  export PATH="$root/bin:$PATH"
+  wire_local_go "$root"
+  ok "go installed via proxy ($("$root/bin/go" version 2>/dev/null | awk '{print $3}')) at $root"
 }
 
 install_go_tarball() {
@@ -276,17 +305,23 @@ ensure_go() {
     warn "go ${cur:-?} present but repo needs >= $GO_MIN - upgrading to $GO_INSTALL_VERSION"
     [ "$CHECK_ONLY" = 1 ] && { warn "go too old - re-run without --check to upgrade"; return 0; }
     if install_go_tarball; then verify_go_on_path; return; fi
-    # Tarball fetch failed. GOTOOLCHAIN=auto would let step 8's `go build` still
+    # go.dev tarball 403 (some managed envs block go.dev/dl but allow
+    # proxy.golang.org). Fall back to Go's own GOTOOLCHAIN download - it fetches
+    # the same 1.26.0 through the proxy, and wire_local_go points $HOME/.local/bin
+    # at the toolchain's GOROOT so `go version` on the harness PATH reports 1.26.
+    warn "go.dev tarball blocked - falling back to proxy.golang.org via GOTOOLCHAIN=go$GO_INSTALL_VERSION"
+    if install_go_via_proxy; then verify_go_on_path; return; fi
+    # Both paths failed. GOTOOLCHAIN=auto could still let step 8's `go build`
     # succeed, but `go version` on PATH would keep reporting the old toolchain -
     # which is why agents report "go is not updated" even after this script ran.
     # Fail hard so the operator sees it, instead of pretending everything is fine.
-    err "go.dev tarball fetch failed and go on PATH is still ${cur:-?} (< $GO_MIN) - re-run when egress to go.dev is allowed, or pre-install Go >= $GO_MIN into the image"
+    err "both go.dev tarball and proxy.golang.org toolchain fetch failed; go on PATH is still ${cur:-?} (< $GO_MIN) - unblock egress to go.dev or proxy.golang.org, or pre-install Go >= $GO_MIN into the image"
     FAILED=1
     return 1
   fi
   [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
-  # No Go at all: the toolchain-auto fallback needs a bootstrap `go` to invoke,
-  # so this branch really does need the tarball. Fail hard if it can't be fetched.
+  # No Go at all: neither the tarball nor the toolchain-auto fallback have a
+  # bootstrap `go` to invoke, so this branch really does need the tarball.
   install_go_tarball || { err "go install failed and no existing go on PATH to bootstrap the toolchain fetch"; FAILED=1; return 1; }
   verify_go_on_path
 }
