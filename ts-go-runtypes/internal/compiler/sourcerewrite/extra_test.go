@@ -7,14 +7,14 @@ import (
 	"testing"
 )
 
-// TestApply_ExtraDiff runs the harder differential cases (testdata/extra_cases.json,
-// an array) against the same JS oracle — CRLF, tabs, heavy multibyte, replacement
-// spans over multibyte, deep padding, bundle-module specifiers, clause dedupe,
+// TestApply_ExtraDiff runs the harder differential cases (testdata/extra/cases.json,
+// an array) through Apply — CRLF, tabs, heavy multibyte, replacement spans over
+// multibyte, deep padding, bundle-module specifiers, clause dedupe,
 // EOF-without-newline, and a word run right after an astral code point.
 func TestApply_ExtraDiff(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "extra", "cases.json"))
 	if err != nil {
-		t.Skipf("testdata/extra/cases.json absent (run testdata/extra/diff_extra.mjs): %v", err)
+		t.Skipf("testdata/extra/cases.json absent (run: go run ./cmd/gen-sourcerewrite-golden): %v", err)
 	}
 	var cases []goldenCase
 	if err := json.Unmarshal(raw, &cases); err != nil {
