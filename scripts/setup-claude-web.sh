@@ -203,6 +203,25 @@ ensure_podman() {
 #    place when it is too old (not just when it is absent). Tarball -> /usr/local/go
 #    keeps this standalone.
 # -----------------------------------------------------------------------------
+# Wire /usr/local/go so it wins on the harness's PATH (mirrors the Node step).
+# The harness runs NON-login shells that inherit PATH from the image and do NOT
+# source /etc/profile.d, so a profile.d file alone would not take effect. Symlink
+# go/gofmt into $HOME/.local/bin (first on the inherited PATH, ahead of the
+# image's older /usr/bin/go), and write a profile.d file for login shells too.
+wire_local_go() {
+  local localbin="$HOME/.local/bin" exe; mkdir -p "$localbin"
+  for exe in /usr/local/go/bin/*; do ln -sfn "$exe" "$localbin/$(basename "$exe")"; done
+  case ":$PATH:" in *":$localbin:"*) : ;; *) warn "$localbin is not on PATH - add it ahead of /usr/bin" ;; esac
+  if [ -w /etc/profile.d ] || [ "$(id -u)" = 0 ]; then
+    cat > /etc/profile.d/zz-go.sh <<EOF
+# ts-runtypes claude-web setup: prefer Go $GO_INSTALL_VERSION (repo requires >= $GO_MIN)
+export PATH="\$HOME/.local/bin:/usr/local/go/bin:\$PATH"
+EOF
+    chmod 0644 /etc/profile.d/zz-go.sh 2>/dev/null || true
+  fi
+  hash -r 2>/dev/null || true
+}
+
 install_go_tarball() {
   bold "Installing Go $GO_INSTALL_VERSION (tarball -> /usr/local/go)"
   local goarch; case "$(uname -m)" in
@@ -215,9 +234,31 @@ install_go_tarball() {
     # Prepend so the freshly installed toolchain shadows any older /usr/bin/go for
     # every later step in this run (resolver build, devtools dist, etc.).
     export PATH="/usr/local/go/bin:$PATH"
-    ok "go installed ($(go version 2>/dev/null | awk '{print $3}'))"
+    wire_local_go
+    ok "go installed ($(/usr/local/go/bin/go version 2>/dev/null | awk '{print $3}'))"
     return 0
   fi
+  return 1
+}
+
+# Re-verifies that `go` on PATH resolves to >= GO_MIN after any install/wiring.
+# The tarball path can leave the OLD /usr/bin/go winning on non-login shells if
+# $HOME/.local/bin symlinking failed - which is exactly the "agents keep telling
+# me go is not updated" symptom. Fail loudly here rather than let step 8 build
+# via the invisible GOTOOLCHAIN=auto fallback (which leaves `go version` still
+# reporting the old toolchain and confuses every subsequent agent).
+verify_go_on_path() {
+  hash -r 2>/dev/null || true
+  local resolved cur
+  resolved="$(command -v go 2>/dev/null || true)"
+  cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+  if [ -z "$cur" ]; then err "go still not on PATH after install"; FAILED=1; return 1; fi
+  if version_ge "$cur" "$GO_MIN"; then
+    ok "go $cur resolves on PATH at $resolved (>= $GO_MIN)"
+    return 0
+  fi
+  err "go on PATH is still $cur at $resolved (need >= $GO_MIN) - check \$HOME/.local/bin PATH precedence over /usr/bin"
+  FAILED=1
   return 1
 }
 
@@ -225,22 +266,29 @@ ensure_go() {
   bold "Go (compiles the resolver binary)"
   if command -v go >/dev/null 2>&1; then
     local cur; cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
-    if version_ge "${cur:-0}" "$GO_MIN"; then ok "go ${cur:-?} (>= $GO_MIN)"; return 0; fi
+    if version_ge "${cur:-0}" "$GO_MIN"; then
+      ok "go ${cur:-?} (>= $GO_MIN)"
+      # Even when the resolved go is already fine, wire /usr/local/go if it
+      # exists - a re-run on a container with a half-set-up state repairs itself.
+      [ -x /usr/local/go/bin/go ] && wire_local_go
+      return 0
+    fi
     warn "go ${cur:-?} present but repo needs >= $GO_MIN - upgrading to $GO_INSTALL_VERSION"
     [ "$CHECK_ONLY" = 1 ] && { warn "go too old - re-run without --check to upgrade"; return 0; }
-    if install_go_tarball; then return 0; fi
-    # Tarball fetch can 403 (release renamed on go.dev/dl, or an egress proxy that
-    # blocks binary blobs even when go.dev DNS/TLS are allowed). We already have a
-    # usable older Go on PATH, and go.mod's `go 1.26` directive means `go build` in
-    # step 8 will auto-fetch the required toolchain via proxy.golang.org
-    # (GOTOOLCHAIN=auto is Go's default). Warn and continue.
-    warn "go.dev tarball fetch failed - continuing with go ${cur:-?}; 'go build' will auto-fetch the required toolchain via proxy.golang.org"
-    return 0
+    if install_go_tarball; then verify_go_on_path; return; fi
+    # Tarball fetch failed. GOTOOLCHAIN=auto would let step 8's `go build` still
+    # succeed, but `go version` on PATH would keep reporting the old toolchain -
+    # which is why agents report "go is not updated" even after this script ran.
+    # Fail hard so the operator sees it, instead of pretending everything is fine.
+    err "go.dev tarball fetch failed and go on PATH is still ${cur:-?} (< $GO_MIN) - re-run when egress to go.dev is allowed, or pre-install Go >= $GO_MIN into the image"
+    FAILED=1
+    return 1
   fi
   [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
   # No Go at all: the toolchain-auto fallback needs a bootstrap `go` to invoke,
   # so this branch really does need the tarball. Fail hard if it can't be fetched.
   install_go_tarball || { err "go install failed and no existing go on PATH to bootstrap the toolchain fetch"; FAILED=1; return 1; }
+  verify_go_on_path
 }
 
 # -----------------------------------------------------------------------------
