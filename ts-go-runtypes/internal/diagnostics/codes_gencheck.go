@@ -5,7 +5,7 @@ package diagnostics
 // the file's path/annotations say which) still tracks a live source: the
 // breadcrumb resolves (GE002), the source still declares the imported types
 // (GE003), and the file sits at its computed per-family location (GE001,
-// CLI-only — needs the project's enrich-dir config). Detection lives in
+// CLI-only — needs the project's genDir config). Detection lives in
 // internal/enrichment/mirror/drift.go.
 const (
 	CodeGenMirrorUnreadable = "GE000"
