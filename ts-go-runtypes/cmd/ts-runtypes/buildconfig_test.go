@@ -65,6 +65,33 @@ func TestMergeBuildOptions_TsconfigFillsGaps(t *testing.T) {
 	}
 }
 
+// TestMergeBuildOptions_SingleThreadedOverride: an explicit --single-threaded /
+// --no-single-threaded (either direction) wins over the tsconfig entry, so a host
+// plugin's singleThreaded:false (→ --no-single-threaded) can force multi-threaded
+// over a tsconfig singleThreaded:true, and vice versa (flag > tsconfig).
+func TestMergeBuildOptions_SingleThreadedOverride(t *testing.T) {
+	// tsconfig singleThreaded:true alone → on.
+	if got := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{SingleThreaded: boolPtr(true)}, "/proj"); !got.singleThreaded {
+		t.Fatalf("tsconfig singleThreaded:true → want singleThreaded=true, got %+v", got)
+	}
+
+	// --no-single-threaded forces it back off despite the tsconfig.
+	off := baseFlags()
+	off.set["no-single-threaded"] = true
+	off.noSingleThreaded = true
+	if got := mergeBuildOptions(off, tsRuntypesPlugin{SingleThreaded: boolPtr(true)}, "/proj"); got.singleThreaded {
+		t.Errorf("--no-single-threaded should override tsconfig singleThreaded:true, got singleThreaded=true")
+	}
+
+	// --single-threaded forces it on over a tsconfig singleThreaded:false.
+	on := baseFlags()
+	on.set["single-threaded"] = true
+	on.singleThreaded = true
+	if got := mergeBuildOptions(on, tsRuntypesPlugin{SingleThreaded: boolPtr(false)}, "/proj"); !got.singleThreaded {
+		t.Errorf("--single-threaded should override tsconfig singleThreaded:false, got singleThreaded=false")
+	}
+}
+
 // TestResolveGenDir covers the three layers: flag > tsconfig > the
 // <cwd>/__runtypes default (there is no disable state — compile always emits).
 func TestResolveGenDir(t *testing.T) {

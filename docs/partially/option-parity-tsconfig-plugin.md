@@ -27,8 +27,9 @@ follow-up (drive enrichment from the bundler plugin). See "Shipped vs deferred" 
 - **`singleThreaded` + `hashLength` are now `PluginOptions` fields**, forwarded through
   `ensureResolver` → `ResolverClient` → `buildResolverArgs` (`--single-threaded` already existed;
   `--hash-length <n>` added to `ResolverClientOptions` + `buildResolverArgs`). The Go merge already
-  honoured both (flag > tsconfig > default). Noted gap: a plugin `singleThreaded: false` can't
-  force-OFF a tsconfig `singleThreaded: true` (no `--no-single-threaded`); use the tsconfig knob.
+  honoured both (flag > tsconfig > default). Both directions of `singleThreaded` are honoured
+  (fixed 2026-07-24): `true` → `--single-threaded`, `false` → `--no-single-threaded`, so a plugin
+  `singleThreaded: false` overrides a tsconfig `singleThreaded: true`.
 - **Parity drift-guard:** new codegen target `pluginkeys` (`cmd/gen-plugin-keys`, AST-parses the
   `tsRuntypesPlugin` json tags — mirrors the runtime `knownPluginKeys` reflection without importing
   `package main`) emits `packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts`.

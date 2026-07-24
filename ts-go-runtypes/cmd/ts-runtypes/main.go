@@ -123,6 +123,7 @@ func main() {
 		genDir                 string
 		hashLength             int
 		singleThreaded         bool
+		noSingleThreaded       bool
 		noParallelScan         bool
 		noParallelRender       bool
 		inlineSourcesStdin     bool
@@ -155,6 +156,9 @@ func main() {
 		"where compile writes the generated cache modules (default <cwd>/__runtypes); the emitted .js import them by relative path")
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 7)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
+	flag.BoolVar(&noSingleThreaded, "no-single-threaded", false,
+		"force multi-threaded mode (the default), overriding a tsconfig singleThreaded:true; "+
+			"lets a host plugin's singleThreaded:false win over the project setting")
 	flag.BoolVar(&noParallelScan, "no-parallel-scan", false,
 		"disable the parallel marker scan (parallel is the default)")
 	flag.BoolVar(&noParallelRender, "no-parallel-render", false,
@@ -275,6 +279,7 @@ func main() {
 		set:                    setFlags,
 		hashLength:             hashLength,
 		singleThreaded:         singleThreaded,
+		noSingleThreaded:       noSingleThreaded,
 		noParallelScan:         noParallelScan,
 		noParallelRender:       noParallelRender,
 		genDir:                 genDir,

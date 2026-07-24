@@ -25,12 +25,21 @@ describe('buildResolverArgs — bundler-lane project knobs', () => {
     expect(buildResolverArgs('/proj', 'tsconfig.json', {})).not.toContain('--hash-length');
   });
 
-  it('forwards singleThreaded as --single-threaded', () => {
-    expect(buildResolverArgs('/proj', 'tsconfig.json', {singleThreaded: true})).toContain('--single-threaded');
+  it('forwards singleThreaded:true as --single-threaded (not the opt-out)', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {singleThreaded: true});
+    expect(args).toContain('--single-threaded');
+    expect(args).not.toContain('--no-single-threaded');
   });
 
-  it('omits --single-threaded when unset or false', () => {
-    expect(buildResolverArgs('/proj', 'tsconfig.json', {})).not.toContain('--single-threaded');
-    expect(buildResolverArgs('/proj', 'tsconfig.json', {singleThreaded: false})).not.toContain('--single-threaded');
+  it('forwards singleThreaded:false as --no-single-threaded (override over a tsconfig true)', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {singleThreaded: false});
+    expect(args).toContain('--no-single-threaded');
+    expect(args).not.toContain('--single-threaded');
+  });
+
+  it('omits both single-threaded flags when singleThreaded is unset', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {});
+    expect(args).not.toContain('--single-threaded');
+    expect(args).not.toContain('--no-single-threaded');
   });
 });
