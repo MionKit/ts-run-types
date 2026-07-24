@@ -45,7 +45,7 @@ func TestComputeEdits_MatchesApply(t *testing.T) {
 		t.Fatalf("glob testdata: %v", err)
 	}
 	if len(paths) == 0 {
-		t.Fatal("no golden testdata/*.json found — run testdata/gen_golden.mjs")
+		t.Fatal("no golden testdata/*.json found — run: go run ./cmd/gen-sourcerewrite-golden")
 	}
 	for _, path := range paths {
 		name := filepath.Base(path)

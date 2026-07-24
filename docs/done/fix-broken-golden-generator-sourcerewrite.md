@@ -27,3 +27,45 @@ Verify by regenerating all fixtures, confirming `go -C ts-go-runtypes test ./int
 - `gen_golden.mjs` (or its replacement) runs from the repo root and regenerates every `testdata/*.json` against the current transform, with `sourcerewrite` tests green.
 - The stale import path, stale header comment, and dead `dist/rewrite.js` dependency are all gone.
 - Optionally: the regenerated fixtures adopt the real API names (`createValidateFn`, …) now that they can be refreshed, replacing the committed synthetic `createValidate` placeholders.
+
+## Resolution — shipped 2026-07-24
+
+Replaced both broken `.mjs` generators with a single Go helper,
+[`ts-go-runtypes/cmd/gen-sourcerewrite-golden/main.go`](../../ts-go-runtypes/cmd/gen-sourcerewrite-golden/main.go),
+matching the repo's existing `cmd/gen-*` convention.
+
+**Oracle: `sourcerewrite.Apply`, NOT the binary's `OpTransform`.** The Direction above suggested
+driving `OpTransform` in `'go'` mode. Investigation showed that cannot work for these fixtures: an
+`OpTransform` request carries only file paths, and the resolver computes `sites`/`replacements`
+itself from a real type-check scan, so it has no seam to inject the fixtures' **synthetic** sites
+(fabricated typeIds like `Abc1234`, multi-fn binding arrays, hand-authored pure-fn replacements).
+Those synthetic inputs feed the lower-level `Apply(file, source, sites, replacements)` directly —
+exactly what `TestApply_Golden` / `TestApply_ExtraDiff` / `TestComputeEdits_MatchesApply` call — so
+the generator calls `Apply` directly. No binary spawn, no JS, no type-checking. Go byte offsets are
+native (`strings.Index`), so the JS `Buffer.byteLength` conversion dance is gone.
+
+**Both generators were broken, both replaced.** `testdata/extra/diff_extra.mjs` (which produces
+`testdata/extra/cases.json`) had the identical dead `dist/rewrite.js` import; the one Go helper now
+regenerates BOTH the per-case `testdata/*.json` and the `testdata/extra/cases.json` array.
+
+**What the suite is now.** With the independent JS oracle deleted, `TestApply_Golden` is a
+snapshot/regression test: the committed JSON is the reviewed baseline; any change to
+`Apply`/`EditBuffer`/the VLQ source-map math fails it until the fixtures are regenerated and the
+diff re-reviewed. The surviving differential is internal — `TestComputeEdits_MatchesApply` pins the
+`'edits'` wire path byte-identical to `Apply` over the same corpus.
+
+**Done-when status:**
+- ✅ Generator runs (`go run ./cmd/gen-sourcerewrite-golden`, CWD-independent via `runtime.Caller`)
+  and regenerates every `testdata/*.json` + `testdata/extra/cases.json`; all `sourcerewrite` tests green.
+- ✅ Stale import path, stale header comment, and the dead `dist/rewrite.js` dependency gone (both
+  `.mjs` deleted; stale references in `transform_test.go`/`edits_test.go`/`extra_test.go` updated to
+  point at the Go helper).
+- ✅ Real API names adopted (`createValidateFn`, `createGetValidationErrorsFn`). Recompute is proven
+  by the committed diff — e.g. `padding.json` `pos` recomputed 30→32 and its source-map `mappings`
+  recomputed for the shifted column. Reflection (`getRunTypeId`) and illustrative callees
+  (`createStandardSchema` multi-fn demo, `marker`, `registerPureFnFactory`) keep their identifiers —
+  the callee text is immaterial to the byte-offset/source-map mechanics.
+
+Note: this is maintainability tooling (restore the regenerate-baselines button), not a behavior fix —
+no shipped behavior changed. The generator is never run by tests or CI; it is the "re-bless the
+snapshot" step for when the rewrite/source-map logic is deliberately changed.

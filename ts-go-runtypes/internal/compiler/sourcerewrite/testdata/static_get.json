@@ -6,8 +6,7 @@
       "file": "a.ts",
       "pos": 32,
       "id": "Abc1234",
-      "paramIndex": 1,
-      "argsCount": 0
+      "paramIndex": 1
     }
   ],
   "replacements": [],
