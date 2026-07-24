@@ -1,13 +1,13 @@
 ---
 type: feature
 spec: full-plan
-status: partially
+status: done
 created: 2026-07-23
 ---
 
 # Export compiled-fn data structs + fn-reconstruction API for consumers
 
-**Status:** partially shipped. The compiled-fn structs + reconstruction API (below) landed as additive `@ts-runtypes/core` exports. The "Also:" format-name-constants follow-up was **split out** to [export-format-name-runtime-constants.md](../todos/export-format-name-runtime-constants.md) after investigation showed its premise needed correcting (see the split section at the bottom).
+**Status:** shipped, in two parts. The compiled-fn structs + reconstruction API (below) landed as additive `@ts-runtypes/core` exports. The "Also:" format-name-constants follow-up was **split out** to [export-format-name-runtime-constants.md](./export-format-name-runtime-constants.md), corrected (its premise was off), and has now also shipped (a Go-generated `typeFormats` table). See the split section at the bottom.
 
 Consumers that ship compiled functions over the wire and rebuild them on the other side (mion
 router → client is the concrete case) currently have to **reimplement** ts-runtypes' compiled-fn
@@ -62,7 +62,7 @@ the website pure-functions guide (`container/website/content/2.guide/8.pure-func
 "Shipping compiled functions across bundles" section). The README is an intentionally minimal
 overview and was left alone.
 
-## Split out: runtime format-name constants → [export-format-name-runtime-constants.md](../todos/export-format-name-runtime-constants.md)
+## Split out (now shipped): runtime format-name constants → [export-format-name-runtime-constants.md](./export-format-name-runtime-constants.md)
 
 The original "Also:" section asked to export the canonical format-name **runtime constants** (so a
 consumer like mion's drizzle extension can map `prop.formatName` → a DB column and delete its own
@@ -78,8 +78,8 @@ runtime. Investigation corrected two premises, so it became its own todo:
   `RunType` + `FormatAnnotation`), **not** `prop.formatName` / `prop.formatParams`. So "confirm the
   runtime surface" is a confirm + document, no code change.
 
-That work, plus its codegen-vs-hand-maintained design decision (which needs the Go toolchain), now
-lives in the split todo.
+That work shipped via the split todo (Go codegen was chosen over a hand-maintained const): a
+generated `typeFormats` runtime table + the `FormatName` union, exported from `@ts-runtypes/core`.
 
 ## Notes
 

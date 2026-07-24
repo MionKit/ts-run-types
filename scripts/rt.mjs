@@ -79,6 +79,10 @@ const CODEGEN = {
   // from one protocol parse, so they can't drift; no stdoutTo (multi-file output).
   kind: {run: [...GO_RUN, './cmd/gen-run-type-kind'], outputs: ['packages/ts-runtypes/src/go-generated/runTypeKind.generated.ts', 'packages/ts-runtypes-devtools/src/go-generated/reflectionKind.generated.ts'], fmt: ['packages/ts-runtypes/src/go-generated/runTypeKind.generated.ts', 'packages/ts-runtypes-devtools/src/go-generated/reflectionKind.generated.ts']},
   fnhashes: {run: [...GO_RUN, './cmd/gen-fn-hashes'], stdoutTo: 'packages/ts-runtypes/src/go-generated/fnHashes.generated.ts', outputs: ['packages/ts-runtypes/src/go-generated/fnHashes.generated.ts'], fmt: ['packages/ts-runtypes/src/go-generated/fnHashes.generated.ts']},
+  // Type-format metadata mirror: the canonical format names (+ base RunTypeKind)
+  // each emitter under internal/cachegen/typefunctions/formats registers, so a
+  // reflection consumer keys off `typeFormats` instead of re-declaring the names.
+  typeformats: {run: [...GO_RUN, './cmd/gen-type-formats'], stdoutTo: 'packages/ts-runtypes/src/go-generated/typeFormats.generated.ts', outputs: ['packages/ts-runtypes/src/go-generated/typeFormats.generated.ts'], fmt: ['packages/ts-runtypes/src/go-generated/typeFormats.generated.ts']},
   diag: {run: ['node', 'scripts/core/gen-diagnostics-catalog.mjs'], outputs: ['packages/ts-runtypes-devtools/src/go-generated/diagnosticCatalog.generated.ts', 'container/website/app/components/content/go-generated/diagnostics-catalog.json'], fmt: []},
   // Built-in pure-fn body table (Go, not a Go->TS mirror): extracts the
   // package's own `rt::`/`rtFormats::` registrations from packages/ts-runtypes/src
@@ -256,7 +260,7 @@ core     the engine (Go resolver + TS marker/plugin)
   rtx core build [targets…]        build the binary + dev dists if stale
   rtx core smoke                   end-to-end smoke of the resolver + devtools
   rtx core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
-  rtx core codegen [all|constants|kind|fnhashes|diag|builtinpurefns] [--check]   regenerate Go→TS mirrors + built-in pure-fn table
+  rtx core codegen [all|constants|kind|fnhashes|typeformats|diag|builtinpurefns] [--check]   regenerate Go→TS mirrors + built-in pure-fn table
   rtx core bump-tsgolint [<rev>] [--skip-tests]   move the tsgolint/typescript-go pin (default: latest release), re-patch, rebuild + test
   rtx core ensure-tsgolint [--check]   check the submodule out to tsgolint.pin.json + re-apply patches (--check verifies only)
 
