@@ -31,6 +31,18 @@ const (
 	CodePureFunctionExternalHandle = "PFN002"
 )
 
+// Project-configuration codes (CFGxxx). Issued when the process cannot load
+// the project tsconfig that was named (or discovered) for it — the config
+// every lane derives its Programs from. Strict like tsc: never downgraded or
+// swallowed; the daemon fails the op with this code tagged in the message
+// (lint hosts synthesize the catalog diagnostic from it — args: [detail],
+// e.g. "tsconfig parse failed: <first tsgo diagnostic>") and CLI lanes exit.
+// FamilyMarker: the scan subsystem owns it — the marker scan is what could
+// not run — keeping the wire enum and its TS mirror untouched.
+const (
+	CodeTsconfigLoadFailed = "CFG001"
+)
+
 func init() {
 	for _, definition := range []Definition{
 		{Code: CodeMarkerFunctionCallArg, Family: FamilyMarker, Severity: SeverityWarning, Title: "Marker invokes a function just to read its return type"},
@@ -45,6 +57,7 @@ func init() {
 		{Code: CodeCompTimeArgsWidenedConst, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> const argument has a widened (non-literal) member — declare the const `as const` so its values stay literal"},
 		{Code: CodePureFunctionNotLiteral, Family: FamilyMarker, Severity: SeverityError, Title: "PureFunction<F> argument must be an inline arrow or function expression"},
 		{Code: CodePureFunctionExternalHandle, Family: FamilyMarker, Severity: SeverityError, Title: "PureFunction<F> literal must not be imported or exported — bind it to an inline or module-private function so only the compiled copy can run"},
+		{Code: CodeTsconfigLoadFailed, Family: FamilyMarker, Severity: SeverityError, Title: "Project tsconfig failed to load — every lane reads this config, so the operation stops"},
 	} {
 		register(definition)
 	}
