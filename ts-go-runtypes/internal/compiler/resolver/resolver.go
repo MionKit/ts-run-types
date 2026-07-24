@@ -56,6 +56,10 @@ type Options struct {
 	// enrich CLI) agrees on the output root; an explicit per-request outDir
 	// (the plugin's own genDir option) still wins.
 	TsconfigGenDir string
+	// TsconfigFailOnError is the tsconfig plugin's failOnError (nil when unset);
+	// OpGenerate echoes it on Response.FailOnError so the dependency-free host
+	// can honor a tsconfig-only setting. The resolver never acts on it.
+	TsconfigFailOnError *bool
 	// SingleThreaded forces single-checker mode on Programs built by
 	// SetSources. Mirrors program.Options.SingleThreaded. Also forces the
 	// serial scan path (a one-checker pool has nothing to fan out over).

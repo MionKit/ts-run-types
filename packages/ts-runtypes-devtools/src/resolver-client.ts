@@ -75,6 +75,10 @@ export interface ResolverClientOptions {
   // pool, and a light child keeps editor/CI hosts (which may run several
   // lint runtimes side by side) well under process/memory limits.
   singleThreaded?: boolean;
+  // Forwarded as --hash-length: the short structural-hash id length in generated
+  // names (undefined = the binary default, 7). The build lane forwards the
+  // bundler/tsconfig value; the lint lane never sets it.
+  hashLength?: number;
   // Forwarded as --allow-unchecked-patterns: silence the fail-closed
   // FMT004 build error for format patterns whose mockSamples RE2 can't verify
   // (JS-only regex features). Build-lane only — asserts the ts-runtypes lint
@@ -304,6 +308,10 @@ export interface GenerateResult {
   // pure-fn report is enabled. The plugin's build-lane callback source; the
   // same records the resolver also writes to `<genDir>/types/pure-fns-report.json`.
   pureFnSites?: PureFnSite[];
+  // Echo of the tsconfig plugin's failOnError (absent when the tsconfig sets
+  // none). The plugin adopts it as the halt default: options.failOnError ?? this
+  // ?? true.
+  failOnError?: boolean;
 }
 
 // Common operation surface. Spawn-based and socket-based clients both
@@ -424,6 +432,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       siteFiles: resp.siteFiles ?? [],
       diagnostics: resp.diagnostics,
       pureFnSites: resp.pureFnSites,
+      failOnError: resp.failOnError,
     };
   }
 
@@ -494,6 +503,7 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);
   if (opts.inlineMode) args.push('--inline-mode', opts.inlineMode);
   if (opts.singleThreaded) args.push('--single-threaded');
+  if (opts.hashLength !== undefined) args.push('--hash-length', String(opts.hashLength));
   // Build-lane only. The lint worker never forwards it: the lint lane always
   // validates the samples (with the real RegExp) regardless of the flag.
   if (opts.allowUncheckedPatterns) args.push('--allow-unchecked-patterns');

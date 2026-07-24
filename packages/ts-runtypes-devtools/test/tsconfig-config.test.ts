@@ -62,7 +62,7 @@ function makeFixture(pluginEntry: string): string {
 // returns the recorded sites. cacheDir:'' forces the disk cache off (child
 // RT_CACHE_DIR=''), so the run never writes under node_modules regardless of
 // the fixture tsconfig's incremental setting.
-async function scanSites(dir: string, opts: {moduleMode?: string} = {}) {
+async function scanSites(dir: string, opts: {moduleMode?: string; hashLength?: number} = {}) {
   const client = new ResolverClient(BIN, dir, 'tsconfig.json', {cacheDir: '', ...opts});
   try {
     const resp = await client.scanFiles(['entry.ts']);
@@ -119,6 +119,45 @@ describe('@ts-runtypes/devtools / tsconfig plugin config (build path)', () => {
         const sites = await scanSites(dir);
         expect(sites.length).toBe(2);
         expect(sites.some((s) => s.module === RUNTYPES_BUNDLE_BASENAME)).toBe(false);
+      } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+      }
+    },
+    60_000
+  );
+
+  register(
+    'tsconfig hashLength sets the generated short-id length end-to-end',
+    async () => {
+      // 12 is distinctly non-default (the binary default is 7); the id length can
+      // only be 12 if the build path parsed the tsconfig hashLength.
+      const dir = makeFixture(`{ "name": "ts-runtypes", "hashLength": 12 }`);
+      try {
+        const sites = await scanSites(dir);
+        expect(sites.length).toBe(2);
+        // Both getRunTypeId shapes still resolve to one entry (equivalent T)...
+        expect(sites[0].id).toBe(sites[1].id);
+        // ...and the short id is exactly the tsconfig-configured length.
+        expect(sites[0].id.length).toBe(12);
+      } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+      }
+    },
+    60_000
+  );
+
+  register(
+    'a forwarded --hash-length overrides the tsconfig hashLength (flag > tsconfig)',
+    async () => {
+      const dir = makeFixture(`{ "name": "ts-runtypes", "hashLength": 12 }`);
+      try {
+        // The bundler forwards hashLength over the wire (--hash-length); it must
+        // win over the tsconfig value — proving both the wire forwarding and the
+        // tsc-style precedence.
+        const sites = await scanSites(dir, {hashLength: 9});
+        expect(sites.length).toBe(2);
+        expect(sites[0].id).toBe(sites[1].id);
+        expect(sites[0].id.length).toBe(9);
       } finally {
         fs.rmSync(dir, {recursive: true, force: true});
       }

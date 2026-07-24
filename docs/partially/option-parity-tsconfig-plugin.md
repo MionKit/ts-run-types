@@ -1,7 +1,64 @@
+---
+type: feature
+spec: full-plan
+status: partially
+created: 2026-07-18
+---
+
 # Option parity: every project option settable in BOTH tsconfig and the bundler plugin
 
-**Status:** todo — investigated, matrix verified against source, ready to implement.
+**Status:** PARTIALLY SHIPPED (2026-07-24). The option-parity core landed (`failOnError`
+echo, `singleThreaded` + `hashLength` plugin wiring, the drift-killing parity guard, tests,
+docs). `i18n` plugin-side parity was deliberately deferred and folded into a new, larger
+follow-up (drive enrichment from the bundler plugin). See "Shipped vs deferred" below.
 **Created:** 2026-07-18
+
+## Shipped vs deferred (2026-07-24)
+
+**Shipped this pass (option parity):**
+
+- **`failOnError` is now a tsconfig plugin key** (`cmd/ts-runtypes/config.go`), read Go-side and
+  ECHOED on the `OpGenerate` response — `protocol.Response.FailOnError` +
+  `resolver.Options.TsconfigFailOnError` (set in `dispatch.go`, populated from `plugin.FailOnError`
+  in `main.go`), guarded emit in `MarshalJSON`. The JS gate adopts it as
+  `options.failOnError ?? echoed ?? true` (`unplugin.ts`), with the echo carried on
+  `GenerateResult.failOnError` (`resolver-client.ts`) and the `Response` wire type (`protocol.ts`).
+  There is no CLI flag / buildconfig merge — the host owns precedence.
+- **`singleThreaded` + `hashLength` are now `PluginOptions` fields**, forwarded through
+  `ensureResolver` → `ResolverClient` → `buildResolverArgs` (`--single-threaded` already existed;
+  `--hash-length <n>` added to `ResolverClientOptions` + `buildResolverArgs`). The Go merge already
+  honoured both (flag > tsconfig > default). Noted gap: a plugin `singleThreaded: false` can't
+  force-OFF a tsconfig `singleThreaded: true` (no `--no-single-threaded`); use the tsconfig knob.
+- **Parity drift-guard:** new codegen target `pluginkeys` (`cmd/gen-plugin-keys`, AST-parses the
+  `tsRuntypesPlugin` json tags — mirrors the runtime `knownPluginKeys` reflection without importing
+  `package main`) emits `packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts`.
+  A runtime `PLUGIN_OPTION_KEYS` array (kept exhaustive vs `keyof PluginOptions` by a
+  `satisfies Record<keyof PluginOptions, true>` guard, `src/plugin-option-keys.ts`) is compared to it
+  in `test/plugin-option-parity.test.ts`. Adding a project option to only one side fails CI three
+  ways: the Go in-sync test (`gen_test.go`), `rtx core codegen all --check`, and the vitest parity
+  test. Exception sets: `JS_ONLY = {binary, cwd, tsconfig, transformMode, sourcesContent,
+  onPureFnReport}`, `GO_ONLY = {name, i18n}`.
+- **Tests:** `plugin-option-parity` (drift guard), `resolver-args` (wire flags), `tsconfig-config`
+  (tsconfig `hashLength` end-to-end via `site.id.length`, + flag > tsconfig), `fail-on-error`
+  (tsconfig `failOnError:false` echo downgrades, + plugin option > echo).
+- **Docs:** config page (dropped `failOnError`'s "bundler plugin only" marker; `hashLength` now
+  settable in both; rule restated; `i18n` the one tsconfig-only exception), ARCHITECTURE
+  recognised-keys list (removed stale `runTypesGenDir`, added `failOnError`), `go-generated/README.md`.
+
+**Already done before this pass (Decisions 1 & 2, landed separately):** the `genDir` convention —
+one `genDir`; `runTypesGenDir` / `enrichDir` / `i18n.dir` REMOVED (not aliased); `--gen-dir`
+replaces `--run-types-gen-dir` / `--enrich-dir`; `resolveOutDir` tsconfig middle layer; family
+READMEs. So the spec's plan items 6/Done-criteria mentioning a "deprecated `runTypesGenDir` alias
+that warns" are moot — it was removed outright per Decision 1.
+
+**Deferred to a new todo (owner, 2026-07-24):** `i18n` plugin-side parity, folded into a larger
+feature: **drive enrichment from the bundler plugin.** `i18n` (sourceLocale/locales/strict) is
+consumed only by the enrichment CLI lanes, which the bundler build never runs, so exposing it on
+`PluginOptions` is meaningful only alongside making the plugin scaffold + keep-in-sync the
+friendly/mock/i18n mirror files (same as `ts-runtypes gen --update`; NO translation content — that
+stays developer/skill-driven). Until then `i18n` stays a documented tsconfig-only exception in the
+parity guard (`GO_ONLY`). **Hard constraint for that feature (owner):** the enriched mirror files
+are write-only outputs and must NOT trigger HMR / any rebuild.
 
 ## Motivation (owner decision)
 

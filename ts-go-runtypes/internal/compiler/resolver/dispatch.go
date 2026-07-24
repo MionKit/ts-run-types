@@ -949,6 +949,9 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			return protocol.Response{Error: genErr.Error()}
 		}
 		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites, sess.pureFnReplacementFiles(metrics))}
+		// Echo the tsconfig plugin's failOnError (nil when unset) so the
+		// dependency-free host can adopt a tsconfig-only setting, same as OutDir.
+		genResponse.FailOnError = sess.opts.TsconfigFailOnError
 		// Pure-fn build report (opt-in): populate the structured records for the
 		// in-process callback, and — when file output is enabled — write the JSON
 		// file alongside the generated modules so out-of-process consumers (a

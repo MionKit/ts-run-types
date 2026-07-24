@@ -464,6 +464,10 @@ export interface Response {
   // outDir empty the resolver infers <srcDir>/__runtypes from the tsconfig and
   // echoes the absolute path here so the plugin can adopt it.
   outDir?: string;
+  // Echo of the tsconfig plugin's failOnError on `generate` (absent when the
+  // tsconfig sets none) so the dependency-free host can honor a tsconfig-only
+  // setting: the plugin's own option wins, then this echo, then the true default.
+  failOnError?: boolean;
   // One TransformResult per file for the `transform` op: rewritten source +
   // source map (+ the cache modules the file imports), keyed by file path.
   transformed?: Record<string, TransformResult>;
