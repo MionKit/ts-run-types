@@ -109,7 +109,7 @@ Full manual steps are in [SETUP.md](SETUP.md). After touching Go sources, rebuil
 ## Git workflow
 
 - **PRs land via Rebase-and-merge — keep every branch LINEAR (no merge commits).**
-- **ONE exception — the `prod` release line.** A release PR (`main` → `prod`, head is literally `main`, no intermediate branch) is landed with **"Create a merge commit"** — never rebase, never squash ([publish.yml](.github/workflows/publish.yml)'s `merge-shape` job fails fast otherwise), and `prod` is never merged back into `main`. Whole flow: the [release-to-prod skill](.claude/skills/release-to-prod/).
+- **ONE exception — the `prod` release line.** A release PR is `release/vX.Y.Z` → `prod` — the head is a frozen `release/vX.Y.Z` branch cut from `main` (always an ancestor of `origin/main`), landed with **"Create a merge commit"** — never rebase, never squash ([publish.yml](.github/workflows/publish.yml)'s `merge-shape` job fails fast otherwise), and `prod` is never merged back into `main`. **Never author a commit on the release branch** — fix on `main` first, then re-cut the branch forward; [pre-publish.yml](.github/workflows/pre-publish.yml)'s `main-ancestor` job enforces the frozen-prefix invariant. Whole flow: the [release-to-prod skill](.claude/skills/release-to-prod/).
 - **Integrate upstream by rebasing, never merging.** When `main` moves (it may be **force-updated** / history-rewritten), rebase onto it:
   ```
   git fetch origin main

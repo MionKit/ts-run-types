@@ -30,8 +30,9 @@ Why: a rebase/squash lands the same content as *copied* commits, so `main` stops
 an ancestor of `prod` — and the next release PR shows conflicts GitHub cannot merge
 (this exact damage made the pre-0.10.0 releases need hand-built merge commits).
 publish.yml's first job (`merge-shape`) fails fast on a wrong-method merge and prints
-the recovery. Corollaries: never merge `prod` back into `main`, and no intermediate
-release branches — the release PR's head is literally `main`.
+the recovery. Corollaries: never merge `prod` back into `main`; the release PR's head
+is a frozen `release/vX.Y.Z` branch cut from `main` — always an ancestor of
+`origin/main`, never carrying a commit that isn't already on `main`.
 
 ## Phase 0 — preflight
 
@@ -73,17 +74,23 @@ Push, open the PR into `main` (`gh pr create --base main --title "chore(release)
 body = bump summary + changelog highlights), and tell the developer it merges the
 normal way (**rebase**). Watch until it lands; address review feedback by amending.
 
-## Phase 2 — release PR (main → prod)
+## Phase 2 — release PR (release/vX.Y.Z → prod)
 
-Once the bump is on `main`:
+Once the bump is on `main`, cut a frozen release branch at that commit and open the PR
+from it:
 
 ```bash
-git pull origin main
-gh pr create --base prod --head main --title "release: vX.Y.Z" --body-file <body>
+git fetch origin main
+git branch release/vX.Y.Z origin/main        # cut at the bump commit (main's tip)
+git push -u origin release/vX.Y.Z
+gh pr create --base prod --head release/vX.Y.Z --title "release: vX.Y.Z" --body-file <body>
 ```
 
-The head is literally `main` — create no branch. That gives a free property: any fix
-merged to `main` later flows into this PR automatically and reruns its checks.
+The head is `release/vX.Y.Z`, **not `main`** — a frozen snapshot, so the release scope
+is fixed at the cut point. Nothing merged to `main` afterward joins the release unless
+you re-cut the branch to include it. That is the whole point: it freezes scope, stops
+the ~35-minute gate from restarting on every unrelated `main` push, and keeps the
+curated changelog accurate.
 
 The body: the changelog's prose intro, the notable changes, and — **always** — this
 reminder for the developer, prominently at the top:
@@ -93,20 +100,34 @@ reminder for the developer, prominently at the top:
 > otherwise.
 
 [pre-publish.yml](../../../.github/workflows/pre-publish.yml) runs on the PR: the full
-release gate plus `version-fresh` (goes red if version.json is already live on npm —
-meaning Phase 1 hasn't landed; finish it and this PR updates itself).
+release gate, `version-fresh` (goes red if version.json is already live on npm —
+meaning Phase 1 hasn't landed; finish it, then re-cut the branch), and `main-ancestor`
+(goes red unless the head is an ancestor of `origin/main` — the frozen-prefix guard).
 
 Watch the checks (`gh pr checks <n>` — poll or `--watch`). On a red job: read the logs
 (`gh run view --job <id> --log`), diagnose, and **fix forward on `main`** — a normal
-PR (branch off main → fix → review → rebase-merge), never a branch off `prod`, never a
-direct push. When the fix lands, the release PR refreshes and the gate reruns. Then
-hand the green PR to the developer to merge — with the merge-commit reminder.
+PR (branch off main → fix → review → rebase-merge), never a commit on the release
+branch, never a branch off `prod`, never a direct push. When the fix lands on `main`,
+**re-cut the release branch forward** to the `main` commit that contains it:
+
+```bash
+git fetch origin main
+git branch -f release/vX.Y.Z origin/main     # or a specific main SHA that has the fix
+git push --force-with-lease origin release/vX.Y.Z
+```
+
+The PR updates and the gate reruns. Deliberately **no cherry-picking onto the branch** —
+a copied commit would land clean but put a non-`main` SHA into prod's ancestry;
+re-cutting keeps the branch a literal prefix of `main` (and `main-ancestor` green).
+Then hand the green PR to the developer to merge — with the merge-commit reminder.
 
 ## Phase 3 — publish, approve, deploy
 
 The merge push fires publish.yml: `merge-shape` guard → full gate rerun →
 stage-publish (OIDC, unattended) → `vX.Y.Z` tag on prod → GitHub Release. Watch it:
-`gh run list --workflow=publish.yml --limit 1`, then `gh run watch <id>`.
+`gh run list --workflow=publish.yml --limit 1`, then `gh run watch <id>`. Once the
+`vX.Y.Z` tag exists the frozen branch has done its job — delete it:
+`git push origin --delete release/vX.Y.Z`.
 
 When it succeeds, hand the developer the finishing steps, in order:
 
@@ -123,16 +144,19 @@ When it succeeds, hand the developer the finishing steps, in order:
 
 | Failure | Meaning | Recovery |
 | --- | --- | --- |
-| `version-fresh` red on the PR | version.json already published | Land the Phase-1 bump PR on main; the release PR picks it up automatically. |
-| Gate red (PR or publish run) | A real build/test/e2e problem | Fix forward on `main` (normal PR). PR-time: the release PR refreshes itself. Post-merge: open a fresh `main → prod` PR after the fix lands and repeat Phase 2 (same version — nothing was staged). |
-| `merge-shape` red | The PR was rebase- or squash-merged | Open a NEW `main → prod` PR — it shows **zero file changes**, which is expected — and merge it with "Create a merge commit". The empty merge reunifies the histories; publish.yml reruns on it. No force-push. |
+| `version-fresh` red on the PR | version.json already published | Land the Phase-1 bump PR on main, then re-cut `release/vX.Y.Z` at a main commit that includes the bump. |
+| `main-ancestor` red on the PR | The release head isn't a prefix of `main` (a commit was authored on the release branch) | Land the change on `main` via a normal PR, then re-cut the branch forward (`git branch -f release/vX.Y.Z origin/main && git push --force-with-lease`). Never commit on the branch. |
+| Gate red (PR or publish run) | A real build/test/e2e problem | Fix forward on `main` (normal PR). PR-time: re-cut `release/vX.Y.Z` once the fix lands and the gate reruns. Post-merge: land the fix on main, re-cut the branch, open a fresh release PR and repeat Phase 2 (same version — nothing was staged). |
+| `merge-shape` red | The PR was rebase- or squash-merged | Open a NEW `main → prod` PR — it shows **zero file changes**, which is expected (head=`main` passes `main-ancestor`, since `main` is its own ancestor) — and merge it with "Create a merge commit". The empty merge reunifies the histories; publish.yml reruns on it. No force-push. |
 | publish preflight "already on npm" | Version bumped nowhere / re-run of an old version | Phase 1, then a new promotion PR. |
 | Stage-approve interrupted | Some packages live, some staged | `pnpm rtx release stage-approve` again — it resumes leaves-first. |
 
 ## Hard rules (recap)
 
-- Release PR = `main` → `prod`, head is `main`, **no intermediate branch**.
+- Release PR = `release/vX.Y.Z` → `prod`; the head is a frozen branch cut from `main`, always an ancestor of `origin/main` (the `main-ancestor` gate). Delete it once the tag exists.
+- **Never author a commit on the release branch, and never cherry-pick onto it.** To pull in a fix, land it on `main`, then re-cut the branch forward (`git branch -f` + `git push --force-with-lease`).
 - Into `prod`: **merge commit only**. Into `main`: rebase only, as everywhere else.
 - Never merge `prod` into `main`; never push to `prod` outside a PR; never push tags.
 - Every fix lands on `main` first — `prod` receives it via a promotion.
 - The changelog is curated, not raw generator output — and only ever prepended.
+- One-time setup: the `prod` ruleset must require the `main-ancestor` check (`release head is an ancestor of main`) alongside the gate and `version-fresh`.
