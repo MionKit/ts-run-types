@@ -31,6 +31,12 @@ const websiteJsonPath = resolve(repoRoot, 'container/website/app/components/cont
 // satisfy the website voice rules when the component renders them.
 const SUBSYSTEMS = [
   {
+    key: 'project-config',
+    label: 'Project configuration',
+    description: 'Raised when the project tsconfig the tooling was pointed at cannot be loaded.',
+    prefixes: ['CFG'],
+  },
+  {
     key: 'markers',
     label: 'Markers and call sites',
     description: 'Raised at a marker call, before the build can turn your type into a function.',

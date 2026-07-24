@@ -2,7 +2,7 @@ import path from 'node:path';
 import {createUnplugin} from 'unplugin';
 import {getExePath} from '@ts-runtypes/bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
-import {ResolverClient} from './resolver-client.ts';
+import {defaultTsconfig, ResolverClient} from './resolver-client.ts';
 import {applyEdits, sourceHash} from './apply-edits.ts';
 import {Family, Severity, type Diagnostic, type PureFnSite} from './protocol.ts';
 import {
@@ -284,7 +284,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // Explicit path wins; otherwise resolve the host-platform binary from the
     // ts-runtypes-bin launcher (throws with a clear message if none is installed).
     const binaryPath = options.binary ?? getExePath();
-    resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
+    // An explicit options.tsconfig is always passed (strict: the Go side hard
+    // errors when it is missing or broken); the implicit 'tsconfig.json'
+    // default is passed only when the file exists, so a config-less project
+    // keeps working on the inferred defaults.
+    resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? defaultTsconfig(cwdAbs), {
       ...(options.emitMode ? {emitMode: options.emitMode} : {}),
       ...(options.size?.bias !== undefined ? {sizeBias: options.size.bias} : {}),
       ...(options.size?.items !== undefined ? {sizeItems: options.size.items} : {}),
@@ -534,9 +538,17 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         if (typeof content === 'string') {
           try {
             await resolver.setSources({[rel]: content});
-          } catch {
-            // setSources can fail if the changed file is outside the
-            // resolver's known set (e.g. a config file). Fall through to
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            // A CFG001-tagged failure is the project tsconfig refusing to
+            // load (strict like tsc) — say so loudly instead of silently
+            // skipping updates; the daemon re-parses on the next edit, so a
+            // fixed config heals without a dev-server restart.
+            if (message.includes('CFG001')) {
+              console.error(`[@ts-runtypes/devtools] HMR update skipped — ${message}`);
+            }
+            // Otherwise setSources failed because the changed file is outside
+            // the resolver's known set (e.g. a config file). Fall through to
             // default HMR — nothing for the resolver to do here.
             return;
           }

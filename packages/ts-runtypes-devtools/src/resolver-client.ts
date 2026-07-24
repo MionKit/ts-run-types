@@ -1,5 +1,7 @@
 import {spawn, type ChildProcess} from 'node:child_process';
+import fs from 'node:fs';
 import {createConnection, type Socket} from 'node:net';
+import path from 'node:path';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
 import type {
@@ -476,6 +478,16 @@ abstract class ResolverClientBase implements ResolverConnection {
   close(): void {
     this.transport.close();
   }
+}
+
+// defaultTsconfig gates the IMPLICIT 'tsconfig.json' convention default on the
+// file actually existing at cwd. An explicitly configured path is always
+// passed through as-is — the Go side is strict about a named config (missing
+// or broken is a loud error on every lane) — but the un-named default applies
+// only when the project really has one, so a config-less project runs on the
+// inferred defaults instead of erroring over a file nobody named.
+export function defaultTsconfig(cwd: string): string {
+  return fs.existsSync(path.resolve(cwd, 'tsconfig.json')) ? 'tsconfig.json' : '';
 }
 
 // buildResolverArgs assembles the resolver child's argv from client options.

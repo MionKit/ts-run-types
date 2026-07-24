@@ -30,6 +30,15 @@ type prose struct {
 }
 
 var proseByCode = map[string]prose{
+	// ──────────────────────── project config (CFG) ────────────────────────
+
+	CodeTsconfigLoadFailed: {
+		// No Example: this code is raised by a broken tsconfig.json, not by
+		// TypeScript source, so the example harness (which scans source through
+		// a healthy config) cannot trigger it.
+		Summary: "The tsconfig.json your project named, or the one found next to it, is missing or does not parse. RunTypes reads types through that config, the same one your build uses, so the operation stops instead of guessing with defaults that could resolve your types differently. Fix the tsconfig, or point the tooling at the right file with the plugin or lint `tsconfig` setting, or the CLI `--tsconfig` flag.",
+	},
+
 	// ───────────────────────── validate (VL) ─────────────────────────
 
 	CodeVLNonSerializableRoot: {

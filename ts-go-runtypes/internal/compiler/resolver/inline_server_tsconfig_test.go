@@ -18,7 +18,7 @@ import (
 // emitting false-positive MKR007 at lint time only, while the build resolved it.
 //
 // These tests drive the REAL server path (NewServer -> OpSetSources ->
-// dispatchSetSources -> ParseInferredResolution), NOT setupInline (which
+// dispatchSetSources -> ParseInferredConfig), NOT setupInline (which
 // pre-builds via NewInferred and would bypass discovery). The tsconfig and the
 // cross-package dependency live on REAL disk (production: tsconfig + node_modules
 // on disk, the linted buffer in the setSources overlay); only the consumer buffer

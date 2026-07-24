@@ -60,6 +60,12 @@ type enrichConfig struct {
 	ProjectRoot string
 	RootDir     string
 	EnrichDir   string
+	// TsconfigPath is the ONE resolved tsconfig this command run reads —
+	// explicit --tsconfig flag, else the nearest tsconfig.json above the
+	// target (tsc-style discovery), else "" (no config anywhere). The same
+	// path feeds buildProgram's type resolution, so genDir/i18n settings and
+	// type queries can never come from different configs.
+	TsconfigPath string
 
 	// i18n knobs (the tsconfig plugin `i18n` object; docs/done/friendly-type-i18n.md).
 	// Defaults are dormant: SourceLocale 'en', I18nDir <EnrichDir>/i18n, no
@@ -174,20 +180,40 @@ type tsconfigShape struct {
 	} `json:"compilerOptions"`
 }
 
+// resolveEnrichTsconfig resolves the ONE tsconfig path an enrich command run
+// reads, for BOTH its genDir/i18n settings and its type resolution: the
+// explicit --tsconfig flag when given (resolved against the process cwd, and
+// it must exist — strict like tsc's --project), else tsc-style upward
+// discovery from anchorDir (the target file's directory), else "" (no config
+// anywhere — the inferred-defaults fallback).
+func resolveEnrichTsconfig(tsconfigFlag, anchorDir string) string {
+	if trimmed := strings.TrimSpace(tsconfigFlag); trimmed != "" {
+		named := mustAbs(trimmed)
+		if info, err := os.Stat(named); err != nil || info.IsDir() {
+			fatal("tsconfig not found at %s", named)
+		}
+		return named
+	}
+	return findNearestTsconfig(anchorDir)
+}
+
 // resolveEnrichConfig computes the enrichment config for a gen target file.
 // genDirFlag is the --gen-dir CLI value (empty when unset) and takes precedence
 // over the tsconfig `genDir` entry, which takes precedence over the default.
 //
-// It walks up from absTargetFile's directory to the nearest tsconfig.json. When
-// found, ProjectRoot is the tsconfig dir, RootDir is compilerOptions.rootDir
+// The tsconfig is resolveEnrichTsconfig's pick: the explicit --tsconfig flag,
+// else the nearest tsconfig.json above absTargetFile. When one resolves,
+// ProjectRoot is the tsconfig dir, RootDir is compilerOptions.rootDir
 // (resolved against the tsconfig dir; defaulting to the tsconfig dir when
-// unset), and genDir comes from the plugins entry (defaulting to
-// <RootDir>/__runtypes); EnrichDir is then <genDir>/enriched. When no tsconfig is
-// found, ProjectRoot and RootDir both default to the target file's directory.
+// unset), genDir comes from the plugins entry (defaulting to
+// <RootDir>/__runtypes), and the resolved path is recorded on
+// enrichConfig.TsconfigPath so type resolution reads the SAME config. With no
+// config anywhere, ProjectRoot and RootDir both default to the target file's
+// directory.
 //
-// A missing or malformed tsconfig falls back to the no-tsconfig defaults — it
-// never errors.
-func resolveEnrichConfig(absTargetFile, genDirFlag string) enrichConfig {
+// Strict like tsc: a config that was named or discovered but does not parse is
+// fatal — only the no-config-anywhere case falls back to defaults.
+func resolveEnrichConfig(absTargetFile, genDirFlag, tsconfigFlag string) enrichConfig {
 	targetDir := filepath.Dir(absTargetFile)
 
 	config := enrichConfig{
@@ -197,27 +223,30 @@ func resolveEnrichConfig(absTargetFile, genDirFlag string) enrichConfig {
 	}
 
 	genDir := ""
-	if tsconfigPath := findNearestTsconfig(targetDir); tsconfigPath != "" {
+	if tsconfigPath := resolveEnrichTsconfig(tsconfigFlag, targetDir); tsconfigPath != "" {
 		tsconfigDir := filepath.Dir(tsconfigPath)
+		config.TsconfigPath = tsconfigPath
 		config.ProjectRoot = tsconfigDir
 		config.RootDir = tsconfigDir
 
-		if parsed, ok := parseTsconfig(tsconfigPath); ok {
-			if rootDir := strings.TrimSpace(parsed.CompilerOptions.RootDir); rootDir != "" {
-				config.RootDir = resolveUnder(tsconfigDir, rootDir)
-			}
-			if plugin, ok := findTsRuntypesPlugin(parsed); ok {
-				genDir = strings.TrimSpace(plugin.GenDir)
-				config.ModuleMode = plugin.ModuleMode
-				config.EmitMode = plugin.EmitMode
-				config.InlineMode = plugin.InlineMode
-				if plugin.I18n != nil {
-					if sourceLocale := strings.TrimSpace(plugin.I18n.SourceLocale); sourceLocale != "" {
-						config.SourceLocale = sourceLocale
-					}
-					config.I18nLocales = plugin.I18n.Locales
-					config.I18nStrict = plugin.I18n.Strict
+		parsed, ok := parseTsconfig(tsconfigPath)
+		if !ok {
+			fatal("tsconfig %s: cannot parse", tsconfigPath)
+		}
+		if rootDir := strings.TrimSpace(parsed.CompilerOptions.RootDir); rootDir != "" {
+			config.RootDir = resolveUnder(tsconfigDir, rootDir)
+		}
+		if plugin, ok := findTsRuntypesPlugin(parsed); ok {
+			genDir = strings.TrimSpace(plugin.GenDir)
+			config.ModuleMode = plugin.ModuleMode
+			config.EmitMode = plugin.EmitMode
+			config.InlineMode = plugin.InlineMode
+			if plugin.I18n != nil {
+				if sourceLocale := strings.TrimSpace(plugin.I18n.SourceLocale); sourceLocale != "" {
+					config.SourceLocale = sourceLocale
 				}
+				config.I18nLocales = plugin.I18n.Locales
+				config.I18nStrict = plugin.I18n.Strict
 			}
 		}
 	}

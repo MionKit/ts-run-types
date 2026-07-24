@@ -1,12 +1,14 @@
-// Ambient Temporal namespace for the scanner. The repo's tsconfig libs
-// (ES2023) predate Temporal (ES2026), and tsgo's inferred-program path can't
-// be coaxed into loading a newer lib without breaking lib resolution
-// entirely — so tests declare the Temporal surface here, the same trick the
-// fake `ts-runtypes` module uses. This is NOT shipped to
-// consumers; production consumers resolve Temporal from their own tsconfig
-// `lib`. It only needs to mirror the SHAPE the scanner reads: each type is an
-// `interface X` + `const X: XConstructor` (with `prototype: X`), exactly how
-// lib.esnext.temporal.d.ts declares them and how `Date` is declared.
+// Ambient Temporal namespace for the scanner. The bare-spawn test suites
+// (setupInline and friends) run with NO tsconfig, so their programs use the
+// fixed inferred defaults whose lib set predates Temporal (ES2026) — so those
+// tests declare the Temporal surface here, the same trick the fake
+// `ts-runtypes` module uses. A test that DOES pass a tsconfig gets the real
+// `lib` honored (`ESNext.Temporal` loads from the bundled libs; the parity
+// suite pins it). This is NOT shipped to consumers; production consumers
+// resolve Temporal from their own tsconfig `lib`. It only needs to mirror the
+// SHAPE the scanner reads: each type is an `interface X` + `const X:
+// XConstructor` (with `prototype: X`), exactly how lib.esnext.temporal.d.ts
+// declares them and how `Date` is declared.
 //
 // Keep the member surface minimal but realistic — enough that validate /
 // serialization codegen can reference toJSON()/from()/compare()/equals() and

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
@@ -44,8 +45,9 @@ func runCheck(args []string) {
 	asJSON := fs.Bool("json", false, "emit findings as a JSON array")
 	genDirFlag := fs.String("gen-dir", "", "RunTypes output root override (precedence: this flag > tsconfig genDir > default __runtypes)")
 	translate := fs.String("translate", "", "i18n completeness gate: report @todo blanks / orphans / out-of-date translations for a locale (or 'all')")
+	tsconfigFlag := fs.String("tsconfig", "", "project tsconfig path (default: nearest tsconfig.json above the target file)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes check <file.ts> [--json]")
+		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes check <file.ts> [--json] [--tsconfig <path>]")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes check --translate <locale|all>   (translation completeness; strict via tsconfig i18n.strict)")
 	}
 	positional, flags := splitArgs(args)
@@ -53,7 +55,7 @@ func runCheck(args []string) {
 		fatal("check: %v", err)
 	}
 	if *translate != "" {
-		runCheckTranslate(*translate, *genDirFlag)
+		runCheckTranslate(*translate, *genDirFlag, *tsconfigFlag)
 		return
 	}
 	if len(positional) < 1 {
@@ -62,7 +64,7 @@ func runCheck(args []string) {
 	}
 	absPath := tspath.NormalizePath(mustAbs(positional[0]))
 
-	prog, res, err := buildProgram(absPath)
+	prog, res, err := buildProgram(absPath, resolveEnrichTsconfig(*tsconfigFlag, filepath.Dir(absPath)))
 	if err != nil {
 		fatal("check: %v", err)
 	}

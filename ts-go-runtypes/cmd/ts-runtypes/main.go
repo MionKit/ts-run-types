@@ -415,15 +415,19 @@ func main() {
 			overlay[abs] = content
 			fileNames = append(fileNames, abs)
 		}
-		// Same tsconfig-fidelity as the inline-server path: thread the project's
-		// resolution options (customConditions / paths / baseUrl) so a source-condition
-		// cross-package import resolves at lint time as it would in a build. Best-effort
-		// (nil when --tsconfig is absent or the file is missing).
+		// Same tsconfig contract as every lane: parse once, adopt the full
+		// options wholesale, so the one-shot type-checks exactly like a build.
+		// Strict like tsc — a named config that is missing or broken is fatal;
+		// only an absent --tsconfig falls back to the inferred defaults.
+		inferredConfig, err := program.ParseInferredConfig(absCwd, tsconfigPath)
+		if err != nil {
+			fatal("tsconfig: %v", err)
+		}
 		p, err := program.NewInferred(program.Options{
 			Cwd:            absCwd,
 			SingleThreaded: merged.singleThreaded,
 			Overlay:        overlay,
-			ResolutionBase: program.ParseInferredResolution(absCwd, tsconfigPath),
+			Config:         inferredConfig,
 		}, fileNames)
 		if err != nil {
 			fatal("program (inferred): %v", err)

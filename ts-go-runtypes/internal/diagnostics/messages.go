@@ -26,6 +26,10 @@ type message struct {
 }
 
 var messagesByCode = map[string]message{
+	"CFG001": {
+		Headline: "Project tsconfig failed to load ({0}) — the build, the linter, and the CLI all read this config, so nothing can run until it loads.",
+		Detail:   "RunTypes derives every type query from your project tsconfig, the same\nfile your build uses. A tsconfig that was named (or found next to your\nproject) but is missing or does not parse stops the operation, exactly\nlike `tsc --project` would, instead of silently falling back to defaults\nthat could resolve your types differently.\n\nFix — repair the tsconfig (the message names the first parse problem),\nor point the tooling at the right file (the plugin/lint `tsconfig`\nsetting, or the CLI `--tsconfig` flag).",
+	},
 	"FMT001": {
 		Headline: "TypeFormat mockSample \"{0}\" does not match its pattern /{1}/ — fix the sample or the pattern.",
 	},

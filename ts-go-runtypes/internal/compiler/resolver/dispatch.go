@@ -1142,13 +1142,20 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 	cwd = tspath.NormalizePath(cwd)
 
 	// Parse the project tsconfig ONCE per session (cwd + tsconfig path are fixed
-	// for the session lifetime) and thread its resolution options into every
-	// inferred Program, so lint-time resolution (customConditions / paths / baseUrl)
-	// matches the build. Best-effort: a nil handle (no tsconfig configured or found)
-	// leaves resolution at the inferred defaults.
-	if !sess.inferredResolutionDone {
-		sess.inferredResolution = program.ParseInferredResolution(cwd, sess.opts.TsconfigPath)
-		sess.inferredResolutionDone = true
+	// for the session lifetime) and adopt its options wholesale in every inferred
+	// Program, so daemon rebuilds type-check exactly like the build. Strict like
+	// tsc: a named config that is missing or broken fails the op — CFG001 tags the
+	// message so lint hosts can synthesize the catalog diagnostic — and the done
+	// flag stays unset, so the next setSources re-parses and a fixed config heals
+	// without a respawn. (nil, nil) means no config was named: the fixed inferred
+	// defaults apply.
+	if !sess.inferredConfigDone {
+		inferredConfig, err := program.ParseInferredConfig(cwd, sess.opts.TsconfigPath)
+		if err != nil {
+			return fmt.Errorf("setSources: %s %v", diagnostics.CodeTsconfigLoadFailed, err)
+		}
+		sess.inferredConfig = inferredConfig
+		sess.inferredConfigDone = true
 	}
 
 	overlay := make(map[string]string, len(sources))
@@ -1162,7 +1169,7 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 		Cwd:            cwd,
 		SingleThreaded: sess.opts.SingleThreaded,
 		Overlay:        overlay,
-		ResolutionBase: sess.inferredResolution,
+		Config:         sess.inferredConfig,
 	}, fileNames)
 	if err != nil {
 		return fmt.Errorf("setSources: %w", err)

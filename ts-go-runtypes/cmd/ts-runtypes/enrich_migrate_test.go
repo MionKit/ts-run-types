@@ -30,7 +30,7 @@ func migrateFixture(t *testing.T) (enrichConfig, string) {
 			"export const mockUser: MockData<User> = {\n"+
 			"  name: {pool: ['Alice']},\n"+
 			"};\n")
-	return resolveEnrichConfig(source, ""), source
+	return resolveEnrichConfig(source, "", ""), source
 }
 
 // TestMigrateLegacyMirror_SplitsAndDeletes: the combined mirror splits into the

@@ -45,7 +45,7 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string, string) 
 			"};\n\n"+
 			"export const pl_friendlyUser: FriendlyText<User> = {rt$label: ''};\n\n"+
 			"export const friendlyHelper = {rt$label: ''};\n")
-	return resolveEnrichConfig(source, ""), source, sourceMirror
+	return resolveEnrichConfig(source, "", ""), source, sourceMirror
 }
 
 // TestTranslateTargets_PositionalMapsToFriendlyMirror pins the target path
@@ -53,7 +53,7 @@ func translateFixture(t *testing.T, strict bool) (enrichConfig, string, string) 
 func TestTranslateTargets_PositionalMapsToFriendlyMirror(t *testing.T) {
 	config, source, sourceMirror := translateFixture(t, false)
 
-	gotConfig, targets := translateTargets([]string{source}, "")
+	gotConfig, targets := translateTargets([]string{source}, "", "")
 	if gotConfig.EnrichDir != config.EnrichDir {
 		t.Errorf("EnrichDir = %q, want %q", gotConfig.EnrichDir, config.EnrichDir)
 	}

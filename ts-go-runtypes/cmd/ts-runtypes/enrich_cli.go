@@ -44,9 +44,18 @@ func dispatchEnrichCommand() bool {
 // caller owns the resolver and MUST call res.Close() when done (it keeps the
 // checker live for as long as the walk needs it). Shared by resolveOne and the
 // check command, which walks the file's AST against the still-open checker.
-func buildProgram(absPath string) (*program.Program, *resolver.Session, error) {
+//
+// tsconfigPath is the run's resolved tsconfig ("" = none): its full options are
+// adopted wholesale, with the "source" condition folded in so `ts-runtypes`
+// resolves to its in-tree src. Strict like tsc — a named/discovered config that
+// is missing or broken errors instead of silently degrading type resolution.
+func buildProgram(absPath, tsconfigPath string) (*program.Program, *resolver.Session, error) {
 	cwd := filepath.Dir(absPath)
-	prog, err := program.NewInferred(program.Options{Cwd: cwd, Conditions: []string{"source"}}, []string{absPath})
+	inferredConfig, err := program.ParseInferredConfig(cwd, tsconfigPath, "source")
+	if err != nil {
+		return nil, nil, err
+	}
+	prog, err := program.NewInferred(program.Options{Cwd: cwd, Conditions: []string{"source"}, Config: inferredConfig}, []string{absPath})
 	if err != nil {
 		return nil, nil, fmt.Errorf("build program: %w", err)
 	}
@@ -61,12 +70,17 @@ func buildProgram(absPath string) (*program.Program, *resolver.Session, error) {
 // files — the batch `gen --files` path. Cwd is the first file's directory.
 // Caller owns res and MUST Close() it. One Program means the heavy parse/bind
 // is paid once for the whole batch; each file's `Target` resolves against it.
-func buildProgramMulti(absPaths []string) (*program.Program, *resolver.Session, error) {
+// tsconfigPath: same contract as buildProgram.
+func buildProgramMulti(absPaths []string, tsconfigPath string) (*program.Program, *resolver.Session, error) {
 	if len(absPaths) == 0 {
 		return nil, nil, fmt.Errorf("no files given")
 	}
 	cwd := filepath.Dir(absPaths[0])
-	prog, err := program.NewInferred(program.Options{Cwd: cwd, Conditions: []string{"source"}}, absPaths)
+	inferredConfig, err := program.ParseInferredConfig(cwd, tsconfigPath, "source")
+	if err != nil {
+		return nil, nil, err
+	}
+	prog, err := program.NewInferred(program.Options{Cwd: cwd, Conditions: []string{"source"}, Config: inferredConfig}, absPaths)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build program: %w", err)
 	}
@@ -79,8 +93,8 @@ func buildProgramMulti(absPaths []string) (*program.Program, *resolver.Session, 
 
 // resolveOne builds a Program over absPath, a resolver, and resolves typeName
 // to its canonical RunType. Shared by describe + gen.
-func resolveOne(absPath, typeName string) (*enrichment.Resolved, error) {
-	prog, res, err := buildProgram(absPath)
+func resolveOne(absPath, typeName, tsconfigPath string) (*enrichment.Resolved, error) {
+	prog, res, err := buildProgram(absPath, tsconfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -91,8 +105,9 @@ func resolveOne(absPath, typeName string) (*enrichment.Resolved, error) {
 func runDescribe(args []string) {
 	fs := flag.NewFlagSet("describe", flag.ExitOnError)
 	format := fs.String("format", "text", "output format: text | json")
+	tsconfigFlag := fs.String("tsconfig", "", "project tsconfig path (default: nearest tsconfig.json above the target file)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes describe <file.ts> <TypeName> [--format text|json]")
+		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes describe <file.ts> <TypeName> [--format text|json] [--tsconfig <path>]")
 	}
 	positional, flags := splitArgs(args)
 	if err := fs.Parse(flags); err != nil {
@@ -105,7 +120,7 @@ func runDescribe(args []string) {
 	absPath := tspath.NormalizePath(mustAbs(positional[0]))
 	typeName := positional[1]
 
-	resolved, err := resolveOne(absPath, typeName)
+	resolved, err := resolveOne(absPath, typeName, resolveEnrichTsconfig(*tsconfigFlag, filepath.Dir(absPath)))
 	if err != nil {
 		fatal("describe: %v", err)
 	}
@@ -144,8 +159,9 @@ func runGen(args []string) {
 	update := fs.Bool("update", false, "reconcile an existing committed mirror file against the freshly regenerated desired set (property merge, never clobbers values)")
 	prune := fs.Bool("prune", false, "destructive: remove every comment block/line tagged @rtOrphan / @rtOrphanChild")
 	translate := fs.String("translate", "", "i18n: scaffold/reconcile per-locale FriendlyText translation files (a locale tag, or 'all' for every tsconfig i18n.locales entry)")
+	tsconfigFlag := fs.String("tsconfig", "", "project tsconfig path (default: nearest tsconfig.json above the target file)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--gen-dir <dir>] [--out <path>]")
+		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--gen-dir <dir>] [--out <path>] [--tsconfig <path>]")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen <file.ts> <TypeName> --update   (reconcile an existing mirror)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --prune [<mirror-file-or-dir>]   (strip @rtOrphan carcasses)")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen --check [<mirror-file-or-dir>]   (breadcrumb drift)")
@@ -165,7 +181,7 @@ func runGen(args []string) {
 		if *check || *files != "" || *mock || *friendly || *out != "" {
 			fatal("gen: --translate can only combine with --update / --prune / --gen-dir")
 		}
-		runGenTranslate(*translate, positional, *update, *prune, *genDirFlag)
+		runGenTranslate(*translate, positional, *update, *prune, *genDirFlag, *tsconfigFlag)
 		return
 	}
 
@@ -190,7 +206,7 @@ func runGen(args []string) {
 		if *files != "" {
 			fatal("gen: --prune cannot be combined with --files")
 		}
-		runGenPrune(positional, *genDirFlag)
+		runGenPrune(positional, *genDirFlag, *tsconfigFlag)
 		return
 	}
 
@@ -198,11 +214,11 @@ func runGen(args []string) {
 		if *typeFlag == "" {
 			fatal("gen --files: --type is required")
 		}
-		runGenBatch(strings.Split(*files, ","), *typeFlag)
+		runGenBatch(strings.Split(*files, ","), *typeFlag, *tsconfigFlag)
 		return
 	}
 	if *check {
-		runGenCheck(positional, *genDirFlag, *jsonFlag)
+		runGenCheck(positional, *genDirFlag, *jsonFlag, *tsconfigFlag)
 		return
 	}
 	if len(positional) < 2 {
@@ -218,7 +234,7 @@ func runGen(args []string) {
 		wantFriendly, wantMock = true, true
 	}
 
-	config := resolveEnrichConfig(absPath, *genDirFlag)
+	config := resolveEnrichConfig(absPath, *genDirFlag, *tsconfigFlag)
 
 	// Self-document the genDir tree even when gen runs before any build: the
 	// root + enriched READMEs (shared with the generate lane) and a README in
@@ -233,7 +249,7 @@ func runGen(args []string) {
 	// closure walk can tell a named-type reference from an anonymous inline shape,
 	// then emit ONE friendly+mock const per named type in the closure, in
 	// dependency (topological) order, with cross-const references between them.
-	prog, res, err := buildProgram(absPath)
+	prog, res, err := buildProgram(absPath, config.TsconfigPath)
 	if err != nil {
 		fatal("gen: %v", err)
 	}
@@ -420,7 +436,7 @@ func writeMirrorFile(spec mirror.Spec) bool {
 // all files, resolve typeName per file, and print a JSON map
 // { <basename-without-ext> → {friendly, mock} } of object-literal skeletons. No
 // files are written. Used by the enrichment generation test harness.
-func runGenBatch(files []string, typeName string) {
+func runGenBatch(files []string, typeName, tsconfigFlag string) {
 	absPaths := make([]string, 0, len(files))
 	for _, file := range files {
 		trimmed := strings.TrimSpace(file)
@@ -429,7 +445,10 @@ func runGenBatch(files []string, typeName string) {
 		}
 		absPaths = append(absPaths, tspath.NormalizePath(mustAbs(trimmed)))
 	}
-	prog, res, err := buildProgramMulti(absPaths)
+	if len(absPaths) == 0 {
+		fatal("gen --files: no files given")
+	}
+	prog, res, err := buildProgramMulti(absPaths, resolveEnrichTsconfig(tsconfigFlag, filepath.Dir(absPaths[0])))
 	if err != nil {
 		fatal("gen --files: %v", err)
 	}
@@ -469,6 +488,7 @@ var valueFlags = map[string]bool{
 	"--type": true, "-type": true,
 	"--gen-dir": true, "-gen-dir": true,
 	"--translate": true, "-translate": true,
+	"--tsconfig": true, "-tsconfig": true,
 }
 
 // splitArgs separates positional arguments from flag tokens so flags may appear

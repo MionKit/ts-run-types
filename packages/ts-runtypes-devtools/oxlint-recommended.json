@@ -3,6 +3,7 @@
     "./dist/eslint/index.js"
   ],
   "rules": {
+    "runtypes/broken-tsconfig": "error",
     "runtypes/invalid-marker": "error",
     "runtypes/redundant-marker": "warn",
     "runtypes/pure-functions": "error",

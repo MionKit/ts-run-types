@@ -1,6 +1,8 @@
 package enrichment_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -109,5 +111,64 @@ func TestSkeletons_ObjectLiteralOnly(t *testing.T) {
 		if !strings.Contains(mock, want) {
 			t.Errorf("MockSkeleton missing %q; got:\n%s", want, mock)
 		}
+	}
+}
+
+// TestResolveTypeRaw_EsnextLibNeverWalksLibDecls — the decl-file walk must
+// STOP at lib-declared types instead of AssignID-ing them: under lib.esnext
+// (target esnext, or target unset — tsgo's LatestStandard default) the lib's
+// deeply generic self-referential structures (the IteratorObject family)
+// instantiate fresh types on every member query, which defeats pointer-based
+// cycle detection and used to overflow the stack the moment the enrich lane
+// honored such a tsconfig. Any completion at all pins the fix (the failure
+// mode is a crash); the DeclFiles assertion pins that lib files never become
+// mirror targets.
+func TestResolveTypeRaw_EsnextLibNeverWalksLibDecls(t *testing.T) {
+	cwd := tspath.NormalizePath(t.TempDir())
+	writeBridgeFixture(t, tspath.ResolvePath(cwd, "tsconfig.json"),
+		`{"compilerOptions": {"target": "ESNext"}}`)
+	writeBridgeFixture(t, tspath.ResolvePath(cwd, "models.ts"),
+		"export interface User { name: string; when: Map<string, User> }\n")
+
+	inferredConfig, err := program.ParseInferredConfig(cwd, "tsconfig.json", "source")
+	if err != nil {
+		t.Fatalf("ParseInferredConfig: %v", err)
+	}
+	prog, err := program.NewInferred(program.Options{Cwd: cwd, Config: inferredConfig, SingleThreaded: true},
+		[]string{tspath.ResolvePath(cwd, "models.ts")})
+	if err != nil {
+		t.Fatalf("program.NewInferred: %v", err)
+	}
+	res, err := resolver.New(prog, resolver.Options{Cwd: cwd})
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+	t.Cleanup(res.Close)
+
+	resolved, err := enrichment.ResolveTypeRaw(prog, res.Checker(), res.Cache(), tspath.ResolvePath(cwd, "models.ts"), "User")
+	if err != nil {
+		t.Fatalf("ResolveTypeRaw under lib.esnext: %v", err)
+	}
+	sawUserFile := false
+	for _, file := range resolved.DeclFiles {
+		if strings.Contains(file, "lib.") && strings.HasSuffix(file, ".d.ts") {
+			t.Errorf("DeclFiles must never point into the default libs; got %s", file)
+		}
+		if strings.HasSuffix(file, "models.ts") {
+			sawUserFile = true
+		}
+	}
+	if !sawUserFile {
+		t.Errorf("DeclFiles should still record the user type's own file; got %v", resolved.DeclFiles)
+	}
+}
+
+func writeBridgeFixture(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }
