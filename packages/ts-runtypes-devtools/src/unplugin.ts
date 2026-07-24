@@ -79,11 +79,11 @@ export interface PluginOptions {
   // either way — these exist for benchmarking baselines and debugging.
   parallelScan?: boolean;
   parallelRender?: boolean;
-  // Force single-checker, fully-serial scan/render (--single-threaded). Output is
-  // equivalent; the child is lighter. The canonical home is the tsconfig
-  // `singleThreaded` knob — set it here only to override one build. Only a truthy
-  // value is forwarded, so it cannot force-OFF a tsconfig `singleThreaded: true`;
-  // use the tsconfig knob for the project-wide default.
+  // Force single-checker, fully-serial scan/render. Output is equivalent; the
+  // child is lighter. The canonical home is the tsconfig `singleThreaded` knob —
+  // set it here to override one build in EITHER direction: `true` forces it on
+  // (--single-threaded), `false` forces it off (--no-single-threaded) over a
+  // tsconfig `singleThreaded: true`.
   singleThreaded?: boolean;
   // Length of the short structural-hash ids in generated names (--hash-length;
   // undefined = the binary default, 7). The canonical home is the tsconfig
@@ -294,7 +294,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
-      ...(options.singleThreaded ? {singleThreaded: true} : {}),
+      ...(options.singleThreaded !== undefined ? {singleThreaded: options.singleThreaded} : {}),
       ...(options.hashLength !== undefined ? {hashLength: options.hashLength} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
       // Tri-state → the two low-level resolver flags: report on the wire for

@@ -18,6 +18,7 @@ type buildFlags struct {
 	set                    map[string]bool
 	hashLength             int
 	singleThreaded         bool
+	noSingleThreaded       bool
 	noParallelScan         bool
 	noParallelRender       bool
 	genDir                 string
@@ -90,7 +91,17 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 	if !flags.set["hash-length"] && plugin.HashLength != nil {
 		out.hashLength = *plugin.HashLength
 	}
-	if !flags.set["single-threaded"] && plugin.SingleThreaded != nil {
+	// singleThreaded: an explicit --single-threaded / --no-single-threaded (either
+	// direction) wins over the tsconfig entry; the tsconfig fills in only when
+	// NEITHER was passed. The --no-single-threaded opt-out lets a host plugin force
+	// multi-threaded (its singleThreaded:false) over a tsconfig singleThreaded:true,
+	// matching the parallelScan / parallelRender override shape.
+	switch {
+	case flags.set["single-threaded"]:
+		out.singleThreaded = true
+	case flags.set["no-single-threaded"]:
+		out.singleThreaded = false
+	case plugin.SingleThreaded != nil:
 		out.singleThreaded = *plugin.SingleThreaded
 	}
 	if !flags.set["allow-unchecked-patterns"] && plugin.AllowUncheckedPatterns != nil {

@@ -70,10 +70,12 @@ export interface ResolverClientOptions {
   // circular types stay external) or 'allInternal' (everything except
   // circular inlines, names ignored). Undefined leaves the binary default.
   inlineMode?: 'default' | 'allInternal';
-  // Forwarded as --single-threaded: one checker, serial scan/render. The
-  // lint session uses it — per-file interactive scans gain little from the
-  // pool, and a light child keeps editor/CI hosts (which may run several
-  // lint runtimes side by side) well under process/memory limits.
+  // Forwarded as --single-threaded (true) / --no-single-threaded (false): one
+  // checker, serial scan/render. The lint session sets it true — per-file
+  // interactive scans gain little from the pool, and a light child keeps
+  // editor/CI hosts (which may run several lint runtimes side by side) well
+  // under process/memory limits. false lets a build force multi-threaded over a
+  // tsconfig singleThreaded:true.
   singleThreaded?: boolean;
   // Forwarded as --hash-length: the short structural-hash id length in generated
   // names (undefined = the binary default, 7). The build lane forwards the
@@ -502,7 +504,8 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   if (opts.parallelRender === false) args.push('--no-parallel-render');
   if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);
   if (opts.inlineMode) args.push('--inline-mode', opts.inlineMode);
-  if (opts.singleThreaded) args.push('--single-threaded');
+  if (opts.singleThreaded === true) args.push('--single-threaded');
+  else if (opts.singleThreaded === false) args.push('--no-single-threaded');
   if (opts.hashLength !== undefined) args.push('--hash-length', String(opts.hashLength));
   // Build-lane only. The lint worker never forwards it: the lint lane always
   // validates the samples (with the real RegExp) regardless of the flag.
