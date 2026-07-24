@@ -13,6 +13,7 @@ import (
 func migrateFixture(t *testing.T) (enrichConfig, string) {
 	t.Helper()
 	dir := t.TempDir()
+	t.Chdir(dir)
 	writeTestFile(t, filepath.Join(dir, "tsconfig.json"),
 		`{ "compilerOptions": { "rootDir": "src" } }`)
 	source := filepath.Join(dir, "src", "models.ts")

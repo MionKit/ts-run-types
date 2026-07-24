@@ -79,8 +79,11 @@ function readMirrors(project: Project): string {
 }
 
 // genUpdate runs the real reconcile (the op a dev-loop save handler fires).
+// cwd is the fixture root: the CLI discovers the tsconfig exactly as tsc does
+// (upward from the working directory), like a user running it from the project.
 function genUpdate(project: Project, typeName = 'User'): {status: number; output: string} {
   const result = spawnSync(BIN, ['gen', project.src, typeName, '--update', '--gen-dir', project.genDir], {
+    cwd: path.dirname(project.src),
     encoding: 'utf8',
   });
   return {status: result.status ?? -1, output: (result.stdout ?? '') + (result.stderr ?? '')};

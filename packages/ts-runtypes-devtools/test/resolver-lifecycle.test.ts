@@ -16,9 +16,8 @@ import os from 'node:os';
 import fs from 'node:fs';
 import {ResolverClient} from '../src/resolver-client.ts';
 import runtypesRollup from '../src/rollup.ts';
-import {BIN, hasBinary, RUNTYPES_DTS} from './helpers/inline.ts';
+import {BARE_CWD, BIN, hasBinary, RUNTYPES_DTS} from './helpers/inline.ts';
 
-const ROOT = path.resolve(__dirname, '../../..');
 const register = hasBinary() ? it : it.skip;
 
 // Marker coverage rule: both getRunTypeId call shapes — static (caller
@@ -31,7 +30,7 @@ export const valueId = getRunTypeId(aUser);
 `;
 
 function inlineClient(): ResolverClient {
-  return new ResolverClient(BIN, ROOT, '', {
+  return new ResolverClient(BIN, BARE_CWD, '', {
     inlineSources: {'runtypes.d.ts': RUNTYPES_DTS, 'user.ts': USER_SRC},
   });
 }

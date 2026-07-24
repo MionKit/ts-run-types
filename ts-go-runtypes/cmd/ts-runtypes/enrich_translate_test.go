@@ -25,6 +25,7 @@ import (
 func translateFixture(t *testing.T, strict bool) (enrichConfig, string, string) {
 	t.Helper()
 	dir := t.TempDir()
+	t.Chdir(dir)
 	strictJSON := "false"
 	if strict {
 		strictJSON = "true"
@@ -175,6 +176,7 @@ func stubTranslationSpec(source, translationPath, friendlyBody string) mirror.Sp
 // skips only TR003), plus the strict severity flip.
 func TestCheckTranslationFile_Findings(t *testing.T) {
 	dir := t.TempDir()
+	t.Chdir(dir)
 	translationPath := filepath.Join(dir, "models.ts")
 
 	// Missing file → TR001 (warning when not strict; Error under i18n.strict).

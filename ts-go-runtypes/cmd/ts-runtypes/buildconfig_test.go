@@ -223,7 +223,7 @@ func TestResolveBuildPlugin(t *testing.T) {
   },
 }`)
 
-	plugin, ok := resolveBuildPlugin(dir, "")
+	plugin, ok := resolveBuildPlugin(dir, "tsconfig.json")
 	if !ok {
 		t.Fatal("resolveBuildPlugin ok=false, want true")
 	}
@@ -244,7 +244,7 @@ func TestResolveBuildPlugin(t *testing.T) {
 	}
 
 	// No tsconfig in the directory → ok=false, tolerant.
-	if _, ok := resolveBuildPlugin(t.TempDir(), ""); ok {
+	if _, ok := resolveBuildPlugin(t.TempDir(), "tsconfig.json"); ok {
 		t.Error("resolveBuildPlugin on an empty dir should return ok=false")
 	}
 }
@@ -261,7 +261,7 @@ func TestUnknownPluginKeys(t *testing.T) {
 	allKnown := withConfig(t, `{ "compilerOptions": { "plugins": [
     { "name": "ts-runtypes", "emitMode": "both", "hashLength": 7, "genDir": "gen" }
   ] } }`)
-	if got := unknownPluginKeys(allKnown, ""); len(got) != 0 {
+	if got := unknownPluginKeys(allKnown, "tsconfig.json"); len(got) != 0 {
 		t.Errorf("recognised keys should not warn, got %v", got)
 	}
 
@@ -271,24 +271,24 @@ func TestUnknownPluginKeys(t *testing.T) {
 	removedCacheDir := withConfig(t, `{ "compilerOptions": { "plugins": [
     { "name": "ts-runtypes", "cacheDir": ".cache/rt" }
   ] } }`)
-	if got := unknownPluginKeys(removedCacheDir, ""); len(got) != 1 || got[0] != "cacheDir" {
+	if got := unknownPluginKeys(removedCacheDir, "tsconfig.json"); len(got) != 1 || got[0] != "cacheDir" {
 		t.Errorf("removed cacheDir key should warn, got %v", got)
 	}
 
 	typos := withConfig(t, `{ "compilerOptions": { "plugins": [
     { "name": "ts-runtypes", "emitMdoe": "both", "zzz": 1, "moduleMode": "allSingle" }
   ] } }`)
-	got := unknownPluginKeys(typos, "")
+	got := unknownPluginKeys(typos, "tsconfig.json")
 	if want := []string{"emitMdoe", "zzz"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("unknownPluginKeys = %v, want %v (sorted)", got, want)
 	}
 
 	noEntry := withConfig(t, `{ "compilerOptions": { "plugins": [ { "name": "other", "x": 1 } ] } }`)
-	if got := unknownPluginKeys(noEntry, ""); len(got) != 0 {
+	if got := unknownPluginKeys(noEntry, "tsconfig.json"); len(got) != 0 {
 		t.Errorf("no ts-runtypes entry should not warn, got %v", got)
 	}
 
-	if got := unknownPluginKeys(t.TempDir(), ""); len(got) != 0 {
+	if got := unknownPluginKeys(t.TempDir(), "tsconfig.json"); len(got) != 0 {
 		t.Errorf("no tsconfig should not warn, got %v", got)
 	}
 }

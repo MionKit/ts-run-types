@@ -11,9 +11,8 @@ import {describe, expect, it} from 'vitest';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {BIN, hasBinary, RUNTYPES_DTS, evalEntryModules} from './helpers/inline.ts';
+import {BARE_CWD, BIN, hasBinary, RUNTYPES_DTS, evalEntryModules} from './helpers/inline.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;
 
 async function withClient<T>(
@@ -21,7 +20,7 @@ async function withClient<T>(
   sources: Record<string, string>,
   fn: (client: ResolverClient) => Promise<T>
 ): Promise<T> {
-  const client = new ResolverClient(BIN, ROOT, '', {
+  const client = new ResolverClient(BIN, BARE_CWD, '', {
     serverMode: true,
     ...(inlineMode ? {inlineMode} : {}),
     emitMode: 'both', // ship the live factory so tests can run the validator

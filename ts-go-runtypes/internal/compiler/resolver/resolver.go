@@ -45,10 +45,12 @@ type Options struct {
 	// existing Program's GetCurrentDirectory.
 	Cwd string
 	// TsconfigPath is the project tsconfig (relative to Cwd, or absolute) whose
-	// resolution options (customConditions / paths / baseUrl) SetSources threads
-	// into every inferred Program, so lint-time resolution matches the build.
-	// Set in server / inline-sources modes from the --tsconfig flag; empty leaves
-	// resolution at the inferred defaults. Ignored when a Program is supplied to New().
+	// FULL parsed options SetSources adopts in every inferred Program, so
+	// daemon rebuilds type-check exactly like the build. Main resolves it once
+	// at process entry (explicit --tsconfig, else DiscoverTsconfig's tsc-style
+	// upward walk) — the daemon receives the already-resolved path; empty means
+	// no config exists anywhere (the inferred-defaults posture). Ignored when a
+	// Program is supplied to New().
 	TsconfigPath string
 	// TsconfigGenDir is the tsconfig `genDir` value (absolute; empty when the
 	// tsconfig sets none). resolveOutDir prefers it over the inferred

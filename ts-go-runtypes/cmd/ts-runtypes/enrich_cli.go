@@ -105,7 +105,7 @@ func resolveOne(absPath, typeName, tsconfigPath string) (*enrichment.Resolved, e
 func runDescribe(args []string) {
 	fs := flag.NewFlagSet("describe", flag.ExitOnError)
 	format := fs.String("format", "text", "output format: text | json")
-	tsconfigFlag := fs.String("tsconfig", "", "project tsconfig path (default: nearest tsconfig.json above the target file)")
+	tsconfigFlag := fs.String("tsconfig", "", "project tsconfig path (default: found like tsc, searching upward from the working directory)")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes describe <file.ts> <TypeName> [--format text|json] [--tsconfig <path>]")
 	}
@@ -120,7 +120,7 @@ func runDescribe(args []string) {
 	absPath := tspath.NormalizePath(mustAbs(positional[0]))
 	typeName := positional[1]
 
-	resolved, err := resolveOne(absPath, typeName, resolveEnrichTsconfig(*tsconfigFlag, filepath.Dir(absPath)))
+	resolved, err := resolveOne(absPath, typeName, resolveEnrichTsconfig(*tsconfigFlag))
 	if err != nil {
 		fatal("describe: %v", err)
 	}
@@ -159,7 +159,7 @@ func runGen(args []string) {
 	update := fs.Bool("update", false, "reconcile an existing committed mirror file against the freshly regenerated desired set (property merge, never clobbers values)")
 	prune := fs.Bool("prune", false, "destructive: remove every comment block/line tagged @rtOrphan / @rtOrphanChild")
 	translate := fs.String("translate", "", "i18n: scaffold/reconcile per-locale FriendlyText translation files (a locale tag, or 'all' for every tsconfig i18n.locales entry)")
-	tsconfigFlag := fs.String("tsconfig", "", "project tsconfig path (default: nearest tsconfig.json above the target file)")
+	tsconfigFlag := fs.String("tsconfig", "", "project tsconfig path (default: found like tsc, searching upward from the working directory)")
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes gen <file.ts> <TypeName> [--mock] [--friendly] [--gen-dir <dir>] [--out <path>] [--tsconfig <path>]")
 		fmt.Fprintln(os.Stderr, "   or: ts-runtypes gen <file.ts> <TypeName> --update   (reconcile an existing mirror)")
@@ -448,7 +448,7 @@ func runGenBatch(files []string, typeName, tsconfigFlag string) {
 	if len(absPaths) == 0 {
 		fatal("gen --files: no files given")
 	}
-	prog, res, err := buildProgramMulti(absPaths, resolveEnrichTsconfig(tsconfigFlag, filepath.Dir(absPaths[0])))
+	prog, res, err := buildProgramMulti(absPaths, resolveEnrichTsconfig(tsconfigFlag))
 	if err != nil {
 		fatal("gen --files: %v", err)
 	}

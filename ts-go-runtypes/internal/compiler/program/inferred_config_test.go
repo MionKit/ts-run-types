@@ -19,6 +19,33 @@ func writeConfigFile(t *testing.T, path, content string) {
 	}
 }
 
+// TestDiscoverTsconfig — the shared tsc-style discovery every lane uses:
+// explicit path aside, the nearest tsconfig.json in cwd or any ancestor wins,
+// and "" means none exists anywhere (mirroring tsgo's own findConfigFile).
+func TestDiscoverTsconfig(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "packages", "app", "src")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	if got := DiscoverTsconfig(nested); got != "" {
+		t.Errorf("no config anywhere should discover nothing; got %q", got)
+	}
+
+	writeConfigFile(t, filepath.Join(root, "tsconfig.json"), `{}`)
+	want := filepath.ToSlash(filepath.Join(root, "tsconfig.json"))
+	if got := DiscoverTsconfig(nested); got != want {
+		t.Errorf("ancestor walk should find the root config; got %q, want %q", got, want)
+	}
+
+	writeConfigFile(t, filepath.Join(nested, "tsconfig.json"), `{}`)
+	want = filepath.ToSlash(filepath.Join(nested, "tsconfig.json"))
+	if got := DiscoverTsconfig(nested); got != want {
+		t.Errorf("nearest config wins; got %q, want %q", got, want)
+	}
+}
+
 // TestParseInferredConfig_NoPathIsNilNil — no tsconfig named means no config
 // and no error: the caller falls back to the fixed inferred defaults (tsc's
 // loose-file posture).
@@ -66,7 +93,7 @@ func TestNew_BrokenTsconfigErrors(t *testing.T) {
 	writeConfigFile(t, filepath.Join(dir, "tsconfig.json"), `this is not json at all {{{`)
 	writeConfigFile(t, filepath.Join(dir, "main.ts"), "export const answer = 42;\n")
 
-	prog, err := New(Options{Cwd: dir, SingleThreaded: true})
+	prog, err := New(Options{Cwd: dir, TsconfigPath: "tsconfig.json", SingleThreaded: true})
 	if err == nil {
 		t.Fatalf("New over a garbage tsconfig must error; got a Program (%v)", prog)
 	}

@@ -61,12 +61,13 @@ func New(opts Options) (*Program, error) {
 		fileSystem = newOverlayFS(baseFS, opts.Overlay)
 	}
 
-	configPath := opts.TsconfigPath
-	if configPath == "" {
-		configPath = tspath.ResolvePath(cwd, "tsconfig.json")
-	} else {
-		configPath = tspath.ResolvePath(cwd, configPath)
+	// Callers resolve the config FIRST (explicit --tsconfig, else
+	// DiscoverTsconfig's tsc-style upward walk) — New never invents a default,
+	// so every lane shares one resolution seam.
+	if opts.TsconfigPath == "" {
+		return nil, errors.New("program.New: TsconfigPath is required — resolve it first (explicit flag, else DiscoverTsconfig)")
 	}
+	configPath := tspath.ResolvePath(cwd, opts.TsconfigPath)
 	if !fileSystem.FileExists(configPath) {
 		return nil, fmt.Errorf("tsconfig not found at %s", configPath)
 	}

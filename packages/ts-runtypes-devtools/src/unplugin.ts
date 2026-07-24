@@ -2,7 +2,7 @@ import path from 'node:path';
 import {createUnplugin} from 'unplugin';
 import {getExePath} from '@ts-runtypes/bin';
 import {renderHeadline} from './diagnosticCatalog.ts';
-import {defaultTsconfig, ResolverClient} from './resolver-client.ts';
+import {ResolverClient} from './resolver-client.ts';
 import {applyEdits, sourceHash} from './apply-edits.ts';
 import {Family, Severity, type Diagnostic, type PureFnSite} from './protocol.ts';
 import {
@@ -284,11 +284,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // Explicit path wins; otherwise resolve the host-platform binary from the
     // ts-runtypes-bin launcher (throws with a clear message if none is installed).
     const binaryPath = options.binary ?? getExePath();
-    // An explicit options.tsconfig is always passed (strict: the Go side hard
-    // errors when it is missing or broken); the implicit 'tsconfig.json'
-    // default is passed only when the file exists, so a config-less project
-    // keeps working on the inferred defaults.
-    resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? defaultTsconfig(cwdAbs), {
+    // Forward ONLY an explicit options.tsconfig (strict: the Go side hard
+    // errors when it is missing or broken). When unset, the Go side resolves
+    // the config exactly as tsc does — searching upward from cwd — so the
+    // plugin carries no config logic of its own.
+    resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? '', {
       ...(options.emitMode ? {emitMode: options.emitMode} : {}),
       ...(options.size?.bias !== undefined ? {sizeBias: options.size.bias} : {}),
       ...(options.size?.items !== undefined ? {sizeItems: options.size.items} : {}),

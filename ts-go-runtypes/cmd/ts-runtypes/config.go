@@ -1,11 +1,12 @@
-// config.go is the global-config reader for the CLI: it locates the nearest
-// tsconfig.json walking up from a target file and parses its `compilerOptions`
-// — including the `plugins[]` ts-runtypes entry — with a tolerant JSONC reader
-// (comments and trailing commas stripped). The tsconfig / JSONC discovery
-// helpers (findNearestTsconfig, parseTsconfig, stripJSONC, findTsRuntypesPlugin,
-// tsconfigShape) are general and intended to be shared by other packages /
-// consolidated later; the enrich-specific resolution (enrichConfig,
-// resolveEnrichConfig, mirrorPath) rides along here for now.
+// config.go is the ts-runtypes-params reader for the CLI. Config RESOLUTION is
+// TypeScript's, shared by every lane (explicit --tsconfig, else
+// program.DiscoverTsconfig's tsc-style upward walk from cwd), and
+// TypeScript-owned values come from tsgo's own parse; the JSONC reader here
+// (comments and trailing commas stripped) exists ONLY for the `plugins[]`
+// ts-runtypes entry — our params riding tsconfig's language-service plugin
+// slot, which tsc ignores and tsgo does not parse. The enrich-specific
+// resolution (enrichConfig, resolveEnrichConfig, mirrorPath) rides along here
+// for now.
 package main
 
 import (
@@ -15,6 +16,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 )
 
 // defaultGenDirName is the conventional RunTypes output root when neither a
@@ -61,8 +64,8 @@ type enrichConfig struct {
 	RootDir     string
 	EnrichDir   string
 	// TsconfigPath is the ONE resolved tsconfig this command run reads —
-	// explicit --tsconfig flag, else the nearest tsconfig.json above the
-	// target (tsc-style discovery), else "" (no config anywhere). The same
+	// explicit --tsconfig flag, else program.DiscoverTsconfig's tsc-style
+	// upward walk from the process cwd, else "" (no config anywhere). The same
 	// path feeds buildProgram's type resolution, so genDir/i18n settings and
 	// type queries can never come from different configs.
 	TsconfigPath string
@@ -172,21 +175,21 @@ type i18nPluginConfig struct {
 	Strict       bool     `json:"strict"`
 }
 
-// tsconfigShape decodes only the compilerOptions fields enrichment reads.
+// tsconfigShape decodes ONLY the plugins slot — the ts-runtypes entry, our
+// params. Every TypeScript-owned compilerOptions value comes from tsgo's parse.
 type tsconfigShape struct {
 	CompilerOptions struct {
-		RootDir string            `json:"rootDir"`
 		Plugins []json.RawMessage `json:"plugins"`
 	} `json:"compilerOptions"`
 }
 
 // resolveEnrichTsconfig resolves the ONE tsconfig path an enrich command run
-// reads, for BOTH its genDir/i18n settings and its type resolution: the
-// explicit --tsconfig flag when given (resolved against the process cwd, and
-// it must exist — strict like tsc's --project), else tsc-style upward
-// discovery from anchorDir (the target file's directory), else "" (no config
-// anywhere — the inferred-defaults fallback).
-func resolveEnrichTsconfig(tsconfigFlag, anchorDir string) string {
+// reads, for BOTH its genDir/i18n settings and its type resolution — exactly
+// tsc's resolution: the explicit --tsconfig flag when given (resolved against
+// the process cwd, and it must exist — strict like tsc's --project), else
+// program.DiscoverTsconfig's upward walk from the process cwd, else "" (no
+// config anywhere — the inferred-defaults fallback).
+func resolveEnrichTsconfig(tsconfigFlag string) string {
 	if trimmed := strings.TrimSpace(tsconfigFlag); trimmed != "" {
 		named := mustAbs(trimmed)
 		if info, err := os.Stat(named); err != nil || info.IsDir() {
@@ -194,22 +197,25 @@ func resolveEnrichTsconfig(tsconfigFlag, anchorDir string) string {
 		}
 		return named
 	}
-	return findNearestTsconfig(anchorDir)
+	cwd, err := os.Getwd()
+	if err != nil {
+		fatal("tsconfig discovery: getwd: %v", err)
+	}
+	return program.DiscoverTsconfig(cwd)
 }
 
 // resolveEnrichConfig computes the enrichment config for a gen target file.
 // genDirFlag is the --gen-dir CLI value (empty when unset) and takes precedence
 // over the tsconfig `genDir` entry, which takes precedence over the default.
 //
-// The tsconfig is resolveEnrichTsconfig's pick: the explicit --tsconfig flag,
-// else the nearest tsconfig.json above absTargetFile. When one resolves,
-// ProjectRoot is the tsconfig dir, RootDir is compilerOptions.rootDir
-// (resolved against the tsconfig dir; defaulting to the tsconfig dir when
-// unset), genDir comes from the plugins entry (defaulting to
-// <RootDir>/__runtypes), and the resolved path is recorded on
-// enrichConfig.TsconfigPath so type resolution reads the SAME config. With no
-// config anywhere, ProjectRoot and RootDir both default to the target file's
-// directory.
+// The tsconfig is resolveEnrichTsconfig's pick — exactly tsc's resolution: the
+// explicit --tsconfig flag, else the upward walk from the process cwd. When one
+// resolves, ProjectRoot is the tsconfig dir, RootDir is compilerOptions.rootDir
+// as tsgo parsed it (extends-aware; defaulting to the tsconfig dir when unset),
+// genDir comes from the plugins entry (defaulting to <RootDir>/__runtypes), and
+// the resolved path is recorded on enrichConfig.TsconfigPath so type resolution
+// reads the SAME config. With no config anywhere, ProjectRoot and RootDir both
+// default to the target file's directory.
 //
 // Strict like tsc: a config that was named or discovered but does not parse is
 // fatal — only the no-config-anywhere case falls back to defaults.
@@ -223,18 +229,29 @@ func resolveEnrichConfig(absTargetFile, genDirFlag, tsconfigFlag string) enrichC
 	}
 
 	genDir := ""
-	if tsconfigPath := resolveEnrichTsconfig(tsconfigFlag, targetDir); tsconfigPath != "" {
+	if tsconfigPath := resolveEnrichTsconfig(tsconfigFlag); tsconfigPath != "" {
 		tsconfigDir := filepath.Dir(tsconfigPath)
 		config.TsconfigPath = tsconfigPath
 		config.ProjectRoot = tsconfigDir
 		config.RootDir = tsconfigDir
 
+		// TypeScript-owned values come from tsgo's own strict parse (follows
+		// `extends`), never from a side read of the file — behave exactly as
+		// TypeScript. A resolved config that fails to parse is fatal.
+		parsedConfig, err := program.ParseInferredConfig(tsconfigDir, tsconfigPath)
+		if err != nil {
+			fatal("%v", err)
+		}
+		if rootDir := strings.TrimSpace(parsedConfig.RootDir()); rootDir != "" {
+			config.RootDir = resolveUnder(tsconfigDir, rootDir)
+		}
+		// The ts-runtypes plugin entry is OUR params riding tsconfig's
+		// language-service plugin slot — tsc itself ignores it and tsgo does
+		// not parse it — so it is the one thing read via the JSONC side-read,
+		// of the SAME resolved file.
 		parsed, ok := parseTsconfig(tsconfigPath)
 		if !ok {
 			fatal("tsconfig %s: cannot parse", tsconfigPath)
-		}
-		if rootDir := strings.TrimSpace(parsed.CompilerOptions.RootDir); rootDir != "" {
-			config.RootDir = resolveUnder(tsconfigDir, rootDir)
 		}
 		if plugin, ok := findTsRuntypesPlugin(parsed); ok {
 			genDir = strings.TrimSpace(plugin.GenDir)
@@ -358,23 +375,6 @@ func resolveUnder(base, path string) string {
 	return filepath.Clean(filepath.Join(base, path))
 }
 
-// findNearestTsconfig walks up from startDir looking for a tsconfig.json,
-// returning its absolute path or "" if none is found before the filesystem root.
-func findNearestTsconfig(startDir string) string {
-	dir := startDir
-	for {
-		candidate := filepath.Join(dir, "tsconfig.json")
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
 // parseTsconfig reads and tolerantly parses a JSONC tsconfig.json (comments +
 // trailing commas stripped). Returns ok=false on read or parse failure so the
 // caller falls back to defaults.
@@ -425,13 +425,14 @@ func resolveBuildPlugin(absCwd, tsconfigFlag string) (tsRuntypesPlugin, bool) {
 	return findTsRuntypesPlugin(parsed)
 }
 
-// buildTsconfigPath resolves the build path's tsconfig location the same way
-// program.New does: the --tsconfig value (anchored under absCwd when relative),
-// or <absCwd>/tsconfig.json when unset.
+// buildTsconfigPath anchors main's ALREADY-RESOLVED tsconfig path (the single
+// resolution seam: explicit --tsconfig, else program.DiscoverTsconfig) under
+// absCwd when relative. "" stays "" — no config exists anywhere, so there is
+// no plugin block to read; this function never invents a default.
 func buildTsconfigPath(absCwd, tsconfigFlag string) string {
 	tsconfigPath := strings.TrimSpace(tsconfigFlag)
 	if tsconfigPath == "" {
-		return filepath.Join(absCwd, "tsconfig.json")
+		return ""
 	}
 	if !filepath.IsAbs(tsconfigPath) {
 		return filepath.Join(absCwd, tsconfigPath)

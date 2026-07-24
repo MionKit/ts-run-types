@@ -260,10 +260,23 @@ func main() {
 		fatal("abs(cwd): %v", err)
 	}
 
-	// Layer the build config: an on-disk tsconfig (the default mode) supplies
-	// the project knobs as a base, explicitly-set flags override them. The
-	// inline / server modes carry no tsconfig, so they run on flags + defaults
-	// alone (hasTsconfig=false also withholds the node_modules cache default).
+	// ONE config-resolution seam for the whole process, exactly tsc's: an
+	// explicit --tsconfig wins; otherwise discover upward from cwd
+	// (program.DiscoverTsconfig, mirroring tsgo's own findConfigFile). Every
+	// consumer below — the plugin-block read, the resolver session, program
+	// construction, --compile — receives this ONE resolved path; "" means no
+	// config exists anywhere (the inferred-defaults posture on the overlay
+	// lanes; fatal on the lanes that need the config's file list).
+	if tsconfigPath == "" {
+		tsconfigPath = program.DiscoverTsconfig(absCwd)
+	}
+
+	// Layer the build config: the resolved tsconfig supplies the project knobs
+	// as a base, explicitly-set flags override them. The inline / server modes
+	// still use the tsconfig for TYPE resolution (via resolver.Options
+	// .TsconfigPath below), but the ts-runtypes plugin-OPTION merge stays a
+	// build-lane concern (hasTsconfig=false also withholds the node_modules
+	// cache default).
 	hasTsconfig := !inlineServer && !inlineSourcesStdin
 	var plugin tsRuntypesPlugin
 	if hasTsconfig {
@@ -368,6 +381,9 @@ func main() {
 		if !hasTsconfig {
 			fatal("compile: requires a tsconfig (not compatible with --inline-server / --inline-sources-stdin)")
 		}
+		if tsconfigPath == "" {
+			fatal("compile: no tsconfig.json found searching upward from %s (tsc-style discovery) — pass --tsconfig", absCwd)
+		}
 		compileResult, compileErr := batchcompile.Run(batchcompile.Options{
 			Cwd:          absCwd,
 			TsconfigPath: tsconfigPath,
@@ -415,10 +431,11 @@ func main() {
 			overlay[abs] = content
 			fileNames = append(fileNames, abs)
 		}
-		// Same tsconfig contract as every lane: parse once, adopt the full
-		// options wholesale, so the one-shot type-checks exactly like a build.
-		// Strict like tsc — a named config that is missing or broken is fatal;
-		// only an absent --tsconfig falls back to the inferred defaults.
+		// Same tsconfig contract as every lane: parse the ONE resolved path
+		// (explicit flag, else the tsc-style discovery above) once and adopt
+		// the full options wholesale, so the one-shot type-checks exactly like
+		// a build. Strict like tsc — a resolved config that is broken is
+		// fatal; only no-config-anywhere falls back to the inferred defaults.
 		inferredConfig, err := program.ParseInferredConfig(absCwd, tsconfigPath)
 		if err != nil {
 			fatal("tsconfig: %v", err)
@@ -437,6 +454,12 @@ func main() {
 			fatal("resolver: %v", err)
 		}
 	default:
+		// This lane builds the Program from the config's own file list, so a
+		// config must exist — the same refusal tsc gives when discovery finds
+		// nothing.
+		if tsconfigPath == "" {
+			fatal("no tsconfig.json found searching upward from %s (tsc-style discovery) — pass --tsconfig", absCwd)
+		}
 		p, err := program.New(program.Options{
 			Cwd:            absCwd,
 			TsconfigPath:   tsconfigPath,

@@ -97,8 +97,9 @@ func scanParityLanes(t *testing.T, tsconfig, consumerSrc string, extraFiles map[
 		return parityLane{sites: resp.Sites, kindByID: kindByID(resp)}
 	}
 
-	// Build lane: the Program comes from the tsconfig itself (program.New).
-	buildProg, err := program.New(program.Options{Cwd: dir, SingleThreaded: true})
+	// Build lane: the Program comes from the tsconfig itself (program.New;
+	// the path is pre-resolved, as main's single resolution seam does).
+	buildProg, err := program.New(program.Options{Cwd: dir, TsconfigPath: "tsconfig.json", SingleThreaded: true})
 	if err != nil {
 		t.Fatalf("build lane program.New: %v", err)
 	}

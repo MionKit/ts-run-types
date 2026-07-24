@@ -1,7 +1,5 @@
 import {spawn, type ChildProcess} from 'node:child_process';
-import fs from 'node:fs';
 import {createConnection, type Socket} from 'node:net';
-import path from 'node:path';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
 import type {
@@ -480,26 +478,15 @@ abstract class ResolverClientBase implements ResolverConnection {
   }
 }
 
-// defaultTsconfig gates the IMPLICIT 'tsconfig.json' convention default on the
-// file actually existing at cwd. An explicitly configured path is always
-// passed through as-is — the Go side is strict about a named config (missing
-// or broken is a loud error on every lane) — but the un-named default applies
-// only when the project really has one, so a config-less project runs on the
-// inferred defaults instead of erroring over a file nobody named.
-export function defaultTsconfig(cwd: string): string {
-  return fs.existsSync(path.resolve(cwd, 'tsconfig.json')) ? 'tsconfig.json' : '';
-}
-
 // buildResolverArgs assembles the resolver child's argv from client options.
 // Shared by ResolverClient (which spawns the child itself) and the lint
 // session's spawn-shim path (which hands the argv to a pre-spawned launcher
 // — see eslint/spawn-shim.ts).
 export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}): string[] {
   const args = ['--one-shot', '--cwd', cwd];
-  // Pass the project tsconfig whenever we have one. In server / inline-sources
-  // modes the Go binary reads it for its resolution-affecting options
-  // (customConditions / paths / baseUrl) so lint-time resolution matches the
-  // build; in default mode program.New builds the whole Program from it.
+  // Forward ONLY an explicitly configured tsconfig. When unset ('' here), the
+  // Go side resolves the config exactly as tsc does — searching upward from
+  // cwd — so the JS side carries no config logic of its own.
   if (tsconfigPath) {
     args.push('--tsconfig', tsconfigPath);
   }

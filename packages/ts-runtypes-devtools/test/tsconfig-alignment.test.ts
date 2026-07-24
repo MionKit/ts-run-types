@@ -20,7 +20,7 @@ import path from 'node:path';
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {rules} from '../src/eslint/index.ts';
 import {resetSharedSession} from '../src/eslint/session.ts';
-import {defaultTsconfig, ResolverClient} from '../src/resolver-client.ts';
+import {ResolverClient} from '../src/resolver-client.ts';
 import {hasBinary, makeFixtureProject, runRule, type FixtureProject} from './eslint/fixture.ts';
 import {BIN, RUNTYPES_DTS} from './helpers/inline.ts';
 
@@ -60,19 +60,6 @@ const TSCONFIG_NO_TEMPORAL_LIB = JSON.stringify({
     noEmit: true,
     types: [],
   },
-});
-
-describe('defaultTsconfig — the implicit default is existence-gated', () => {
-  it("returns 'tsconfig.json' only when the file exists at cwd", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-default-tsconfig-'));
-    try {
-      expect(defaultTsconfig(dir)).toBe('');
-      fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
-      expect(defaultTsconfig(dir)).toBe('tsconfig.json');
-    } finally {
-      fs.rmSync(dir, {recursive: true, force: true});
-    }
-  });
 });
 
 describe.runIf(hasBinary())('daemon surface — setSources honors the full tsconfig (direct ResolverClient)', () => {
