@@ -122,6 +122,14 @@ type tsRuntypesPlugin struct {
 	// every location under genDir, the report path is convention, not config.
 	// Build-lane project option — the host plugin forwards the equivalent CLI flag.
 	PureFnReport *bool `json:"pureFnReport"`
+	// FailOnError controls whether Error-severity build diagnostics fail the
+	// host build/transform. It is read Go-side and ECHOED on the generate
+	// response (protocol.Response.FailOnError); the resolver never halts on it
+	// itself, so there is no CLI flag and no buildconfig merge — the JS host
+	// applies precedence (its own option, then this echo, then the true
+	// default). A pointer so an absent key (nil) is distinct from an explicit
+	// false. The enrich lane ignores it.
+	FailOnError *bool `json:"failOnError"`
 	// Size groups the binary `dynamic` strategy's cold-start buffer-estimate
 	// knobs under one `size` object (like `i18n`). A nil object (absent key)
 	// keeps every binary default.

@@ -13,11 +13,12 @@ code in one file. For example the hand-written render helpers in
 
 ## What's here
 
-| File                              | Generator                                                           | Go source of truth                                               |
-| --------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `runtypes-constants.generated.ts` | `cmd/gen-ts-constants`                                              | `internal/constants/constants.go`                                |
-| `reflectionKind.generated.ts`     | `cmd/gen-run-type-kind`                                             | `internal/protocol/protocol.go` + `internal/protocol/subkind.go` |
-| `diagnosticCatalog.generated.ts`  | `cmd/gen-diag-catalog` → `scripts/core/gen-diagnostics-catalog.mjs` | `internal/diagnostics/messages.go`                               |
+| File                                | Generator                                                           | Go source of truth                                               |
+| ----------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `runtypes-constants.generated.ts`   | `cmd/gen-ts-constants`                                              | `internal/constants/constants.go`                                |
+| `reflectionKind.generated.ts`       | `cmd/gen-run-type-kind`                                             | `internal/protocol/protocol.go` + `internal/protocol/subkind.go` |
+| `diagnosticCatalog.generated.ts`    | `cmd/gen-diag-catalog` → `scripts/core/gen-diagnostics-catalog.mjs` | `internal/diagnostics/messages.go`                               |
+| `tsconfig-plugin-keys.generated.ts` | `cmd/gen-plugin-keys`                                               | `cmd/ts-runtypes/config.go` (`tsRuntypesPlugin` json tags)       |
 
 ## Regenerate
 
@@ -25,6 +26,7 @@ code in one file. For example the hand-written render helpers in
 pnpm rtx core codegen constants   # runtypes-constants.generated.ts
 pnpm rtx core codegen kind        # reflectionKind.generated.ts (+ the core RunTypeKind mirror)
 pnpm rtx core codegen diag        # diagnosticCatalog.generated.ts (+ the website JSON)
+pnpm rtx core codegen pluginkeys  # tsconfig-plugin-keys.generated.ts (bundler-option parity)
 pnpm rtx core codegen all         # every Go→TS mirror in the repo
 ```
 

@@ -79,6 +79,16 @@ export interface PluginOptions {
   // either way — these exist for benchmarking baselines and debugging.
   parallelScan?: boolean;
   parallelRender?: boolean;
+  // Force single-checker, fully-serial scan/render (--single-threaded). Output is
+  // equivalent; the child is lighter. The canonical home is the tsconfig
+  // `singleThreaded` knob — set it here only to override one build. Only a truthy
+  // value is forwarded, so it cannot force-OFF a tsconfig `singleThreaded: true`;
+  // use the tsconfig knob for the project-wide default.
+  singleThreaded?: boolean;
+  // Length of the short structural-hash ids in generated names (--hash-length;
+  // undefined = the binary default, 7). The canonical home is the tsconfig
+  // `hashLength` knob; set it here to override one build.
+  hashLength?: number;
   // How cache entries group into modules:
   //   'default'    — runtype nodes ride ONE data bundle (+ per-root facade
   //                  modules); every fn-family / composite / pure-fn entry
@@ -195,8 +205,12 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // at the host boundary so a config typo fails loudly.
   const transformMode: 'go' | 'edits' = options.transformMode ?? 'edits';
   // Error-severity diagnostics fail the build/transform in every lane unless
-  // explicitly opted out (see PluginOptions.failOnError).
-  const failOnError: boolean = options.failOnError !== false;
+  // explicitly opted out (see PluginOptions.failOnError). Precedence is
+  // tsc-style: the explicit plugin option wins, else the tsconfig `failOnError`
+  // echoed on the generate response (adopted in buildStart below), else the
+  // built-in true. Seeded with the option-or-true default so the transform lane
+  // is safe even if buildStart never ran on this host.
+  let failOnError: boolean = options.failOnError ?? true;
   // Resolve the pure-fn report tri-state into the two low-level resolver flags.
   // An explicit `false` wins even when a handler is set; an unset value with a
   // handler defaults to 'callback' (data, no file). Validated at the host
@@ -280,6 +294,8 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
+      ...(options.singleThreaded ? {singleThreaded: true} : {}),
+      ...(options.hashLength !== undefined ? {hashLength: options.hashLength} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
       // Tri-state → the two low-level resolver flags: report on the wire for
       // both 'file' and 'callback'; the JSON file written only for 'file' (at
@@ -409,6 +425,10 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // inside generate, so the CLI --compile lane gets them too.
       const gen = await resolver!.generate(genDirAbs || undefined);
       if (gen.outDir) genDirAbs = gen.outDir;
+      // Adopt the tsconfig-echoed failOnError as the halt default (the explicit
+      // plugin option still wins, then this echo, then the built-in true), so a
+      // tsconfig-only `failOnError: false` reaches the dependency-free host.
+      failOnError = options.failOnError ?? gen.failOnError ?? true;
       // Pure-fn build report — fire the in-process callback with the whole
       // program's report (phase 'build'). Universal hook, so every adapter
       // (vite/rollup/rolldown/esbuild/rspack/webpack) gets it; a watch-mode

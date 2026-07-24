@@ -89,6 +89,10 @@ const CODEGEN = {
   // so the resolver can deliver them to published consumers on demand. The Go
   // generator self-formats via go/format, so no `fmt` post-step.
   builtinpurefns: {run: [...GO_RUN, './cmd/gen-builtin-purefns'], outputs: ['ts-go-runtypes/internal/cachegen/builtinpurefns/table.generated.go'], fmt: []},
+  // tsRuntypesPlugin json-key mirror: the tsconfig plugin entry's recognised keys,
+  // read by the bundler-option parity test so a project option added to only one
+  // side (PluginOptions vs the tsconfig struct) fails CI.
+  pluginkeys: {run: [...GO_RUN, './cmd/gen-plugin-keys'], outputs: ['packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts']},
 };
 
 // Run one generator: either it writes its own outputs (proxy, stdio inherited),

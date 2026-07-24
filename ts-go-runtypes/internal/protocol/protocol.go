@@ -586,6 +586,12 @@ type Response struct {
 	// cwd) and echoes the resolved absolute path here, so the dependency-free
 	// plugin can adopt it (write .gitignore/.gitkeep, reuse it for transform).
 	OutDir string `json:"outDir,omitempty"`
+	// FailOnError echoes the tsconfig plugin's failOnError on OpGenerate (nil
+	// when the tsconfig sets none) so the dependency-free host can honor a
+	// tsconfig-only setting; the plugin adopts it as the halt default (its own
+	// option wins, then this echo, then the built-in true). Emitted via the
+	// hand-rolled MarshalJSON below.
+	FailOnError *bool `json:"failOnError,omitempty"`
 	// Transformed carries one TransformResult per file for OpTransform: the
 	// fully rewritten source + its source map (+ the cache modules the file now
 	// imports). Keyed by file path, scoped to the request's Files.
@@ -900,6 +906,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.OutDir != "" {
 		out["outDir"] = response.OutDir
+	}
+	if response.FailOnError != nil {
+		out["failOnError"] = *response.FailOnError
 	}
 	if len(response.Transformed) > 0 {
 		out["transformed"] = response.Transformed

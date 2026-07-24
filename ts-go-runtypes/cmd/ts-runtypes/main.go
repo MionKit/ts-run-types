@@ -338,6 +338,7 @@ func main() {
 		Cwd:                     absCwd,
 		TsconfigPath:            tsconfigPath,
 		TsconfigGenDir:          tsconfigGenDir,
+		TsconfigFailOnError:     plugin.FailOnError,
 		SingleThreaded:          merged.singleThreaded,
 		DisableParallelScan:     merged.disableParallelScan,
 		DisableParallelRender:   merged.disableParallelRender,
