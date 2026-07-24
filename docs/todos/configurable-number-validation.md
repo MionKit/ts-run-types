@@ -17,9 +17,9 @@ validator accepted now fails.
 
 Make the emitted number check **configurable** so a project can opt its validators into
 another library's number semantics. This is the first of a planned family of
-"behaviour alignment" knobs (later candidates: optional-vs-`undefined` handling, whether
-to emit `Array.isArray` guards, object plain-guard strictness, etc.), so the config
-surface should be designed to grow.
+"behaviour alignment" knobs (later candidates: optional-vs-`undefined` handling, object
+plain-guard strictness, etc.), so the config surface should be designed to grow **without
+adding a new flag per knob**.
 
 Proposed variants for the number knob:
 
@@ -39,35 +39,36 @@ the majority (zod + TypeBox) rather than being the strict outlier.
 
 The implementer investigates and pins the exact plumbing; these are the verified anchors.
 
-**Config shape — recommendation: a nested `validateBehaviour` object, not a top-level flag.**
-Mirror the existing `size` option, which is the near-exact precedent (a nested object that
-is *also* a build-time, fingerprinted compile option — the same combination this needs):
+**Config home — extend the existing `ValidateOptions` bag, and expose ONE defaults object
+(not separate flags).** There is already a purpose-built home for validate-behaviour
+toggles: the per-call-site `ValidateOptions` bag
+(`packages/ts-runtypes/src/createRTFunctions.ts:25`) — `noLiterals`, `noIsArrayCheck`,
+`rejectCircularRefs`. `numberValidate` belongs there, next to its siblings, and the
+Go-side registry it feeds (`constants.ValidateOptions`, `ts-go-runtypes/internal/constants/constants.go:208`)
+is explicitly table-driven for adding knobs (`constants.go:200-207`: append registry entry
+→ add TS field → teach emitter → regen mirror). Scope fits exactly — the number check is
+emitted only in validate/validationErrors (encoders/decoders emit none).
 
-- Plugin surface: `validateBehaviour?: { numberValidate?: 'typeof' | 'isFinite' | 'nonNaN' }`
-  on `PluginOptions` (`packages/ts-runtypes-devtools/src/unplugin.ts`, alongside `size` at
-  `:67`), added to the `PLUGIN_OPTION_KEY_TABLE` parity guard
-  (`packages/ts-runtypes-devtools/src/plugin-option-keys.ts`).
-- tsconfig surface (canonical home for compiler knobs): a `ValidateBehaviour *validateBehaviourConfig`
-  pointer field on the `tsRuntypesPlugin` struct
-  (`ts-go-runtypes/cmd/ts-runtypes/config.go`, like `Size`/`I18n`), pointer so an absent key
-  stays dormant on the current default. Regenerate the key mirror
-  (`pnpm rtx core codegen pluginkeys`).
+For the **project-wide, set-once migration** need, do NOT add a per-knob global flag. Add
+**one** `validate?: ValidateOptions` defaults object to the compilation config
+(`PluginOptions` in `packages/ts-runtypes-devtools/src/unplugin.ts`, and the `tsRuntypesPlugin`
+struct in `ts-go-runtypes/cmd/ts-runtypes/config.go`), and have the scanner merge it with
+each call site: `effective = { ...globalDefaults, ...callSiteLiteral }`, per-site wins. The
+same `ValidateOptions` interface then serves both surfaces, and every future alignment knob
+is just a new field on that one interface — available per-site AND as a project default with
+no new plumbing.
 
-Grouping under `validateBehaviour` (rather than a bare `numberValidate`) keeps the coming
-alignment knobs together instead of scattering flat flags across the option namespace —
-exactly why `size` groups its four sizing knobs. i18n (`config.go:99,163`) is the same
-nested-object shape and is the user's cited model; adopt its shape (nested + Go pointer for
-dormancy) but not its plumbing lane (i18n is an enrichment/CLI option, not a build option).
-
-**Caching — fold into the disk-cache fingerprint, NOT the fnHash.**
-`numberValidate` is a global, project-wide setting that changes emitted validate bytes
-uniformly, so it behaves like `emitMode`/`size`: add it to `FingerprintInputs` and bump the
-version tag in `ts-go-runtypes/internal/cachegen/diskcache/fingerprint.go`, thread it through
-`resolver.Options` → `RenderOpts` (`resolver.go`, `render.go`), and merge it tsc-style in
-`buildconfig.go` (explicit flag > tsconfig entry > default). Do **not** fork the per-call-site
-fnHash — that mechanism (`rejectCircularRefs`, via `Canonical`'s `~C` suffix) is for options
-that vary between call sites within one build, which this is not. Forward it as a CLI flag in
-`buildResolverArgs` (`packages/ts-runtypes-devtools/src/resolver-client.ts`, like `--emit-mode`).
+**Caching — rides the existing fnHash variant, NO new fingerprint field, NO per-knob flag.**
+Per-site `ValidateOptions` don't fold into the typeid; they fork the fnHash variant
+(`scan.go:634-635`), keyed like `valNA_<id>`. Feed the *effective* (merged) option set into
+`ValidateVariantSuffix`/`FnHashFor` (`ts-go-runtypes/internal/cachegen/operations/fnhash.go`)
+and the cache key already encodes the choice: changing the global default changes the
+effective set → changes the fnHash → different key, so stale entries are never cross-read.
+This is exactly why the defaults-object route beats a separate global flag — a global flag
+changes the body *without* changing the fnHash and would need a `diskcache` fingerprint bump
+(like `emitMode`); routing through the per-site option set makes the existing key machinery
+self-protecting. The one object still plumbs tsconfig/plugin → `resolver.Options` → scanner,
+but it's one object, not N flags.
 
 **Emit sites — branch exactly these 4 base-number checks (all in the validate lane):**
 
@@ -83,16 +84,34 @@ that vary between call sites within one build, which this is not. Forward it as 
 
 Encoders/decoders emit no number validation (byte read/write only) — leave them. Number
 **formats** (int, min/max, multipleOf) AND-chain *after* the base check at `validate.go:200`
-and in `numberformat.go` — do not touch the format emitter; the flag only swaps the base.
+and in `numberformat.go` — do not touch the format emitter; the option only swaps the base.
 Note the base swap is partly masked for constrained formats (`Number.isInteger` and bounded
 comparisons already reject NaN/Infinity), so the observable change concentrates on the plain
 `number` kind and unbounded floats.
 
 **Watch-outs the implementer should expect:**
 
-- Byte-exact tests pin the current `Number.isFinite(v)` output and must be updated to match
-  whichever default/variant they exercise: `ts-go-runtypes/internal/cachegen/typefunctions/module_test.go`
-  (~`:186,486,627,675,736`) and `union_inline_leaf_test.go:219-220`.
+- **Tri-state doesn't fit the boolean-presence token scheme.** The registry contributes a
+  single letter iff an option is *present* (`ValidateVariantSuffix`, `constants.go:222`), and
+  the extractor reads `<option>: true` (`scan.go:1092`). `numberValidate` has three values, so
+  the extractor must read a **string** initializer and the suffix must encode it — cleanest:
+  default `isFinite` → no letter (keeps existing `val_<id>` keys stable), `typeof`/`nonNaN` →
+  distinct letters. Update the collision-guard enumeration (`fnhash.go:116+`) to cover the new
+  values.
+- **Scanner must seed every val/verr site from the global defaults**, including sites with no
+  options literal (today `extractValidateOptions`, `scan.go:1094`, returns only what the
+  literal carries). Overlay defaults first, then the literal.
+- **No-op diagnostics must not fire for defaulted options.** MKR004/MKR005
+  (`ts-go-runtypes/internal/diagnostics/codes_marker.go:38-39`) fire when `noLiterals` /
+  `noIsArrayCheck` land on a type they don't apply to (`scan.go:622-627`). A project-wide
+  default hits every non-array/non-literal site, so these must fire only for an **explicit
+  per-site** no-op, not a defaulted one. `numberValidate` on a non-number type is likewise a
+  silent no-op when defaulted.
+- Byte-exact tests pin the current `Number.isFinite(v)` output and must be updated:
+  `ts-go-runtypes/internal/cachegen/typefunctions/module_test.go` (~`:186,486,627,675,736`)
+  and `union_inline_leaf_test.go:219-220`. The fnHash subset tests
+  (`operations/fnhash_test.go`) exercise the ValidateOptions subsets — extend for the new
+  option.
 - Purity needs no change — `Number`, `isNaN`, `isFinite`, `Number.isInteger` are already
   allowlisted (`purefunctions/purityrules.go`), and `typeof` is inherently pure.
 - The noop predicate is unaffected: `number` is non-noop for validate/validationErrors and
@@ -101,24 +120,35 @@ comparisons already reject NaN/Infinity), so the observable change concentrates 
 
 ## Open questions (for the implementer / a follow-up decision)
 
-- **Variant naming.** Semantic names (`typeof`/`isFinite`/`nonNaN`) are proposed over
-  library names (`zod`/`ajv`) because library semantics drift and are opt-in (zod's
-  `.finite()`). Confirm the set; in particular `nonNaN` maps to no audited competitor
-  exactly, so decide whether it earns a slot in v1 or is deferred.
+- **Name of the global defaults object.** `validate` vs `validateDefaults` vs `validateOptions`
+  on the compilation config. It carries a `ValidateOptions` value; pick the clearest.
+- **Tri-state token letters.** Which letters encode `typeof` / `nonNaN` in the variant suffix
+  (default `isFinite` omitted). Keep them out of collision with `L`/`A` and future knobs.
+- **Variant naming.** Semantic names (`typeof`/`isFinite`/`nonNaN`) are proposed over library
+  names (`zod`/`ajv`) because library semantics drift and are opt-in (zod's `.finite()`).
+  Confirm the set; in particular `nonNaN` maps to no audited competitor exactly, so decide
+  whether it earns a slot in v1 or is deferred.
 - **Scope of "number".** This todo covers only the base `number` kind. Bigint, Date, and
   numeric formats are explicitly out of scope here.
 
 ## Done when
 
-- A project can set the number-validation variant via `validateBehaviour.numberValidate`
-  at both config surfaces (plugin options + tsconfig plugin entry), and the emitted
-  validate / validationErrors code changes accordingly across all 4 sites (object props,
-  array/tuple elements, index signatures, union-inline leaves, numeric-literal base variants).
-- Default is unchanged (`isFinite`) when the key is absent.
-- Distinct settings don't cross-read the disk cache (fingerprint folds the option in).
+- `numberValidate` is a field on the per-call-site `ValidateOptions` bag, and a project-wide
+  `validate` defaults object on the compilation config (plugin options + tsconfig plugin entry)
+  sets the default for every validate/validationErrors call site, with per-site options
+  overriding it.
+- The emitted validate / validationErrors code changes accordingly across all 4 sites (object
+  props, array/tuple elements, index signatures, union-inline leaves, numeric-literal base
+  variants).
+- Default is unchanged (`isFinite`) when neither surface sets the option, and existing
+  `val_<id>` / `valN…_<id>` cache keys stay stable for the default.
+- Distinct settings don't cross-read the cache (the effective option set forks the fnHash;
+  no fingerprint bump required).
 - Vitest coverage under `packages/` pins each variant's emitted output, exercising both
   `getRunTypeId` call shapes where the marker API is involved, plus a runtime check that a
-  `typeof`-configured validator accepts `NaN`/`Infinity` and an `isFinite` one rejects them;
-  Go tests (`go -C ts-go-runtypes test ./internal/...`) updated for the new emit arms.
-- Docs updated: README/ARCHITECTURE CLI-flag + options tables, the website options docs, and
-  a note in the alignment report that the divergence is now configurable.
+  `typeof`-configured validator accepts `NaN`/`Infinity` and an `isFinite` one rejects them,
+  AND a global-default-vs-per-site-override case; Go tests
+  (`go -C ts-go-runtypes test ./internal/...`) updated for the new emit arms and fnHash subsets.
+- Docs updated: README/ARCHITECTURE options tables (the `ValidateOptions` bag + the new
+  compilation-config defaults object), the website options docs, and a note in the alignment
+  report that the divergence is now configurable.
