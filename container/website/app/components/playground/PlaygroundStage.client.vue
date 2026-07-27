@@ -496,7 +496,10 @@ async function renderResult(result: RunResult): Promise<string> {
     case 'binaryRoundtrip':
       return `${label(`Encoded (${result.byteLength} bytes)`)}<pre class="rtpg-code rtpg-hex">${escapeHtml(result.hex)}</pre>${label('Decoded')}${await block(result.decoded)}${diag}`;
     case 'graph':
-      return `<div class="rtpg-badge ok">RunType resolved (${result.runTypes.length} node(s))</div>${label('Resolved RunType')}<pre class="rtpg-code">${await highlight(stringify(result.runTypes), 'json')}</pre>${diag}`;
+      // The live graph, descending from the root: children are the actual child
+      // nodes, so the output reads as the type's structure. Only a cycle shows
+      // up as a reference (`circular: true`) — nothing else to look up by id.
+      return `<div class="rtpg-badge ok">RunType resolved (${result.runTypes.length} node(s))</div>${label('Resolved RunType')}<pre class="rtpg-code">${await highlight(stringify(result.tree), 'json')}</pre>${diag}`;
   }
 }
 

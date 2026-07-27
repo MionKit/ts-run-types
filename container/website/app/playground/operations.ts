@@ -196,7 +196,7 @@ export const OPERATIONS: readonly Operation[] = [
     label: 'getRunType',
     blurb: 'Unpack the resolved RunType.',
     detail:
-      'Resolves the type to its RunType — the structured description RunTypes builds from your type. Unpack it to inspect every node.',
+      'Resolves the type to its RunType — the structured description RunTypes builds from your type — and unpacks the live node graph descending from it, each node holding its actual children. A recursive type shows its back edge as a circular reference; nothing else is a reference.',
     needsInput: false,
     varName: 'runType',
   },
