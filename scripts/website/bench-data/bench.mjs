@@ -15,9 +15,9 @@
 // transform-wire | capture-env | shell | login | push | pull | clean. A `--quick`
 // flag anywhere maps onto every stage's native fast lever.
 
-import {accessSync, constants, copyFileSync, existsSync, globSync, mkdirSync, readdirSync, readFileSync, rmSync} from 'node:fs';
+import {accessSync, constants, copyFileSync, existsSync, globSync, mkdirSync, readdirSync, rmSync} from 'node:fs';
 import {cpus} from 'node:os';
-import {dirname, isAbsolute, join, posix, relative, resolve} from 'node:path';
+import {join} from 'node:path';
 import {main as coreBuild} from '../../core/build.mjs';
 import * as image from '../../container/image.mjs';
 import {ghcrConfig} from '../../lib/engine.mjs';
@@ -244,75 +244,36 @@ function cmdFullbench(cfg) {
 // The in-container serialization run (native Temporal). Stays `sh -c`.
 const SERIALIZATION_SCRIPT = 'node gen-serialization.mjs --suite serialization && node gen-serialization.mjs --suite format-serialization';
 
-// The marker-package tsconfig the serialization run points the resolver at —
-// gen-serialization.mjs hands this exact name to the plugin, and we mount its
-// `extends` chain below. Pinned by repo-contracts.test.ts so the two can't drift.
+// The marker-package tsconfig the serialization run points the resolver at.
+// gen-serialization.mjs hands this exact name to the plugin; pinned by
+// repo-contracts.test.ts so the two can't drift.
 export const SERIALIZATION_TSCONFIG = 'tsconfig.test.json';
 
-// A tsconfig's `extends`, as a list (TS 5 allows an array). These configs are
-// JSONC — strip comments and trailing commas before parsing.
-export function tsconfigExtends(file) {
-  const text = readFileSync(file, 'utf8')
-    .replace(/"(?:\\.|[^"\\])*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (match) => (match.startsWith('"') ? match : ''))
-    .replace(/,(\s*[}\]])/g, '$1');
-  const extended = JSON.parse(text).extends;
-  if (!extended) return [];
-  return Array.isArray(extended) ? extended : [extended];
-}
-
-const inside = (dir, file) => {
-  const rel = relative(dir, file);
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
-};
-
-// Bind-mounts for the parts of a tsconfig `extends` chain that live OUTSIDE the
-// package dir being mounted. The marker package's tsconfig.json extends the
-// REPO-ROOT one, but in the container the package sits at
-// <competitor>/node_modules/@ts-runtypes/core — a segment deeper than
-// packages/ts-runtypes is in the repo (the scoped rename added it) — so `../../`
-// lands on <competitor>/node_modules, where nothing answers. The resolver then
-// dies with "tsconfig parse failed: Cannot read file …/node_modules/tsconfig.json"
-// before scanning a single site, which is how the v0.11.0 website deploy shipped
-// no serialization data. Walking the chain (rather than hard-coding one mount)
-// keeps this true whatever the mount depth or the chain becomes, and the suite
-// compiles under exactly the options it does on the host.
-export function tsconfigChainMounts(hostDir, containerDir, entry, mountOpts = '') {
-  const args = [];
-  const seen = new Set();
-  const walk = (hostPath, containerPath) => {
-    if (seen.has(hostPath) || !existsSync(hostPath)) return;
-    seen.add(hostPath);
-    for (const target of tsconfigExtends(hostPath)) {
-      // A bare specifier (@tsconfig/node26/tsconfig.json) resolves through the
-      // container's own node_modules — there is nothing to map.
-      if (!target.startsWith('.')) continue;
-      const withExt = target.endsWith('.json') ? target : `${target}.json`;
-      const nextHost = resolve(dirname(hostPath), withExt);
-      const nextContainer = posix.resolve(posix.dirname(containerPath), withExt);
-      // Links inside the package already ride the package's own mount.
-      if (!inside(hostDir, nextHost)) args.push('-v', `${nextHost}:${nextContainer}:ro${mountOpts}`);
-      walk(nextHost, nextContainer);
-    }
-  };
-  walk(join(hostDir, entry), posix.join(containerDir, entry));
-  return args;
-}
-
 // The whole `run …` argv for the serialization stage. Pure and exported so
-// repo-contracts.test.ts can assert the mount set — the marker package's
-// tsconfig chain included — without a container engine.
+// repo-contracts.test.ts can assert the mount set without a container engine.
 export function serializationRunArgs(cfg, out) {
   const tsgo = '/bench/competitors/ts-runtypes';
   const markerMount = `${tsgo}/node_modules/@ts-runtypes/core`;
   const mo = cfg.mountOpts;
   const extraMounts = [];
   if (existsSync(join(BIN_PKG, 'lib/index.js'))) extraMounts.push('-v', `${BIN_PKG}:${tsgo}/node_modules/@ts-runtypes/bin:ro${mo}`);
-  extraMounts.push(...tsconfigChainMounts(MARKER_PKG, markerMount, SERIALIZATION_TSCONFIG, mo));
   return [
     'run', '--rm', '--init', ...netArgs(cfg), ...extraMounts,
     '-v', `${LINUX_BIN}:${tsgo}/bin/ts-runtypes:ro${mo}`,
     '-v', `${LINUX_EXTRACT_BIN}:${tsgo}/bin/extract-fn-bodies:ro${mo}`,
     '-v', `${MARKER_PKG}:${markerMount}:ro${mo}`,
+    // The marker package's tsconfig.json extends the REPO-ROOT one as
+    // `../../tsconfig.json`. From the mount above that resolves to
+    // <competitor>/node_modules/tsconfig.json, not the repo root — the scoped
+    // name @ts-runtypes/core puts the package a segment deeper than
+    // packages/ts-runtypes is in the repo. Without this the resolver dies with
+    // "tsconfig parse failed: Cannot read file …/node_modules/tsconfig.json"
+    // before scanning a single site, which is how the v0.11.0 website deploy
+    // shipped no serialization data. Mounting the real root config (not a copy)
+    // keeps the suite compiling under exactly the options it does on the host.
+    // repo-contracts.test.ts walks the `extends` chain and fails if a link ever
+    // lands somewhere this argv doesn't mount.
+    '-v', `${join(REPO_ROOT, 'tsconfig.json')}:${tsgo}/node_modules/tsconfig.json:ro${mo}`,
     '-v', `${PLUGIN_PKG}:${tsgo}/node_modules/@ts-runtypes/devtools:ro${mo}`,
     '-v', `${join(SCRIPT_DIR, 'gen-serialization.mjs')}:${tsgo}/gen-serialization.mjs:ro${mo}`,
     '-v', `${out}:/bench/bench-out${mo}`,

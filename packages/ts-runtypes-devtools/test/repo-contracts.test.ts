@@ -21,7 +21,7 @@ import {describe, it, expect} from 'vitest';
 import {spawnSync} from 'node:child_process';
 import {readFileSync, existsSync, readdirSync, statSync, mkdirSync, mkdtempSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {resolve, dirname, join} from 'node:path';
+import {resolve, dirname, join, posix} from 'node:path';
 import {tmpdir} from 'node:os';
 // @ts-expect-error — a plain .mjs script, no types
 import {sampleKeys, sampleMirrorDrift} from '../../../scripts/env/check.mjs';
@@ -276,10 +276,23 @@ describe('the serialization bench mounts the marker tsconfig chain', () => {
 
   const bench = async (): Promise<{
     SERIALIZATION_TSCONFIG: string;
-    tsconfigExtends: (file: string) => string[];
     serializationRunArgs: (cfg: {engine: string; image: string; mountOpts: string; runNetwork: string}, out: string) => string[];
     // @ts-expect-error — a plain .mjs script, no types
   }> => import('../../../scripts/website/bench-data/bench.mjs');
+
+  // A tsconfig's `extends`, as a list (TS 5 allows an array). These configs are
+  // JSONC, so strip comments and trailing commas before parsing. This lives here
+  // and not in bench.mjs on purpose: the argv hard-codes the ONE mount the chain
+  // needs today, and this is the independent check that the chain still ends
+  // there. Production code stays a plain list of `-v` pairs.
+  const tsconfigExtends = (file: string): string[] => {
+    const text = readFileSync(file, 'utf8')
+      .replace(/"(?:\\.|[^"\\])*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (match) => (match.startsWith('"') ? match : ''))
+      .replace(/,(\s*[}\]])/g, '$1');
+    const extended = JSON.parse(text).extends;
+    if (!extended) return [];
+    return Array.isArray(extended) ? extended : [extended];
+  };
 
   const runArgs = async (): Promise<string[]> => {
     const {serializationRunArgs} = await bench();
@@ -309,7 +322,7 @@ describe('the serialization bench mounts the marker tsconfig chain', () => {
   };
 
   it('every link of the chain resolves to a real file inside the container', async () => {
-    const {SERIALIZATION_TSCONFIG, tsconfigExtends} = await bench();
+    const {SERIALIZATION_TSCONFIG} = await bench();
     const args = await runArgs();
     const mounts = containerFs(args);
     // The plugin's cwd, taken from the argv rather than restated here.
@@ -328,7 +341,8 @@ describe('the serialization bench mounts the marker tsconfig chain', () => {
       }
       for (const target of tsconfigExtends(hostPath)) {
         if (!target.startsWith('.')) continue; // bare specifier: the container's own node_modules
-        walk(resolve(dirname(containerPath), target.endsWith('.json') ? target : `${target}.json`));
+        // Container paths are always posix, whatever OS the test runs on.
+        walk(posix.resolve(posix.dirname(containerPath), target.endsWith('.json') ? target : `${target}.json`));
       }
     };
     walk(`${packageRoot}/${SERIALIZATION_TSCONFIG}`);
@@ -339,7 +353,7 @@ describe('the serialization bench mounts the marker tsconfig chain', () => {
     expect([...seen].some((path) => !path.startsWith(`${packageRoot}/`))).toBe(true);
   });
 
-  it('walks the tsconfig gen-serialization.mjs actually hands the plugin', async () => {
+  it('pins the tsconfig gen-serialization.mjs actually hands the plugin', async () => {
     const {SERIALIZATION_TSCONFIG} = await bench();
     const passed = [...readFileSync(GEN_SERIALIZATION, 'utf8').matchAll(/tsconfig:\s*'([^']+)'/g)].map((match) => match[1]);
     expect(passed).toEqual([SERIALIZATION_TSCONFIG]);

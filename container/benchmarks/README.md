@@ -159,13 +159,14 @@ toolchain is needed in-container), and writes `serialization` +
 Two things this stage needs that the other lanes don't, because it loads the
 **marker package's own test program** rather than a competitor project:
 
-- **Its tsconfig chain is mounted too.** The marker package is bound at
+- **The repo-root tsconfig is mounted too.** The marker package is bound at
   `<competitor>/node_modules/@ts-runtypes/core` — a segment deeper than
   `packages/ts-runtypes` sits in the repo — while its `tsconfig.json` extends the
-  repo-root one, so `../../` lands on `node_modules/` and finds nothing.
-  `bench.mjs` walks the `extends` chain of `tsconfig.test.json` and mounts every
-  link that falls outside the package, so the suite compiles under exactly the
-  options it does on the host.
+  repo-root one, so `../../tsconfig.json` lands on `node_modules/` and finds
+  nothing. `bench.mjs` mounts the real root config at that path (not a copy, so
+  it can't drift), and the suite compiles under exactly the options it does on
+  the host. If the `extends` chain ever grows a link, that mount stops being
+  enough — the contract test walks the chain and says so.
 - **`failOnError: false`.** `buildStart` scans everything the tsconfig includes,
   alwaysThrow suites included, and those deliberately hold Error-severity types.
   Same opt-out, same reason, as `packages/ts-runtypes/vitest.config.ts`.
