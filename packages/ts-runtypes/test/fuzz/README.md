@@ -8,11 +8,8 @@ through the real Go resolver → plugin → runtime pipeline, all checked agains
 laws (oracles) that must hold for _every_ input rather than a hand-picked
 expected answer.
 
-The user-facing narrative (what each oracle promises, the bugs it has caught)
-lives in the docs site at
-[`container/website/content/6.suites/5.fuzzing.md`](../../../../container/website/content/6.suites/5.fuzzing.md).
-This README is the developer map: what's in each directory, how a run is wired,
-and how to reproduce a finding.
+This README is the developer map: what each oracle promises, what's in each
+directory, how a run is wired, and how to reproduce a finding.
 
 ## Why oracles, not examples
 
@@ -159,7 +156,7 @@ resolver's own diagnostics, not guessed at generation time.
   (`RT_FUZZ_TYPES_SOAK_MS`).
 - `nonDataTypeFuzz.integration.test.ts` — the DataOnly lane: types deliberately
   carrying symbols/functions/methods/typed-arrays/`Promise`, fed **real**
-  `createMockData` values, checking the serialize-vs-drop-vs-fail contract
+  `createMockDataFn` values, checking the serialize-vs-drop-vs-fail contract
   (`RT_FUZZ_NONDATA_SOAK_MS`).
 - `bugReprosValidTs.test.ts` — a corpus of minimal, seed-pinned repros of bugs
   the type fuzzer found (each compiles clean; includes a negative control).
@@ -202,7 +199,7 @@ code / stdout / stderr / JSON findings on both success and failure paths.
   preservation, orphan carcasses, prune scope, totality (`R1/R2/R3/R5/R6/R7a/R8/R10`).
 - **i18n sync** (`i18nModel.ts`, `i18nFuzzRunner.ts`,
   `i18nFuzz.integration.test.ts`) — the source type is canonical; translations
-  are derived with `gen --translate`. Invariants include never-copy (mirror text
+  are derived with `enrich --i18n`. Invariants include never-copy (mirror text
   never leaks into a translation), plural-arm ownership, kind stability
   (`T1–T7/T10`).
 - **type-mod** (`typeModify.ts`, `typeModFuzzRunner.ts`,
@@ -283,8 +280,7 @@ all fuzz knobs are `dev`-scoped with sensible defaults.
 
 ## Oracle catalog
 
-Grouped by mode; the prose descriptions of the shared O/TR series are in the
-[website fuzzing doc](../../../../container/website/content/6.suites/5.fuzzing.md).
+Grouped by mode.
 
 | Mode                      | IDs                                                                                                                                                                                                                                                                  |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

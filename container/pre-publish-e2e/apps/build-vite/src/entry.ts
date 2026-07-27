@@ -3,6 +3,6 @@
 // RunTypes plugin transforms the shared source; the build-output tests then load
 // this dist and run selfCheck().
 export {selfCheck} from '../../shared/src/index';
-// Re-exported so the caveat's createValidate marker survives tree-shaking (the
+// Re-exported so the caveat's createValidateFn marker survives tree-shaking (the
 // lint transport test asserts its VL0xx diagnostic fires).
 export {isWithHandler} from './caveat';

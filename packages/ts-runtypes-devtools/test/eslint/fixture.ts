@@ -29,7 +29,7 @@ export declare function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): Inj
 export interface ValidateOptions {
   noLiterals?: boolean;
 }
-export declare function createValidate<T>(
+export declare function createValidateFn<T>(
   val?: T,
   options?: CompTimeFnArgs<ValidateOptions>,
   id?: InjectTypeFnArgs<T, 'val'>

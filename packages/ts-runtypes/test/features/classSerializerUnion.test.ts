@@ -18,10 +18,10 @@
 
 import {afterEach, describe, expect, it} from 'vitest';
 import {
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
   registerClassSerializer,
 } from '@ts-runtypes/core';
 import {clearClassSerializers} from '../../src/runtypes/classSerializerRegistry.ts';
@@ -52,10 +52,10 @@ function registerShapes(): void {
 }
 
 describe('classSerializer union / distinct-shape classes (JSON)', () => {
-  it('static — createJsonEncoder<Shape> reconstructs the right member', () => {
+  it('static — createJsonEncoderFn<Shape> reconstructs the right member', () => {
     registerShapes();
-    const encode = createJsonEncoder<Shape>();
-    const decode = createJsonDecoder<Shape>();
+    const encode = createJsonEncoderFn<Shape>();
+    const decode = createJsonDecoderFn<Shape>();
 
     const c = decode(encode(new Circle(2)) as string) as Circle;
     expect(c).toBeInstanceOf(Circle);
@@ -68,11 +68,11 @@ describe('classSerializer union / distinct-shape classes (JSON)', () => {
     expect(s.area()).toBe(9);
   });
 
-  it('reflect — createJsonEncoder(value) reconstructs the right member', () => {
+  it('reflect — createJsonEncoderFn(value) reconstructs the right member', () => {
     registerShapes();
     const sample: Shape = new Circle(0);
-    const encode = createJsonEncoder(sample);
-    const decode = createJsonDecoder(sample);
+    const encode = createJsonEncoderFn(sample);
+    const decode = createJsonDecoderFn(sample);
 
     expect(decode(encode(new Square(4)) as string)).toBeInstanceOf(Square);
     expect(decode(encode(new Circle(5)) as string)).toBeInstanceOf(Circle);
@@ -80,10 +80,10 @@ describe('classSerializer union / distinct-shape classes (JSON)', () => {
 });
 
 describe('classSerializer union / distinct-shape classes (binary)', () => {
-  it('static — createBinaryEncoder<Shape> reconstructs the right member', () => {
+  it('static — createBinaryEncoderFn<Shape> reconstructs the right member', () => {
     registerShapes();
-    const encode = createBinaryEncoder<Shape>();
-    const decode = createBinaryDecoder<Shape>();
+    const encode = createBinaryEncoderFn<Shape>();
+    const decode = createBinaryDecoderFn<Shape>();
 
     expect(decode(encode(new Circle(7)))).toBeInstanceOf(Circle);
     const s = decode(encode(new Square(8))) as Square;
@@ -91,11 +91,11 @@ describe('classSerializer union / distinct-shape classes (binary)', () => {
     expect(s.side).toBe(8);
   });
 
-  it('reflect — createBinaryEncoder(value) reconstructs the right member', () => {
+  it('reflect — createBinaryEncoderFn(value) reconstructs the right member', () => {
     registerShapes();
     const sample: Shape = new Circle(0);
-    const encode = createBinaryEncoder(sample);
-    const decode = createBinaryDecoder(sample);
+    const encode = createBinaryEncoderFn(sample);
+    const decode = createBinaryDecoderFn(sample);
     expect(decode(encode(new Square(1)))).toBeInstanceOf(Square);
     expect(decode(encode(new Circle(1)))).toBeInstanceOf(Circle);
   });
@@ -131,8 +131,8 @@ function registerPair(): void {
 describe('classSerializer union / same-shape classes distinguished by identity', () => {
   it('static (JSON) — a Vec and a Loc with identical fields reconstruct as their own class', () => {
     registerPair();
-    const encode = createJsonEncoder<Pair>();
-    const decode = createJsonDecoder<Pair>();
+    const encode = createJsonEncoderFn<Pair>();
+    const decode = createJsonDecoderFn<Pair>();
 
     const v = decode(encode(new Vec(1, 2)) as string) as Vec;
     expect(v).toBeInstanceOf(Vec);
@@ -146,8 +146,8 @@ describe('classSerializer union / same-shape classes distinguished by identity',
   it('reflect (binary) — same-shape members stay distinct through the binary index', () => {
     registerPair();
     const sample: Pair = new Vec(0, 0);
-    const encode = createBinaryEncoder(sample);
-    const decode = createBinaryDecoder(sample);
+    const encode = createBinaryEncoderFn(sample);
+    const decode = createBinaryDecoderFn(sample);
 
     expect(decode(encode(new Vec(3, 4)))).toBeInstanceOf(Vec);
     expect(decode(encode(new Loc(3, 4)))).toBeInstanceOf(Loc);
@@ -167,8 +167,8 @@ type Money = Coin | {note: string};
 describe('classSerializer union / class + plain object', () => {
   it('static (JSON) — the class instance reconstructs, the plain object stays plain', () => {
     registerClassSerializer(Coin, {deserialize: (d) => new Coin(d.cents)});
-    const encode = createJsonEncoder<Money>();
-    const decode = createJsonDecoder<Money>();
+    const encode = createJsonEncoderFn<Money>();
+    const decode = createJsonDecoderFn<Money>();
 
     const coin = decode(encode(new Coin(250)) as string) as Coin;
     expect(coin).toBeInstanceOf(Coin);
@@ -182,8 +182,8 @@ describe('classSerializer union / class + plain object', () => {
   it('reflect (binary) — class instance vs plain object round-trip', () => {
     registerClassSerializer(Coin, {deserialize: (d) => new Coin(d.cents)});
     const sample: Money = new Coin(0);
-    const encode = createBinaryEncoder(sample);
-    const decode = createBinaryDecoder(sample);
+    const encode = createBinaryEncoderFn(sample);
+    const decode = createBinaryDecoderFn(sample);
 
     expect(decode(encode(new Coin(99)))).toBeInstanceOf(Coin);
     expect(decode(encode({note: 'hi'}))).toEqual({note: 'hi'});
@@ -195,8 +195,8 @@ describe('classSerializer union / class + plain object', () => {
 describe('classSerializer union / unregistered members fall back to plain objects', () => {
   it('static (JSON) — a class union with no registration decodes to plain objects (no throw)', () => {
     // No registerShapes() call.
-    const encode = createJsonEncoder<Shape>();
-    const decode = createJsonDecoder<Shape>();
+    const encode = createJsonEncoderFn<Shape>();
+    const decode = createJsonDecoderFn<Shape>();
 
     let decoded: unknown;
     expect(() => {
@@ -208,8 +208,8 @@ describe('classSerializer union / unregistered members fall back to plain object
 
   it('reflect (binary) — unregistered class union decodes to plain objects (no throw)', () => {
     const sample: Shape = new Circle(0);
-    const encode = createBinaryEncoder(sample);
-    const decode = createBinaryDecoder(sample);
+    const encode = createBinaryEncoderFn(sample);
+    const decode = createBinaryDecoderFn(sample);
 
     let decoded: unknown;
     expect(() => {
@@ -227,8 +227,8 @@ describe('classSerializer union / both codecs agree', () => {
     registerShapes();
     const inputs: Shape[] = [new Circle(1), new Square(2), new Circle(3)];
     for (const input of inputs) {
-      const viaJson = createJsonDecoder<Shape>()(createJsonEncoder<Shape>()(input) as string);
-      const viaBinary = createBinaryDecoder<Shape>()(createBinaryEncoder<Shape>()(input));
+      const viaJson = createJsonDecoderFn<Shape>()(createJsonEncoderFn<Shape>()(input) as string);
+      const viaBinary = createBinaryDecoderFn<Shape>()(createBinaryEncoderFn<Shape>()(input));
       expect((viaBinary as object).constructor.name).toBe((viaJson as object).constructor.name);
       expect(viaBinary).toEqual(viaJson);
     }

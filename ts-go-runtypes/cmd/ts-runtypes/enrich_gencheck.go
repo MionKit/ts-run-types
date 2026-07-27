@@ -9,12 +9,14 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/enrichment"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/enrichgen"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
-// driftFinding is one breadcrumb-drift issue for the gen --check report.
+// driftFinding is one breadcrumb-drift issue for the `check` drift report.
 // Mirrors the enrichment.Finding shape (Code / Severity / Message) but is
 // file-anchored; Line/Col are the 1-based position of the breadcrumb import
 // (zero for file-level findings like GE000).
@@ -28,9 +30,9 @@ type driftFinding struct {
 	Col      int                 `json:"col,omitempty"`
 }
 
-// runGenCheck implements `gen --check [<mirror-file-or-dir>] [--json]`: it
-// reads each mirror file's `import type { … } from '<src>'` breadcrumb,
-// resolves <src> relative to the mirror file, and reports drift:
+// runGenCheck implements the `check [<dir>] [--json]` drift lane (formerly
+// `gen --check`): it reads each mirror file's `import type { … } from '<src>'`
+// breadcrumb, resolves <src> relative to the mirror file, and reports drift:
 //
 //   - GE001 (warning) — the mirror file's location no longer matches the
 //     computed mirror-of(resolved src): cosmetic drift after an IDE rename.
@@ -45,12 +47,15 @@ type driftFinding struct {
 //
 // The argument is a single mirror .ts file or a directory to walk. With no
 // argument, it walks the enrich dir resolved from the current directory's
-// tsconfig. Exits 1 when any Error finding is present.
-func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
+// tsconfig. Exits 1 when any WRONG/stale Error finding is present; a completeness
+// finding fails only under requireComplete (today every drift code is Tier 1, so
+// the filter is a forward-compatible no-op here).
+func runGenCheck(positional []string, genDirFlag string, asJSON, requireComplete bool, tsconfigFlag string) {
+	tsconfigPath, parsed := resolveEnrichProject(tsconfigFlag)
 	var targets []string
 	if len(positional) > 0 {
 		candidate := tspath.NormalizePath(mustAbs(positional[0]))
-		config := resolveEnrichConfig(candidate, genDirFlag)
+		config := resolveEnrichConfig(candidate, genDirFlag, tsconfigPath, parsed)
 		// A path OUTSIDE the enrich dir is a SOURCE file (the `gen <source> --check`
 		// form): check ITS mirrors, not the source file itself — whose own
 		// `import type { … }` lines would otherwise be misread as breadcrumbs. A
@@ -60,23 +65,20 @@ func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
 		// the enrich dir (a mirror file, or the dir) is scanned directly.
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && !isUnder(config.EnrichDir, candidate) {
 			targets = []string{
-				config.mirrorPath(familyFriendly, candidate),
-				config.mirrorPath(familyMock, candidate),
-				config.legacyMirrorPath(candidate),
+				config.MirrorPath(familyFriendly, candidate),
+				config.MirrorPath(familyMock, candidate),
+				config.LegacyMirrorPath(candidate),
 			}
 			for _, locale := range config.I18nLocales {
-				targets = append(targets, config.translationPathFor(locale, config.mirrorPath(familyFriendly, candidate)))
+				targets = append(targets, config.TranslationPathFor(locale, config.MirrorPath(familyFriendly, candidate)))
 			}
 		} else {
 			targets = []string{candidate}
 		}
 	} else {
-		cwd, err := os.Getwd()
-		if err != nil {
-			fatal("gen --check: getwd: %v", err)
-		}
+		cwd := enrichCwd("enrich --no-emit")
 		// Resolve the enrich dir from cwd's tsconfig — the default scan root.
-		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), genDirFlag)
+		config := resolveEnrichConfig(tspath.NormalizePath(filepath.Join(cwd, "_")), genDirFlag, tsconfigPath, parsed)
 		targets = []string{config.EnrichDir}
 	}
 
@@ -84,14 +86,14 @@ func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
 	for _, target := range targets {
 		files, err := collectMirrorFiles(target)
 		if err != nil {
-			fatal("gen --check: %v", err)
+			fatal("enrich --no-emit: %v", err)
 		}
 		mirrorFiles = append(mirrorFiles, files...)
 	}
 
 	var findings []driftFinding
 	for _, mirrorFile := range mirrorFiles {
-		findings = append(findings, checkMirrorFile(mirrorFile, genDirFlag)...)
+		findings = append(findings, checkMirrorFile(mirrorFile, genDirFlag, tsconfigPath, parsed)...)
 	}
 	sort.SliceStable(findings, func(left, right int) bool {
 		if findings[left].File != findings[right].File {
@@ -102,14 +104,18 @@ func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
 
 	hasError := false
 	for _, finding := range findings {
-		if finding.Severity == enrichment.Error {
-			hasError = true
+		if finding.Severity != enrichment.Error {
+			continue
 		}
+		if !requireComplete && diagnostics.IsCompleteness(finding.Code) {
+			continue
+		}
+		hasError = true
 	}
 	if asJSON {
 		encoded, encodeErr := json.MarshalIndent(findings, "", "  ")
 		if encodeErr != nil {
-			fatal("gen --check: encode json: %v", encodeErr)
+			fatal("enrich --no-emit: encode json: %v", encodeErr)
 		}
 		fmt.Println(string(encoded))
 	} else {
@@ -117,7 +123,7 @@ func runGenCheck(positional []string, genDirFlag string, asJSON bool) {
 			fmt.Printf("%s: [%s %s] %s\n", finding.File, finding.Code, finding.Severity.String(), finding.Message)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "gen --check: %d mirror file(s), %d finding(s)\n", len(mirrorFiles), len(findings))
+	fmt.Fprintf(os.Stderr, "enrich --no-emit: %d mirror file(s), %d finding(s)\n", len(mirrorFiles), len(findings))
 	if hasError {
 		os.Exit(1)
 	}
@@ -171,7 +177,7 @@ func collectMirrorFiles(target string) ([]string, error) {
 // checkMirrorFile reads one mirror file's breadcrumb and returns its drift
 // findings. A mirror file with no readable breadcrumb yields nothing (it is not
 // a generated mirror, or has no source link to check).
-func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
+func checkMirrorFile(mirrorFile, genDirFlag, tsconfigPath string, parsed *program.InferredConfig) []driftFinding {
 	contents, err := os.ReadFile(mirrorFile)
 	if err != nil {
 		return []driftFinding{{
@@ -189,8 +195,25 @@ func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 	}
 	lineIndex := mirror.NewLineIndex(text)
 
-	// GE002 / GE003 — the shared source-existence + type-declaration checks.
 	var findings []driftFinding
+
+	// Completeness + hygiene: unfilled @todo scaffolds, blank scaffold values, and
+	// stale @rtOrphan carcasses — the SAME text scan CheckFile runs, so the tree
+	// walk gates on completeness under --require-complete exactly like the
+	// single-file check (blanks/@todo are tolerated by --no-emit, fail
+	// --require-complete). Family is read off the committed mirror's path segment.
+	for _, hygiene := range enrichgen.HygieneDiagnostics(text, mirrorFile, isMockMirrorPath(mirrorFile)) {
+		findings = append(findings, driftFinding{
+			File:     mirrorFile,
+			Severity: severityFromDiag(hygiene.Severity),
+			Code:     hygiene.Code,
+			Message:  diagnostics.Definitions[hygiene.Code].Headline,
+			Line:     hygiene.Site.StartLine,
+			Col:      hygiene.Site.StartCol,
+		})
+	}
+
+	// GE002 / GE003 — the shared source-existence + type-declaration checks.
 	for _, drift := range mirror.CheckBreadcrumbDrift(mirrorFile, text, nil) {
 		line, col := lineIndex.At(drift.Start)
 		findings = append(findings, driftFinding{
@@ -219,12 +242,12 @@ func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 	// file at none of them is a pre-split combined mirror (or a hand-moved one)
 	// and drifts against both family paths.
 	resolvedSource := mirror.ResolveBreadcrumb(mirrorFile, breadcrumb.Spec)
-	config := resolveEnrichConfig(mirrorFile, genDirFlag)
+	config := resolveEnrichConfig(mirrorFile, genDirFlag, tsconfigPath, parsed)
 
 	// i18n locale mirror: its canonical home derives from the friendly mirror
 	// it translates (<I18nDir>/<locale>/<friendly-relative path>).
 	if locale, isLocaleMirror := localeMirrorOf(config, mirrorFile); isLocaleMirror {
-		expectedMirror := config.translationPathFor(locale, config.mirrorPath(familyFriendly, resolvedSource))
+		expectedMirror := config.TranslationPathFor(locale, config.MirrorPath(familyFriendly, resolvedSource))
 		if tspath.NormalizePath(expectedMirror) != tspath.NormalizePath(mirrorFile) {
 			line, col := lineIndex.At(breadcrumb.Start)
 			findings = append(findings, driftFinding{
@@ -243,8 +266,8 @@ func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 	family, ok := mirrorFamilyOf(config.EnrichDir, mirrorFile)
 	if !ok {
 		line, col := lineIndex.At(breadcrumb.Start)
-		expectedFriendly := config.mirrorPath(familyFriendly, resolvedSource)
-		expectedMock := config.mirrorPath(familyMock, resolvedSource)
+		expectedFriendly := config.MirrorPath(familyFriendly, resolvedSource)
+		expectedMock := config.MirrorPath(familyMock, resolvedSource)
 		findings = append(findings, driftFinding{
 			File:     mirrorFile,
 			Severity: enrichment.Warning,
@@ -257,7 +280,7 @@ func checkMirrorFile(mirrorFile, genDirFlag string) []driftFinding {
 		})
 		return findings
 	}
-	expectedMirror := config.mirrorPath(family, resolvedSource)
+	expectedMirror := config.MirrorPath(family, resolvedSource)
 	if tspath.NormalizePath(expectedMirror) != tspath.NormalizePath(mirrorFile) {
 		line, col := lineIndex.At(breadcrumb.Start)
 		findings = append(findings, driftFinding{
@@ -306,4 +329,25 @@ func mirrorFamilyOf(enrichDir, mirrorFile string) (string, bool) {
 		return first, true
 	}
 	return "", false
+}
+
+// isMockMirrorPath reports whether a committed mirror file lives under the mock
+// family dir (`…/enriched/mock/…`) — the cheap family signal the tree-walk
+// hygiene scan uses to pick the FT02x vs MD02x codes. A friendly or i18n mirror
+// (neither carries the mock segment) reports false → the FriendlyText codes.
+func isMockMirrorPath(mirrorFile string) bool {
+	return strings.Contains(filepath.ToSlash(mirrorFile), "/"+familyMock+"/")
+}
+
+// severityFromDiag maps a diagnostics.Severity onto the enrichment.Severity the
+// drift report carries.
+func severityFromDiag(severity diagnostics.Severity) enrichment.Severity {
+	switch severity {
+	case diagnostics.SeverityError:
+		return enrichment.Error
+	case diagnostics.SeverityWarning:
+		return enrichment.Warning
+	default:
+		return enrichment.Info
+	}
 }

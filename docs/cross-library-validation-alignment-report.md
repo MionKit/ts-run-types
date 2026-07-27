@@ -23,7 +23,7 @@ design, and both hide real divergences:
 2. A competitor may declare a case `NOT_SUPPORTED`, opting out entirely.
 
 The audit looks behind both. For each competitor it runs the real validator
-(`createValidate` for RunTypes, `.Check` for TypeBox, the compiled `validate`
+(`createValidateFn` for RunTypes, `.Check` for TypeBox, the compiled `validate`
 for ajv, `safeParse` for zod, the generated check for typia) against the SHARED
 samples, never the competitor's own override, and records every individual sample
 where the answer differs from the shared truth. Each record is one row:
@@ -149,6 +149,14 @@ Witnesses: zod (`z.number().finite()`) and TypeBox (`Type.Number()`) both reject
 non-finite numbers, agreeing with RunTypes. So on this cluster RunTypes sits
 with the majority (RunTypes, zod, TypeBox) and ajv and typia are the looser
 pair.
+
+**Now configurable.** `Number.isFinite` remains the default, but the divergence is
+no longer fixed: the `numberMode` ValidateOption selects the base number check per
+validator (`typeof` accepts `NaN`/`Infinity` like ajv and typia; `notNaN` rejects
+`NaN` but keeps `Infinity`), and a project-wide `validate.numberMode` plugin/tsconfig
+default applies it everywhere. So a codebase migrating off ajv or typia can adopt
+their number semantics with one setting instead of hitting this cluster of
+differences. See the validation guide for details.
 
 ### 2. Invalid Date
 

@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createValidate, type InferType} from '@ts-runtypes/core';
+import {createValidateFn, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 // The same formats, schema-first — the RT.* builders.
@@ -13,4 +13,4 @@ const account = RT.object({
 // Recover the TypeScript type from the schema.
 type Account = InferType<typeof account>;
 
-const isAccount = createValidate(account);
+const isAccount = createValidateFn(account);

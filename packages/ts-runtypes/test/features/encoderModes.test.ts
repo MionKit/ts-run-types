@@ -15,13 +15,13 @@
 // so a separate strip variant was redundant.
 
 import {describe, expect, it} from 'vitest';
-import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
 
 type Sample = {a: string; n: bigint};
 
 describe('encoder modes — clone strategy', () => {
   it('clone (default): no mutation, extras stripped from output', () => {
-    const encode = createJsonEncoder<Sample>();
+    const encode = createJsonEncoderFn<Sample>();
     const input = {a: 'hi', n: 5n, evil: 'gone'} as Sample & {evil: string};
     const wire = encode(input)!;
     expect(JSON.parse(wire)).toEqual({a: 'hi', n: '5'});
@@ -31,7 +31,7 @@ describe('encoder modes — clone strategy', () => {
   });
 
   it('clone (explicit): same shape-derived strip as the default', () => {
-    const encode = createJsonEncoder<Sample>(undefined, {strategy: 'clone'});
+    const encode = createJsonEncoderFn<Sample>(undefined, {strategy: 'clone'});
     const input = {a: 'hi', n: 5n, evil: 'gone'} as Sample & {evil: string};
     const wire = encode(input)!;
     expect(JSON.parse(wire)).toEqual({a: 'hi', n: '5'});
@@ -43,7 +43,7 @@ describe('encoder modes — clone strategy', () => {
 
 describe('encoder modes — mutate strategy', () => {
   it('mutate: mutates input, extras preserved in output', () => {
-    const encode = createJsonEncoder<Sample>(undefined, {strategy: 'mutate'});
+    const encode = createJsonEncoderFn<Sample>(undefined, {strategy: 'mutate'});
     const input = {a: 'hi', n: 5n, extra: 'survives'} as Sample & {extra: string};
     const wire = encode(input)!;
     expect(JSON.parse(wire)).toEqual({a: 'hi', n: '5', extra: 'survives'});
@@ -54,7 +54,7 @@ describe('encoder modes — mutate strategy', () => {
 
 describe('encoder modes — direct strategy', () => {
   it('direct: no mutation, always strips extras', () => {
-    const encode = createJsonEncoder<Sample>(undefined, {strategy: 'direct'});
+    const encode = createJsonEncoderFn<Sample>(undefined, {strategy: 'direct'});
     const input = {a: 'hi', n: 5n, evil: 'gone'} as Sample & {evil: string};
     const wire = encode(input)!;
     expect(JSON.parse(wire)).toEqual({a: 'hi', n: '5'});
@@ -68,18 +68,18 @@ describe('encoder modes — round-trip with matching decoder', () => {
   // Every encoder shape should produce wire output that round-trips
   // through the safe decoder.
   it('clone round-trips correctly', () => {
-    const encode = createJsonEncoder<Sample>(undefined, {strategy: 'clone'});
-    const decode = createJsonDecoder<Sample>();
+    const encode = createJsonEncoderFn<Sample>(undefined, {strategy: 'clone'});
+    const decode = createJsonDecoderFn<Sample>();
     const wire = encode({a: 'hi', n: 5n})!;
     const back = decode(wire);
     expect(back).toEqual({a: 'hi', n: 5n});
   });
 
   it('mutate+preserve round-trips with extras surviving the decode', () => {
-    const encode = createJsonEncoder<Sample>(undefined, {strategy: 'mutate'});
+    const encode = createJsonEncoderFn<Sample>(undefined, {strategy: 'mutate'});
     // Decoder strips undeclared keys only with the default 'strip' strategy.
     // Use 'preserve' so extras pass through.
-    const decode = createJsonDecoder<Sample>(undefined, {strategy: 'preserve'});
+    const decode = createJsonDecoderFn<Sample>(undefined, {strategy: 'preserve'});
     const input = {a: 'hi', n: 5n, surplus: 'x'} as Sample & {surplus: string};
     const wire = encode(input)!;
     const back = decode(wire) as Record<string, unknown>;

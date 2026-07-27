@@ -147,6 +147,18 @@ jobs:
       # drift. tarballs/ is the downloaded artifact, so e2e.mjs skips the build.
       - name: Pre-publish e2e (${{ matrix.backend }})
         run: pnpm rtx release e2e --backend ${{ matrix.backend }}
+      # The receipt proves the e2e ran over exactly the tarballs the publish job
+      # will push (scripts/release/receipt.mjs). The tarballs artifact was uploaded
+      # by the BUILD job, so the receipt travels on its own; only the container
+      # lane's counts, since that is the one that runs the full matrix.
+      - name: Upload the e2e receipt (container backend only)
+        if: matrix.backend == 'container'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-receipt
+          path: tarballs/.e2e-receipt.json
+          include-hidden-files: true
+          if-no-files-found: error
 
   # Cross-arch binary sanity: exec the cross-compiled binary (`--version`) under QEMU
   # on the Linux side-arches. NOT a full e2e (those are the `e2e` jobs; their
@@ -228,18 +240,14 @@ jobs:
       # `container-build` runs on the HOST to drive the podman build AND to prebuild
       # the playground assets (build-playground.mjs: the resolver WASM + the vendored
       # ts-runtypes dist that nuxt build imports). bootstrap gives the host Go +
-      # garble + Node + pnpm + deps + the tsgolint patches all of that needs; without
-      # it the WASM `go build` fails and nuxt build dies on the missing vendor dist.
+      # Node + pnpm + deps + the tsgolint patches all of that needs; without it the
+      # WASM `go build` fails and nuxt build dies on the missing vendor dist.
       - uses: ./.github/actions/bootstrap
       - name: podman version
         run: podman --version
-      # Build the playground WASM PLAIN (obfuscation is irrelevant to a build check
-      # and plain is faster on a cache miss - mirrors ci.yml's website smoke). Cache
-      # it so a UI-only change skips the multi-minute rebuild.
+      # Cache the playground WASM so a UI-only change skips the multi-minute rebuild.
       - name: Cache the playground wasm
         uses: ./.github/actions/cache-playground-wasm
-        with:
-          mode: plain
       - name: Pull the prebuilt shared image (CI never builds it)
         uses: ./.github/actions/pull-shared-image
         with:
@@ -247,10 +255,8 @@ jobs:
           # to GITHUB_TOKEN when absent (fork PRs) - tsrt-website is readable either way.
           password: ${{ secrets.GHCR_PAT }}
       # The container-only prod build (not the full data pipeline) - produces
-      # container/website/.output. RT_GARBLE=0 matches the plain WASM cache above.
+      # container/website/.output.
       - name: Production build inside the container
-        env:
-          RT_GARBLE: '0'
         run: pnpm rtx website container-build
       # The BUILD passing is the gate check (the step above dies on any build error).
       # The artifact is incidental evidence, and rootless-podman container->host

@@ -19,10 +19,10 @@ import (
 func TestMarkerGate_ReadsOverlayPackageJson(t *testing.T) {
 	const idx = `
 export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
-export declare function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+export declare function createValidateFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
 `
-	const callCode = `import {createValidate} from '@ts-runtypes/core';
-createValidate<{a: string}>();
+	const callCode = `import {createValidateFn} from '@ts-runtypes/core';
+createValidateFn<{a: string}>();
 `
 	// Everything (including package.json) lives ONLY in the in-memory overlay —
 	// nothing is written to the real disk.
@@ -57,7 +57,7 @@ createValidate<{a: string}>();
 	}
 	site := resp.Sites[0]
 	if site.FnId == "" {
-		t.Errorf("createValidate site lost its fnId — the InjectTypeFnArgs marker wasn't recognised from the overlay package")
+		t.Errorf("createValidateFn site lost its fnId — the InjectTypeFnArgs marker wasn't recognised from the overlay package")
 	}
 	kind := -1
 	for _, rt := range resp.RunTypes {
@@ -82,12 +82,12 @@ func TestMarkerGate_IsRunTypeReadsOverlayForAnnotatedSchemaConst(t *testing.T) {
 	const idx = `
 export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
 export interface RunType<T = unknown> { id: string; kind: unknown; readonly __rtType?: {t: T}; [k: string]: unknown }
-export function createValidate<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
-export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+export function createValidateFn<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+export function createValidateFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
 `
-	const callCode = `import {createValidate, type RunType} from '@ts-runtypes/core';
+	const callCode = `import {createValidateFn, type RunType} from '@ts-runtypes/core';
 const s: RunType<{a: string}> = null as unknown as RunType<{a: string}>;
-createValidate(s);
+createValidateFn(s);
 `
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := map[string]string{

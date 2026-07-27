@@ -15,8 +15,8 @@ const overrideDTS = `declare module '@ts-runtypes/core' {
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFn?: Fn};
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
-  export function createJsonEncoder<T>(val?: T, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
+  export function createValidateFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createJsonEncoderFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
   export function overrideValidate<T>(fn: PureFunction<(v: unknown) => boolean>, id?: InjectTypeFnArgs<T, 'val'>): void;
   export function overrideJsonEncoder<T>(fn: PureFunction<(v: unknown) => string>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): void;
 }
@@ -77,15 +77,15 @@ getRunTypeId<{a: number; b: string}>();
 }
 
 // TestOverride_EmitsRedirectAndCfnModule proves the override is functional: a
-// createValidate over a struct whose `string` field is overridden emits a
+// createValidateFn over a struct whose `string` field is overridden emits a
 // validate redirect that calls the cfn (utl.usePureFn('cfn::…')) for that field,
 // and the cfn module carries the user's body — propagation through the emitter.
 func TestOverride_EmitsRedirectAndCfnModule(t *testing.T) {
 	files := map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {createValidate, overrideValidate} from '@ts-runtypes/core';
+		"call.ts": `import {createValidateFn, overrideValidate} from '@ts-runtypes/core';
 overrideValidate<string>((v) => typeof v === 'string');
-export const isObj = createValidate<{a: number; b: string}>();
+export const isObj = createValidateFn<{a: number; b: string}>();
 `,
 	}
 	r := setupInline(t, files)
@@ -112,9 +112,9 @@ export const isObj = createValidate<{a: number; b: string}>();
 func TestOverride_JsonEncoderComposite(t *testing.T) {
 	files := map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {createJsonEncoder, overrideJsonEncoder} from '@ts-runtypes/core';
+		"call.ts": `import {createJsonEncoderFn, overrideJsonEncoder} from '@ts-runtypes/core';
 overrideJsonEncoder<{id: number}>((v) => '{"id":' + (v as {id: number}).id + '}');
-export const enc = createJsonEncoder<{id: number}>();
+export const enc = createJsonEncoderFn<{id: number}>();
 `,
 	}
 	r := setupInline(t, files)
@@ -187,10 +187,10 @@ overrideValidate<string>((v) => typeof v === 'string');
 func TestOverride_NestedFixpoint(t *testing.T) {
 	files := map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {createValidate, overrideValidate, overrideJsonEncoder} from '@ts-runtypes/core';
+		"call.ts": `import {createValidateFn, overrideValidate, overrideJsonEncoder} from '@ts-runtypes/core';
 overrideJsonEncoder<string>((v) => '"x"');
 overrideValidate<{x: string}>((v) => true);
-export const isObj = createValidate<{x: string}>();
+export const isObj = createValidateFn<{x: string}>();
 `,
 	}
 	r := setupInline(t, files)
@@ -211,9 +211,9 @@ export const isObj = createValidate<{x: string}>();
 func TestOverride_NullsArgOnTransform(t *testing.T) {
 	files := map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {createValidate, overrideValidate} from '@ts-runtypes/core';
+		"call.ts": `import {createValidateFn, overrideValidate} from '@ts-runtypes/core';
 overrideValidate<string>((v) => typeof v === 'string');
-export const isString = createValidate<string>();
+export const isString = createValidateFn<string>();
 `,
 	}
 	r := setupInline(t, files)
@@ -264,9 +264,9 @@ func TestOverride_ValidateEmitsOVR010(t *testing.T) {
 
 	valCodes := codes(map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {createValidate, overrideValidate} from '@ts-runtypes/core';
+		"call.ts": `import {createValidateFn, overrideValidate} from '@ts-runtypes/core';
 overrideValidate<string>((v) => typeof v === 'string');
-export const isString = createValidate<string>();
+export const isString = createValidateFn<string>();
 `,
 	})
 	if valCodes[diagnostics.CodeOverrideValidateCrossFamily] == 0 {
@@ -278,9 +278,9 @@ export const isString = createValidate<string>();
 
 	jsonCodes := codes(map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": `import {createJsonEncoder, overrideJsonEncoder} from '@ts-runtypes/core';
+		"call.ts": `import {createJsonEncoderFn, overrideJsonEncoder} from '@ts-runtypes/core';
 overrideJsonEncoder<{id: number}>((v) => '{"id":' + (v as {id: number}).id + '}');
-export const enc = createJsonEncoder<{id: number}>();
+export const enc = createJsonEncoderFn<{id: number}>();
 `,
 	})
 	if jsonCodes[diagnostics.CodeOverrideValidateCrossFamily] != 0 {
@@ -301,15 +301,15 @@ func TestOverride_RecursiveFieldOverride(t *testing.T) {
 `
 	without := map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": recursiveSrc + `import {createValidate} from '@ts-runtypes/core';
-export const isNode = createValidate<Node>();
+		"call.ts": recursiveSrc + `import {createValidateFn} from '@ts-runtypes/core';
+export const isNode = createValidateFn<Node>();
 `,
 	}
 	with := map[string]string{
 		"runtypes.d.ts": overrideDTS,
-		"call.ts": recursiveSrc + `import {createValidate, overrideValidate} from '@ts-runtypes/core';
+		"call.ts": recursiveSrc + `import {createValidateFn, overrideValidate} from '@ts-runtypes/core';
 overrideValidate<string>((v) => typeof v === 'string');
-export const isNode = createValidate<Node>();
+export const isNode = createValidateFn<Node>();
 `,
 	}
 
@@ -343,9 +343,9 @@ func TestOverride_RecursiveTypeItselfOverride(t *testing.T) {
 	files := map[string]string{
 		"runtypes.d.ts": overrideDTS,
 		"call.ts": `type Node = {tag: string; next: Node | null};
-import {createValidate, overrideValidate} from '@ts-runtypes/core';
+import {createValidateFn, overrideValidate} from '@ts-runtypes/core';
 overrideValidate<Node>((v) => typeof v === 'object' && v !== null);
-export const isNode = createValidate<Node>();
+export const isNode = createValidateFn<Node>();
 `,
 	}
 	r := setupInline(t, files)

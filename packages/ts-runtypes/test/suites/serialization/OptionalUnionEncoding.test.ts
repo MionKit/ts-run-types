@@ -4,7 +4,7 @@
 // (`{"active":[1,false]}`) fails loudly.
 // See docs/todos/optional-boolean-union-encoding.md.
 import {describe, expect, it} from 'vitest';
-import {createJsonDecoder, createJsonEncoder, getRunTypeId} from '@ts-runtypes/core';
+import {createJsonDecoderFn, createJsonEncoderFn, getRunTypeId} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
 
@@ -13,9 +13,9 @@ const ENVELOPE = /:\[\d/;
 
 describe('serialization / optional-union JSON encoding (regression)', () => {
   it('optional boolean → plain boolean, never [index, value]', () => {
-    const clone = createJsonEncoder<{active?: boolean}>();
-    const direct = createJsonEncoder<{active?: boolean}>(undefined, {strategy: 'direct'});
-    const mutate = createJsonEncoder<{active?: boolean}>(undefined, {strategy: 'mutate'});
+    const clone = createJsonEncoderFn<{active?: boolean}>();
+    const direct = createJsonEncoderFn<{active?: boolean}>(undefined, {strategy: 'direct'});
+    const mutate = createJsonEncoderFn<{active?: boolean}>(undefined, {strategy: 'mutate'});
 
     for (const enc of [clone, direct, mutate]) {
       expect(enc({active: false})).toBe('{"active":false}');
@@ -26,8 +26,8 @@ describe('serialization / optional-union JSON encoding (regression)', () => {
   });
 
   it('required literal-string union → plain string, no dispatch envelope', () => {
-    const clone = createJsonEncoder<{x: 'a' | 'b' | 'c'}>();
-    const direct = createJsonEncoder<{x: 'a' | 'b' | 'c'}>(undefined, {strategy: 'direct'});
+    const clone = createJsonEncoderFn<{x: 'a' | 'b' | 'c'}>();
+    const direct = createJsonEncoderFn<{x: 'a' | 'b' | 'c'}>(undefined, {strategy: 'direct'});
 
     expect(clone({x: 'b'})).toBe('{"x":"b"}');
     expect(direct({x: 'c'})).toBe('{"x":"c"}');
@@ -36,7 +36,7 @@ describe('serialization / optional-union JSON encoding (regression)', () => {
   });
 
   it('optional string | number union → plain value, no envelope', () => {
-    const clone = createJsonEncoder<{x?: string | number}>();
+    const clone = createJsonEncoderFn<{x?: string | number}>();
     expect(clone({x: 'hi'})).toBe('{"x":"hi"}');
     expect(clone({x: 7})).toBe('{"x":7}');
     expect(clone({})).toBe('{}');
@@ -45,7 +45,7 @@ describe('serialization / optional-union JSON encoding (regression)', () => {
   });
 
   it('optional T | null keeps null and encodes plainly', () => {
-    const clone = createJsonEncoder<{x?: string | null}>();
+    const clone = createJsonEncoderFn<{x?: string | null}>();
     expect(clone({x: null})).toBe('{"x":null}');
     expect(clone({x: 'hi'})).toBe('{"x":"hi"}');
     expect(clone({})).toBe('{}');
@@ -53,7 +53,7 @@ describe('serialization / optional-union JSON encoding (regression)', () => {
   });
 
   it('optional boolean | null keeps null and encodes plainly', () => {
-    const clone = createJsonEncoder<{x?: boolean | null}>();
+    const clone = createJsonEncoderFn<{x?: boolean | null}>();
     expect(clone({x: null})).toBe('{"x":null}');
     expect(clone({x: true})).toBe('{"x":true}');
     expect(clone({})).toBe('{}');
@@ -62,21 +62,21 @@ describe('serialization / optional-union JSON encoding (regression)', () => {
   });
 
   it('optional boolean in a tuple slot → plain array element, no nested envelope', () => {
-    const clone = createJsonEncoder<{t: [string, boolean?]}>();
+    const clone = createJsonEncoderFn<{t: [string, boolean?]}>();
     expect(clone({t: ['a', true]})).toBe('{"t":["a",true]}');
     expect(clone({t: ['a', false]})).toBe('{"t":["a",false]}');
     expect(clone({t: ['a']})).toBe('{"t":["a"]}');
   });
 
   it('all shapes still round-trip through the decoder', () => {
-    const encBool = createJsonEncoder<{active?: boolean}>();
-    const decBool = createJsonDecoder<{active?: boolean}>();
+    const encBool = createJsonEncoderFn<{active?: boolean}>();
+    const decBool = createJsonDecoderFn<{active?: boolean}>();
     expect(decBool(encBool({active: false})!)).toEqual({active: false});
     expect(decBool(encBool({active: true})!)).toEqual({active: true});
     expect(decBool(encBool({})!)).toEqual({});
 
-    const encNull = createJsonEncoder<{x?: string | null}>();
-    const decNull = createJsonDecoder<{x?: string | null}>();
+    const encNull = createJsonEncoderFn<{x?: string | null}>();
+    const decNull = createJsonDecoderFn<{x?: string | null}>();
     expect(decNull(encNull({x: null})!)).toEqual({x: null});
     expect(decNull(encNull({x: 'hi'})!)).toEqual({x: 'hi'});
     expect(decNull(encNull({})!)).toEqual({});
@@ -93,7 +93,7 @@ describe('serialization / optional-union JSON encoding (regression)', () => {
 // exercised the value-first surface.
 describe('serialization / schema-form optional JSON encoding (regression)', () => {
   it('RT.optional(TF.string()) → optional property, no envelope', () => {
-    const enc = createJsonEncoder(RT.object({id: TF.string(), note: RT.optional(TF.string())}));
+    const enc = createJsonEncoderFn(RT.object({id: TF.string(), note: RT.optional(TF.string())}));
     expect(enc({id: 'x'})).toBe('{"id":"x"}'); // note omitted when absent
     expect(enc({id: 'x', note: 'hi'})).toBe('{"id":"x","note":"hi"}');
     expect(enc({id: 'x'})).not.toMatch(ENVELOPE);
@@ -101,7 +101,7 @@ describe('serialization / schema-form optional JSON encoding (regression)', () =
   });
 
   it('RT.optional(RT.boolean()) → plain boolean, never [index, value]', () => {
-    const enc = createJsonEncoder(RT.object({active: RT.optional(RT.boolean())}));
+    const enc = createJsonEncoderFn(RT.object({active: RT.optional(RT.boolean())}));
     expect(enc({active: false})).toBe('{"active":false}');
     expect(enc({active: true})).toBe('{"active":true}');
     expect(enc({})).toBe('{}');
@@ -119,8 +119,8 @@ describe('serialization / schema-form optional JSON encoding (regression)', () =
   });
 
   it('schema optionals still round-trip through the decoder', () => {
-    const enc = createJsonEncoder(RT.object({note: RT.optional(TF.string())}));
-    const dec = createJsonDecoder(RT.object({note: RT.optional(TF.string())}));
+    const enc = createJsonEncoderFn(RT.object({note: RT.optional(TF.string())}));
+    const dec = createJsonDecoderFn(RT.object({note: RT.optional(TF.string())}));
     expect(dec(enc({note: 'hi'})!)).toEqual({note: 'hi'});
     expect(dec(enc({})!)).toEqual({});
   });

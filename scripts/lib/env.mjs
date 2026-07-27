@@ -78,7 +78,7 @@ export const REGISTRY = [
   {name: 'RT_WEBSITE_BUILD_NETWORK', scope: 'dev', task: '-', desc: 'podman build network (e.g. "host" behind a proxy)'},
   {name: 'RT_WEBSITE_BASE_IMAGE', scope: 'dev', task: '-', desc: 'Node base image (default node:26-bookworm); mirror for air-gapped builds'},
   {name: 'RT_WEBSITE_PNPM_VERSION', scope: 'dev', task: '-', desc: 'Override the pnpm version baked into the image'},
-  {name: 'RT_WEBSITE_CA_CERT', scope: 'dev', task: '-', desc: 'File/dir of extra CA certs to trust in the image (corporate/MITM proxy)'},
+  {name: 'RT_WEBSITE_CA_CERT', scope: 'dev', task: '-', desc: 'File/dir of extra CA certs to trust in the image (corporate/MITM proxy). Used at BUILD time (baked) and at RUN time (mounted + NODE_EXTRA_CA_CERTS) so a PULLED image can still reach TLS endpoints, e.g. the e2e verdaccio uplink to npmjs'},
   {name: 'RT_WEBSITE_REMOTE_IMAGE', scope: 'dev', task: '-', desc: 'GHCR ref to pull (default ghcr.io/$GHCR_OWNER/tsrt-website:latest)'},
   {name: 'RT_WEBSITE_SMOKE_TIMEOUT', scope: 'dev', task: '-', desc: 'Seconds to wait for the smoke/verify server (default 90/120)'},
 
@@ -129,16 +129,16 @@ export const REGISTRY = [
 
   // — resolver knobs (the ts-runtypes Go binary) —
   {name: 'RT_CACHE_DIR', scope: 'dev', task: '-', desc: 'Internal RT disk-cache override (tests/power users): path forces it on there, "" forces it off, unset follows the tsconfig incremental/composite setting'},
+  {name: 'RT_BIN', scope: 'dev', task: '-', desc: "Path to the resolver binary @ts-runtypes/bin's getExePath() should use, overriding the platform package (and the in-repo dev binary) for BOTH the bundler and lint lanes. Must name an executable file or the lookup throws. Its version folds into every typeId, so an override of a different version yields caches that diverge from a normal install"},
 
-  // — build/release knobs (garble obfuscation of the published binaries + wasm) —
-  {name: 'RT_GARBLE', scope: 'dev', task: '-', desc: 'Obfuscate the published Go binaries + playground wasm with garble (default on; set 0 to build plain go — faster, real panic traces)'},
+  // — build/release knobs —
   {name: 'RT_NPM_PROVENANCE', scope: 'dev', task: 'publish-npm', desc: 'Attach npm provenance on the CI stage-publish (default off). Needs a PUBLIC repo — npm refuses provenance from a private source repo; set the CI repo variable to 1 once this repo is public'},
 
   // — lint knobs (the ts-runtypes-devtools OXlint/ESLint plugin) —
   {name: 'RT_LINT_PRESPAWN', scope: 'dev', task: '-', desc: "Set 0 to skip the lint plugin's load-time resolver pre-spawn (small hosts)"},
 
   // — pre-publish e2e knobs (scripts/release/e2e.mjs + the fixture) —
-  {name: 'RT_E2E_BINARY', scope: 'dev', task: '-', desc: 'Override the RunTypes plugin binary for the e2e apps (host iteration; unset in-container / in CI to test the published @ts-runtypes/bin launcher)'},
+  {name: 'RT_E2E_BINARY', scope: 'dev', task: '-', desc: 'Override the RunTypes plugin binary for the e2e apps (host iteration; unset in-container / in CI to test the published @ts-runtypes/bin launcher). The lint lanes take no binary option, so their spawners forward it as RT_BIN'},
 
   // — alignment-audit knobs (scripts/website/bench-data/bench.mjs audit + the harness) —
   {name: 'RT_AUDIT_OUT_DIR', scope: 'dev', task: '-', desc: 'Audit output dir (default the results dir)'},

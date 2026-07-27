@@ -79,12 +79,20 @@ const CODEGEN = {
   // from one protocol parse, so they can't drift; no stdoutTo (multi-file output).
   kind: {run: [...GO_RUN, './cmd/gen-run-type-kind'], outputs: ['packages/ts-runtypes/src/go-generated/runTypeKind.generated.ts', 'packages/ts-runtypes-devtools/src/go-generated/reflectionKind.generated.ts'], fmt: ['packages/ts-runtypes/src/go-generated/runTypeKind.generated.ts', 'packages/ts-runtypes-devtools/src/go-generated/reflectionKind.generated.ts']},
   fnhashes: {run: [...GO_RUN, './cmd/gen-fn-hashes'], stdoutTo: 'packages/ts-runtypes/src/go-generated/fnHashes.generated.ts', outputs: ['packages/ts-runtypes/src/go-generated/fnHashes.generated.ts'], fmt: ['packages/ts-runtypes/src/go-generated/fnHashes.generated.ts']},
+  // Type-format metadata mirror: the canonical format names (+ base RunTypeKind)
+  // each emitter under internal/cachegen/typefunctions/formats registers, so a
+  // reflection consumer keys off `typeFormats` instead of re-declaring the names.
+  typeformats: {run: [...GO_RUN, './cmd/gen-type-formats'], stdoutTo: 'packages/ts-runtypes/src/go-generated/typeFormats.generated.ts', outputs: ['packages/ts-runtypes/src/go-generated/typeFormats.generated.ts'], fmt: ['packages/ts-runtypes/src/go-generated/typeFormats.generated.ts']},
   diag: {run: ['node', 'scripts/core/gen-diagnostics-catalog.mjs'], outputs: ['packages/ts-runtypes-devtools/src/go-generated/diagnosticCatalog.generated.ts', 'container/website/app/components/content/go-generated/diagnostics-catalog.json'], fmt: []},
   // Built-in pure-fn body table (Go, not a Go->TS mirror): extracts the
   // package's own `rt::`/`rtFormats::` registrations from packages/ts-runtypes/src
   // so the resolver can deliver them to published consumers on demand. The Go
   // generator self-formats via go/format, so no `fmt` post-step.
   builtinpurefns: {run: [...GO_RUN, './cmd/gen-builtin-purefns'], outputs: ['ts-go-runtypes/internal/cachegen/builtinpurefns/table.generated.go'], fmt: []},
+  // tsRuntypesPlugin json-key mirror: the tsconfig plugin entry's recognised keys,
+  // read by the bundler-option parity test so a project option added to only one
+  // side (PluginOptions vs the tsconfig struct) fails CI.
+  pluginkeys: {run: [...GO_RUN, './cmd/gen-plugin-keys'], outputs: ['packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts']},
 };
 
 // Run one generator: either it writes its own outputs (proxy, stdio inherited),
@@ -169,6 +177,12 @@ async function runWebsite(args) {
     return proxy('node', ['scripts/website/serve.mjs', ...pass]);
   }
   if (sub === 'check') {
+    // --static checks the BUILT artifact (.output/public): serve it and assert every
+    // benchmark page renders its benchmark. The other two boot the dev container.
+    if (hasFlag(rest, '--static')) {
+      const {main} = await import('./website/check-static.mjs');
+      return main(takeFlag(rest, '--static').rest);
+    }
     const {main} = await import('./website/site.mjs');
     return main([hasFlag(rest, '--docs') ? 'verify-docs' : 'smoke']);
   }
@@ -176,7 +190,7 @@ async function runWebsite(args) {
     const {main} = await import('./website/site.mjs');
     return main(['shell']);
   }
-  die('usage: rtx website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview [--no-build]|check [--docs]|container-build|shell>');
+  die('usage: rtx website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview [--no-build]|check [--docs|--static]|container-build|shell>');
 }
 
 // ── bench ────────────────────────────────────────────────────────────────
@@ -203,6 +217,15 @@ async function runBench(args) {
 }
 
 // ── release: npm publish + orchestrate the site build/deploy ────────────────
+
+// Flags the no-sub umbrella accepts. Anything else — an unknown flag, a
+// mistyped subcommand — must NOT reach it: the umbrella ends in an
+// irreversible npm publish, so it is the one default in this CLI that must
+// never run by accident.
+const UMBRELLA_FLAGS = new Set(['--preflight-only', '--no-website', '--dry-run']);
+
+const isHelpFlag = (arg) => arg === 'help' || arg === '-h' || arg === '--help';
+
 function runRelease(args) {
   const [sub, ...rest] = args;
   const map = {
@@ -221,16 +244,28 @@ function runRelease(args) {
     e2e: ['node', ['scripts/release/e2e.mjs']],
   };
   if (map[sub]) return proxy(map[sub][0], [...map[sub][1], ...rest]);
-  // Umbrella (no sub): preflight -> npm publish -> website build. Deploy is CI-only.
-  const preflightOnly = hasFlag(args, '--preflight-only');
-  const noWebsite = hasFlag(args, '--no-website');
+  if (sub === 'all') return runReleaseChain(rest);
+  // Bare `rtx release` prints help — it does NOT release. The chain ends in an
+  // interactive npm publish that bumps, commits and tags, so it answers to its
+  // own name (`rtx release all`) and never to a bare word or a typo.
+  if (sub === undefined || isHelpFlag(sub)) return void process.stdout.write(RELEASE_HELP);
+  if (!sub.startsWith('-')) die(`unknown release command '${sub}'. Run \`pnpm rtx release --help\`.`, 2);
+  die(`\`rtx release\` no longer runs the release chain — use \`pnpm rtx release all ${args.join(' ')}\`.`, 2);
+}
+
+// The chain: preflight -> npm publish -> website build. Deploy is CI-only.
+function runReleaseChain(flags) {
+  const stray = flags.find((arg) => !UMBRELLA_FLAGS.has(arg));
+  if (stray) die(`unknown flag '${stray}' for \`rtx release all\`. Run \`pnpm rtx release --help\`.`, 2);
+  const preflightOnly = hasFlag(flags, '--preflight-only');
+  const noWebsite = hasFlag(flags, '--no-website');
   const plan = [['node', ['scripts/release/preflight.mjs']]];
   if (!preflightOnly) {
     plan.push(['node', ['scripts/release/publish.mjs']]);
     if (!noWebsite) plan.push(['node', ['scripts/website/build.mjs', 'generate']]);
   }
-  if (hasFlag(args, '--dry-run')) {
-    console.log('rtx release would run, in order:');
+  if (hasFlag(flags, '--dry-run')) {
+    console.log('rtx release all would run, in order:');
     for (const [cmd, a] of plan) console.log(`  ${cmd} ${a.join(' ')}`);
     console.log('(website deploy to Cloudflare Pages stays CI-only — see publish.yml)');
     return;
@@ -250,13 +285,26 @@ async function runContainer(args) {
 }
 
 // ── dispatch ────────────────────────────────────────────────────────────────
+// The release rows live here so `rtx release --help` and the full `rtx --help`
+// print the SAME text (HELP interpolates this block).
+const RELEASE_HELP = `release   npm publish + site build (CI stages to npm; a maintainer approves with 2FA)
+  rtx release                             prints this help — the chain answers to 'all', never to a bare word
+  rtx release all [--preflight-only] [--no-website] [--dry-run]   the chain: preflight -> npm publish -> site build
+  rtx release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
+  rtx release stage-approve [--dry-run|--no-deploy|--deploy-only]   approve staged packages (one 2FA OTP prompt, leaves-first), then auto-dispatch the website deploy once npm serves the version
+  rtx release verify-live                 deploy guard: fail unless the tree's version is LIVE on npm (all packages, lockstep)
+  rtx release manual-publish [--skip-build|--dry-run|--yes]   first-publish bootstrap: build + npm login + publish all 10 LIVE (resumable)
+  rtx release e2e [--backend container|host-npx] [--pack]   pre-publish e2e (containerized verdaccio + feature matrix + host smoke)
+  rtx release e2e --backend npm [--registry URL] [--version V] [--no-matrix]   post-publish e2e (install the LIVE @ts-runtypes/* from npm + run the same suite)
+`;
+
 const HELP = `rtx — internal RunTypes dev/build/publish CLI  (run as: pnpm rtx <area> <command>)
 
 core     the engine (Go resolver + TS marker/plugin)
   rtx core build [targets…]        build the binary + dev dists if stale
   rtx core smoke                   end-to-end smoke of the resolver + devtools
   rtx core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
-  rtx core codegen [all|constants|kind|fnhashes|diag|builtinpurefns] [--check]   regenerate Go→TS mirrors + built-in pure-fn table
+  rtx core codegen [all|constants|kind|fnhashes|typeformats|diag|builtinpurefns] [--check]   regenerate Go→TS mirrors + built-in pure-fn table
   rtx core bump-tsgolint [<rev>] [--skip-tests]   move the tsgolint/typescript-go pin (default: latest release), re-patch, rebuild + test
   rtx core ensure-tsgolint [--check]   check the submodule out to tsgolint.pin.json + re-apply patches (--check verifies only)
 
@@ -266,6 +314,7 @@ website
                     [--quick] [--ssr] [--skip-playground]
   rtx website preview [--no-build] serve the static site locally; regenerates it first unless --no-build
   rtx website check [--docs]       serves-a-page smoke (code-import + twoslash with --docs)
+  rtx website check --static       serve the BUILT site + assert every benchmark page renders
   rtx website container-build      container-only prod build (not the full pipeline)
   rtx website shell                debug shell inside the website container
 
@@ -273,15 +322,7 @@ bench
   rtx bench [--one <name>|--full|--website|--build-only] [--quick]
   rtx bench <audit|typecost|compiletime|serialization|smoke>
 
-release   npm publish + site build (CI stages to npm; a maintainer approves with 2FA)
-  rtx release [--preflight-only] [--no-website] [--dry-run]
-  rtx release <preflight|npm|website|bump <v>|dists|binaries|pack|tarballs|unpublish>
-  rtx release stage-approve [--dry-run]   approve this version's staged packages (2FA, leaves-first)
-  rtx release verify-live                 deploy guard: fail unless the tree's version is LIVE on npm (all packages, lockstep)
-  rtx release manual-publish [--skip-build|--dry-run|--yes]   first-publish bootstrap: build + npm login + publish all 10 LIVE (resumable)
-  rtx release e2e [--backend container|host-npx] [--pack]   pre-publish e2e (containerized verdaccio + feature matrix + host smoke)
-  rtx release e2e --backend npm [--registry URL] [--version V] [--no-matrix]   post-publish e2e (install the LIVE @ts-runtypes/* from npm + run the same suite)
-
+${RELEASE_HELP}
 container  rtx container <build-image|ensure|login|push|pull|lock|clean> [website|e2e]
            (build-image/push/pull/clean act on BOTH images when no target is given)
 env        rtx env [push-image|publish-npm|deploy-website|--create-env]
@@ -293,6 +334,13 @@ clean      clean build outputs; --deep also wipes node_modules
 
 async function dispatch(argv) {
   const [verb, ...rest] = argv;
+  // `rtx <area> --help` prints help instead of reaching the area's dispatcher,
+  // uniformly across areas. Deeper help (`rtx release e2e --help`) still goes
+  // to the leaf, which owns its own usage text.
+  if (verb && isHelpFlag(rest[0])) {
+    process.stdout.write(verb === 'release' ? RELEASE_HELP : HELP);
+    return;
+  }
   switch (verb) {
     case 'core': return runCore(rest);
     case 'website': return runWebsite(rest);

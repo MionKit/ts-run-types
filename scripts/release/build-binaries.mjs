@@ -17,7 +17,6 @@ import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {GARBLE_VERSION, GOGARBLE_SCOPE, garbleEnabled, requireGarble} from '../lib/garble.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const GO_ROOT = path.join(REPO_ROOT, 'ts-go-runtypes');
@@ -26,12 +25,6 @@ const GO_PKG = './cmd/ts-runtypes';
 const STAGING_DIR = path.join(REPO_ROOT, 'dist-binaries');
 const LAUNCHER_SRC = path.join(REPO_ROOT, 'packages', 'ts-runtypes-bin');
 const LICENSE_SRC = path.join(REPO_ROOT, 'LICENSE');
-
-// Published binaries are obfuscated with garble unless RT_GARBLE=0 (see
-// scripts/lib/garble.mjs). Resolve it up front as a HARD requirement — we never
-// want to accidentally publish an un-obfuscated binary.
-const USE_GARBLE = garbleEnabled();
-const GARBLE_EXE = USE_GARBLE ? requireGarble() : null;
 
 // node os / cpu (the package.json os/cpu fields and process.platform/arch keys)
 // → Go GOOS / GOARCH. Keep in lockstep with getExePath()'s platform key.
@@ -71,6 +64,29 @@ function exeName(platform) {
   return platform.os === 'win32' ? 'ts-runtypes.exe' : 'ts-runtypes';
 }
 
+function platformReadme(name, platform) {
+  return `# ${name}
+
+Prebuilt **RunTypes** compiler binary for ${platform.os}-${platform.cpu}.
+
+You never install this package directly. It rides as a per-platform optional
+dependency of [\`@ts-runtypes/bin\`](https://www.npmjs.com/package/@ts-runtypes/bin),
+which resolves the one matching your machine, and that launcher is itself pulled in
+by [\`@ts-runtypes/devtools\`](https://www.npmjs.com/package/@ts-runtypes/devtools).
+
+## Documentation
+
+Full guides live at **[runtypes.pages.dev](https://runtypes.pages.dev/)**.
+[Source and issues](https://github.com/MionKit/ts-run-types).
+
+## License
+
+Proprietary — all rights reserved. No use, copying, or distribution without prior
+written authorization. See
+[LICENSE](https://github.com/MionKit/ts-run-types/blob/main/LICENSE).
+`;
+}
+
 function buildPlatform(platform, version, tsgo, launcherPkg) {
   const name = platformPackageName(platform);
   const pkgDir = path.join(STAGING_DIR, name);
@@ -90,20 +106,11 @@ function buildPlatform(platform, version, tsgo, launcherPkg) {
   const goarm = platform.goarm ? ` GOARM=${platform.goarm}` : '';
   console.log(`  - ${name}  (GOOS=${platform.goos} GOARCH=${platform.goarch}${goarm})`);
   const outFile = path.join(libDir, exeName(platform));
-  if (USE_GARBLE) {
-    // garble implies -trimpath; scope obfuscation to our module only.
-    execFileSync(GARBLE_EXE, ['-tiny', 'build', `-ldflags=${ldflags}`, '-o', outFile, GO_PKG], {
-      cwd: GO_ROOT,
-      env: {...env, GOGARBLE: GOGARBLE_SCOPE},
-      stdio: 'inherit',
-    });
-  } else {
-    execFileSync('go', ['build', '-trimpath', `-ldflags=${ldflags}`, '-o', outFile, GO_PKG], {
-      cwd: GO_ROOT,
-      env,
-      stdio: 'inherit',
-    });
-  }
+  execFileSync('go', ['build', '-trimpath', `-ldflags=${ldflags}`, '-o', outFile, GO_PKG], {
+    cwd: GO_ROOT,
+    env,
+    stdio: 'inherit',
+  });
 
   const packageJson = {
     name,
@@ -123,6 +130,10 @@ function buildPlatform(platform, version, tsgo, launcherPkg) {
   // Ship the proprietary LICENSE with every published binary package. npm always
   // includes a LICENSE file in the tarball, even though `files` lists only lib/.
   fs.copyFileSync(LICENSE_SRC, path.join(pkgDir, 'LICENSE'));
+  // Same story for the README: npm always packs it, and without one the package's
+  // npm page renders blank. These are payload packages nobody installs by hand, so
+  // it says what the payload is and points at the launcher and the docs.
+  fs.writeFileSync(path.join(pkgDir, 'README.md'), platformReadme(name, platform));
   return name;
 }
 
@@ -153,7 +164,7 @@ function main() {
   const version = readVersion();
   const tsgo = readTsgoRevision();
   console.log(`Staging ts-runtypes binary packages — version ${version}, tsgo ${tsgo}\n`);
-  console.log(USE_GARBLE ? `Obfuscating with garble ${GARBLE_VERSION} (GOGARBLE=${GOGARBLE_SCOPE}, -tiny)\n` : 'RT_GARBLE=0 — building plain go binaries (no obfuscation)\n');
+  console.log('Building plain go binaries (go build -trimpath, CGO_ENABLED=0)\n');
 
   fs.rmSync(STAGING_DIR, {recursive: true, force: true});
   fs.mkdirSync(STAGING_DIR, {recursive: true});

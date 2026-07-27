@@ -9,10 +9,12 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
-// goldenCase mirrors the JSON written by testdata/gen_golden.mjs — the inputs
-// (file/code/sites/replacements) plus the REAL JS rewrite's outputs
-// (expectedCode/expectedMap) that the Go port must reproduce byte-for-byte.
-type goldenCase struct {
+// fixtureCase mirrors the JSON written by cmd/gen-sourcerewrite-fixtures — the inputs
+// (file/code/sites/replacements) plus Apply's own outputs (expectedCode/expectedMap)
+// captured as a reviewed baseline. The generator drives the SAME Apply this test
+// re-runs, so the corpus is a snapshot guard: a change to the rewrite or source-map
+// math fails here until the fixtures are regenerated and the diff re-reviewed.
+type fixtureCase struct {
 	File         string                 `json:"file"`
 	Code         string                 `json:"code"`
 	Sites        []protocol.Site        `json:"sites"`
@@ -21,17 +23,17 @@ type goldenCase struct {
 	ExpectedMap  *protocol.SourceMap    `json:"expectedMap"`
 }
 
-// TestApply_Golden loads every testdata/*.json oracle, runs Apply, and asserts
-// the rewritten code AND the full source map match the JS pipeline exactly. The
-// `mappings` string is the load-bearing field — UTF-16 column math /
-// boundary segmentation must reproduce magic-string's hires:'boundary' output.
-func TestApply_Golden(t *testing.T) {
+// TestApply_Fixtures loads every testdata/*.json baseline, runs Apply, and asserts
+// the rewritten code AND the full source map match it exactly. The `mappings`
+// string is the load-bearing field — UTF-16 column math / boundary segmentation
+// must reproduce magic-string's hires:'boundary' output.
+func TestApply_Fixtures(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join("testdata", "*.json"))
 	if err != nil {
 		t.Fatalf("glob testdata: %v", err)
 	}
 	if len(paths) == 0 {
-		t.Fatal("no golden testdata/*.json found — run testdata/gen_golden.mjs")
+		t.Fatal("no fixture testdata/*.json found — run: go run ./cmd/gen-sourcerewrite-fixtures")
 	}
 	for _, path := range paths {
 		path := path
@@ -41,7 +43,7 @@ func TestApply_Golden(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read %s: %v", path, err)
 			}
-			var tc goldenCase
+			var tc fixtureCase
 			if err := json.Unmarshal(raw, &tc); err != nil {
 				t.Fatalf("unmarshal %s: %v", path, err)
 			}

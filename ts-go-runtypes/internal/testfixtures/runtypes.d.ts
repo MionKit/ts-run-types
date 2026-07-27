@@ -35,7 +35,7 @@ declare module '@ts-runtypes/core' {
 
   // One public createX factory, enough for the override fixtures to exercise the
   // (family, type) routing both call shapes share.
-  export function createValidate<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createValidateFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
 
   // Per-type custom function overrides — the WRITE side of the same routing.
   // One twin per public family; the fn must match the family's compiled signature.

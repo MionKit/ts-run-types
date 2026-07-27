@@ -54,7 +54,7 @@ export type RunResult =
     };
 
 interface ScanResult {
-  // fnId is absent for reflection call sites (getRunTypeId / createMockData),
+  // fnId is absent for reflection call sites (getRunTypeId / createMockDataFn),
   // which inject the facade tuple under `__rt_<id>` rather than `__rt_<fnId>_<id>`.
   site: {id: string; fnId?: string; [key: string]: unknown} | null;
   entryModules: Record<string, string>;
@@ -111,13 +111,13 @@ export function factoryImport(factory: string): string {
 // type mode, `const <varName> = <factory>(MyType)` in schema mode. When
 // `injectedArg` is given (a `__rt_<…>` binding), it is appended as the trailing
 // argument — exactly how the build plugin rewrites the call site (a 0-arg
-// `createValidate<T>()` becomes `createValidate<T>(__rt_…)`; the value-first
-// `createValidate(MyType)` becomes `createValidate(MyType, __rt_…)`).
+// `createValidateFn<T>()` becomes `createValidateFn<T>(__rt_…)`; the value-first
+// `createValidateFn(MyType)` becomes `createValidateFn(MyType, __rt_…)`).
 //
 // `options` is the comptime `{strategy: '…'}` literal a JSON en/decoder call
 // carries. It rides the options slot: in schema mode after the schema
-// (`createJsonEncoder(MyType, {strategy: 'mutate'})`); in type mode after an
-// explicit `undefined` for the value slot (`createJsonEncoder<MyType>(undefined,
+// (`createJsonEncoderFn(MyType, {strategy: 'mutate'})`); in type mode after an
+// explicit `undefined` for the value slot (`createJsonEncoderFn<MyType>(undefined,
 // {strategy: 'mutate'})`), matching the canonical call shape.
 export function factoryCall(factory: string, varName: string, mode: Mode, injectedArg?: string | null, options?: string): string {
   const args: string[] = [];
@@ -193,7 +193,7 @@ interface LinkedEntry {
 
 // linkEntry scans <factory><MyType>(), links the emitted entry modules, and
 // returns the root tuple. The binding is `__rt_<fnId>_<id>` for type-fn families
-// (validate / encoders / …) and `__rt_<id>` for reflection ones (createMockData /
+// (validate / encoders / …) and `__rt_<id>` for reflection ones (createMockDataFn /
 // getRunTypeId), which inject a facade tuple with no fnId. `options` selects the
 // JSON strategy (folded into the fnId), so each strategy links its own entry.
 function linkEntry(
@@ -266,9 +266,9 @@ export async function transformedSource(
   if (typeof code !== 'string') return source;
   // The rewrite slot-fills the factory's optional parameters with `undefined`
   // before the injected `__rt_…` id. Type-first passes no value/options so the
-  // padding is leading — `createValidate<MyType>(undefined, __rt_…)`; value-first
+  // padding is leading — `createValidateFn<MyType>(undefined, __rt_…)`; value-first
   // passes the schema so the padding is the `options` slot between it and the id
-  // — `createJsonEncoder(MyType, undefined, __rt_…)`. Drop that padding either
+  // — `createJsonEncoderFn(MyType, undefined, __rt_…)`. Drop that padding either
   // way so the call reads like the code a user writes (`…(__rt_…)` /
   // `…(MyType, __rt_…)`). Scope the cleanup to the factory call itself (the last
   // non-empty line) so it can never touch user code with the same shape.
@@ -310,7 +310,7 @@ export async function generatedCache(
   return Object.entries(entryModules).map(([basename, code]) => ({name: `rtmod:/${basename}.js`, code: code.trim()}));
 }
 
-// mock generates a random value for the type via createMockData (the same
+// mock generates a random value for the type via createMockDataFn (the same
 // generator MockData feeds). Returns the value plus any diagnostics.
 export async function mock(
   userCode: string,
@@ -318,11 +318,11 @@ export async function mock(
   mode: Mode = 'type'
 ): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
   const {dispatch} = await getResolver(options);
-  const {fn, diagnostics} = materialize(dispatch, 'createMockData', userCode, mode);
+  const {fn, diagnostics} = materialize(dispatch, 'createMockDataFn', userCode, mode);
   return {value: fn(), diagnostics};
 }
 
-// mockInvalid generates a value that FAILS validation via the core createMockData
+// mockInvalid generates a value that FAILS validation via the core createMockDataFn
 // `invalid` option (a valid mock with one type-aware position corrupted; see
 // invalidLeafProbability). It additionally verifies against the live validator and
 // retries, so the rare position the core can't make invalid on its own (a
@@ -335,8 +335,8 @@ export async function mockInvalid(
   invalidLeafProbability = 0.85
 ): Promise<{value: unknown; diagnostics: Diagnostic[]}> {
   const {dispatch} = await getResolver(options);
-  const validate = materialize(dispatch, 'createValidate', userCode, mode).fn as (v: unknown) => boolean;
-  const {fn: generate, diagnostics} = materialize(dispatch, 'createMockData', userCode, mode);
+  const validate = materialize(dispatch, 'createValidateFn', userCode, mode).fn as (v: unknown) => boolean;
+  const {fn: generate, diagnostics} = materialize(dispatch, 'createMockDataFn', userCode, mode);
   const callOpts = {mock: {invalid: true, invalidLeafProbability}};
   let last: unknown;
   for (let attempt = 0; attempt < 12; attempt++) {
@@ -351,7 +351,7 @@ function toHex(bytes: Uint8Array): string {
 }
 
 function asBytes(value: unknown): Uint8Array {
-  if (value instanceof Uint8Array) return value; // createBinaryEncoder returns a Uint8Array view
+  if (value instanceof Uint8Array) return value; // createBinaryEncoderFn returns a Uint8Array view
   return new Uint8Array(value as ArrayBuffer);
 }
 
@@ -371,7 +371,7 @@ export async function run(
     case 'graph': {
       // Type mode reflects via getRunType<MyType>(); schema mode resolves the
       // same graph through a value-first reflection call on the schema.
-      const reflectFactory = mode === 'schema' ? 'createMockData' : 'getRunType';
+      const reflectFactory = mode === 'schema' ? 'createMockDataFn' : 'getRunType';
       const {site, runTypes, diagnostics} = scan(dispatch, reflectFactory, userCode, mode);
       const rootId = site?.id ?? null;
       const root = runTypes.find((n) => n.id === rootId) ?? runTypes[0] ?? null;
@@ -393,8 +393,8 @@ export async function run(
       // The intermediate encoder uses `encodeOptions` (e.g. mutate, so undeclared
       // keys reach the wire); the decoder uses `options` (preserve vs strip) — the
       // pair is what the two decode entries demonstrate against the same input.
-      const enc = materialize(dispatch, 'createJsonEncoder', userCode, mode, op.encodeOptions);
-      const dec = materialize(dispatch, 'createJsonDecoder', userCode, mode, op.options);
+      const enc = materialize(dispatch, 'createJsonEncoderFn', userCode, mode, op.encodeOptions);
+      const dec = materialize(dispatch, 'createJsonDecoderFn', userCode, mode, op.options);
       const encoded = enc.fn(input);
       const decoded = dec.fn(encoded);
       return {op, kind: 'jsonRoundtrip', encoded, decoded, diagnostics: dec.diagnostics};
@@ -405,8 +405,8 @@ export async function run(
       return {op, kind: 'binaryEncode', byteLength: bytes.length, hex: toHex(bytes), diagnostics};
     }
     case 'binaryRoundtrip': {
-      const enc = materialize(dispatch, 'createBinaryEncoder', userCode, mode);
-      const dec = materialize(dispatch, 'createBinaryDecoder', userCode, mode);
+      const enc = materialize(dispatch, 'createBinaryEncoderFn', userCode, mode);
+      const dec = materialize(dispatch, 'createBinaryDecoderFn', userCode, mode);
       const bytes = asBytes(enc.fn(input));
       const decoded = dec.fn(bytes);
       return {op, kind: 'binaryRoundtrip', byteLength: bytes.length, hex: toHex(bytes), decoded, diagnostics: dec.diagnostics};

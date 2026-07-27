@@ -5,7 +5,7 @@
 // case + one acyclic DAG control.
 
 import type * as TF from '@ts-runtypes/core/formats';
-import {createGetValidationErrors, createValidate} from '@ts-runtypes/core';
+import {createGetValidationErrorsFn, createValidateFn} from '@ts-runtypes/core';
 import '@ts-runtypes/core/formats';
 import type {CircularGuardValidationCase} from '../../util/circularGuardAsserts.ts';
 
@@ -19,7 +19,7 @@ export const CIRCULAR_GUARD = {
         id: TF.UUIDv4;
         next?: Node;
       }
-      return createValidate<Node>(undefined, {rejectCircularRefs: true});
+      return createValidateFn<Node>(undefined, {rejectCircularRefs: true});
     },
     validateReflect: () => {
       interface Node {
@@ -27,14 +27,14 @@ export const CIRCULAR_GUARD = {
         next?: Node;
       }
       const inference: Node = {id: UUID_V4};
-      return createValidate(inference, {rejectCircularRefs: true});
+      return createValidateFn(inference, {rejectCircularRefs: true});
     },
     getValidationErrors: () => {
       interface Node {
         id: TF.UUIDv4;
         next?: Node;
       }
-      return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
+      return createGetValidationErrorsFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValidationErrorsReflect: () => {
       interface Node {
@@ -42,7 +42,7 @@ export const CIRCULAR_GUARD = {
         next?: Node;
       }
       const inference: Node = {id: UUID_V4};
-      return createGetValidationErrors(inference, {rejectCircularRefs: true});
+      return createGetValidationErrorsFn(inference, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {id: string; next?: unknown} = {id: UUID_V4};
@@ -59,7 +59,7 @@ export const CIRCULAR_GUARD = {
         id: TF.UUIDv4;
         children: Node[];
       }
-      return createValidate<Node>(undefined, {rejectCircularRefs: true});
+      return createValidateFn<Node>(undefined, {rejectCircularRefs: true});
     },
     validateReflect: () => {
       interface Node {
@@ -67,14 +67,14 @@ export const CIRCULAR_GUARD = {
         children: Node[];
       }
       const inference: Node = {id: UUID_V4, children: []};
-      return createValidate(inference, {rejectCircularRefs: true});
+      return createValidateFn(inference, {rejectCircularRefs: true});
     },
     getValidationErrors: () => {
       interface Node {
         id: TF.UUIDv4;
         children: Node[];
       }
-      return createGetValidationErrors<Node>(undefined, {rejectCircularRefs: true});
+      return createGetValidationErrorsFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValidationErrorsReflect: () => {
       interface Node {
@@ -82,7 +82,7 @@ export const CIRCULAR_GUARD = {
         children: Node[];
       }
       const inference: Node = {id: UUID_V4, children: []};
-      return createGetValidationErrors(inference, {rejectCircularRefs: true});
+      return createGetValidationErrorsFn(inference, {rejectCircularRefs: true});
     },
     getValue: () => {
       const shared = {id: UUID_V4, children: [] as unknown[]};

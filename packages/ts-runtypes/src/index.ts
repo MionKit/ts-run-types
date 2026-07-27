@@ -15,6 +15,25 @@ export {
 // at module top level through any ESM cycle.
 export {getRTUtils, getRTFnCaches, type RTUtils} from './runtypes/rtUtils.ts';
 
+// Compiled-fn data model + reconstruction — the surface a consumer needs to ship
+// compiled RT functions over the wire and rebuild them on the far side: send the
+// closure-free `CompiledFnData` (its `code` is the factory body), restore the
+// factory with `buildFactoryFromCode(code)` (the `new Function('utl', code)` step;
+// `buildPureFnFactoryFromCode` is the pure-fn-lane twin), assemble a `CompiledTypeFn`,
+// write it back through the already-public `RTUtils.addToRTCache` / `.addPureFn`, then
+// materialise + call via `getRTUtils().getRT(hash)`. Only the argument types and the
+// restore helpers were unreachable before — the cache-write methods were already public.
+export {
+  type CompiledFnData,
+  type CompiledTypeFn,
+  type InitializedTypeFn,
+  type CompiledFnArgs,
+  type CompiledPureFunction,
+  type PureFunctionData,
+  type AnyFn,
+} from './runtypes/types.ts';
+export {buildFactoryFromCode, buildPureFnFactoryFromCode, entryCode} from './runtypes/rtUtils.ts';
+
 // The generic runtime type node + the helper that recovers the source TS type
 // a `RunType<T>` carries (`InferType<typeof schema>`). Both are part of the
 // value-first surface: builders return `RunType<T>`, `InferType` maps back.
@@ -28,7 +47,7 @@ export {type InferType} from './schema/static.ts';
 
 // AI enrichment — type-keyed, committed maps validated against `T` at scan time
 // (see docs/AI_ENRICHMENT.md). `FriendlyText<T>` combines labels + error
-// templates; `MockData<T>` carries sample pools/ranges feeding `createMockData`.
+// templates; `MockData<T>` carries sample pools/ranges feeding `createMockDataFn`.
 export {
   type FriendlyText,
   type FriendlyNode,
@@ -123,7 +142,16 @@ export {
   type RunTypeSubKindValue,
 } from './go-generated/runTypeKind.generated.ts';
 
-// String JSON I/O is `createJsonEncoder` + `createJsonDecoder`. The VALUE-level
+// Built-in type-format metadata (auto-generated from the Go format registry —
+// see typeFormats.generated.ts). `typeFormats` is the runtime table of every
+// canonical format name ts-runtypes stamps on a reflected prop's
+// `formatAnnotation.name`, each with the base `RunTypeKind` it refines;
+// `FormatName` is the union of those names. A consumer that maps a reflected
+// format to something external (a DB column, a UI label) keys off these instead
+// of re-declaring the names.
+export {typeFormats, type FormatName, type TypeFormatMeta} from './go-generated/typeFormats.generated.ts';
+
+// String JSON I/O is `createJsonEncoderFn` + `createJsonDecoderFn`. The VALUE-level
 // transforms they build on — the per-strategy prepareForJson / restoreFromJson
 // primitives (`pj`/`pjs`/`rj`/`sj`/`ukuw`/`cj`/`cjr`) — have NO factory: a
 // framework that owns its own JSON envelope names the primitive in an
@@ -135,32 +163,32 @@ export {
   getRTFunction,
   type RTFunctionByKey,
   type RTFunctionKey,
-  // createValidate / createGetValidationErrors are overloaded: a value-first `RunType`
+  // createValidateFn / createGetValidationErrorsFn are overloaded: a value-first `RunType`
   // schema as the first arg (the value a `define` builder returns) is a distinct
   // overload from the type/value reflection form — both reflect `T`.
-  createValidate,
+  createValidateFn,
   type ValidateFn,
   type ValidateOptions,
-  createGetValidationErrors,
+  createGetValidationErrorsFn,
   type GetValidationErrorsFn,
   type RTValidationError,
   type TypeFormatError,
   type RTValidationErrorPathSegment,
   type RTPathSegment,
-  createHasUnknownKeys,
+  createHasUnknownKeysFn,
   type HasUnknownKeysFn,
   type HasUnknownKeysOptions,
   type HasUnknownKeysCompileOptions,
-  createCloneExactShape,
+  createCloneExactShapeFn,
   type CloneExactShapeFn,
-  createUnknownKeyErrors,
+  createUnknownKeyErrorsFn,
   type UnknownKeyErrorsFn,
-  createFormatTransform,
+  createFormatTransformFn,
   type FormatTransformFn,
-  createJsonEncoder,
+  createJsonEncoderFn,
   type JsonEncoderFn,
   type JsonEncoderOptions,
-  createJsonDecoder,
+  createJsonDecoderFn,
   type JsonDecoderFn,
   type JsonDecoderOptions,
   // The value-level JSON primitives have NO factory — they are recovered via
@@ -177,14 +205,14 @@ export {
 // Binary I/O re-exported from a dedicated module so bundlers can drop the
 // binary subtree when consumers never reference either factory.
 export {
-  createBinaryEncoder,
+  createBinaryEncoderFn,
   type BinaryEncoderFn,
   type BinaryEncoderSizeFn,
   type BinaryEncoderIntoFn,
   type BinaryEncoderOptions,
-  createBinarySizer,
+  createBinarySizerFn,
   type BinarySizerFn,
-  createBinaryDecoder,
+  createBinaryDecoderFn,
   type BinaryDecoderFn,
   type BinaryDecoderOptions,
   type ToBinaryFn,
@@ -209,9 +237,13 @@ export {
 } from './overrideRTFunctions.ts';
 
 // Mock-value generator re-exported from `./mocking/` so bundlers can drop the
-// whole mock subtree when consumers don't reference `createMockData`.
-export {createMockData} from './mocking/createMockData.ts';
+// whole mock subtree when consumers don't reference `createMockDataFn`.
+export {createMockDataFn} from './mocking/createMockData.ts';
 export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTypes.ts';
+// The seeded/native random source. Exported so a custom mock fn (registered via
+// `registerMockingFunction`) receives a `MockRandom` and stays reproducible
+// under `createMockDataFn(..., { mock: { seed } })`.
+export {MockRandom} from './mocking/mockRandom.ts';
 
 // Standard Schema v1 adapter — re-exported from `./standard/` so bundlers can
 // drop the adapter subtree when consumers never call createStandardSchema. The

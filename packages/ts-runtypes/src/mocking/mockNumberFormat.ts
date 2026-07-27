@@ -7,20 +7,22 @@
 import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import {registerMockingFunction} from './mockRegistry.ts';
+import {nativeMockRandom} from './mockRandom.ts';
+import type {MockRandom} from './mockRandom.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 
-const mockNumberFormat = (annotation: FormatAnnotation): unknown => {
+const mockNumberFormat = (annotation: FormatAnnotation, random: MockRandom = nativeMockRandom): unknown => {
   if (annotation.name !== 'numberFormat') return undefined;
   // isCurrency is presentation metadata — mockNumberParams reads only the
   // constraint params, so a Currency mock is the same constraint-respecting draw.
-  return mockNumberParams((annotation.params ?? {}) as NumberParams);
+  return mockNumberParams((annotation.params ?? {}) as NumberParams, random);
 };
 
 registerMockingFunction(RunTypeKind.number, mockNumberFormat);
 
 // mockNumberParams returns a number satisfying every constraint, so the
 // mock round-trips through validate. Mirrors the reference _mock exactly.
-function mockNumberParams(params: NumberParams): number {
+function mockNumberParams(params: NumberParams, random: MockRandom): number {
   let min = params.min !== undefined ? numVal(params.min) : -99999;
   let max = params.max !== undefined ? numVal(params.max) : 99999;
 
@@ -38,9 +40,9 @@ function mockNumberParams(params: NumberParams): number {
   if (params.integer) {
     min = Math.ceil(min);
     max = Math.floor(max);
-    result = randomInt(min, max);
+    result = random.int(min, max);
   } else {
-    result = min + Math.random() * (max - min);
+    result = min + random.float() * (max - min);
   }
 
   // Snap down to the largest multiple of multipleOf that is <= result.
@@ -58,9 +60,4 @@ function numVal(value: unknown): number {
   if (typeof value === 'number') return value;
   if (value !== null && typeof value === 'object' && 'val' in value) return numVal((value as {val: unknown}).val);
   return Number(value);
-}
-
-// randomInt returns an inclusive random integer in [min, max].
-function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }

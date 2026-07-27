@@ -6,12 +6,12 @@
 // pass every equivalence driver yet be catastrophically wrong; this driver pins
 // that distinct types do NOT share a cached factory.
 //
-// Mechanism (same as assertValidatorIdIntegrity): `createValidate(RT.x())` returns
+// Mechanism (same as assertValidatorIdIntegrity): `createValidateFn(RT.x())` returns
 // the CACHED factory for the schema's structural id, so reference inequality
 // (`.not.toBe`) between two distinct schemas is a same-as / distinct-id assertion.
 
 import {describe, it, expect} from 'vitest';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
 
@@ -20,27 +20,27 @@ import * as TF from '@ts-runtypes/core/formats';
 // cached factory — a real id-collision bug, not a test artefact.
 const DISTINCT_PAIRS: ReadonlyArray<[string, () => unknown, () => unknown]> = [
   // literal vs its widened primitive — the classic collision risk
-  ['literal(2) vs number()', () => createValidate(RT.literal(2)), () => createValidate(TF.number())],
+  ['literal(2) vs number()', () => createValidateFn(RT.literal(2)), () => createValidateFn(TF.number())],
   // two distinct numeric literals
-  ['literal(2) vs literal(3)', () => createValidate(RT.literal(2)), () => createValidate(RT.literal(3))],
+  ['literal(2) vs literal(3)', () => createValidateFn(RT.literal(2)), () => createValidateFn(RT.literal(3))],
   // string-literal vs its primitive
-  ["literal('a') vs string()", () => createValidate(RT.literal('a')), () => createValidate(TF.string())],
+  ["literal('a') vs string()", () => createValidateFn(RT.literal('a')), () => createValidateFn(TF.string())],
   // distinct primitives
-  ['string() vs number()', () => createValidate(TF.string()), () => createValidate(TF.number())],
+  ['string() vs number()', () => createValidateFn(TF.string()), () => createValidateFn(TF.number())],
   // distinct object shapes (extra field)
   [
     'object{a} vs object{a,b}',
-    () => createValidate(RT.object({a: TF.number()})),
-    () => createValidate(RT.object({a: TF.number(), b: TF.number()})),
+    () => createValidateFn(RT.object({a: TF.number()})),
+    () => createValidateFn(RT.object({a: TF.number(), b: TF.number()})),
   ],
   // same field name, different field type
   [
     'object{a:number} vs object{a:string}',
-    () => createValidate(RT.object({a: TF.number()})),
-    () => createValidate(RT.object({a: TF.string()})),
+    () => createValidateFn(RT.object({a: TF.number()})),
+    () => createValidateFn(RT.object({a: TF.string()})),
   ],
   // array element type differs
-  ['number[] vs string[]', () => createValidate(RT.array(TF.number())), () => createValidate(RT.array(TF.string()))],
+  ['number[] vs string[]', () => createValidateFn(RT.array(TF.number())), () => createValidateFn(RT.array(TF.string()))],
 ];
 
 describe('id-integrity / distinctness — meaningfully-distinct types resolve DISTINCT cached factories', () => {

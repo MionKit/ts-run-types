@@ -9,7 +9,7 @@ const REPO_ROOT = resolve(HERE, '../..');
 
 // Mirrors the run-types/vitest.config.ts shape: install the runtype
 // transformer as a Vite plugin so test source files (which import
-// `createValidate` and friends from `ts-runtypes`) get
+// `createValidateFn` and friends from `ts-runtypes`) get
 // rewritten with the resolved runtype id at compile time, AND the
 // three cache modules under `caches/*.ts` get their bodies overlaid by
 // the plugin's `transform()` hook with the Go binary's rendered output.
@@ -38,7 +38,7 @@ export default defineConfig({
       tsconfig: 'tsconfig.test.json',
       // Force 'both' emit for the test run so suites cover BOTH
       // materialisation paths on every case:
-      //   - createValidate<T>() / createXxx<T>() → reads entry.createRTFn
+      //   - createValidateFn<T>() / createXxx<T>() → reads entry.createRTFn
       //     (the inline closure baked in by the Go renderer)
       //   - deserializeValidate<T>() / deserializeXxx<T>() → ignores the
       //     inline closure and rebuilds the factory from entry.code via

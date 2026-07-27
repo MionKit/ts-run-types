@@ -59,13 +59,13 @@ const MAIN_TSCONFIG = JSON.stringify({
 
 // Same wrapper shape as wrapper-zero-config.test.ts — a framework factory with a
 // trailing marker param, living in the REFERENCED project.
-const WRAPPER_SRC = `import {createValidate} from '@ts-runtypes/core';
+const WRAPPER_SRC = `import {createValidateFn} from '@ts-runtypes/core';
 import type {InjectTypeFnArgs, ValidateFn} from '@ts-runtypes/core';
 
 type AnyHandler = (ctx: unknown, ...rest: any[]) => unknown;
 
 export function route<H extends AnyHandler>(handler: H, id?: InjectTypeFnArgs<Parameters<H>, 'val'>) {
-  const validate: ValidateFn = createValidate(undefined, undefined, id as never);
+  const validate: ValidateFn = createValidateFn(undefined, undefined, id as never);
   return {handler, validate};
 }
 `;

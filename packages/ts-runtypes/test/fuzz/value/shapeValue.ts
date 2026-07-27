@@ -166,7 +166,7 @@ function objectValue(
     // binary number-index codec (it encodes numeric keys as numbers). A union
     // key picks a kind per entry. Symbol keys are dropped by JSON and by the
     // serializers, so they add no round-trip coverage — skip them (a symbol-only
-    // index yields no entries). createMockData keys on the resolved RunType's
+    // index yields no entries). createMockDataFn keys on the resolved RunType's
     // index kind; this is the shape-lane equivalent.
     const kinds = (indexKey ?? ['string']).filter((kind) => kind !== 'symbol');
     if (kinds.length) {

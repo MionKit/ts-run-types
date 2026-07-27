@@ -16,7 +16,7 @@
 
 import path from 'node:path';
 import {describe, it, expect} from 'vitest';
-import {createBinaryEncoder, createBinaryDecoder, createBinarySizer, createMockData} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createBinaryDecoderFn, createBinarySizerFn, createMockDataFn} from '@ts-runtypes/core';
 import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {
   RUNTYPES_DTS,
@@ -43,12 +43,12 @@ interface Compiled {
 /** Compile `decls` + `type T = rootExpr`, returning the binary + reflection tuples
  *  and the baked cold-start seed. Asserts the type produced no Error diagnostics. **/
 async function compile(client: ResolverClient, title: string, decls: string, rootExpr: string): Promise<Compiled> {
-  const source = `import {createBinaryEncoder, createBinaryDecoder, getRunTypeId} from '@ts-runtypes/core';
+  const source = `import {createBinaryEncoderFn, createBinaryDecoderFn, getRunTypeId} from '@ts-runtypes/core';
 ${BRAND}
 ${decls}
 type T = ${rootExpr};
-createBinaryEncoder<T>();
-createBinaryDecoder<T>();
+createBinaryEncoderFn<T>();
+createBinaryDecoderFn<T>();
 getRunTypeId<T>();
 `;
   await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'g.ts': source});
@@ -78,8 +78,8 @@ getRunTypeId<T>();
 /** Encode `value` into a COLD buffer and assert it never grew (capacity === seed)
  *  and round-trips. **/
 function assertNoGrow(compiled: Compiled, value: unknown, title: string): void {
-  const encode = createBinaryEncoder(undefined, undefined, compiled.tb as never) as (v: unknown) => Uint8Array;
-  const decode = createBinaryDecoder(undefined, undefined, compiled.fb as never) as (b: Uint8Array) => unknown;
+  const encode = createBinaryEncoderFn(undefined, undefined, compiled.tb as never) as (v: unknown) => Uint8Array;
+  const decode = createBinaryDecoderFn(undefined, undefined, compiled.fb as never) as (b: Uint8Array) => unknown;
   setSerializationOptions({sizeHistory: new Map()}); // cold cache
   const view = encode(value);
   const shown = JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? `${v}n` : v));
@@ -117,12 +117,12 @@ describe('binary size — packed formats never grow the cold buffer (Part A)', (
     try {
       for (const c of PACKED) {
         const compiled = await compile(client, c.title, '', c.rootExpr);
-        const sizer = createBinarySizer(undefined, compiled.tb as never) as (v: unknown) => number;
+        const sizer = createBinarySizerFn(undefined, compiled.tb as never) as (v: unknown) => number;
         setSerializationOptions({sizeHistory: new Map()});
-        const view = (createBinaryEncoder(undefined, undefined, compiled.tb as never) as (v: unknown) => Uint8Array)(c.value);
+        const view = (createBinaryEncoderFn(undefined, undefined, compiled.tb as never) as (v: unknown) => Uint8Array)(c.value);
         expect(sizer(c.value), `sizer != encoder for ${c.title}`).toBe(view.byteLength);
         expect(view.buffer.byteLength, `${c.title}: cold buffer grew`).toBe(compiled.seed);
-        const decode = createBinaryDecoder(undefined, undefined, compiled.fb as never) as (b: Uint8Array) => unknown;
+        const decode = createBinaryDecoderFn(undefined, undefined, compiled.fb as never) as (b: Uint8Array) => unknown;
         expect(decode(view), `round-trip ${c.title}`).toEqual(c.value);
       }
     } finally {
@@ -189,7 +189,7 @@ describe('binary size — reserve floors hold at a tiny adversarial config', () 
       for (const c of FLOORS) {
         const compiled = await compile(client, c.title, c.decls ?? '', c.rootExpr);
         expect(compiled.refl, `no reflection tuple for ${c.title}`).toBeTruthy();
-        const mock = createMockData(
+        const mock = createMockDataFn(
           undefined,
           {mock: {respectBinarySize: true, binarySizingOptions: TINY}},
           compiled.refl as never

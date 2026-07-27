@@ -1,15 +1,15 @@
 import {
-  createValidate,
+  createValidateFn,
   overrideValidate,
-  createGetValidationErrors,
+  createGetValidationErrorsFn,
   overrideGetValidationErrors,
-  createJsonEncoder,
+  createJsonEncoderFn,
   overrideJsonEncoder,
-  createJsonDecoder,
+  createJsonDecoderFn,
   overrideJsonDecoder,
-  createBinaryEncoder,
+  createBinaryEncoderFn,
   overrideBinaryEncoder,
-  createBinaryDecoder,
+  createBinaryDecoderFn,
   overrideBinaryDecoder,
 } from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
@@ -33,15 +33,15 @@ overrideBinaryDecoder<TupleTarget>((ret, Des) => JSON.parse(Des.desString()) as 
 
 export const TUPLE_OVERRIDE: OverrideCase = {
   title: 'Tuples',
-  validate: () => createValidate<TupleTarget>(),
+  validate: () => createValidateFn<TupleTarget>(),
   validateSamples: {pass: [['tupleOverride', 1, 'x']], fail: [['tupleOverride', 2, 'x'], null]},
-  getValidationErrors: () => createGetValidationErrors<TupleTarget>(),
+  getValidationErrors: () => createGetValidationErrorsFn<TupleTarget>(),
   errorsValue: ['tupleOverride', 1, 'x'],
-  jsonEncoder: () => createJsonEncoder<TupleTarget>(),
-  jsonDecoder: () => createJsonDecoder<TupleTarget>(),
+  jsonEncoder: () => createJsonEncoderFn<TupleTarget>(),
+  jsonDecoder: () => createJsonDecoderFn<TupleTarget>(),
   jsonValue: ['tupleOverride', 1, 'x'],
   jsonString: 'OVR' + JSON.stringify(['tupleOverride', 1, 'x']),
-  binaryEncoder: () => createBinaryEncoder<TupleTarget>(),
-  binaryDecoder: () => createBinaryDecoder<TupleTarget>(),
+  binaryEncoder: () => createBinaryEncoderFn<TupleTarget>(),
+  binaryDecoder: () => createBinaryDecoderFn<TupleTarget>(),
   binaryValue: ['tupleOverride', 3, 'y'],
 };

@@ -1,15 +1,15 @@
 import {
-  createValidate,
+  createValidateFn,
   overrideValidate,
-  createGetValidationErrors,
+  createGetValidationErrorsFn,
   overrideGetValidationErrors,
-  createJsonEncoder,
+  createJsonEncoderFn,
   overrideJsonEncoder,
-  createJsonDecoder,
+  createJsonDecoderFn,
   overrideJsonDecoder,
-  createBinaryEncoder,
+  createBinaryEncoderFn,
   overrideBinaryEncoder,
-  createBinaryDecoder,
+  createBinaryDecoderFn,
   overrideBinaryDecoder,
 } from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
@@ -34,15 +34,15 @@ overrideBinaryDecoder<ArrayTarget>((ret, Des) => JSON.parse(Des.desString()) as 
 
 export const ARRAY_OVERRIDE: OverrideCase = {
   title: 'Arrays',
-  validate: () => createValidate<ArrayTarget>(),
+  validate: () => createValidateFn<ArrayTarget>(),
   validateSamples: {pass: [[{n: 1}]], fail: [[{n: 2}], null]},
-  getValidationErrors: () => createGetValidationErrors<ArrayTarget>(),
+  getValidationErrors: () => createGetValidationErrorsFn<ArrayTarget>(),
   errorsValue: [{n: 1}],
-  jsonEncoder: () => createJsonEncoder<ArrayTarget>(),
-  jsonDecoder: () => createJsonDecoder<ArrayTarget>(),
+  jsonEncoder: () => createJsonEncoderFn<ArrayTarget>(),
+  jsonDecoder: () => createJsonDecoderFn<ArrayTarget>(),
   jsonValue: [{n: 1}, {n: 2}],
   jsonString: 'OVR' + JSON.stringify([{n: 1}, {n: 2}]),
-  binaryEncoder: () => createBinaryEncoder<ArrayTarget>(),
-  binaryDecoder: () => createBinaryDecoder<ArrayTarget>(),
+  binaryEncoder: () => createBinaryEncoderFn<ArrayTarget>(),
+  binaryDecoder: () => createBinaryDecoderFn<ArrayTarget>(),
   binaryValue: [{n: 3}],
 };

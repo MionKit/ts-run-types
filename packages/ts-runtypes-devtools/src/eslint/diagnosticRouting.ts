@@ -15,8 +15,9 @@ import {Family, Severity, type Diagnostic, type DiagnosticSite} from '../protoco
 // level of each on its own. Severity, not the name, decides the tier. The
 // concrete code (e.g. `[VL011]`) always rides in the message, so per-code
 // disable comments and lookups keep working. `validate` covers both
-// `createValidate` and `createGetValidationErrors` (VL + VE).
+// `createValidateFn` and `createGetValidationErrorsFn` (VL + VE).
 export type RuleName =
+  | 'broken-tsconfig'
   | 'invalid-marker'
   | 'redundant-marker'
   | 'pure-functions'
@@ -56,6 +57,13 @@ export interface RuleSpec {
 }
 
 export const RULE_SPECS: readonly RuleSpec[] = [
+  {
+    name: 'broken-tsconfig',
+    default: 'error',
+    gate: 'compiler',
+    description:
+      'The project tsconfig the linter was pointed at (the tsconfig setting, or the default tsconfig.json) is missing or does not parse, so type-aware linting cannot run. The linter reads the same config as your build; fix the config or the configured path',
+  },
   {
     name: 'invalid-marker',
     default: 'error',
@@ -245,6 +253,7 @@ interface FamilyRules {
 // prefixes (MKR/CTA/PFN/TMP) share the marker rules. Enrichment codes (FT/MD/GE)
 // route by concern instead (see enrichFamily), so they are absent here.
 const PREFIX_TO_FAMILY: Record<string, FamilyRules> = {
+  CFG: {primary: 'broken-tsconfig'},
   MKR: {primary: 'invalid-marker', warn: 'redundant-marker'},
   CTA: {primary: 'invalid-marker'},
   PFN: {primary: 'invalid-marker'},
@@ -284,6 +293,10 @@ function enrichFamily(code: string): FamilyRules {
   switch (code) {
     case 'FT020':
     case 'MD020':
+    case 'FT023':
+    case 'MD023':
+      // Unfilled scaffolds: a @todo marker (FT020/MD020) or a blank value
+      // (FT023/MD023) — both mean "not finished yet", so both ride the todo rule.
       return {primary: 'no-enrichment-todo'};
     case 'FT021':
     case 'FT022':

@@ -97,7 +97,7 @@ so every later run reuses it; `pnpm rtx bench clean` drops the volume.
 
 typia entries copy the per-case literal `T` verbatim from the ts-go competitor
 (the type must be written at the `createIs<T>()` call site, like ts-go's
-`createValidate<T>()`). A case is supported only when typia can express the type
+`createValidateFn<T>()`). A case is supported only when typia can express the type
 **and** its runtime semantics match the shared samples; the divergences that force
 `NOT_SUPPORTED` are documented inline in
 [`competitors/typia/cases.ts`](competitors/typia/cases.ts) — e.g. `createIs<number>()`
@@ -196,9 +196,9 @@ sample>` — so TypeScript fully resolves the type **and** structurally checks t
 value against it (the cost you pay on every `const x: T = {…}`). Forms, extracted
 per-competitor from each competitor's own files:
 
-- **ts-go (type)** — `competitors/ts-runtypes/cases.ts` `createValidate<TYPE>()` type arg.
+- **ts-go (type)** — `competitors/ts-runtypes/cases.ts` `createValidateFn<TYPE>()` type arg.
 - **typia** — `competitors/typia/cases.ts` `typia.createIs<TYPE>()` type arg (format suites use typia tag intersections, e.g. `string & tags.MaxLength<5>`).
-- **ts-go (schema)** — `competitors/ts-runtypes/schemaCases.ts` `createValidate(EXPR)` arg.
+- **ts-go (schema)** — `competitors/ts-runtypes/schemaCases.ts` `createValidateFn(EXPR)` arg.
 - **zod / typebox** — `competitors/<name>/cases.ts` schema expressions.
 - **ajv** — none (JSON Schema has no static type inference).
 

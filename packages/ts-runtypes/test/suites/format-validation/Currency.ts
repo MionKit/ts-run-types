@@ -9,7 +9,13 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {FormatValidationCase} from './types.ts';
 import '@ts-runtypes/core/formats';
-import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createStandardSchema,
+  type DataOnly,
+} from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const CURRENCY = {
@@ -18,11 +24,11 @@ export const CURRENCY = {
     description: 'A bare Currency mark: validates as a plain number (isCurrency is presentation metadata, not a constraint).',
     validateNotes:
       'Any finite number passes — the isCurrency param adds no numeric constraint of its own. A non-number ("5") fails the number typeof gate.',
-    validate: () => createValidate<TF.Currency>(),
+    validate: () => createValidateFn<TF.Currency>(),
     standardSchema: () => createStandardSchema<TF.Currency>(),
     validateReflect: () => {
       const v: TF.Currency = 19.99;
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidate: () => deserializeValidate<TF.Currency>(),
     deserializeValidateReflect: () => {
@@ -31,7 +37,7 @@ export const CURRENCY = {
     },
     getValidationErrorsReflect: () => {
       const v: TF.Currency = 19.99;
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.Currency>(),
     deserializeGetValidationErrorsReflect: () => {
@@ -40,14 +46,14 @@ export const CURRENCY = {
     },
     mockTypeReflect: () => {
       const v: TF.Currency = 19.99;
-      return createMockData(v);
+      return createMockDataFn(v);
     },
-    validateDataOnly: () => createValidate<DataOnly<TF.Currency>>(),
-    validateSchema: () => createValidate(TF.currency()),
-    getValidationErrors: () => createGetValidationErrors<TF.Currency>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Currency>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(TF.currency()),
-    mockType: () => createMockData<TF.Currency>(),
+    validateDataOnly: () => createValidateFn<DataOnly<TF.Currency>>(),
+    validateSchema: () => createValidateFn(TF.currency()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.Currency>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Currency>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.currency()),
+    mockType: () => createMockDataFn<TF.Currency>(),
     getSamples: () => ({valid: [19.99, 0, -50.25], invalid: ['5']}),
     expectedFormatErrors: () => [null],
   },
@@ -56,7 +62,7 @@ export const CURRENCY = {
     description: 'Currency with an upper bound; the format error echoes isCurrency (the friendly-renderer discriminator).',
     validateNotes:
       'Boundary value 100 passes (inclusive); 101 fails on `max` with an isCurrency-flagged format error. A non-number ("5") fails the number typeof gate before any format check.',
-    validate: () => createValidate<TF.Currency<{max: 100}>>(),
+    validate: () => createValidateFn<TF.Currency<{max: 100}>>(),
     standardSchema: () => createStandardSchema<TF.Currency<{max: 100}>>(),
     // One hand-authored Standard Schema expectation per file (see
     // NumberFormat.ts): pins the consumer-facing {message, path} output — and
@@ -75,7 +81,7 @@ export const CURRENCY = {
     ],
     validateReflect: () => {
       const v: TF.Currency<{max: 100}> = 100;
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidate: () => deserializeValidate<TF.Currency<{max: 100}>>(),
     deserializeValidateReflect: () => {
@@ -84,7 +90,7 @@ export const CURRENCY = {
     },
     getValidationErrorsReflect: () => {
       const v: TF.Currency<{max: 100}> = 100;
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.Currency<{max: 100}>>(),
     deserializeGetValidationErrorsReflect: () => {
@@ -93,14 +99,14 @@ export const CURRENCY = {
     },
     mockTypeReflect: () => {
       const v: TF.Currency<{max: 100}> = 100;
-      return createMockData(v);
+      return createMockDataFn(v);
     },
-    validateDataOnly: () => createValidate<DataOnly<TF.Currency<{max: 100}>>>(),
-    validateSchema: () => createValidate(TF.currency({max: 100})),
-    getValidationErrors: () => createGetValidationErrors<TF.Currency<{max: 100}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Currency<{max: 100}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(TF.currency({max: 100})),
-    mockType: () => createMockData<TF.Currency<{max: 100}>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<TF.Currency<{max: 100}>>>(),
+    validateSchema: () => createValidateFn(TF.currency({max: 100})),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.Currency<{max: 100}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Currency<{max: 100}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.currency({max: 100})),
+    mockType: () => createMockDataFn<TF.Currency<{max: 100}>>(),
     getSamples: () => ({valid: [100, 0, -50], invalid: [101, '5']}),
     expectedFormatErrors: () => [{name: 'numberFormat', val: 100, formatPathTail: 'max'}, null],
   },
@@ -110,11 +116,11 @@ export const CURRENCY = {
       'Currency stored as integer minor units (cents) with a uint16 range; validation mirrors the equivalent Number brand.',
     validateNotes:
       'Non-integers fail on `integer`; values above 65535 fail on `max`; negatives fail on `min`. The [0, 65535] bounds also drive the 2-byte binary packing (see the format-serialization suite).',
-    validate: () => createValidate<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
+    validate: () => createValidateFn<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     standardSchema: () => createStandardSchema<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     validateReflect: () => {
       const v: TF.Currency<{integer: true; min: 0; max: 65535}> = 1999;
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidate: () => deserializeValidate<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     deserializeValidateReflect: () => {
@@ -123,7 +129,7 @@ export const CURRENCY = {
     },
     getValidationErrorsReflect: () => {
       const v: TF.Currency<{integer: true; min: 0; max: 65535}> = 1999;
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     deserializeGetValidationErrorsReflect: () => {
@@ -132,14 +138,14 @@ export const CURRENCY = {
     },
     mockTypeReflect: () => {
       const v: TF.Currency<{integer: true; min: 0; max: 65535}> = 1999;
-      return createMockData(v);
+      return createMockDataFn(v);
     },
-    validateDataOnly: () => createValidate<DataOnly<TF.Currency<{integer: true; min: 0; max: 65535}>>>(),
-    validateSchema: () => createValidate(TF.currency({integer: true, min: 0, max: 65535})),
-    getValidationErrors: () => createGetValidationErrors<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<TF.Currency<{integer: true; min: 0; max: 65535}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(TF.currency({integer: true, min: 0, max: 65535})),
-    mockType: () => createMockData<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<TF.Currency<{integer: true; min: 0; max: 65535}>>>(),
+    validateSchema: () => createValidateFn(TF.currency({integer: true, min: 0, max: 65535})),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Currency<{integer: true; min: 0; max: 65535}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.currency({integer: true, min: 0, max: 65535})),
+    mockType: () => createMockDataFn<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     getSamples: () => ({valid: [0, 1999, 65535], invalid: [19.99, 65536, -1]}),
     expectedFormatErrors: () => [
       {name: 'numberFormat', val: true, formatPathTail: 'integer'},

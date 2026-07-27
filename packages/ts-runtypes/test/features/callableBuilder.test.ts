@@ -13,12 +13,12 @@
 // types now: distinct cache entries with IDENTICAL validator behavior. Both
 // facts are pinned below.
 //
-// `createValidate` returns the cached factory for a structural id, so `toBe`
+// `createValidateFn` returns the cached factory for a structural id, so `toBe`
 // (reference identity) is a same-id assertion (and `not.toBe` a distinct-id one).
 
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
-import {createValidate, type InferType} from '@ts-runtypes/core';
+import {createValidateFn, type InferType} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 
 type CallableIface = {(a: number, b: boolean): string; extra: string};
@@ -27,8 +27,8 @@ describe('value-first callable builder', () => {
   const schema = RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}));
 
   it('is a DISTINCT cache entry from the named type-first callable interface, with identical behavior', () => {
-    const fromSchema = createValidate(schema);
-    const fromType = createValidate<CallableIface>();
+    const fromSchema = createValidateFn(schema);
+    const fromType = createValidateFn<CallableIface>();
     // Param names are id-relevant; the named interface and the unnamed builder
     // form must NOT share a canonical node (per-site parameters[].name).
     expect(fromSchema).not.toBe(fromType);
@@ -41,7 +41,7 @@ describe('value-first callable builder', () => {
   });
 
   it('validates a callable interface (function value PLUS data props)', () => {
-    const isCallable = createValidate(schema);
+    const isCallable = createValidateFn(schema);
     // The call-signature half is notSupported (functions aren't validated): the
     // emitted validator checks `typeof === 'function'` PLUS the declared props.
     const fnWithExtra = Object.assign((_a: number, _b: boolean) => 'x', {extra: 'x'});

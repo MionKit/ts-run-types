@@ -1,15 +1,15 @@
 import {
-  createValidate,
+  createValidateFn,
   overrideValidate,
-  createGetValidationErrors,
+  createGetValidationErrorsFn,
   overrideGetValidationErrors,
-  createJsonEncoder,
+  createJsonEncoderFn,
   overrideJsonEncoder,
-  createJsonDecoder,
+  createJsonDecoderFn,
   overrideJsonDecoder,
-  createBinaryEncoder,
+  createBinaryEncoderFn,
   overrideBinaryEncoder,
-  createBinaryDecoder,
+  createBinaryDecoderFn,
   overrideBinaryDecoder,
 } from '@ts-runtypes/core';
 import type {OverrideCase} from './types.ts';
@@ -34,15 +34,15 @@ overrideBinaryDecoder<CircularTarget>((ret, Des) => JSON.parse(Des.desString()) 
 
 export const CIRCULAR_OVERRIDE: OverrideCase = {
   title: 'Circular',
-  validate: () => createValidate<CircularTarget>(),
+  validate: () => createValidateFn<CircularTarget>(),
   validateSamples: {pass: [{label: 'ok', next: null}], fail: [{label: 'no', next: null}, null]},
-  getValidationErrors: () => createGetValidationErrors<CircularTarget>(),
+  getValidationErrors: () => createGetValidationErrorsFn<CircularTarget>(),
   errorsValue: {label: 'ok', next: null},
-  jsonEncoder: () => createJsonEncoder<CircularTarget>(),
-  jsonDecoder: () => createJsonDecoder<CircularTarget>(),
+  jsonEncoder: () => createJsonEncoderFn<CircularTarget>(),
+  jsonDecoder: () => createJsonDecoderFn<CircularTarget>(),
   jsonValue: {label: 'x', next: null},
   jsonString: 'OVR' + JSON.stringify({label: 'x', next: null}),
-  binaryEncoder: () => createBinaryEncoder<CircularTarget>(),
-  binaryDecoder: () => createBinaryDecoder<CircularTarget>(),
+  binaryEncoder: () => createBinaryEncoderFn<CircularTarget>(),
+  binaryDecoder: () => createBinaryDecoderFn<CircularTarget>(),
   binaryValue: {label: 'L', next: {label: 'M', next: null}},
 };

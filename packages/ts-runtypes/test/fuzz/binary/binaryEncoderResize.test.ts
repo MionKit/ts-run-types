@@ -1,4 +1,4 @@
-// Regression for the bug the fuzzer surfaced: createBinaryEncoder owns its
+// Regression for the bug the fuzzer surfaced: createBinaryEncoderFn owns its
 // serializer and sizes it from adaptive history. After many small encodes the
 // predicted size converges down toward the running mean, so an above-average
 // string used to overflow the buffer and throw
@@ -10,13 +10,13 @@
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from '@ts-runtypes/core/schema';
-import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createBinaryDecoderFn} from '@ts-runtypes/core';
 
 describe('fuzz / regression — binary encoder grows its buffer on overflow', () => {
   it('encodes an above-average string after the size history converged down', () => {
     const schema = RT.object({s: TF.string()});
-    const encode = createBinaryEncoder(schema);
-    const decode = createBinaryDecoder(schema);
+    const encode = createBinaryEncoderFn(schema);
+    const decode = createBinaryDecoderFn(schema);
 
     // Drive the adaptive size history down with many tiny payloads.
     for (let i = 0; i < 50; i++) encode({s: ''});
@@ -32,8 +32,8 @@ describe('fuzz / regression — binary encoder grows its buffer on overflow', ()
 
   it('round-trips a bimodal small/large stream (Welford variance + in-place grow)', () => {
     const schema = RT.object({s: TF.string()});
-    const encode = createBinaryEncoder(schema);
-    const decode = createBinaryDecoder(schema);
+    const encode = createBinaryEncoderFn(schema);
+    const decode = createBinaryDecoderFn(schema);
 
     // Alternating tiny and large payloads: the running variance is high, so the
     // prediction carries headroom, and any residual miss grows in place. Neither

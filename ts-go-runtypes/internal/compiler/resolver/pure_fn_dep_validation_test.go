@@ -22,7 +22,7 @@ const runtypesDTSWithPureFn = `declare module '@ts-runtypes/core' {
   export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean; rejectCircularRefs?: boolean}
-  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
+  export function createGetValidationErrorsFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
   export type PureFunction<F> = F & {readonly __rtPureFunctionBrand?: never};
   export type PureFunctionFactory<F> = F & {readonly __rtPureFunctionFactoryBrand?: never};
   export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};
@@ -58,7 +58,7 @@ func assertNoPFE9012(t *testing.T, diags []diagnostics.Diagnostic) {
 // test for the PFE9012 false positive: a published-package consumer resolves
 // `@ts-runtypes/core` to its .d.ts (so the runtime's `rt::` registration source
 // is NOT in the program), uses a feature whose emitted body reaches a built-in
-// (createGetValidationErrors -> `rt::newRunTypeErr`), AND registers its OWN pure
+// (createGetValidationErrorsFn -> `rt::newRunTypeErr`), AND registers its OWN pure
 // fn. The consumer's registration used to make the program's registration count
 // non-zero, defeating the "any registration present?" guard and turning every
 // built-in reference into a PFE9012 wall that halted the build. Built-in
@@ -67,8 +67,8 @@ func assertNoPFE9012(t *testing.T, diags []diagnostics.Diagnostic) {
 func TestPureFnDepValidation_ConsumerOwnPureFnNoFalsePositive(t *testing.T) {
 	sources := map[string]string{
 		"runtypes.d.ts": runtypesDTSWithPureFn,
-		"a.ts": `import {createGetValidationErrors} from '@ts-runtypes/core';
-export const errorsOf = createGetValidationErrors<{a: string; b: number}>();
+		"a.ts": `import {createGetValidationErrorsFn} from '@ts-runtypes/core';
+export const errorsOf = createGetValidationErrorsFn<{a: string; b: number}>();
 `,
 		// The consumer's OWN pure fn, in a user namespace. This is what defeated
 		// the old whole-program count guard and unleashed the built-in wall.
@@ -124,8 +124,8 @@ export const _reg = registerPureFnFactory('myapp::slugify', function () { return
 func TestPureFnDepValidation_RegistrationPresent_NoDiagnostic(t *testing.T) {
 	sources := map[string]string{
 		"runtypes.d.ts": runtypesDTSWithPureFn,
-		"a.ts": `import {createGetValidationErrors} from '@ts-runtypes/core';
-export const errorsOf = createGetValidationErrors<{a: string; b: number}>();
+		"a.ts": `import {createGetValidationErrorsFn} from '@ts-runtypes/core';
+export const errorsOf = createGetValidationErrorsFn<{a: string; b: number}>();
 `,
 		"reg.ts": `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const _reg = registerPureFnFactory('rt::newRunTypeErr', function () { return function () { return []; }; });
@@ -162,8 +162,8 @@ export const _reg = registerPureFnFactory('rt::newRunTypeErr', function () { ret
 // (nothing user-registered) and must stay clean.
 func TestPureFnDepValidation_StubProgramNoDiagnostic(t *testing.T) {
 	r := setupInline(t, map[string]string{
-		"a.ts": `import {createGetValidationErrors} from '@ts-runtypes/core';
-export const errorsOf = createGetValidationErrors<{a: string; b: number}>();
+		"a.ts": `import {createGetValidationErrorsFn} from '@ts-runtypes/core';
+export const errorsOf = createGetValidationErrorsFn<{a: string; b: number}>();
 `,
 	})
 	resp := r.Dispatch(protocol.Request{

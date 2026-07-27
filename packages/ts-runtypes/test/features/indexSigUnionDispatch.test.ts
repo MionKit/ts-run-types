@@ -3,7 +3,7 @@
 // fuzzer surfaced on a valid-but-strange generated type.
 
 import {describe, test, expect} from 'vitest';
-import {createValidate, createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+import {createValidateFn, createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
 
 describe('fuzzer regressions — index signatures & union dispatch', () => {
   // A `Record<K, V>` validator used to accept a Map / Set / Date: a for-in over
@@ -12,7 +12,7 @@ describe('fuzzer regressions — index signatures & union dispatch', () => {
   // that over-acceptance mis-dispatched a Map onto the Record member, which then
   // serialized it as `{}`. The validator now brand-checks index-sig objects.
   test('Record validator rejects non-plain objects, accepts plain objects', () => {
-    const isRecord = createValidate<Record<string, number>>();
+    const isRecord = createValidateFn<Record<string, number>>();
     expect(isRecord({a: 1, b: 2})).toBe(true);
     expect(isRecord({})).toBe(true);
     expect(isRecord(new Map([['a', 1]]))).toBe(false);
@@ -25,8 +25,8 @@ describe('fuzzer regressions — index signatures & union dispatch', () => {
   // value matched the Record candidate and was encoded as `{}` on every lane.
   test('union with Map + Record members round-trips a Map value without collapsing to {}', () => {
     type U = {kind: 'm'; v: Map<string, number>} | {kind: 'r'; v: Record<string, number>};
-    const encode = createJsonEncoder<U>();
-    const decode = createJsonDecoder<U>();
+    const encode = createJsonEncoderFn<U>();
+    const decode = createJsonDecoderFn<U>();
     const value: U = {
       kind: 'm',
       v: new Map([
@@ -49,7 +49,7 @@ describe('fuzzer regressions — index signatures & union dispatch', () => {
   // produced invalid JSON. The flag is now re-established per property.
   test('direct strategy emits valid JSON for an all-optional object with a nested object + index signature', () => {
     type Shape = {a?: {inner: number}; b?: string; [k: string]: unknown};
-    const encode = createJsonEncoder<Shape>(undefined, {strategy: 'direct'});
+    const encode = createJsonEncoderFn<Shape>(undefined, {strategy: 'direct'});
     const value: Shape = {a: {inner: 1}, b: 'x'};
     const wire = encode(value) as string;
     expect(() => JSON.parse(wire)).not.toThrow();
@@ -63,8 +63,8 @@ describe('fuzzer regressions — index signatures & union dispatch', () => {
   // unknown-keys cap with "Too many unknown keys". The sweep now skips siblings.
   test('strip decoder round-trips an object mixing a named RegExp prop with an index signature', () => {
     type T = {pattern: RegExp; [k: number]: {a: number}};
-    const encode = createJsonEncoder<T>();
-    const decode = createJsonDecoder<T>();
+    const encode = createJsonEncoderFn<T>();
+    const decode = createJsonDecoderFn<T>();
     const value: T = {pattern: /a-very-long-regex-source-[0-9]+/g, 0: {a: 1}, 1: {a: 2}};
     const out = decode(encode(value) as string) as T;
     expect(out.pattern instanceof RegExp).toBe(true);
@@ -83,8 +83,8 @@ describe('fuzzer regressions — index signatures & union dispatch', () => {
     const value: T = {a: 5n, b: 3, c: 'x', 0: 7n, 1: 'y'};
     for (const strategy of ['clone', 'mutate', 'direct', 'compact'] as const) {
       const decStrategy = strategy === 'compact' ? 'compact' : strategy === 'mutate' ? 'preserve' : 'strip';
-      const encode = createJsonEncoder<T>(undefined, {strategy});
-      const decode = createJsonDecoder<T>(undefined, {strategy: decStrategy});
+      const encode = createJsonEncoderFn<T>(undefined, {strategy});
+      const decode = createJsonDecoderFn<T>(undefined, {strategy: decStrategy});
       const out = decode(encode(structuredClone(value)) as string) as T;
       expect(out, `strategy ${strategy}`).toEqual(value);
     }
@@ -108,19 +108,19 @@ describe('fuzzer regressions — index signatures & union dispatch', () => {
   test('discriminated union with overlapping merged-prop shapes keeps a byte-stable JSON wire', () => {
     type DiscOverlap = {kind: 't0'; f0: {p0?: Set<number>}} | {kind: 't3'; f0?: Record<string, undefined>};
 
-    const validate = createValidate<DiscOverlap>();
+    const validate = createValidateFn<DiscOverlap>();
     // f0 carries a key with an undefined value — a valid Record<string, undefined>
     // that JSON renders as `{}` (the lossy projection that drove the instability).
     const value: DiscOverlap = {kind: 't3', f0: {k0: undefined}};
     expect(validate(value)).toBe(true);
 
-    const cloneEnc = createJsonEncoder<DiscOverlap>(undefined, {strategy: 'clone'});
-    const mutateEnc = createJsonEncoder<DiscOverlap>(undefined, {strategy: 'mutate'});
-    const directEnc = createJsonEncoder<DiscOverlap>(undefined, {strategy: 'direct'});
-    const compactEnc = createJsonEncoder<DiscOverlap>(undefined, {strategy: 'compact'});
-    const stripDec = createJsonDecoder<DiscOverlap>(undefined, {strategy: 'strip'});
-    const preserveDec = createJsonDecoder<DiscOverlap>(undefined, {strategy: 'preserve'});
-    const compactDec = createJsonDecoder<DiscOverlap>(undefined, {strategy: 'compact'});
+    const cloneEnc = createJsonEncoderFn<DiscOverlap>(undefined, {strategy: 'clone'});
+    const mutateEnc = createJsonEncoderFn<DiscOverlap>(undefined, {strategy: 'mutate'});
+    const directEnc = createJsonEncoderFn<DiscOverlap>(undefined, {strategy: 'direct'});
+    const compactEnc = createJsonEncoderFn<DiscOverlap>(undefined, {strategy: 'compact'});
+    const stripDec = createJsonDecoderFn<DiscOverlap>(undefined, {strategy: 'strip'});
+    const preserveDec = createJsonDecoderFn<DiscOverlap>(undefined, {strategy: 'preserve'});
+    const compactDec = createJsonDecoderFn<DiscOverlap>(undefined, {strategy: 'compact'});
 
     const lanes = [
       {label: 'clone', encode: cloneEnc, decode: stripDec},

@@ -1,4 +1,4 @@
-import {registerClassSerializer, createJsonEncoder, createJsonDecoder, type DataOnly} from '@ts-runtypes/core';
+import {registerClassSerializer, createJsonEncoderFn, createJsonDecoderFn, type DataOnly} from '@ts-runtypes/core';
 
 // A class with a non-empty constructor. The data goes on the wire structurally
 // (just its declared properties), so you only have to teach ts-runtypes how to
@@ -34,8 +34,8 @@ registerClassSerializer(Settings);
 
 type Account = {id: string; balance: Money; settings: Settings};
 
-const encode = createJsonEncoder<Account>();
-const decode = createJsonDecoder<Account>();
+const encode = createJsonEncoderFn<Account>();
+const decode = createJsonDecoderFn<Account>();
 
 const json = encode({id: 'acc_1', balance: new Money(4999, 'USD'), settings: new Settings()})!;
 const back = decode(json); // back.balance is a real Money, back.settings a real Settings

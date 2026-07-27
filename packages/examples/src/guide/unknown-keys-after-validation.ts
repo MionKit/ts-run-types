@@ -1,4 +1,4 @@
-import {createHasUnknownKeys, createValidate} from '@ts-runtypes/core';
+import {createHasUnknownKeysFn, createValidateFn} from '@ts-runtypes/core';
 
 type User = {id: number; name: string};
 
@@ -8,8 +8,8 @@ type User = {id: number; name: string};
 // all-required shapes (~3x on small objects, ~44x at 30 props) and drops the
 // per-object typeof guards. Calling it on non-validated input is undefined
 // behavior — keep it behind a validate like the strict guard below.
-const isUser = createValidate<User>();
-const hasExtraFast = createHasUnknownKeys<User>(undefined, {runsAfterValidation: true});
+const isUser = createValidateFn<User>();
+const hasExtraFast = createHasUnknownKeysFn<User>(undefined, {runsAfterValidation: true});
 
 export function isUserStrict(data: unknown): data is User {
   return isUser(data) && !hasExtraFast(data);

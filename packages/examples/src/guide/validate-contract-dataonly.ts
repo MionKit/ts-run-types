@@ -1,4 +1,4 @@
-import {createJsonDecoder, type DataOnly} from '@ts-runtypes/core';
+import {createJsonDecoderFn, type DataOnly} from '@ts-runtypes/core';
 
 // Decoders return the data-only projection of T — the non-serializable
 // members are gone from the return type too, so it can't lie to you.
@@ -7,7 +7,7 @@ interface User {
   greet: () => string; // dropped on the wire AND in the return type
 }
 
-const decode = createJsonDecoder<User>();
+const decode = createJsonDecoderFn<User>();
 
 const user = decode('{"name":"Ada"}');
 user.name; // string — fine

@@ -12,7 +12,7 @@
 //   2. params-only     `string({maxLength: 5})`   → transparent `RunType<String<P>>`
 //   3. params + brand  `string({…}, brand('Id'))` → nominal `RunType<String<P, 'Id'>>`
 // The no-params call converges on the SAME structural id as the type-first plain
-// type and a marker-form `createValidate<string>()`. A single impl resolves the
+// type and a marker-form `createValidateFn<string>()`. A single impl resolves the
 // injected entry tuple as the TRAILING arg (`lastInjectedId`): it lands at slot 0
 // (no-params), slot 1 (params), or slot 2 (params + brand), and the Go scanner
 // derives the slot from the resolved overload's signature (trailing param). The

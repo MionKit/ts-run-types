@@ -40,7 +40,7 @@ var jcp001CompactCases = []jcp001CompactCase{
 // runtypeCodes collects the runtype-family diagnostic codes a scan produced.
 func runtypeCodes(t *testing.T, shape, fn, strategy string) []string {
 	t.Helper()
-	code := "import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';\n" +
+	code := "import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';\n" +
 		shape + ";\n" +
 		"export const _ = " + fn + "<T>(undefined, {strategy: '" + strategy + "'});\n"
 	r := setupInline(t, map[string]string{"a.ts": code})
@@ -79,8 +79,8 @@ func TestJCP001_CompactMatchesSibling(t *testing.T) {
 	for _, tc := range jcp001CompactCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Encoder: compact (cj) must match clone (pjs).
-			cloneCodes := runtypeCodes(t, tc.shape, "createJsonEncoder", "clone")
-			compactEnc := runtypeCodes(t, tc.shape, "createJsonEncoder", "compact")
+			cloneCodes := runtypeCodes(t, tc.shape, "createJsonEncoderFn", "clone")
+			compactEnc := runtypeCodes(t, tc.shape, "createJsonEncoderFn", "compact")
 			if !containsCode(cloneCodes, tc.encoder) {
 				t.Fatalf("clone encoder should surface %s, got %v", tc.encoder, cloneCodes)
 			}
@@ -89,8 +89,8 @@ func TestJCP001_CompactMatchesSibling(t *testing.T) {
 			}
 
 			// Decoder: compact (cjr) must match preserve (rj).
-			preserveCodes := runtypeCodes(t, tc.shape, "createJsonDecoder", "preserve")
-			compactDec := runtypeCodes(t, tc.shape, "createJsonDecoder", "compact")
+			preserveCodes := runtypeCodes(t, tc.shape, "createJsonDecoderFn", "preserve")
+			compactDec := runtypeCodes(t, tc.shape, "createJsonDecoderFn", "compact")
 			if !containsCode(preserveCodes, tc.decoder) {
 				t.Fatalf("preserve decoder should surface %s, got %v", tc.decoder, preserveCodes)
 			}
@@ -109,8 +109,8 @@ func TestJCP001_CompactMatchesSibling(t *testing.T) {
 // asserted by matching clone's dropped-property warning code exactly.
 func TestJCP001_CompactPropertyDropStillWarns(t *testing.T) {
 	const shape = `interface T { a: string; onClick: () => void }`
-	cloneEnc := runtypeCodes(t, shape, "createJsonEncoder", "clone")
-	compactEnc := runtypeCodes(t, shape, "createJsonEncoder", "compact")
+	cloneEnc := runtypeCodes(t, shape, "createJsonEncoderFn", "clone")
+	compactEnc := runtypeCodes(t, shape, "createJsonEncoderFn", "compact")
 	if len(cloneEnc) == 0 {
 		t.Fatalf("clone encoder should warn on a dropped function property, got none")
 	}

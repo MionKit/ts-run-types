@@ -7,7 +7,7 @@
 // wrong, not just slow.
 
 import {expect} from 'vitest';
-import {createCloneExactShape} from '@ts-runtypes/core';
+import {createCloneExactShapeFn} from '@ts-runtypes/core';
 import type {CloningCase} from './types.ts';
 
 // Identity-stable opaque handles (shared by reference across the twice-called
@@ -32,7 +32,7 @@ export const OTHERS = {
     description: 'A root `Promise<string>` is an opaque handle with no data shape to rebuild — it passes through by reference.',
     cloneNotes:
       'Divergence from the serializers: they render a root Promise as an alwaysThrow factory, while the value-level clone shares the handle — copying a pending Promise would be wrong, not just slow.',
-    clone: () => createCloneExactShape<Promise<string>>(),
+    clone: () => createCloneExactShapeFn<Promise<string>>(),
     getTestData: () => ({values: [rootPromise]}),
     passThrough: true,
   },
@@ -41,7 +41,7 @@ export const OTHERS = {
     description: 'A root `Int8Array` is an opaque native handle — it passes through by reference.',
     cloneNotes:
       'Divergence from the serializers: they render a root Int8Array as an alwaysThrow factory, while the value-level clone shares the handle (no declared data shape to rebuild).',
-    clone: () => createCloneExactShape<Int8Array>(),
+    clone: () => createCloneExactShapeFn<Int8Array>(),
     getTestData: () => ({values: [new Int8Array([1, 2, 3])]}),
     passThrough: true,
   },
@@ -51,7 +51,7 @@ export const OTHERS = {
       'A declared `Int8Array`-typed member is KEPT on the clone, shared by reference — opaque handles cannot be rebuilt, and declared members are never dropped.',
     cloneNotes:
       'The build emits a CES015 advisory naming the shared member; writes through the shared handle are visible on both sides (overrideCloneExactShape is the escape hatch).',
-    clone: () => createCloneExactShape<{a: Int8Array}>(),
+    clone: () => createCloneExactShapeFn<{a: Int8Array}>(),
     getTestData: () => ({values: [{a: typedA}]}),
   },
   non_serializable_array: {
@@ -60,7 +60,7 @@ export const OTHERS = {
       'An `Int8Array[]` root clones to a fresh array (containers are never shared); the opaque elements ride along by reference.',
     cloneNotes:
       'Divergence from the serializers: a non-serializable element position alwaysThrows there, while the clone slices a fresh container and shares the opaque element handles.',
-    clone: () => createCloneExactShape<Int8Array[]>(),
+    clone: () => createCloneExactShapeFn<Int8Array[]>(),
     // The isolation walker excludes opaque handles (typed arrays share by
     // contract), so real samples are expressible: fresh outer array, shared
     // Int8Array elements.
@@ -72,13 +72,13 @@ export const OTHERS = {
       'A tuple with an `Int8Array` slot clones to a fresh array (tuples ride arrays); the opaque slot value rides along by reference.',
     cloneNotes:
       'Divergence from the serializers: a non-serializable tuple slot alwaysThrows there, while the clone slices a fresh container and shares the opaque slot handle.',
-    clone: () => createCloneExactShape<[Int8Array]>(),
+    clone: () => createCloneExactShapeFn<[Int8Array]>(),
     getTestData: () => ({values: [[typedA]]}),
   },
   regexp: {
     title: 'RegExp',
     description: 'Re-compiled from source + flags with `lastIndex` carried over — a faithful copy even mid-iteration.',
-    clone: () => createCloneExactShape<{re: RegExp}>(),
+    clone: () => createCloneExactShapeFn<{re: RegExp}>(),
     getTestData: () => ({values: [{re: advancedRegExp()}]}),
     verifyClone: (out) => {
       const re = (out as {re: RegExp}).re;
@@ -90,7 +90,7 @@ export const OTHERS = {
   regexpRoot: {
     title: 'RegExp root',
     description: 'A root RegExp clones the same way.',
-    clone: () => createCloneExactShape<RegExp>(),
+    clone: () => createCloneExactShapeFn<RegExp>(),
     getTestData: () => ({values: [/xy+z/im]}),
   },
 } satisfies Record<string, CloningCase>;

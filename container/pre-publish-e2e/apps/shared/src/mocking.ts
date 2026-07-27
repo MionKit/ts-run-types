@@ -1,7 +1,7 @@
 // Family 10 — Mocking. Mirrors guide/mocking-*.ts + custom-mocking-function.ts.
-// createMockData output passes createValidate for the same T; options + formats
+// createMockDataFn output passes createValidateFn for the same T; options + formats
 // are honored; a custom per-kind mock generator is registered.
-import {createMockData, createValidate, registerMockingFunction, RunTypeKind, type FormatAnnotation} from '@ts-runtypes/core';
+import {createMockDataFn, createValidateFn, registerMockingFunction, RunTypeKind, type FormatAnnotation} from '@ts-runtypes/core';
 import type * as TF from '@ts-runtypes/core/formats';
 import {type CheckResult, ok} from './check';
 
@@ -24,19 +24,19 @@ registerMockingFunction(RunTypeKind.string, (annotation: FormatAnnotation) => {
   return undefined; // defer to the built-in mock otherwise
 });
 
-export const mockUser = createMockData<User>();
-export const isUser = createValidate<User>();
-export const mockContact = createMockData<Contact>();
+export const mockUser = createMockDataFn<User>();
+export const isUser = createValidateFn<User>();
+export const mockContact = createMockDataFn<Contact>();
 
 // Factory-level options (bounded numbers, always include optionals).
-export const mockBounded = createMockData<User>(undefined, {mock: {minNumber: 0, maxNumber: 1000}});
+export const mockBounded = createMockDataFn<User>(undefined, {mock: {minNumber: 0, maxNumber: 1000}});
 
 export function checkMocking(): CheckResult[] {
   const generated = mockUser();
   const contact = mockContact();
   return [
     // By construction, a mock passes the validator for the same type.
-    ok('mocking: generated value passes createValidate', isUser(mockUser())),
+    ok('mocking: generated value passes createValidateFn', isUser(mockUser())),
     ok('mocking: generated value has the declared keys', typeof generated.id === 'number' && Array.isArray(generated.roles)),
     ok('mocking: bounded option keeps numbers in range', mockBounded().id >= 0 && mockBounded().id <= 1000),
     ok('mocking: two calls produce independent values', mockUser() !== mockUser()),

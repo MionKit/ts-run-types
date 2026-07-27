@@ -14,14 +14,14 @@ import (
 
 // JSON composite codegen.
 //
-// `createJsonEncoder<T>()` / `createJsonDecoder<T>()` are the only RT families
+// `createJsonEncoderFn<T>()` / `createJsonDecoderFn<T>()` are the only RT families
 // whose runtime work is COMPOSED from several primitives (prepareForJson +
 // JSON.stringify, restoreFromJson + ukuWire + JSON.parse, …) selected by a
 // compile-time `strategy`. Every other family is a single cache entry the
 // runtime looks up by key. To make the JSON pair uniform with the rest, the
 // composition lives here: one Go-emitted entry per (typeId, strategy) that wraps
-// the underlying primitives with native JSON. The TS `createJsonEncoder` /
-// `createJsonDecoder` then collapse to the same `resolveTupleEntry` lookup as
+// the underlying primitives with native JSON. The TS `createJsonEncoderFn` /
+// `createJsonDecoderFn` then collapse to the same `resolveTupleEntry` lookup as
 // binary.
 //
 // The composite entry is keyed by the strategy's composite fnHash
@@ -90,7 +90,7 @@ func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts, rendered e
 				continue
 			}
 			// Demand for this composite tag: the scanner records one SiteDemand per
-			// createJsonEncoder/Decoder site whose strategy maps to this tag. Dedup is
+			// createJsonEncoderFn/Decoder site whose strategy maps to this tag. Dedup is
 			// by id (the composite has no ValidateOptions-style sub-variant).
 			demand := collectFamilyDemand(dump.Sites, tag)
 			ids := make([]string, 0, len(demand))
@@ -446,7 +446,7 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText s
 // `.fn` read would crash at runtime, so it surfaces as an Error diagnostic
 // at collect time instead. Deterministic order via sorted keys.
 //
-// provenance maps a type id to the createJsonEncoder/Decoder call sites that
+// provenance maps a type id to the createJsonEncoderFn/Decoder call sites that
 // demanded it (RenderOpts.ProvenanceSites). A breach fans out one diagnostic
 // per demanding site — anchored at the user's call so a future invariant
 // breach is reproducible from their source instead of a file-less internal

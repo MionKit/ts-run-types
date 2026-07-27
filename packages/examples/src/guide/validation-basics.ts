@@ -1,4 +1,4 @@
-import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';
+import {createValidateFn, createGetValidationErrorsFn} from '@ts-runtypes/core';
 
 type User = {
   id: number;
@@ -7,8 +7,8 @@ type User = {
 };
 
 // start-validate
-// createValidate -> a type guard. Fast yes/no.
-const isUser = createValidate<User>();
+// createValidateFn -> a type guard. Fast yes/no.
+const isUser = createValidateFn<User>();
 
 isUser({id: 1, name: 'Ada', roles: ['admin']}); // true
 isUser({id: '1', name: 'Ada', roles: ['admin']}); // false — id is not a number
@@ -20,8 +20,8 @@ function handle(data: unknown) {
 // end-validate
 
 // start-errors
-// createGetValidationErrors -> the same checks, but it tells you what broke.
-const userErrors = createGetValidationErrors<User>();
+// createGetValidationErrorsFn -> the same checks, but it tells you what broke.
+const userErrors = createGetValidationErrorsFn<User>();
 
 userErrors({id: 1, name: 'Ada', roles: ['admin']}); // [] — all good
 userErrors({id: '1', name: 42, roles: ['boss']});

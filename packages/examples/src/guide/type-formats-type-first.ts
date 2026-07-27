@@ -1,5 +1,5 @@
 import type * as TF from '@ts-runtypes/core/formats';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
 // Type-first formats: import a Format* alias and annotate. The constraint
 // lives in the type — the build reads it and validates accordingly.
@@ -10,7 +10,7 @@ type Account = {
   credits: TF.Positive;
 };
 
-const isAccount = createValidate<Account>();
+const isAccount = createValidateFn<Account>();
 
 isAccount({
   id: '109156be-c4fb-41ea-b1b4-efe1671c5836',

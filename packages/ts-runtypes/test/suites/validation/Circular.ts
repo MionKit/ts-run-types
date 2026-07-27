@@ -1,6 +1,12 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createStandardSchema,
+  type DataOnly,
+} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -18,7 +24,7 @@ export const CIRCULAR = {
         c?: Circular;
         d?: Date;
       }
-      return createValidate<Circular>();
+      return createValidateFn<Circular>();
     },
     standardSchema: () => {
       interface Circular {
@@ -55,7 +61,7 @@ export const CIRCULAR = {
         c?: Circular;
         d?: Date;
       }
-      return createValidate<DataOnly<Circular>>();
+      return createValidateFn<DataOnly<Circular>>();
     },
     validateSchema: () => {
       const cir = RT.circular(
@@ -66,7 +72,7 @@ export const CIRCULAR = {
           d: RT.optional(TF.date()),
         })
       );
-      return createValidate(cir);
+      return createValidateFn(cir);
     },
     deserializeValidate: () => {
       interface Circular {
@@ -85,7 +91,7 @@ export const CIRCULAR = {
         d?: Date;
       }
       const v: Circular = {n: 1, s: 'hello'};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface Circular {
@@ -104,7 +110,7 @@ export const CIRCULAR = {
         c?: Circular;
         d?: Date;
       }
-      return createGetValidationErrors<Circular>();
+      return createGetValidationErrorsFn<Circular>();
     },
     getValidationErrorsDataOnly: () => {
       interface Circular {
@@ -113,7 +119,7 @@ export const CIRCULAR = {
         c?: Circular;
         d?: Date;
       }
-      return createGetValidationErrors<DataOnly<Circular>>();
+      return createGetValidationErrorsFn<DataOnly<Circular>>();
     },
     getValidationErrorsSchema: () => {
       const cir = RT.circular(
@@ -124,7 +130,7 @@ export const CIRCULAR = {
           d: RT.optional(TF.date()),
         })
       );
-      return createGetValidationErrors(cir);
+      return createGetValidationErrorsFn(cir);
     },
     deserializeGetValidationErrors: () => {
       interface Circular {
@@ -143,7 +149,7 @@ export const CIRCULAR = {
         d?: Date;
       }
       const v: Circular = {n: 1, s: 'hello'};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface Circular {
@@ -162,7 +168,7 @@ export const CIRCULAR = {
         c?: Circular;
         d?: Date;
       }
-      return createMockData<Circular>();
+      return createMockDataFn<Circular>();
     },
     mockTypeReflect: () => {
       interface Circular {
@@ -172,7 +178,7 @@ export const CIRCULAR = {
         d?: Date;
       }
       const v: Circular = {n: 1, s: 'hello'};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -214,11 +220,11 @@ export const CIRCULAR = {
       'The union check is a boolean delegation that does NOT recurse into per-arm error paths: when a nested-array element fails, getValidationErrors reports a single `expected: "union"` at the outer index, not the deep path of the inner failure.',
     validateSchema: () => {
       const cu = RT.circular(RT.array(RT.union([RT.self(), TF.date(), TF.number(), TF.string()])));
-      return createValidate(cu);
+      return createValidateFn(cu);
     },
     validate: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createValidate<CuArray>();
+      return createValidateFn<CuArray>();
     },
     standardSchema: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -226,7 +232,7 @@ export const CIRCULAR = {
     },
     validateDataOnly: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createValidate<DataOnly<CuArray>>();
+      return createValidateFn<DataOnly<CuArray>>();
     },
     deserializeValidate: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -235,7 +241,7 @@ export const CIRCULAR = {
     validateReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
       const v: CuArray = [];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -244,15 +250,15 @@ export const CIRCULAR = {
     },
     getValidationErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createGetValidationErrors<CuArray>();
+      return createGetValidationErrorsFn<CuArray>();
     },
     getValidationErrorsDataOnly: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createGetValidationErrors<DataOnly<CuArray>>();
+      return createGetValidationErrorsFn<DataOnly<CuArray>>();
     },
     getValidationErrorsSchema: () => {
       const cu = RT.circular(RT.array(RT.union([RT.self(), TF.date(), TF.number(), TF.string()])));
-      return createGetValidationErrors(cu);
+      return createGetValidationErrorsFn(cu);
     },
     deserializeGetValidationErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -261,7 +267,7 @@ export const CIRCULAR = {
     getValidationErrorsReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
       const v: CuArray = [];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -270,12 +276,12 @@ export const CIRCULAR = {
     },
     mockType: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createMockData<CuArray>();
+      return createMockDataFn<CuArray>();
     },
     mockTypeReflect: () => {
       type CuArray = (CuArray | Date | number | string)[];
       const v: CuArray = [];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => {
       const date = new Date();
@@ -321,7 +327,7 @@ export const CIRCULAR = {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createValidate<CircularTuple>();
+      return createValidateFn<CircularTuple>();
     },
     standardSchema: () => {
       interface CircularTuple {
@@ -333,11 +339,11 @@ export const CIRCULAR = {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createValidate<DataOnly<CircularTuple>>();
+      return createValidateFn<DataOnly<CircularTuple>>();
     },
     validateSchema: () => {
       const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
-      return createValidate(ct);
+      return createValidateFn(ct);
     },
     deserializeValidate: () => {
       interface CircularTuple {
@@ -350,7 +356,7 @@ export const CIRCULAR = {
         tuple: [bigint, CircularTuple?];
       }
       const v: CircularTuple = {tuple: [1n]};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface CircularTuple {
@@ -363,17 +369,17 @@ export const CIRCULAR = {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createGetValidationErrors<CircularTuple>();
+      return createGetValidationErrorsFn<CircularTuple>();
     },
     getValidationErrorsDataOnly: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createGetValidationErrors<DataOnly<CircularTuple>>();
+      return createGetValidationErrorsFn<DataOnly<CircularTuple>>();
     },
     getValidationErrorsSchema: () => {
       const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
-      return createGetValidationErrors(ct);
+      return createGetValidationErrorsFn(ct);
     },
     deserializeGetValidationErrors: () => {
       interface CircularTuple {
@@ -386,7 +392,7 @@ export const CIRCULAR = {
         tuple: [bigint, CircularTuple?];
       }
       const v: CircularTuple = {tuple: [1n]};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface CircularTuple {
@@ -399,14 +405,14 @@ export const CIRCULAR = {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
-      return createMockData<CircularTuple>();
+      return createMockDataFn<CircularTuple>();
     },
     mockTypeReflect: () => {
       interface CircularTuple {
         tuple: [bigint, CircularTuple?];
       }
       const v: CircularTuple = {tuple: [1n]};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]}, {tuple: [1n, {tuple: [2n]}]}, {tuple: [1n]}],
@@ -451,7 +457,7 @@ export const CIRCULAR = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createValidate<CircularIndex>();
+      return createValidateFn<CircularIndex>();
     },
     standardSchema: () => {
       interface CircularIndex {
@@ -463,11 +469,11 @@ export const CIRCULAR = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createValidate<DataOnly<CircularIndex>>();
+      return createValidateFn<DataOnly<CircularIndex>>();
     },
     validateSchema: () => {
       const ci = RT.circular(RT.object({index: RT.record(RT.self())}));
-      return createValidate(ci);
+      return createValidateFn(ci);
     },
     deserializeValidate: () => {
       interface CircularIndex {
@@ -480,7 +486,7 @@ export const CIRCULAR = {
         index: {[key: string]: CircularIndex};
       }
       const v: CircularIndex = {index: {}};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface CircularIndex {
@@ -493,17 +499,17 @@ export const CIRCULAR = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createGetValidationErrors<CircularIndex>();
+      return createGetValidationErrorsFn<CircularIndex>();
     },
     getValidationErrorsDataOnly: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createGetValidationErrors<DataOnly<CircularIndex>>();
+      return createGetValidationErrorsFn<DataOnly<CircularIndex>>();
     },
     getValidationErrorsSchema: () => {
       const ci = RT.circular(RT.object({index: RT.record(RT.self())}));
-      return createGetValidationErrors(ci);
+      return createGetValidationErrorsFn(ci);
     },
     deserializeGetValidationErrors: () => {
       interface CircularIndex {
@@ -516,7 +522,7 @@ export const CIRCULAR = {
         index: {[key: string]: CircularIndex};
       }
       const v: CircularIndex = {index: {}};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface CircularIndex {
@@ -529,14 +535,14 @@ export const CIRCULAR = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createMockData<CircularIndex>();
+      return createMockDataFn<CircularIndex>();
     },
     mockTypeReflect: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
       const v: CircularIndex = {index: {}};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
@@ -576,7 +582,7 @@ export const CIRCULAR = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createValidate<CircularDeep>();
+      return createValidateFn<CircularDeep>();
     },
     standardSchema: () => {
       interface CircularDeep {
@@ -588,7 +594,7 @@ export const CIRCULAR = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createValidate<DataOnly<CircularDeep>>();
+      return createValidateFn<DataOnly<CircularDeep>>();
     },
     validateSchema: () => {
       const cd = RT.circular(
@@ -598,7 +604,7 @@ export const CIRCULAR = {
           }),
         })
       );
-      return createValidate(cd);
+      return createValidateFn(cd);
     },
     deserializeValidate: () => {
       interface CircularDeep {
@@ -611,7 +617,7 @@ export const CIRCULAR = {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface CircularDeep {
@@ -624,13 +630,13 @@ export const CIRCULAR = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createGetValidationErrors<CircularDeep>();
+      return createGetValidationErrorsFn<CircularDeep>();
     },
     getValidationErrorsDataOnly: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createGetValidationErrors<DataOnly<CircularDeep>>();
+      return createGetValidationErrorsFn<DataOnly<CircularDeep>>();
     },
     getValidationErrorsSchema: () => {
       const cd = RT.circular(
@@ -640,7 +646,7 @@ export const CIRCULAR = {
           }),
         })
       );
-      return createGetValidationErrors(cd);
+      return createGetValidationErrorsFn(cd);
     },
     deserializeGetValidationErrors: () => {
       interface CircularDeep {
@@ -653,7 +659,7 @@ export const CIRCULAR = {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface CircularDeep {
@@ -666,14 +672,14 @@ export const CIRCULAR = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createMockData<CircularDeep>();
+      return createMockDataFn<CircularDeep>();
     },
     mockTypeReflect: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
@@ -727,7 +733,7 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createValidate<RootNotCircular>();
+      return createValidateFn<RootNotCircular>();
     },
     standardSchema: () => {
       interface ICircularDeep {
@@ -751,7 +757,7 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createValidate<DataOnly<RootNotCircular>>();
+      return createValidateFn<DataOnly<RootNotCircular>>();
     },
     validateSchema: () => {
       // The recursive child is a `circular(...)`; the non-circular root is a plain
@@ -764,7 +770,7 @@ export const CIRCULAR = {
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createValidate(root);
+      return createValidateFn(root);
     },
     deserializeValidate: () => {
       interface ICircularDeep {
@@ -792,7 +798,7 @@ export const CIRCULAR = {
         isRoot: true,
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
       };
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface ICircularDeep {
@@ -820,7 +826,7 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createGetValidationErrors<RootNotCircular>();
+      return createGetValidationErrorsFn<RootNotCircular>();
     },
     getValidationErrorsDataOnly: () => {
       interface ICircularDeep {
@@ -832,7 +838,7 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createGetValidationErrors<DataOnly<RootNotCircular>>();
+      return createGetValidationErrorsFn<DataOnly<RootNotCircular>>();
     },
     getValidationErrorsSchema: () => {
       const icd = RT.circular(
@@ -843,7 +849,7 @@ export const CIRCULAR = {
         })
       );
       const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createGetValidationErrors(root);
+      return createGetValidationErrorsFn(root);
     },
     deserializeGetValidationErrors: () => {
       interface ICircularDeep {
@@ -871,7 +877,7 @@ export const CIRCULAR = {
         isRoot: true,
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
       };
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface ICircularDeep {
@@ -899,7 +905,7 @@ export const CIRCULAR = {
         isRoot: true;
         ciChild: ICircularDeep;
       }
-      return createMockData<RootNotCircular>();
+      return createMockDataFn<RootNotCircular>();
     },
     mockTypeReflect: () => {
       interface ICircularDeep {
@@ -915,7 +921,7 @@ export const CIRCULAR = {
         isRoot: true,
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
       };
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -998,7 +1004,7 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createValidate<RootCircular>();
+      return createValidateFn<RootCircular>();
     },
     standardSchema: () => {
       interface ICircularDeep {
@@ -1040,7 +1046,7 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createValidate<DataOnly<RootCircular>>();
+      return createValidateFn<DataOnly<RootCircular>>();
     },
     validateSchema: () => {
       // Mutual recursion, no types: each type's OWN back-edge uses `self`;
@@ -1069,7 +1075,7 @@ export const CIRCULAR = {
           ciDate: icDate,
         })
       );
-      return createValidate(root);
+      return createValidateFn(root);
     },
     deserializeValidate: () => {
       interface ICircularDeep {
@@ -1116,7 +1122,7 @@ export const CIRCULAR = {
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         ciDate: {date: new Date(), month: 1, year: 2021},
       };
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface ICircularDeep {
@@ -1163,7 +1169,7 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createGetValidationErrors<RootCircular>();
+      return createGetValidationErrorsFn<RootCircular>();
     },
     getValidationErrorsDataOnly: () => {
       interface ICircularDeep {
@@ -1184,7 +1190,7 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createGetValidationErrors<DataOnly<RootCircular>>();
+      return createGetValidationErrorsFn<DataOnly<RootCircular>>();
     },
     getValidationErrorsSchema: () => {
       const icd = RT.circular(
@@ -1211,7 +1217,7 @@ export const CIRCULAR = {
           ciDate: icDate,
         })
       );
-      return createGetValidationErrors(root);
+      return createGetValidationErrorsFn(root);
     },
     deserializeGetValidationErrors: () => {
       interface ICircularDeep {
@@ -1258,7 +1264,7 @@ export const CIRCULAR = {
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         ciDate: {date: new Date(), month: 1, year: 2021},
       };
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface ICircularDeep {
@@ -1305,7 +1311,7 @@ export const CIRCULAR = {
         ciRoort?: RootCircular;
         ciDate: ICircularDate;
       }
-      return createMockData<RootCircular>();
+      return createMockDataFn<RootCircular>();
     },
     mockTypeReflect: () => {
       interface ICircularDeep {
@@ -1331,7 +1337,7 @@ export const CIRCULAR = {
         ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         ciDate: {date: new Date(), month: 1, year: 2021},
       };
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [

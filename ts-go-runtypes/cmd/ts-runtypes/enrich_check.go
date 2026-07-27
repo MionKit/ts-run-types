@@ -2,229 +2,163 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
-	"github.com/mionkit/ts-runtypes/internal/enrichment"
-	"github.com/mionkit/ts-runtypes/internal/enrichment/astcheck"
+	"github.com/mionkit/ts-runtypes/internal/enrichment/enrichgen"
 	"github.com/mionkit/ts-runtypes/internal/enrichment/mirror"
 )
 
-// fileFinding pairs a Finding with its source file and 1-based position for
-// the report. Line/Col are zero when a finding could not be anchored.
-type fileFinding struct {
-	File string `json:"file"`
-	enrichment.Finding
-	Line    int `json:"line,omitempty"`
-	Col     int `json:"col,omitempty"`
-	EndLine int `json:"endLine,omitempty"`
-	EndCol  int `json:"endCol,omitempty"`
+// The single-file enrichment-health check is the CLI half of the shared
+// enrichgen.CheckFile (the OTHER half is the resolver's checkEnrich lint pass the
+// ts-runtypes-devtools plugin surfaces). It runs under the `enrich <file>
+// --no-emit` grammar: tag hygiene (unfilled @todo scaffolds, stale @rtOrphan
+// carcasses), FriendlyText / MockData content validity, and breadcrumb drift
+// (GE002/GE003, gated on the generated-mirror marker). A DIRECTORY / no target
+// runs the mirror-tree drift walk (runGenCheck); `--translate` runs the i18n
+// completeness gate (runCheckTranslate) — both routed from runEnrich.
+
+// runSingleFileCheck is the `enrich <file> --no-emit` lane: build a Program over
+// the mirror file and run the shared enrichgen.CheckFile, reporting its
+// diagnostics. Exits 1 on any WRONG/stale finding; under requireComplete an
+// unfilled @todo also fails.
+func runSingleFileCheck(fileArg, tsconfigFlag string, asJSON, requireComplete bool) {
+	absPath := tspath.NormalizePath(mustAbs(fileArg))
+	tsconfigPath, parsed := resolveEnrichProject(tsconfigFlag)
+	config := resolveEnrichConfig(absPath, "", tsconfigPath, parsed)
+	os.Exit(reportEnrichDiagnostics(checkMirrorFilesDiagnostics([]string{absPath}, parsed, config.HashLength), asJSON, requireComplete))
 }
 
-// runCheck implements `ts-runtypes check <file.ts> [--json]` — the single-file
-// enrichment health report, and the CLI twin of the resolver's checkEnrich
-// pass (what the ts-runtypes-devtools lint plugin surfaces in the editor):
-//
-//   - tag hygiene: unfilled `@todo` scaffolds and stale `@rtOrphan` /
-//     `@rtOrphanChild` carcasses, reported under the mirror's family
-//     (FT020–FT022 / MD020–MD022);
-//   - FriendlyText / MockData content validity against the resolved T
-//     (FT002/FT003/FT005/MD001);
-//   - breadcrumb drift: source deleted / type no longer declared
-//     (GE002/GE003; GE001 location drift lives in `gen --check`, which knows
-//     the project's enrich dir).
-//
-// Exits 1 when any Finding is Error severity.
-func runCheck(args []string) {
-	fs := flag.NewFlagSet("check", flag.ExitOnError)
-	asJSON := fs.Bool("json", false, "emit findings as a JSON array")
-	genDirFlag := fs.String("gen-dir", "", "RunTypes output root override (precedence: this flag > tsconfig genDir > default __runtypes)")
-	translate := fs.String("translate", "", "i18n completeness gate: report @todo blanks / orphans / out-of-date translations for a locale (or 'all')")
-	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: ts-runtypes check <file.ts> [--json]")
-		fmt.Fprintln(os.Stderr, "   or: ts-runtypes check --translate <locale|all>   (translation completeness; strict via tsconfig i18n.strict)")
+// checkMirrorFilesDiagnostics builds ONE inferred Program over the given mirror
+// files (skipping any that do not exist) and runs the shared enrichgen.CheckFile
+// on each, returning the combined diagnostics. It is the CLI's bridge into the
+// same health pass the resolver serves the editor: the CLI already holds an
+// absolute path, so it passes it for both the site echo and the breadcrumb
+// resolution. No existing files → nil (so an empty --json report marshals to the
+// `null` the harness expects).
+func checkMirrorFilesDiagnostics(paths []string, parsed *program.InferredConfig, hashLength int) []diagnostics.Diagnostic {
+	existing := make([]string, 0, len(paths))
+	seen := map[string]bool{}
+	for _, path := range paths {
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			existing = append(existing, path)
+		}
 	}
-	positional, flags := splitArgs(args)
-	if err := fs.Parse(flags); err != nil {
-		fatal("check: %v", err)
+	if len(existing) == 0 {
+		return nil
 	}
-	if *translate != "" {
-		runCheckTranslate(*translate, *genDirFlag)
-		return
-	}
-	if len(positional) < 1 {
-		fs.Usage()
-		os.Exit(2)
-	}
-	absPath := tspath.NormalizePath(mustAbs(positional[0]))
-
-	prog, res, err := buildProgram(absPath)
+	prog, res, err := buildProgramMulti(existing, parsed, hashLength)
 	if err != nil {
-		fatal("check: %v", err)
+		fatal("enrich --no-emit: %v", err)
 	}
 	defer res.Close()
 
-	sourceFile := prog.SourceFile(absPath)
-	if sourceFile == nil {
-		fatal("check: source file not in program: %s", absPath)
+	var out []diagnostics.Diagnostic
+	for _, path := range existing {
+		sourceFile := prog.SourceFile(path)
+		out = append(out, enrichgen.CheckFile(sourceFile, res.Checker(), res.Cache(), prog.FS, path, path)...)
 	}
-	if res.Checker() == nil {
-		fatal("check: resolver has no checker")
-	}
-
-	scan := mirror.NewScanForSourceFile(sourceFile)
-	text := scan.Text()
-	lineIndex := mirror.NewLineIndex(text)
-	var findings []fileFinding
-
-	// Tag hygiene — the same detection the resolver's checkEnrich pass uses
-	// and the same comment-anchored matches `gen --prune` removes, computed
-	// off the program's existing parse.
-	classifier := scan.FamilyClassifier()
-	for _, tag := range scan.DirtyTags() {
-		findings = append(findings, tagFileFinding(absPath, lineIndex, tag, classifier.FamilyFor(tag)))
-	}
-
-	// FriendlyText / MockData content validity.
-	for _, positioned := range astcheck.CheckSourceFile(sourceFile, res.Checker(), res.Cache(), prog.FS, absPath) {
-		findings = append(findings, fileFinding{
-			File:    absPath,
-			Finding: positioned.Finding,
-			Line:    positioned.Site.StartLine,
-			Col:     positioned.Site.StartCol,
-			EndLine: positioned.Site.EndLine,
-			EndCol:  positioned.Site.EndCol,
-		})
-	}
-
-	// Breadcrumb drift (GE002/GE003).
-	for _, drift := range mirror.CheckBreadcrumbDrift(absPath, text, nil) {
-		line, col := lineIndex.At(drift.Start)
-		endLine, endCol := lineIndex.At(drift.End)
-		findings = append(findings, fileFinding{
-			File:    absPath,
-			Finding: enrichment.Finding{Code: drift.Code, Severity: drift.Severity(), Message: drift.Message, Args: drift.Args},
-			Line:    line,
-			Col:     col,
-			EndLine: endLine,
-			EndCol:  endCol,
-		})
-	}
-
-	sortFileFindings(findings)
-	os.Exit(reportFindings(findings, *asJSON))
+	return out
 }
 
-// tagFileFinding converts one hygiene TagFinding to the report shape.
-func tagFileFinding(file string, lineIndex *mirror.LineIndex, tag mirror.TagFinding, family mirror.MirrorFamily) fileFinding {
-	code, message := tagCodeMessage(tag.Kind, family)
-	line, col := lineIndex.At(tag.Start)
-	endLine, endCol := lineIndex.At(tag.End)
-	return fileFinding{
-		File:    file,
-		Finding: enrichment.Finding{Code: code, Severity: mirror.EnrichSeverity(code), Message: message},
-		Line:    line,
-		Col:     col,
-		EndLine: endLine,
-		EndCol:  endCol,
-	}
-}
-
-// tagCodeMessage maps a hygiene TagKind + mirror family to its diag code and
-// CLI message. Every hygiene code is family-specific since the per-family
-// mirror split; an unattributable finding reports under the friendly code
-// (same convention as the resolver's tagCode).
-func tagCodeMessage(kind mirror.TagKind, family mirror.MirrorFamily) (string, string) {
-	familyName := enrichment.FriendlyTypeName
-	if family == mirror.FamilyMock {
-		familyName = enrichment.MockDataName
-	}
-	switch kind {
-	case mirror.TagOrphan:
-		return tagCode(kind, family), "stale " + mirror.OrphanTag + " carcass in a " + familyName + " mirror — run `ts-runtypes gen --prune` to remove it (or restore the type)"
-	case mirror.TagOrphanChild:
-		return tagCode(kind, family), "stale " + mirror.OrphanChildTag + " field carcass in a " + familyName + " mirror — run `ts-runtypes gen --prune` to remove it (or restore the field)"
-	default:
-		return tagCode(kind, family), "unfilled " + mirror.TodoTag + " placeholder — fill in the value, then delete the " + mirror.TodoTag + " line"
-	}
-}
-
-// tagCode maps a hygiene TagKind + mirror family to its diag code (the CLI
-// twin of the resolver's mapping in internal/compiler/resolver/enrichcheck.go).
-func tagCode(kind mirror.TagKind, family mirror.MirrorFamily) string {
-	if family == mirror.FamilyMock {
-		switch kind {
-		case mirror.TagOrphan:
-			return diagnostics.CodeMockOrphanConst
-		case mirror.TagOrphanChild:
-			return diagnostics.CodeMockOrphanField
-		default:
-			return diagnostics.CodeMockTodo
+// reportEnrichDiagnostics prints the diagnostics (text via diagnostics.FormatDebug
+// — the same rendering compile uses — or JSON) plus the stderr summary, and
+// returns the process exit code. The gate is TWO-TIER: a WRONG/stale finding
+// (malformed content, orphan carcass, breadcrumb drift) always fails; an
+// INCOMPLETE finding (unfilled @todo scaffold — diagnostics.IsCompleteness) fails
+// ONLY when requireComplete is set (`enrich --require-complete`). So the default
+// health check tolerates the expected @todo blanks a fresh scaffold leaves, while
+// the completeness gate rejects them.
+// An empty JSON report marshals to `null` (a nil slice), matching the health
+// harness's `JSON.parse(stdout || 'null')`.
+func reportEnrichDiagnostics(diags []diagnostics.Diagnostic, asJSON, requireComplete bool) int {
+	sort.SliceStable(diags, func(left, right int) bool {
+		leftSite, rightSite := diags[left].Site, diags[right].Site
+		if leftSite.FilePath != rightSite.FilePath {
+			return leftSite.FilePath < rightSite.FilePath
 		}
-	}
-	switch kind {
-	case mirror.TagOrphan:
-		return diagnostics.CodeFriendlyOrphanConst
-	case mirror.TagOrphanChild:
-		return diagnostics.CodeFriendlyOrphanField
-	default:
-		return diagnostics.CodeFriendlyTodo
-	}
-}
-
-// sortFileFindings orders findings by (File, Line, Col, Path, Code) for
-// deterministic reporting.
-func sortFileFindings(findings []fileFinding) {
-	sort.SliceStable(findings, func(left, right int) bool {
-		if findings[left].File != findings[right].File {
-			return findings[left].File < findings[right].File
+		if leftSite.StartLine != rightSite.StartLine {
+			return leftSite.StartLine < rightSite.StartLine
 		}
-		if findings[left].Line != findings[right].Line {
-			return findings[left].Line < findings[right].Line
+		if leftSite.StartCol != rightSite.StartCol {
+			return leftSite.StartCol < rightSite.StartCol
 		}
-		if findings[left].Col != findings[right].Col {
-			return findings[left].Col < findings[right].Col
-		}
-		if findings[left].Path != findings[right].Path {
-			return findings[left].Path < findings[right].Path
-		}
-		return findings[left].Code < findings[right].Code
+		return diags[left].Code < diags[right].Code
 	})
-}
 
-// reportFindings prints findings (text or JSON) and the stderr summary, and
-// returns the process exit code (1 when any Error finding is present).
-func reportFindings(findings []fileFinding, asJSON bool) int {
 	hasError := false
-	for _, finding := range findings {
-		if finding.Severity == enrichment.Error {
-			hasError = true
+	for _, diag := range diags {
+		if diag.Severity != diagnostics.SeverityError {
+			continue
 		}
+		// Completeness findings (unfilled @todo) only fail under --require-complete;
+		// the default health check reports them but exits 0.
+		if !requireComplete && diagnostics.IsCompleteness(diag.Code) {
+			continue
+		}
+		hasError = true
 	}
 
 	if asJSON {
-		encoded, err := json.MarshalIndent(findings, "", "  ")
+		encoded, err := json.MarshalIndent(diags, "", "  ")
 		if err != nil {
-			fatal("check: encode json: %v", err)
+			fatal("enrich: encode json: %v", err)
 		}
 		fmt.Println(string(encoded))
 	} else {
-		for _, finding := range findings {
-			if finding.Line > 0 {
-				fmt.Printf("%s(%d,%d):%s\n", finding.File, finding.Line, finding.Col, enrichment.FormatFinding(finding.Finding))
-			} else {
-				fmt.Printf("%s:%s\n", finding.File, enrichment.FormatFinding(finding.Finding))
-			}
+		for _, diag := range diags {
+			fmt.Println(diagnostics.FormatDebug(diag))
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "check: 1 file(s), %d finding(s)\n", len(findings))
+	fmt.Fprintf(os.Stderr, "enrich --no-emit: %d finding(s)\n", len(diags))
 	if hasError {
 		return 1
 	}
 	return 0
+}
+
+// isDirArg reports whether the CLI path argument points at an existing directory
+// — the check-only grammar routes a directory (or an absent) target to the
+// mirror-tree drift walk, a file target to the single-file health report.
+func isDirArg(path string) bool {
+	info, err := os.Stat(mustAbs(path))
+	return err == nil && info.IsDir()
+}
+
+// scaffoldWorklist reads each freshly-written mirror and returns its tag-hygiene
+// diagnostics (the @todo fill-in worklist) via the text-only
+// enrichgen.HygieneDiagnostics — the family of each mirror is known from its spec,
+// so no second Program is built (and no dependency on resolving the mirror's
+// imports). A combined --out spec (both families in one file) reports under the
+// friendly codes; the exact FT02x/MD02x code is cosmetic for the worklist.
+func scaffoldWorklist(specs []mirror.Spec) []diagnostics.Diagnostic {
+	var out []diagnostics.Diagnostic
+	for _, spec := range specs {
+		contents, err := os.ReadFile(spec.MirrorPath)
+		if err != nil {
+			continue
+		}
+		mockFamily := spec.WantMock && !spec.WantFriendly
+		out = append(out, enrichgen.HygieneDiagnostics(string(contents), spec.MirrorPath, mockFamily)...)
+	}
+	return out
+}
+
+// printEnrichWorklist surfaces the write lane's freshly-scaffolded diagnostics on
+// stderr — informational, so the scaffold still exits 0. The check gate that FAILS
+// on unfilled @todos (they are Error severity in the catalog) is the diagnostics-
+// only `enrich <file> --no-emit`.
+func printEnrichWorklist(diags []diagnostics.Diagnostic) {
+	for _, diag := range diags {
+		fmt.Fprintln(os.Stderr, diagnostics.FormatDebug(diag))
+	}
 }

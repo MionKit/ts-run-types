@@ -63,7 +63,7 @@ var Families = []FamilySpec{
 	// pair; unions emit the flat-prop wire shape (see union_flat_binary.go).
 	family("toBinary", ToBinaryEmitter{}),
 	family("fromBinary", FromBinaryEmitter{}),
-	// formatTransform: the value-transform family (createFormatTransform<T>).
+	// formatTransform: the value-transform family (createFormatTransformFn<T>).
 	family("formatTransform", FormatTransformEmitter{}),
 	family("validate", ValidateEmitter{}),
 }

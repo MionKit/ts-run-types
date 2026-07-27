@@ -13,6 +13,8 @@
 import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
+import {nativeMockRandom} from './mockRandom.ts';
+import type {MockRandom} from './mockRandom.ts';
 import {mockRunType} from './mockType.ts';
 import {randomAscii, resolveSizing} from './binarySize.ts';
 
@@ -74,21 +76,21 @@ function collect(node: RunType | undefined, value: unknown, set: (v: unknown) =>
   }
 }
 
-function bigOverBudget(): bigint {
-  const digits = 28 + Math.floor(Math.random() * 12); // well past the 20-digit budget
+function bigOverBudget(random: MockRandom): bigint {
+  const digits = 28 + Math.floor(random.float() * 12); // well past the 20-digit budget
   let mag = 9n; // leading non-zero
-  for (let i = 1; i < digits; i++) mag = mag * 10n + BigInt(Math.floor(Math.random() * 10));
-  return Math.random() < 0.5 ? mag : -mag;
+  for (let i = 1; i < digits; i++) mag = mag * 10n + BigInt(Math.floor(random.float() * 10));
+  return random.float() < 0.5 ? mag : -mag;
 }
 
-function inflate(target: Target, mock: MockOptions, options: RunTypeMockOptions): void {
+function inflate(target: Target, mock: MockOptions, options: RunTypeMockOptions, random: MockRandom): void {
   const {items, stringBytes} = resolveSizing(mock.binarySizingOptions);
   if (target.kind === 'string') {
-    target.set(randomAscii(stringBytes * 2 + 1 + Math.floor(Math.random() * stringBytes * 2)));
+    target.set(randomAscii(stringBytes * 2 + 1 + Math.floor(random.float() * stringBytes * 2), random));
   } else if (target.kind === 'bigint') {
-    target.set(bigOverBudget());
+    target.set(bigOverBudget(random));
   } else {
-    const count = items + 1 + Math.floor(Math.random() * Math.max(1, items));
+    const count = items + 1 + Math.floor(random.float() * Math.max(1, items));
     const child = target.node.child;
     const arr: unknown[] = [];
     for (let i = 0; i < count; i++) arr.push(child ? mockRunType(child, options, []) : null);
@@ -100,6 +102,8 @@ function inflate(target: Target, mock: MockOptions, options: RunTypeMockOptions)
  *  then inflate ONE unbounded position past the estimate. Returns the plain
  *  in-bounds value when the type has no inflatable position. **/
 export function mockRunTypeOversized(runType: RunType, options: RunTypeMockOptions, stack: RunType[] = []): unknown {
+  const mock = options.mock as MockOptions;
+  const random = mock.random ?? nativeMockRandom;
   const holder = {root: mockRunType(runType, options, stack)};
   const targets: Target[] = [];
   collect(runType, holder.root, (v) => (holder.root = v), targets);
@@ -107,6 +111,6 @@ export function mockRunTypeOversized(runType: RunType, options: RunTypeMockOptio
   // Prefer a guaranteed overshoot (string / bigint) over a best-effort array.
   const guaranteed = targets.filter((t) => t.kind !== 'array');
   const pool = guaranteed.length ? guaranteed : targets;
-  inflate(pool[Math.floor(Math.random() * pool.length)], options.mock as MockOptions, options);
+  inflate(pool[random.int(0, pool.length - 1)], mock, options, random);
   return holder.root;
 }

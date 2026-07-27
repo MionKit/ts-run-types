@@ -17,7 +17,7 @@ const (
 	// CodeOverrideValidateCrossFamily warns that overriding `validate` for a type
 	// also changes how JSON / binary decoders narrow unions containing it —
 	// `validate` is a shared cross-family dependency, so the override reaches
-	// past createValidate<T>(). Informational; the build proceeds.
+	// past createValidateFn<T>(). Informational; the build proceeds.
 	CodeOverrideValidateCrossFamily = "OVR010"
 )
 

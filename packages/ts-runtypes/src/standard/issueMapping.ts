@@ -1,7 +1,7 @@
 // Maps RunTypes validation errors to Standard Schema issues. No plugin, no
 // rtUtils — a plain function over an in-memory RTValidationError[], so it is
 // independently unit-testable. Used by `createStandardSchema`'s validate to
-// build the `{issues}` branch from `createGetValidationErrors` output.
+// build the `{issues}` branch from `createGetValidationErrorsFn` output.
 //
 // The mapping is LOSSLESS and adds NO path recreation: a RTValidationError path
 // is already a valid Standard Schema path (every segment is a `PropertyKey` or

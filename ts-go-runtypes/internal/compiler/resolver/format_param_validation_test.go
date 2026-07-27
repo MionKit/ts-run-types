@@ -32,9 +32,9 @@ func scanForFormatParamDiagnostics(t *testing.T, code string) []diagnostics.Diag
 }
 
 func TestFormatParams_StringLengthMutualExclusion(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {length: 4; maxLength: 8}>>();
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {length: 4; maxLength: 8}>>();
 `
 	diags := scanForFormatParamDiagnostics(t, code)
 	if len(diags) == 0 {
@@ -49,9 +49,9 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {length: 4; m
 }
 
 func TestFormatParams_StringSingleComplexParam(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {
   pattern: {source: '^[0-9]+$'; flags: ''};
   allowedValues: {val: ['a', 'b']};
 }>>();
@@ -62,9 +62,9 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 }
 
 func TestFormatParams_UUIDBadVersion(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'uuid', {version: '5'}>>();
+export const _ = createValidateFn<TypeFormat<string, 'uuid', {version: '5'}>>();
 `
 	if len(scanForFormatParamDiagnostics(t, code)) == 0 {
 		t.Fatalf("expected %s for uuid version '5', got none", diagnostics.CodeFMTInvalidParams)
@@ -72,9 +72,9 @@ export const _ = createValidate<TypeFormat<string, 'uuid', {version: '5'}>>();
 }
 
 func TestFormatParams_ValidNoDiagnostic(t *testing.T) {
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, 'stringFormat', {maxLength: 8; minLength: 2}>>();
+export const _ = createValidateFn<TypeFormat<string, 'stringFormat', {maxLength: 8; minLength: 2}>>();
 `
 	if diags := scanForFormatParamDiagnostics(t, code); len(diags) != 0 {
 		t.Fatalf("expected no %s for valid params, got %+v", diagnostics.CodeFMTInvalidParams, diags)

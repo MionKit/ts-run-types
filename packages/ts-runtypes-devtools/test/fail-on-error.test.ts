@@ -37,12 +37,29 @@ const TSCONFIG_SRC = JSON.stringify({
   include: ['*.ts'],
 });
 
-// `createValidate<symbol>()` is a root-position non-validatable type → VL002,
+// Same project, but failOnError:false lives in the tsconfig plugin entry — the
+// value the Go side echoes on the generate response. A plugin using this tsconfig
+// with NO failOnError option must adopt the echo (options.failOnError ?? echoed
+// ?? true), proving the Go→JS failOnError parity.
+const TSCONFIG_FAILOFF_SRC = JSON.stringify({
+  compilerOptions: {
+    target: 'ES2022',
+    module: 'ESNext',
+    moduleResolution: 'bundler',
+    strict: true,
+    skipLibCheck: true,
+    types: [],
+    plugins: [{name: 'ts-runtypes', failOnError: false}],
+  },
+  include: ['*.ts'],
+});
+
+// `createValidateFn<symbol>()` is a root-position non-validatable type → VL002,
 // SeverityError (the alwaysThrow lane). The healthy sites prove the halt is
 // about the ERROR, not the program shape — and pin the getRunTypeId pairing
 // (static form + value-inferred form on equivalent T).
-const ERROR_ENTRY_SRC = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
-export const bad = createValidate<symbol>();
+const ERROR_ENTRY_SRC = `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
+export const bad = createValidateFn<symbol>();
 export const goodStatic = getRunTypeId<{name: string}>();
 const sample = {name: 'Ada'};
 export const goodReflected = getRunTypeId(sample);
@@ -50,20 +67,20 @@ export const goodReflected = getRunTypeId(sample);
 
 // A function at a PROPERTY position drops with a Warning (VL010-class), never
 // an Error — the strict default must NOT halt on it.
-const WARNING_ENTRY_SRC = `import {createValidate} from '@ts-runtypes/core';
+const WARNING_ENTRY_SRC = `import {createValidateFn} from '@ts-runtypes/core';
 interface WithHandler {
   name: string;
   onClick: () => void;
 }
-export const isWithHandler = createValidate<WithHandler>();
+export const isWithHandler = createValidateFn<WithHandler>();
 `;
 
 // An import the scan program can't resolve degrades the marker's T to \`any\`
 // (the silent always-true-validator trap) — MKR007, SeverityError, so the
 // strict default halts the build naming the unresolved specifier.
 const UNRESOLVED_IMPORT_SRC = `import {User} from './missing-module';
-import {createValidate} from '@ts-runtypes/core';
-export const isUser = createValidate<User>();
+import {createValidateFn} from '@ts-runtypes/core';
+export const isUser = createValidateFn<User>();
 `;
 
 type Hook = ((...args: unknown[]) => unknown) | {handler: (...args: unknown[]) => unknown};
@@ -93,10 +110,10 @@ function makePlugin(entryDir: string, extra?: {failOnError?: boolean}) {
   }) as any;
 }
 
-function writeFixture(dir: string, entrySrc: string): void {
+function writeFixture(dir: string, entrySrc: string, tsconfigSrc: string = TSCONFIG_SRC): void {
   fs.rmSync(dir, {recursive: true, force: true});
   fs.mkdirSync(dir, {recursive: true});
-  fs.writeFileSync(path.join(dir, 'tsconfig.json'), TSCONFIG_SRC);
+  fs.writeFileSync(path.join(dir, 'tsconfig.json'), tsconfigSrc);
   fs.writeFileSync(path.join(dir, 'rt-overlay.d.ts'), RUNTYPES_DTS);
   fs.writeFileSync(path.join(dir, 'entry.ts'), entrySrc);
 }
@@ -104,6 +121,8 @@ function writeFixture(dir: string, entrySrc: string): void {
 const ERROR_DIR = path.join(FIXTURE_DIR, 'error-program');
 const WARNING_DIR = path.join(FIXTURE_DIR, 'warning-program');
 const UNRESOLVED_DIR = path.join(FIXTURE_DIR, 'unresolved-import-program');
+// Error program whose failOnError:false comes from the tsconfig, not a plugin option.
+const TSCONFIG_FAILOFF_DIR = path.join(FIXTURE_DIR, 'tsconfig-failoff-program');
 
 describe('failOnError — Error-severity diagnostics fail the build in every lane', () => {
   const register = hasBinary() ? it : it.skip;
@@ -113,6 +132,7 @@ describe('failOnError — Error-severity diagnostics fail the build in every lan
     writeFixture(ERROR_DIR, ERROR_ENTRY_SRC);
     writeFixture(WARNING_DIR, WARNING_ENTRY_SRC);
     writeFixture(UNRESOLVED_DIR, UNRESOLVED_IMPORT_SRC);
+    writeFixture(TSCONFIG_FAILOFF_DIR, ERROR_ENTRY_SRC, TSCONFIG_FAILOFF_SRC);
   });
   afterAll(() => fs.rmSync(FIXTURE_DIR, {recursive: true, force: true}));
 
@@ -171,6 +191,31 @@ describe('failOnError — Error-severity diagnostics fail the build in every lan
       const all = ctx.warnings.join('\n');
       expect(all).toContain('warning');
       expect(all).not.toContain('error VL');
+    } finally {
+      await callHook(plugin.buildEnd, ctx);
+    }
+  });
+
+  register('tsconfig failOnError:false (echoed, no plugin option) downgrades the same Error to warnings only', async () => {
+    // failOnError comes ONLY from the tsconfig plugin entry; the plugin sets no
+    // failOnError option, so the halt default can only be the echoed tsconfig
+    // value (options.failOnError ?? echoed ?? true).
+    const plugin = makePlugin(TSCONFIG_FAILOFF_DIR);
+    const ctx = makeCtx();
+    try {
+      await callHook(plugin.buildStart, ctx); // must NOT throw — the echo downgraded it
+      expect(ctx.warnings.join('\n')).toContain('error VL002');
+    } finally {
+      await callHook(plugin.buildEnd, ctx);
+    }
+  });
+
+  register('plugin failOnError:true overrides a tsconfig failOnError:false (option > echo)', async () => {
+    const plugin = makePlugin(TSCONFIG_FAILOFF_DIR, {failOnError: true});
+    const ctx = makeCtx();
+    try {
+      await expect(callHook(plugin.buildStart, ctx) as Promise<void>).rejects.toThrow(/unsupported-type error/);
+      expect(ctx.warnings.join('\n')).toContain('error VL002');
     } finally {
       await callHook(plugin.buildEnd, ctx);
     }

@@ -23,6 +23,8 @@
 import {RunTypeKind} from '../go-generated/runTypeKind.generated.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
+import {nativeMockRandom} from './mockRandom.ts';
+import type {MockRandom} from './mockRandom.ts';
 import {mockRunType} from './mockType.ts';
 
 const K = RunTypeKind;
@@ -265,14 +267,18 @@ function levelWeight(nd: number, p: number): number {
 //     `levelWeight`, then a position is drawn uniformly within the chosen level,
 //     so the depth distribution is independent of a level's branching factor.
 // Returns undefined only when nothing is corruptible (e.g. an `any` root).
-export function chooseInvalidTarget(targets: Target[], invalidLeafProbability: number): Target | undefined {
+export function chooseInvalidTarget(
+  targets: Target[],
+  invalidLeafProbability: number,
+  random: MockRandom = nativeMockRandom
+): Target | undefined {
   const corruptible = targets.filter(canCorrupt);
   if (corruptible.length === 0) return undefined;
   const root = corruptible.find((target) => target.parent === undefined);
 
   if (invalidLeafProbability >= 1) {
     const leaves = corruptible.filter((target) => target.isLeaf);
-    if (leaves.length > 0) return leaves[Math.floor(Math.random() * leaves.length)];
+    if (leaves.length > 0) return leaves[random.int(0, leaves.length - 1)];
     return root ?? corruptible[0];
   }
   if (invalidLeafProbability <= 0) return root ?? corruptible[0];
@@ -289,7 +295,7 @@ export function chooseInvalidTarget(targets: Target[], invalidLeafProbability: n
     (target) => levelWeight(target.depth / maxDepth, invalidLeafProbability) / (countAtDepth.get(target.depth) as number)
   );
   const total = weights.reduce((sum, weight) => sum + weight, 0);
-  let roll = Math.random() * total;
+  let roll = random.float() * total;
   for (let i = 0; i < corruptible.length; i++) {
     roll -= weights[i];
     if (roll < 0) return corruptible[i];
@@ -303,9 +309,14 @@ export function chooseInvalidTarget(targets: Target[], invalidLeafProbability: n
 // type-aware wrong value. Corrupting the root replaces the whole value (returned);
 // corrupting any other position mutates its parent in place. When nothing is
 // corruptible it falls back to replacing the root wholesale.
-function injectInvalid(root: unknown, rootNode: RunType | undefined, invalidLeafProbability: number): unknown {
+function injectInvalid(
+  root: unknown,
+  rootNode: RunType | undefined,
+  invalidLeafProbability: number,
+  random: MockRandom
+): unknown {
   const targets = collectInvalidTargets(root, rootNode);
-  const chosen = chooseInvalidTarget(targets, invalidLeafProbability);
+  const chosen = chooseInvalidTarget(targets, invalidLeafProbability, random);
   if (!chosen || chosen.parent === undefined) return negativeFor(rootNode, root);
   chosen.parent[chosen.key as string | number] = negativeFor(chosen.node, chosen.value);
   return root;
@@ -316,5 +327,6 @@ function injectInvalid(root: unknown, rootNode: RunType | undefined, invalidLeaf
 export function mockRunTypeInvalid(runType: RunType, options: RunTypeMockOptions, stack: RunType[] = []): unknown {
   const base = mockRunType(runType, options, stack);
   const mockOptions = options.mock as MockOptions;
-  return injectInvalid(base, runType, mockOptions.invalidLeafProbability ?? 0.85);
+  const random = mockOptions.random ?? nativeMockRandom;
+  return injectInvalid(base, runType, mockOptions.invalidLeafProbability ?? 0.85, random);
 }

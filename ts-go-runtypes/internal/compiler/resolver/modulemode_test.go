@@ -27,11 +27,11 @@ func setupInlineMode(t testing.TB, sources map[string]string, mode string) *reso
 }
 
 // pairedSources puts BOTH marker forms in one file: the static form
-// (getRunTypeId<T>() / createValidate<T>()) and the reflection form
+// (getRunTypeId<T>() / createValidateFn<T>()) and the reflection form
 // (getRunTypeId(value)) — per the marker test coverage rule.
-const pairedSource = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+const pairedSource = `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 type User = {id: number; name: string};
-export const isUser = createValidate<User>();
+export const isUser = createValidateFn<User>();
 export const staticId = getRunTypeId<User>();
 const u = {id: 1, name: 'm'} as User;
 export const reflectedId = getRunTypeId(u);
@@ -165,7 +165,7 @@ func TestModuleMode_AllSingle_SiteModuleStamping(t *testing.T) {
 		if site.FnId != "" {
 			sawCreate = true
 			if site.Module != constants.FnsBundleDir+"/val" {
-				t.Fatalf("createValidate site Module = %q, want %s/val", site.Module, constants.FnsBundleDir)
+				t.Fatalf("createValidateFn site Module = %q, want %s/val", site.Module, constants.FnsBundleDir)
 			}
 		} else {
 			sawReflect = true
@@ -197,8 +197,8 @@ func TestModuleMode_AllSingle_CrossFamilyBundleImport(t *testing.T) {
 	// cross-family edges (the TestDemandScope_ItSeededByCrossFamilyUnion
 	// fixture) — in allSingle the tb bundle must import those entries as
 	// NAMED exports of the val bundle.
-	source := `import {createBinaryEncoder} from '@ts-runtypes/core';
-export const _ = createBinaryEncoder<{a: {n: number}} | {a: {s: string}}>();
+	source := `import {createBinaryEncoderFn} from '@ts-runtypes/core';
+export const _ = createBinaryEncoderFn<{a: {n: number}} | {a: {s: string}}>();
 `
 	r := setupInlineMode(t, map[string]string{"a.ts": source}, constants.ModuleModeAllSingle)
 	resp := scanWithModules(t, r, []string{"a.ts"})
@@ -226,11 +226,11 @@ func TestModuleMode_AllSingle_PureFnBundleAndNamedReplacement(t *testing.T) {
 	// the brand-branded signature the walker's marker check requires (same
 	// shape as the purefns extraction tests' overlay).
 	dts := strings.Replace(runtypesDTS,
-		"export function createJsonDecoder",
+		"export function createJsonDecoderFn",
 		"export type PureFunctionFactory<F> = F & {readonly __rtPureFunctionFactoryBrand?: never};\n"+
 			"  export type PureFnId = string & {readonly __rtPureFnIdBrand?: never};\n"+
 			"  export function registerPureFnFactory(pureFnId: CompTimeArgs<PureFnId>, createPureFn: PureFunctionFactory<(utl: unknown) => unknown> | null): unknown;\n"+
-			"  export function createJsonDecoder",
+			"  export function createJsonDecoderFn",
 		1)
 	source := `import {registerPureFnFactory} from '@ts-runtypes/core';
 export const _ = registerPureFnFactory('test::double', function (utl) {

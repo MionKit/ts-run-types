@@ -6,13 +6,11 @@
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {BIN, RUNTYPES_DTS, hasBinary} from './helpers/inline.ts';
+import {BARE_CWD, BIN, RUNTYPES_DTS, hasBinary} from './helpers/inline.ts';
 
-const ROOT = path.resolve(__dirname, '../../..');
-
-const SOURCE = `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+const SOURCE = `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 export interface User {id: number; name: string}
-export const v = createValidate<User>();
+export const v = createValidateFn<User>();
 export const idStatic = getRunTypeId<User>();
 const u: User = {id: 1, name: 'a'};
 export const idReflect = getRunTypeId(u);
@@ -20,7 +18,7 @@ export const idReflect = getRunTypeId(u);
 
 describe.skipIf(!hasBinary())('parallelism opt-outs', () => {
   it('serves a full scan with both parallel tracks disabled', async () => {
-    const client = new ResolverClient(BIN, ROOT, '', {
+    const client = new ResolverClient(BIN, BARE_CWD, '', {
       serverMode: true,
       parallelScan: false,
       parallelRender: false,
@@ -28,7 +26,7 @@ describe.skipIf(!hasBinary())('parallelism opt-outs', () => {
     try {
       await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'optout.ts': SOURCE});
       const response = await client.scanFiles(['optout.ts'], {includeEntryModules: true});
-      // One site per marker call: createValidate + static + reflect forms.
+      // One site per marker call: createValidateFn + static + reflect forms.
       expect(response.sites).toHaveLength(3);
       const ids = new Set(response.sites.map((site) => site.id));
       // All three calls resolve the same User shape — one wire id.

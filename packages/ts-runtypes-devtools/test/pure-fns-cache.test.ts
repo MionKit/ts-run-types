@@ -18,9 +18,7 @@ import {describe, expect, it} from 'vitest';
 import {formatTscDiagnostic} from '../src/index.ts';
 import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {BIN, hasBinary, withInlineSources, evalEntryModules, RUNTYPES_DTS} from './helpers/inline.ts';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+import {BARE_CWD, BIN, hasBinary, withInlineSources, evalEntryModules, RUNTYPES_DTS} from './helpers/inline.ts';
 
 function pureFnDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
   return (response.diagnostics ?? []).filter((d) => d.family === Family.PureFn);
@@ -329,13 +327,13 @@ export const x = registerPureFnFactory('rt::rounder', function () {
   // clients per mode to prove purefunctions.CollectEntries gates the pure-fn
   // tuple's `code` and `createPureFn` slots end to end through the real binary
   // — for BOTH a user pure fn (registerPureFnFactory) and a table-served
-  // built-in (rt::findCycle, demanded by a circular createValidate).
+  // built-in (rt::findCycle, demanded by a circular createValidateFn).
   async function withEmitMode<T>(
     emitMode: 'code' | 'functions' | 'both',
     sources: Record<string, string>,
     fn: (client: ResolverClient) => Promise<T>
   ): Promise<T> {
-    const client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode});
+    const client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, emitMode});
     try {
       await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
       return await fn(client);
@@ -357,9 +355,9 @@ export const a = registerPureFnFactory('app::answer', function () {
   // CollectEntries gating path as a user pure fn. A plain (unarmed) cyclable
   // validate ships no walker at all (the compile-time-option model).
   const CIRCULAR_VALIDATE = {
-    'circ.ts': `import {createValidate} from '@ts-runtypes/core';
+    'circ.ts': `import {createValidateFn} from '@ts-runtypes/core';
 interface Node { next?: Node; val: number; }
-export const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
+export const isNode = createValidateFn<Node>(undefined, {rejectCircularRefs: true});
 `,
   };
 

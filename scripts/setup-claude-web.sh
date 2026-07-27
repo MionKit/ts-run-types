@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # --- BUMP THIS DATE to force a fresh setup run (YYYY-MM-DD) -------------------
-SETUP_DATE="2026-07-07"
+SETUP_DATE="2026-07-24"
 # ----------------------------------------------------------------------------
 set -uo pipefail
 
 NODE_MAJOR_MIN=26
 PODMAN_MIN=4.0
-GO_MIN=1.26
-GO_INSTALL_VERSION=1.26.0 # only used if Go is somehow absent from the image
+# GO_MIN is derived from ts-go-runtypes/go.mod after REPO_DIR is resolved (below),
+# so a go.mod bump auto-propagates here with no drift risk. GO_INSTALL_VERSION
+# must be an actual published patch (bump when the Go directive bumps).
+GO_INSTALL_VERSION=1.26.0 # installed when Go is absent OR older than GO_MIN
 
 CHECK_ONLY=0
 for arg in "$@"; do
@@ -83,6 +85,12 @@ fi
 # pnpm version the repo pins via package.json "packageManager" (fallback if unparsable)
 PNPM_PIN="$(sed -n 's/.*"packageManager": *"pnpm@\([0-9.]*\)".*/\1/p' "$REPO_DIR/package.json" 2>/dev/null | head -1)"
 [ -n "$PNPM_PIN" ] || PNPM_PIN="11.8.0"
+
+# Minimum Go version, derived from ts-go-runtypes/go.mod's `go X.Y[.Z]` directive.
+# Fallback matches GO_INSTALL_VERSION so a malformed / missing go.mod does not
+# silently downgrade the version check.
+GO_MIN="$(sed -n 's/^go \([0-9][0-9.]*\).*/\1/p' "$REPO_DIR/ts-go-runtypes/go.mod" 2>/dev/null | head -1)"
+[ -n "$GO_MIN" ] || GO_MIN="$GO_INSTALL_VERSION"
 
 # -----------------------------------------------------------------------------
 # 1. Node 26: install (nvm first, nodejs.org tarball fallback), then make it win
@@ -199,47 +207,123 @@ ensure_podman() {
 }
 
 # -----------------------------------------------------------------------------
-# 3. Go: present in the web image; tarball fallback keeps this standalone.
+# 3. Go: the web image may ship an older Go than the repo needs, so upgrade in
+#    place when it is too old (not just when it is absent). Tarball -> /usr/local/go
+#    keeps this standalone.
 # -----------------------------------------------------------------------------
-ensure_go() {
-  bold "Go (compiles the resolver binary)"
-  if command -v go >/dev/null 2>&1; then
-    local cur; cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
-    version_ge "${cur:-0}" "$GO_MIN" && ok "go ${cur:-?} (>= $GO_MIN)" || warn "go ${cur:-?} present (repo targets >= $GO_MIN)"
-    return 0
+# Wire a Go install so it wins on the harness's PATH (mirrors the Node step).
+# The harness runs NON-login shells that inherit PATH from the image and do NOT
+# source /etc/profile.d, so a profile.d file alone would not take effect. Symlink
+# go/gofmt into $HOME/.local/bin (first on the inherited PATH, ahead of the
+# image's older /usr/bin/go), and write a profile.d file for login shells too.
+# $1 is the GOROOT to link from (defaults to /usr/local/go for the tarball path;
+# the proxy-toolchain fallback passes the module-cache toolchain root).
+wire_local_go() {
+  local goroot="${1:-/usr/local/go}"
+  local localbin="$HOME/.local/bin" exe; mkdir -p "$localbin"
+  for exe in "$goroot"/bin/*; do ln -sfn "$exe" "$localbin/$(basename "$exe")"; done
+  case ":$PATH:" in *":$localbin:"*) : ;; *) warn "$localbin is not on PATH - add it ahead of /usr/bin" ;; esac
+  if [ -w /etc/profile.d ] || [ "$(id -u)" = 0 ]; then
+    cat > /etc/profile.d/zz-go.sh <<EOF
+# ts-runtypes claude-web setup: prefer Go $GO_INSTALL_VERSION (repo requires >= $GO_MIN)
+export PATH="\$HOME/.local/bin:$goroot/bin:\$PATH"
+EOF
+    chmod 0644 /etc/profile.d/zz-go.sh 2>/dev/null || true
   fi
-  [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
+  hash -r 2>/dev/null || true
+}
+
+# Fallback path when the go.dev tarball is blocked (403) but proxy.golang.org is
+# reachable: trigger Go's own toolchain-download mechanism via GOTOOLCHAIN, then
+# wire the resulting toolchain GOROOT onto PATH. Requires a bootstrap `go` on
+# PATH that understands GOTOOLCHAIN (>= 1.21).
+install_go_via_proxy() {
+  bold "Installing Go $GO_INSTALL_VERSION via proxy.golang.org (go.dev blocked)"
+  command -v go >/dev/null 2>&1 || return 1
+  local root
+  # GOTOOLCHAIN=goX.Y.Z makes `go env GOROOT` download that toolchain (if not
+  # already cached under $GOMODCACHE/golang.org/toolchain@*), switch to it, and
+  # print ITS GOROOT - which is exactly what we need to wire.
+  root="$(GOTOOLCHAIN="go$GO_INSTALL_VERSION" go env GOROOT 2>/dev/null)"
+  [ -n "$root" ] && [ -x "$root/bin/go" ] || { err "proxy toolchain fetch did not yield a usable GOROOT"; return 1; }
+  export PATH="$root/bin:$PATH"
+  wire_local_go "$root"
+  ok "go installed via proxy ($("$root/bin/go" version 2>/dev/null | awk '{print $3}')) at $root"
+}
+
+install_go_tarball() {
   bold "Installing Go $GO_INSTALL_VERSION (tarball -> /usr/local/go)"
   local goarch; case "$(uname -m)" in
     x86_64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;;
-    *) err "unsupported arch $(uname -m) for Go auto-install"; FAILED=1; return 1 ;;
+    *) err "unsupported arch $(uname -m) for Go auto-install"; return 2 ;;
   esac
   local tgz="go${GO_INSTALL_VERSION}.linux-${goarch}.tar.gz"
   if curl -fsSL "https://go.dev/dl/${tgz}" -o "/tmp/${tgz}" \
      && $SUDO rm -rf /usr/local/go && $SUDO tar -C /usr/local -xzf "/tmp/${tgz}"; then
+    # Prepend so the freshly installed toolchain shadows any older /usr/bin/go for
+    # every later step in this run (resolver build, devtools dist, etc.).
     export PATH="/usr/local/go/bin:$PATH"
-    ok "go installed ($(go version 2>/dev/null | awk '{print $3}'))"
-  else
-    err "go install failed"; FAILED=1
+    wire_local_go
+    ok "go installed ($(/usr/local/go/bin/go version 2>/dev/null | awk '{print $3}'))"
+    return 0
   fi
+  return 1
 }
 
-# -----------------------------------------------------------------------------
-# 3b. garble: a Go tool that obfuscates the published binaries + wasm. Best-effort;
-#     the resolver/dev build never needs it, but the release build + the default
-#     garbled wasm do. Keep the pin in sync with scripts/lib/garble.mjs.
-# -----------------------------------------------------------------------------
-GARBLE_VERSION="v0.16.0"
-ensure_garble() {
-  bold "garble (obfuscates published binaries + wasm)"
-  command -v go >/dev/null 2>&1 || { warn "go missing - skipping garble"; return 0; }
-  local gobin; gobin="$(go env GOPATH 2>/dev/null)/bin"
-  case ":$PATH:" in *":$gobin:"*) ;; *) export PATH="$gobin:$PATH" ;; esac
-  if command -v garble >/dev/null 2>&1; then ok "garble present"; return 0; fi
-  [ "$CHECK_ONLY" = 1 ] && { warn "garble missing - re-run without --check to install"; return 0; }
-  bold "Installing garble $GARBLE_VERSION (go install)"
-  go install "mvdan.cc/garble@$GARBLE_VERSION" && ok "garble installed" \
-    || warn "garble install failed (release builds need it; wasm falls back to plain)"
+# Re-verifies that `go` on PATH resolves to >= GO_MIN after any install/wiring.
+# The tarball path can leave the OLD /usr/bin/go winning on non-login shells if
+# $HOME/.local/bin symlinking failed - which is exactly the "agents keep telling
+# me go is not updated" symptom. Fail loudly here rather than let step 8 build
+# via the invisible GOTOOLCHAIN=auto fallback (which leaves `go version` still
+# reporting the old toolchain and confuses every subsequent agent).
+verify_go_on_path() {
+  hash -r 2>/dev/null || true
+  local resolved cur
+  resolved="$(command -v go 2>/dev/null || true)"
+  cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+  if [ -z "$cur" ]; then err "go still not on PATH after install"; FAILED=1; return 1; fi
+  if version_ge "$cur" "$GO_MIN"; then
+    ok "go $cur resolves on PATH at $resolved (>= $GO_MIN)"
+    return 0
+  fi
+  err "go on PATH is still $cur at $resolved (need >= $GO_MIN) - check \$HOME/.local/bin PATH precedence over /usr/bin"
+  FAILED=1
+  return 1
+}
+
+ensure_go() {
+  bold "Go (compiles the resolver binary)"
+  if command -v go >/dev/null 2>&1; then
+    local cur; cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    if version_ge "${cur:-0}" "$GO_MIN"; then
+      ok "go ${cur:-?} (>= $GO_MIN)"
+      # Even when the resolved go is already fine, wire /usr/local/go if it
+      # exists - a re-run on a container with a half-set-up state repairs itself.
+      [ -x /usr/local/go/bin/go ] && wire_local_go
+      return 0
+    fi
+    warn "go ${cur:-?} present but repo needs >= $GO_MIN - upgrading to $GO_INSTALL_VERSION"
+    [ "$CHECK_ONLY" = 1 ] && { warn "go too old - re-run without --check to upgrade"; return 0; }
+    if install_go_tarball; then verify_go_on_path; return; fi
+    # go.dev tarball 403 (some managed envs block go.dev/dl but allow
+    # proxy.golang.org). Fall back to Go's own GOTOOLCHAIN download - it fetches
+    # the same 1.26.0 through the proxy, and wire_local_go points $HOME/.local/bin
+    # at the toolchain's GOROOT so `go version` on the harness PATH reports 1.26.
+    warn "go.dev tarball blocked - falling back to proxy.golang.org via GOTOOLCHAIN=go$GO_INSTALL_VERSION"
+    if install_go_via_proxy; then verify_go_on_path; return; fi
+    # Both paths failed. GOTOOLCHAIN=auto could still let step 8's `go build`
+    # succeed, but `go version` on PATH would keep reporting the old toolchain -
+    # which is why agents report "go is not updated" even after this script ran.
+    # Fail hard so the operator sees it, instead of pretending everything is fine.
+    err "both go.dev tarball and proxy.golang.org toolchain fetch failed; go on PATH is still ${cur:-?} (< $GO_MIN) - unblock egress to go.dev or proxy.golang.org, or pre-install Go >= $GO_MIN into the image"
+    FAILED=1
+    return 1
+  fi
+  [ "$CHECK_ONLY" = 1 ] && { warn "go missing - re-run without --check to install"; return 0; }
+  # No Go at all: neither the tarball nor the toolchain-auto fallback have a
+  # bootstrap `go` to invoke, so this branch really does need the tarball.
+  install_go_tarball || { err "go install failed and no existing go on PATH to bootstrap the toolchain fetch"; FAILED=1; return 1; }
+  verify_go_on_path
 }
 
 # -----------------------------------------------------------------------------
@@ -437,7 +521,6 @@ main() {
   provision_node26
   ensure_podman
   ensure_go
-  ensure_garble
   provision_submodules_light
   apply_tsgolint_patches
   bold "tsgolint pin"
@@ -498,7 +581,8 @@ main "$@"
 #      /etc/profile.d) by symlinking node26 bins into $HOME/.local/bin. pnpm
 #      comes from corepack, pinned to the repo's packageManager.
 #   2. podman   - via apt; confirm the engine is reachable.
-#   3. Go 1.26  - present in the web image; nodejs-style tarball fallback.
+#   3. Go 1.26  - upgraded in place (tarball -> /usr/local/go) when the image's
+#      preinstalled Go is older than the repo's required 1.26.
 #   4. submodules tsgolint + typescript-go, SKIPPING the 620MB nested
 #      microsoft/TypeScript corpus (only typescript-go's own conformance test
 #      runner needs it, never our `go build`; its checker libs are committed +
@@ -527,4 +611,36 @@ main "$@"
 #
 # Usage:  bash setup-claude-web.sh [--check]
 # Exit:   0 ok | 1 a required step failed | 3 unsupported platform
+# =============================================================================
+#
+# ---------------------------------------------------------------------------
+# EGRESS WHITELIST (managed / air-gapped cloud dev envs)
+# ---------------------------------------------------------------------------
+# Wildcard entries covering every host this script reaches. Add these to the
+# environment's outbound-traffic policy before the first run:
+#
+#   *.nodejs.org                    step 1: Node release index + tarball
+#   *.go.dev                        step 3: Go tarball (go.dev/dl)
+#   *.golang.org                    step 3+8: proxy.golang.org, sum.golang.org
+#                                             (Go module proxy + checksum DB,
+#                                             also carries the toolchain
+#                                             auto-download fallback used when
+#                                             the go.dev tarball 403s)
+#   *.github.com                    step 4: github.com + codeload.github.com
+#                                           (submodule clones)
+#   *.githubusercontent.com         step 4+11: objects.githubusercontent.com
+#                                              (git pack objects) AND
+#                                              pkg-containers.githubusercontent.com
+#                                              (GHCR image BLOBS - see step 11
+#                                              note; ghcr.io auth alone won't
+#                                              pull images without this)
+#   ghcr.io                         step 11: GHCR auth + manifest (apex domain,
+#                                            NOT wildcarded)
+#   *.npmjs.org                     step 6: registry.npmjs.org (pnpm install)
+#   *.debian.org  *.ubuntu.com      step 2 (+ others): OS package mirrors -
+#                                                       include whichever set
+#                                                       matches the base image
+#                                                       (Debian vs Ubuntu, and
+#                                                       ports.ubuntu.com on
+#                                                       arm64 Ubuntu)
 # =============================================================================

@@ -9,7 +9,7 @@
 //
 //   BINARY_BENCH=1 pnpm exec vitest run packages/ts-runtypes/test/features/binaryWire.test.ts
 //
-// NOTE: the devtools plugin resolves createBinaryEncoder/Decoder at each call
+// NOTE: the devtools plugin resolves createBinaryEncoderFn/Decoder at each call
 // site from the STATIC schema type, so every case inlines a concrete schema and
 // its own encoder/decoder calls — a shared `RunType<unknown>` table would erase
 // the type and inject the wrong (unknown) entry.
@@ -17,7 +17,7 @@
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from '@ts-runtypes/core/schema';
-import {createBinaryEncoder, createBinaryDecoder, type BinaryEncoderFn, type BinaryDecoderFn} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createBinaryDecoderFn, type BinaryEncoderFn, type BinaryDecoderFn} from '@ts-runtypes/core';
 
 const PRINT = process.env.BINARY_BENCH === '1';
 const TIME_MS = Number(process.env.BINARY_BENCH_MS ?? 200);
@@ -47,22 +47,22 @@ function record(label: string, encode: BinaryEncoderFn, decode: BinaryDecoderFn<
 describe('binary wire-format size + throughput', () => {
   it('string short ("hello")', () => {
     const s = TF.string();
-    record('string short ("hello")', createBinaryEncoder(s), createBinaryDecoder(s), 'hello');
+    record('string short ("hello")', createBinaryEncoderFn(s), createBinaryDecoderFn(s), 'hello');
   });
 
   it('string id (uuid-ish)', () => {
     const s = TF.string();
-    record('string id (uuid-ish)', createBinaryEncoder(s), createBinaryDecoder(s), '3f2504e0-4f89-41d3-9a0c-0305e82c3301');
+    record('string id (uuid-ish)', createBinaryEncoderFn(s), createBinaryDecoderFn(s), '3f2504e0-4f89-41d3-9a0c-0305e82c3301');
   });
 
   it('string long (200 chars)', () => {
     const s = TF.string();
-    record('string long (200 chars)', createBinaryEncoder(s), createBinaryDecoder(s), 'x'.repeat(200));
+    record('string long (200 chars)', createBinaryEncoderFn(s), createBinaryDecoderFn(s), 'x'.repeat(200));
   });
 
   it('object user (4 strings)', () => {
     const s = RT.object({id: TF.string(), name: TF.string(), email: TF.string(), role: TF.string()});
-    record('object user (4 strings)', createBinaryEncoder(s), createBinaryDecoder(s), {
+    record('object user (4 strings)', createBinaryEncoderFn(s), createBinaryDecoderFn(s), {
       id: 'u_1042',
       name: 'Ada Lovelace',
       email: 'ada@example.com',
@@ -74,8 +74,8 @@ describe('binary wire-format size + throughput', () => {
     const s = RT.array(TF.string());
     record(
       'array of 100 short strings',
-      createBinaryEncoder(s),
-      createBinaryDecoder(s),
+      createBinaryEncoderFn(s),
+      createBinaryDecoderFn(s),
       Array.from({length: 100}, (_, i) => `tag-${i}`)
     );
   });
@@ -84,8 +84,8 @@ describe('binary wire-format size + throughput', () => {
     const s = RT.array(TF.number());
     record(
       'array of 100 numbers',
-      createBinaryEncoder(s),
-      createBinaryDecoder(s),
+      createBinaryEncoderFn(s),
+      createBinaryDecoderFn(s),
       Array.from({length: 100}, (_, i) => i * 1.5)
     );
   });

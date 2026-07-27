@@ -14,11 +14,11 @@
 
 import {describe, expect, it} from 'vitest';
 import {
-  createValidate,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createValidateFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
   getRunType,
   getRunTypeId,
   type RunType,
@@ -57,7 +57,7 @@ describe('Error subclass wire projection — enumerability guard', () => {
   });
 
   it('vanilla error → envelope (name/message) + code ride the wire, never stack', () => {
-    const encode = createJsonEncoder<WireError>();
+    const encode = createJsonEncoderFn<WireError>();
     const parsed = JSON.parse(encode(wire()) as string);
     expect(parsed.code).toBe('not-found');
     expect(parsed.message).toBe('missing thing'); // required envelope, always written
@@ -67,7 +67,7 @@ describe('Error subclass wire projection — enumerability guard', () => {
   });
 
   it('a value that makes `stack` enumerable serializes it (per-value opt-in)', () => {
-    const encode = createJsonEncoder<WireError>();
+    const encode = createJsonEncoderFn<WireError>();
     const err = wire();
     Object.defineProperty(err, 'stack', {value: 'FRAME', enumerable: true, writable: true, configurable: true});
     const parsed = JSON.parse(encode(err) as string);
@@ -76,8 +76,8 @@ describe('Error subclass wire projection — enumerability guard', () => {
   });
 
   it('binary round-trip carries the envelope, never stack', () => {
-    const encode = createBinaryEncoder<WireError>();
-    const decode = createBinaryDecoder<WireError>();
+    const encode = createBinaryEncoderFn<WireError>();
+    const decode = createBinaryDecoderFn<WireError>();
     const decoded = decode(encode(wire())) as Record<string, unknown>;
     expect(decoded.code).toBe('not-found');
     expect(decoded.message).toBe('missing thing');
@@ -86,8 +86,8 @@ describe('Error subclass wire projection — enumerability guard', () => {
 
   it('inside a union, the error member still ships without stack', () => {
     type Result = WireError | {ok: true};
-    const encode = createJsonEncoder<Result>();
-    const decode = createJsonDecoder<Result>();
+    const encode = createJsonEncoderFn<Result>();
+    const decode = createJsonDecoderFn<Result>();
     const json = encode(wire()) as string;
     expect(json).not.toContain('FRAME');
     const decoded = decode(json) as Record<string, unknown>;
@@ -96,14 +96,14 @@ describe('Error subclass wire projection — enumerability guard', () => {
   });
 
   it('validate: envelope required, guarded stack/cause optional; round-trip holds', () => {
-    const isError = createValidate<WireError>();
+    const isError = createValidateFn<WireError>();
     expect(isError(wire())).toBe(true);
     // name/message are required (always on the wire), stack/cause may be absent.
     expect(isError({code: 'x', name: 'E', message: 'm'})).toBe(true);
     expect(isError({code: 'x'})).toBe(false); // missing required name/message
     // validate(decode(encode(v))) holds for a vanilla instance.
-    const encode = createJsonEncoder<WireError>();
-    const decode = createJsonDecoder<WireError>();
+    const encode = createJsonEncoderFn<WireError>();
+    const decode = createJsonDecoderFn<WireError>();
     expect(isError(decode(encode(wire()) as string))).toBe(true);
   });
 

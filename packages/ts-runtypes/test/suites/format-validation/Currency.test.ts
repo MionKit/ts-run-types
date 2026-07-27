@@ -7,7 +7,7 @@
 // discriminator) in both marker call shapes.
 import {describe, it, expect} from 'vitest';
 import * as TF from '@ts-runtypes/core/formats';
-import {createGetValidationErrors} from '@ts-runtypes/core';
+import {createGetValidationErrorsFn} from '@ts-runtypes/core';
 import {CURRENCY} from './Currency.ts';
 import {
   assertValidateStatic,
@@ -44,19 +44,19 @@ describe('format-validation / Currency', () => {
   }
 
   it('the isCurrency param is echoed onto error payloads (static form)', () => {
-    const errors = createGetValidationErrors<TF.Currency<{max: 100}>>()(101);
+    const errors = createGetValidationErrorsFn<TF.Currency<{max: 100}>>()(101);
     expect(errors[0]?.format?.name).toBe('numberFormat');
     expect(errors[0]?.format?.isCurrency).toBe(true);
   });
 
   it('the isCurrency param is echoed onto error payloads (value-first form)', () => {
-    const errors = createGetValidationErrors(TF.currency({max: 100}))(101);
+    const errors = createGetValidationErrorsFn(TF.currency({max: 100}))(101);
     expect(errors[0]?.format?.name).toBe('numberFormat');
     expect(errors[0]?.format?.isCurrency).toBe(true);
   });
 
   it('a plain number error never carries the flag', () => {
-    const errors = createGetValidationErrors<TF.Number<{max: 100}>>()(101);
+    const errors = createGetValidationErrorsFn<TF.Number<{max: 100}>>()(101);
     expect(errors[0]?.format?.isCurrency).toBeUndefined();
   });
 });

@@ -16,6 +16,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '../../../..');
 const BIN = resolve(REPO_ROOT, 'bin/ts-runtypes');
 const TMP_ROOT = resolve(HERE, '../suites/enrich/.tmp');
+// The temp modules import `@ts-runtypes/core/formats`; the binary no longer forces
+// the "source" condition, so point enrich at the repo's test tsconfig — it carries
+// customConditions:["source"] to resolve the package name to its in-tree src.
+const TSCONFIG_TEST = resolve(REPO_ROOT, 'packages/ts-runtypes/tsconfig.test.json');
 
 // The two test entries (`enrichGen`, `enrichCheck`) run in parallel and
 // share `.tmp`, so each writes into its OWN lane subdir to avoid clobbering the
@@ -80,7 +84,7 @@ function runGenBatch(fileBase: string, spans: Record<string, CaseSpans>): Record
     keyByBasename[basename] = caseKey;
   }
 
-  const result = spawnSync(BIN, ['gen', '--files', files.join(','), '--type', 'Target'], {
+  const result = spawnSync(BIN, ['enrich', '--files', files.join(','), '--type', 'Target', '--tsconfig', TSCONFIG_TEST], {
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
   });
@@ -121,11 +125,10 @@ export async function generateCategory(fileBase: string, constName: string): Pro
 
 // One `check` finding (the JSON shape the CLI emits per finding).
 export interface CheckFinding {
-  file: string;
-  Code: string;
-  Severity: number;
-  Path: string;
-  Message: string;
+  code: string;
+  family?: number;
+  severity: number;
+  site?: {filePath: string; startLine: number; startCol: number; endLine?: number; endCol?: number};
 }
 
 // One check row per case: the synthesized `.rt.ts` path + its findings.
@@ -158,7 +161,10 @@ export function checkCategory(fileBase: string, constName: string): Record<strin
       'export {friendlyTarget, mockTarget};\n';
     writeFileSync(filePath, source);
 
-    const result = spawnSync(BIN, ['check', filePath, '--json'], {encoding: 'utf8', maxBuffer: 32 * 1024 * 1024});
+    const result = spawnSync(BIN, ['enrich', filePath, '--no-emit', '--json', '--tsconfig', TSCONFIG_TEST], {
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    });
     if (result.error) throw new Error(`check failed to launch: ${result.error.message}`);
     // check exits 1 only when an Error-severity finding is present; for these
     // valid maps it should exit 0 with `null` / `[]`. A non-(0|1) exit is a real

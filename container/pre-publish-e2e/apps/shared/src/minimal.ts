@@ -2,7 +2,7 @@
 // reflection (both marker call shapes, with convergence), and one JSON
 // round-trip. Enough to prove an adapter loads, transforms marker calls, and
 // its output runs — without paying the full-matrix cost on every bundler.
-import {createValidate, getRunTypeId, createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+import {createValidateFn, getRunTypeId, createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
 import {type CheckResult, eq, ok} from './check';
 
 export interface Widget {
@@ -11,15 +11,15 @@ export interface Widget {
   when: Date;
 }
 
-export const isWidget = createValidate<Widget>();
+export const isWidget = createValidateFn<Widget>();
 
 // Both marker call shapes (CLAUDE.md marker rule).
 export const widgetIdStatic = getRunTypeId<Widget>();
 const sample: Widget = {id: 1, name: 'w', when: new Date('2026-01-01T00:00:00Z')};
 export const widgetIdFromValue = getRunTypeId(sample);
 
-export const encodeWidget = createJsonEncoder<Widget>();
-export const decodeWidget = createJsonDecoder<Widget>();
+export const encodeWidget = createJsonEncoderFn<Widget>();
+export const decodeWidget = createJsonDecoderFn<Widget>();
 
 export function selfCheck(): {ok: boolean; results: CheckResult[]} {
   const wire = encodeWidget(sample)!;

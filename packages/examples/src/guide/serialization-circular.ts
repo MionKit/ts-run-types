@@ -1,4 +1,4 @@
-import {createJsonEncoder, createBinaryEncoder, CircularReferenceError} from '@ts-runtypes/core';
+import {createJsonEncoderFn, createBinaryEncoderFn, CircularReferenceError} from '@ts-runtypes/core';
 
 // A self-referential shape: a node that can point at another Node.
 interface Node {
@@ -14,7 +14,7 @@ cyclic.next = cyclic;
 // start-per-call
 // Arm the guard for THIS encoder only. The encoder throws a
 // `CircularReferenceError` instead of recursing forever.
-const encode = createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+const encode = createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
 
 try {
   encode(cyclic as Node);
@@ -28,7 +28,7 @@ try {
 // The binary encoder arms the same way. `rejectCircularRefs` is a compile-time
 // option, so the armed encoder is a separate compiled function that bakes the
 // cycle check into its body (you only pay for it where you ask for it).
-const encodeBin = createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+const encodeBin = createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
 try {
   encodeBin(cyclic as Node);
 } catch (err) {
@@ -45,7 +45,7 @@ const dag: Node[] = [
   {name: 'alt', next: shared},
 ];
 
-const encodeList = createJsonEncoder<Node[]>(undefined, {rejectCircularRefs: true});
+const encodeList = createJsonEncoderFn<Node[]>(undefined, {rejectCircularRefs: true});
 encodeList(dag); // encodes normally — no cycle
 // end-dag
 

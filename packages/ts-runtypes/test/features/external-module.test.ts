@@ -9,10 +9,10 @@
 // asserts hash equivalence between them for an imported type.
 import {describe, expect, test} from 'vitest';
 import {
-  createValidate,
-  createJsonEncoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createValidateFn,
+  createJsonEncoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
   getRunTypeId,
   type InferType,
 } from '@ts-runtypes/core';
@@ -29,16 +29,16 @@ describe('external-module markers', () => {
     expect(staticId).toBe(inlineId); // the imported type converges with its inline twin
   });
 
-  test('createValidate over an imported type validates the right shape', () => {
-    const isUser = createValidate<User>();
+  test('createValidateFn over an imported type validates the right shape', () => {
+    const isUser = createValidateFn<User>();
     expect(isUser({id: 1, name: 'a'})).toBe(true);
     expect(isUser({id: 'x', name: 'a'})).toBe(false); // wrong scalar type
     expect(isUser({id: 1})).toBe(false); // missing field
   });
 
-  test('value-first createValidate over an imported schema converges with the static form', () => {
-    const fromSchema = createValidate(UserSchema); // value-first, imported schema
-    const fromType = createValidate<InferType<typeof UserSchema>>(); // static, same type
+  test('value-first createValidateFn over an imported schema converges with the static form', () => {
+    const fromSchema = createValidateFn(UserSchema); // value-first, imported schema
+    const fromType = createValidateFn<InferType<typeof UserSchema>>(); // static, same type
 
     expect(fromSchema).toBe(fromType); // same structural id ⇒ same cached factory
     expect(fromSchema({id: 1, name: 'a'})).toBe(true);
@@ -46,22 +46,22 @@ describe('external-module markers', () => {
   });
 
   test('a whole imported const option bag selects the JSON strategy (mutate observed)', () => {
-    const encode = createJsonEncoder<WithBigint>(undefined, mutatePreset); // whole imported const
+    const encode = createJsonEncoderFn<WithBigint>(undefined, mutatePreset); // whole imported const
     const input: WithBigint = {n: 123n};
     encode(input);
     // mutate rebinds the bigint to its decimal string IN PLACE; had the whole
     // const been dropped, the default clone would have left `n` a bigint.
     expect(typeof (input as unknown as {n: unknown}).n).toBe('string');
 
-    const encodeDefault = createJsonEncoder<WithBigint>();
+    const encodeDefault = createJsonEncoderFn<WithBigint>();
     const untouched: WithBigint = {n: 123n};
     encodeDefault(untouched);
     expect(typeof untouched.n).toBe('bigint');
   });
 
   test('binary encoder/decoder round-trips over an imported type', () => {
-    const enc = createBinaryEncoder<User>();
-    const dec = createBinaryDecoder<User>();
+    const enc = createBinaryEncoderFn<User>();
+    const dec = createBinaryDecoderFn<User>();
     const user: User = {id: 7, name: 'Ada'};
     expect(dec(enc(user))).toEqual(user);
   });

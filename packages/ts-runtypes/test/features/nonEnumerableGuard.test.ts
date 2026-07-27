@@ -14,12 +14,12 @@
 
 import {describe, expect, it} from 'vitest';
 import {
-  createValidate,
-  createGetValidationErrors,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
   getRunType,
   getRunTypeId,
   type RunType,
@@ -50,8 +50,8 @@ const STRATEGY_PAIRS = [
 describe('@nonEnumerable guard on an optional prop — JSON strategies', () => {
   for (const {encode: encStrategy, decode: decStrategy} of STRATEGY_PAIRS) {
     it(`[${encStrategy}] non-enumerable secret is dropped; enumerable secret is kept`, () => {
-      const encode = createJsonEncoder<Doc>(undefined, {strategy: encStrategy});
-      const decode = createJsonDecoder<Doc>(undefined, {strategy: decStrategy});
+      const encode = createJsonEncoderFn<Doc>(undefined, {strategy: encStrategy});
+      const decode = createJsonDecoderFn<Doc>(undefined, {strategy: decStrategy});
 
       const hidden = decode(encode(withSecret(false)) as string) as Record<string, unknown>;
       expect(hidden.id).toBe('d1');
@@ -64,21 +64,21 @@ describe('@nonEnumerable guard on an optional prop — JSON strategies', () => {
   }
 
   it('binary round-trip honors the guard both ways', () => {
-    const encode = createBinaryEncoder<Doc>();
-    const decode = createBinaryDecoder<Doc>();
+    const encode = createBinaryEncoderFn<Doc>();
+    const decode = createBinaryDecoderFn<Doc>();
     expect((decode(encode(withSecret(false))) as Record<string, unknown>).secret).toBeUndefined();
     expect((decode(encode(withSecret(true))) as Record<string, unknown>).secret).toBe('shhh');
   });
 
   it('validators treat the guarded prop as optional; DataOnly-safe', () => {
-    const isDoc = createValidate<Doc>();
-    const errorsOf = createGetValidationErrors<Doc>();
+    const isDoc = createValidateFn<Doc>();
+    const errorsOf = createGetValidationErrorsFn<Doc>();
     expect(isDoc({id: 'd1'})).toBe(true); // secret absent
     expect(isDoc({id: 'd1', secret: 'x'})).toBe(true);
     expect(errorsOf({id: 'd1'})).toHaveLength(0);
     // validate(decode(encode(v))) holds for a non-enumerable value.
-    const encode = createJsonEncoder<Doc>();
-    const decode = createJsonDecoder<Doc>();
+    const encode = createJsonEncoderFn<Doc>();
+    const decode = createJsonDecoderFn<Doc>();
     expect(isDoc(decode(encode(withSecret(false)) as string))).toBe(true);
   });
 
@@ -105,7 +105,7 @@ interface ReqTagged {
 
 describe('@nonEnumerable on a required prop is a no-op (guard needs optional)', () => {
   it('a required tagged prop is NOT guarded — serialized unconditionally', () => {
-    const encode = createJsonEncoder<ReqTagged>();
+    const encode = createJsonEncoderFn<ReqTagged>();
     const value = {a: 'x'} as ReqTagged;
     Object.defineProperty(value, 'kept', {value: 'v', enumerable: false, writable: true, configurable: true});
     const parsed = JSON.parse(encode(value) as string);
@@ -130,8 +130,8 @@ class RpcError extends Error {
 
 describe('Error envelope always rides the wire; stack stays guarded', () => {
   it('name/message serialize; stack does not (unless made enumerable)', () => {
-    const encode = createJsonEncoder<RpcError>();
-    const decode = createJsonDecoder<RpcError>();
+    const encode = createJsonEncoderFn<RpcError>();
+    const decode = createJsonDecoderFn<RpcError>();
     const decoded = decode(encode(new RpcError(500, 'boom')) as string) as Record<string, unknown>;
     expect(decoded.code).toBe(500);
     expect(typeof decoded.name).toBe('string');

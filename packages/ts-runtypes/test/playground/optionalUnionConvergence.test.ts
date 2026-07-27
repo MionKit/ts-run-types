@@ -37,8 +37,8 @@ describe('playground / optional-union schema↔type convergence (regression)', (
 
   it('optional boolean: schema form converges with type-first and emits no union envelope', async () => {
     if (!assetsBuilt()) return;
-    const typeMods = await generatedCache('createJsonEncoder', TYPE_FORM, undefined, 'type');
-    const schemaMods = await generatedCache('createJsonEncoder', SCHEMA_FORM, undefined, 'schema');
+    const typeMods = await generatedCache('createJsonEncoderFn', TYPE_FORM, undefined, 'type');
+    const schemaMods = await generatedCache('createJsonEncoderFn', SCHEMA_FORM, undefined, 'schema');
 
     const pjs = (mods: Array<{name: string; code: string}>) => mods.find((m) => m.name.includes('pjs'))?.code ?? '';
     const typePjs = pjs(typeMods);

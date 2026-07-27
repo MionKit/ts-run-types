@@ -1,7 +1,15 @@
 // Command ts-runtypes answers compile-time type-reflection queries for
-// runtypes. It holds a typescript-go Program + checker in memory and
-// speaks newline-delimited JSON on stdio, or writes the dump straight to
-// disk via --out-json / --out-modules.
+// runtypes. Its mode is the first word (a tsgo-style args[0] subcommand):
+//
+//	serve      hold a Program + checker in memory and speak newline-delimited
+//	           JSON on stdio (the resolver protocol the bundler plugin drives)
+//	compile    tsc-like batch compile: transform + emit .js with composed
+//	           source maps + generated cache modules to disk (--no-emit: diagnostics only)
+//	enrich     scaffold / reconcile / check the enrichment mirror files
+//	           (--no-emit: enrichment-health diagnostics only, write nothing)
+//
+// Shared knobs (--tsconfig, --cwd, --emit-mode, …) mean the same thing under
+// every subcommand.
 package main
 
 import (
@@ -10,13 +18,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 	"strings"
-	"sync"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 
@@ -36,60 +42,31 @@ import (
 const usage = `ts-runtypes — compile-time type resolver for runtypes
 
 Usage:
-    ts-runtypes [OPTIONS]
+    ts-runtypes <command> [OPTIONS]
 
-Options:
-    --tsconfig PATH     tsconfig.json to load (default: ./tsconfig.json)
+Commands:
+    serve       serve the resolver protocol on stdio (the bundler-plugin path)
+    compile     tsc-like batch compile: emit .js + generated cache modules to disk (--no-emit: diagnostics only)
+    enrich      scaffold / reconcile / check the enrichment mirror files (--no-emit: diagnostics only)
+
+Run  ts-runtypes <command> -h  for a command's own options.
+
+Shared options (same meaning under every command):
+    --tsconfig PATH     tsconfig.json to load (default: discover upward from --cwd)
     --cwd PATH          working directory (default: $PWD)
-    --one-shot          read requests from stdin until EOF, emit dump to stdout
-    --daemon            listen on a Unix socket for persistent serving
-    --socket PATH       socket path (default: /tmp/ts-runtypes.sock)
-    --out-json PATH     after stdin is drained, write the cache as JSON to PATH
-    --out-modules DIR   after stdin is drained, write every per-entry virtual
-                        module to DIR/<basename>.js (debugging aid)
-    --compile           tsc-like batch compile: transform every marker file,
-                        emit .js via tsgo with source maps composed back to the
-                        ORIGINAL source, and write the generated cache modules
-                        to disk. Emits to the tsconfig outDir; no stdio protocol.
-    --gen-dir DIR  where --compile writes the cache modules
-                        (default <cwd>/__runtypes). Also readable as the
-                        "genDir" key in the tsconfig ts-runtypes
-                        plugin entry (the flag overrides it, tsc-style).
     --hash-length N     short-id length for type hashes (default 7)
-    --single-threaded   force single-checker mode (useful for tests);
-                        also disables the parallel scan + renders
-    --no-parallel-scan  disable the parallel marker scan (parallel is the
-                        default: multi-file scanFiles requests analyze
-                        call sites concurrently across the checker pool)
-    --no-parallel-render disable the parallel cache renders (parallel is
-                        the default: requested non-validate cache families
-                        render concurrently; validate always renders last)
-    --module-mode MODE  virtual-module grouping: default (runtype bundle +
-                        per-entry fn modules), allSingle (per-family bundle
-                        modules — fewest modules), or allModules (per-node
-                        runtype modules too — the pre-bundle layout)
-    --emit-mode MODE    fn-entry code/factory slots: code (body string only,
-                        the default), functions (live factory only), or both
-    --inline-mode MODE  child-inlining policy: default (unnamed non-circular
-                        compounds inline into their parents, named types stay
-                        external) or allInternal (everything except circular
-                        types inlines, names ignored)
-    --pure-fn-report-wire    emit the structured pure-fn build report ON THE
-                        WIRE (Response.pureFnSites) on generate/scan, for host
-                        tooling that relocates pure-fn bodies across bundles;
-                        off by default. Also enabled by the "pureFnReport": true
-                        tsconfig key (which additionally writes the file below)
-    --pure-fn-report-file    also write the whole-program report as JSON to
-                        <genDir>/types/pure-fns-report.json (hardcoded location)
-                        on generate
-    --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
-                             before the request stream; build an inferred
-                             Program whose source files come from that map
-                             (no tsconfig glob, no disk reads for those paths)
-    --inline-server     persistent inline-sources server: start with no
-                        Program, accept setSources / resetCache / scanFiles /
-                        dump ops; used by long-lived test daemons
+    --emit-mode MODE    fn-entry code/factory slots: code (default) | functions | both
+    --inline-mode MODE  child-inlining: default | allInternal
+    --module-mode MODE  virtual-module grouping: default | allSingle | allModules
+    --number-mode MODE  validate numberMode default: isFinite (default) | typeof | notNaN
+    --single-threaded / --no-single-threaded
+    --no-parallel-scan / --no-parallel-render
+    --size-bias / --size-items / --size-string-bytes / --size-max-bytes
+    --allow-unchecked-patterns
+    --pure-fn-report-wire / --pure-fn-report-file
+    --pprof-cpu PATH / --pprof-heap PATH
     -h, --help          show help
+    --version           print version (binary + pinned tsgo revision) and exit
 
 The on-disk RT artifact cache (per-(typeID, fnTag) files under
 <cwd>/node_modules/.cache/ts-runtypes/<optsFingerprint>/...) follows TypeScript's
@@ -101,136 +78,119 @@ off. Binary version is folded into every typeID hash so cross-version files
 never collide.
 `
 
+// commands is the top-level args[0] dispatch table — one convention for every
+// mode, like the vendored tsgo (cmd/tsgo/main.go switches on args[0]). Each
+// handler owns its own flag.FlagSet.
+var commands = map[string]func(args []string){
+	"serve":   runServe,
+	"compile": runCompile,
+	"enrich":  runEnrich,
+}
+
 func main() {
-	// Out-of-band enrichment subcommands (describe / gen) are argv-driven and
-	// handled before flag.Parse. The plugin spawns the binary with a --flag as
-	// os.Args[1], which never matches, so the build path is untouched.
-	if dispatchEnrichCommand() {
-		return
+	args := os.Args[1:]
+	if len(args) == 0 {
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
 	}
-
-	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
-
-	var (
-		tsconfigPath           string
-		cwdFlag                string
-		oneShot                bool
-		daemon                 bool
-		socketPath             string
-		outJSON                string
-		outModulesDir          string
-		compileMode            bool
-		genDir                 string
-		hashLength             int
-		singleThreaded         bool
-		noParallelScan         bool
-		noParallelRender       bool
-		inlineSourcesStdin     bool
-		inlineServer           bool
-		emitMode               string
-		inlineMode             string
-		moduleMode             string
-		allowUncheckedPatterns bool
-		pureFnReportWire       bool
-		pureFnReportFile       bool
-		sizeBias               float64
-		sizeItems              int
-		sizeStringBytes        int
-		sizeMaxBytes           int
-		pprofCPU               string
-		pprofHeap              string
-		help                   bool
-		version                bool
-	)
-	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
-	flag.StringVar(&cwdFlag, "cwd", "", "working directory")
-	flag.BoolVar(&oneShot, "one-shot", false, "one-shot stdio mode")
-	flag.BoolVar(&daemon, "daemon", false, "daemon Unix-socket mode")
-	flag.StringVar(&socketPath, "socket", "/tmp/ts-runtypes.sock", "Unix socket path")
-	flag.StringVar(&outJSON, "out-json", "", "write cache as JSON to PATH after stdin EOF")
-	flag.StringVar(&outModulesDir, "out-modules", "", "write per-entry virtual modules to DIR after stdin EOF")
-	flag.BoolVar(&compileMode, "compile", false,
-		"compile mode: transform + emit .js with composed source maps + generated caches to disk (tsc-like); uses the tsconfig outDir")
-	flag.StringVar(&genDir, "gen-dir", "",
-		"where compile writes the generated cache modules (default <cwd>/__runtypes); the emitted .js import them by relative path")
-	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 7)")
-	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
-	flag.BoolVar(&noParallelScan, "no-parallel-scan", false,
-		"disable the parallel marker scan (parallel is the default)")
-	flag.BoolVar(&noParallelRender, "no-parallel-render", false,
-		"disable the parallel cache renders (parallel is the default)")
-	flag.BoolVar(&inlineSourcesStdin, "inline-sources-stdin", false,
-		"read {\"sources\":{relpath:content}} from stdin before the request stream")
-	flag.BoolVar(&inlineServer, "inline-server", false,
-		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
-	flag.StringVar(&emitMode, "emit-mode", string(constants.EmitCode),
-		"what each cache entry ships in its code/factory slots: "+
-			"code (default — body string only; the JS side rebuilds the factory via `new Function` on first lookup), "+
-			"functions (live factory only; code derived lazily if read — smallest factory-bearing output), or "+
-			"both (code + factory, for runtimes that disallow dynamic code like Cloudflare WorkerD / CSP without unsafe-eval).")
-	flag.StringVar(&inlineMode, "inline-mode", string(constants.InlineModeDefault),
-		"child-inlining policy: default (unnamed compounds inline, named external) | allInternal (everything except circular inlines)")
-	flag.StringVar(&moduleMode, "module-mode", constants.ModuleModeDefault,
-		"virtual-module grouping: default (runtype bundle + per-entry fn modules), "+
-			"allSingle (per-family bundle modules — fewest modules), or "+
-			"allModules (per-node runtype modules too — the pre-bundle layout)")
-	flag.BoolVar(&allowUncheckedPatterns, "allow-unchecked-patterns", false,
-		"silence the fail-closed FMT004 build error for format patterns whose mockSamples "+
-			"RE2 can't verify (JS-only regex features); asserts the ts-runtypes JS linter owns the check")
-	flag.BoolVar(&pureFnReportWire, "pure-fn-report-wire", false,
-		"emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan for host tooling "+
-			"that relocates pure-fn bodies across bundles; off by default so the rewrite pipeline pays nothing")
-	flag.BoolVar(&pureFnReportFile, "pure-fn-report-file", false,
-		"also write the whole-program pure-fn report as JSON to the hardcoded <genDir>/types/pure-fns-report.json on generate (implies --pure-fn-report-wire)")
-	flag.Float64Var(&sizeBias, "size-bias", constants.DefaultSizeBias,
-		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest (more grows), 1 = most generous (default 0.8)")
-	flag.IntVar(&sizeItems, "size-items", constants.DefaultSizeItems,
-		"assumed element count for an unbounded collection (array/Map/Set) in the binary cold-start estimate (default 100)")
-	flag.IntVar(&sizeStringBytes, "size-string-bytes", constants.DefaultSizeStringBytes,
-		"assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)")
-	flag.IntVar(&sizeMaxBytes, "size-max-bytes", constants.DefaultSizeMaxBytes,
-		"per-type cap on the binary cold-start estimate so a huge declared bound never seeds a multi-MB buffer (default 65536)")
-	flag.StringVar(&pprofCPU, "pprof-cpu", "",
-		"write a CPU profile to PATH, covering the whole serve loop (started at boot, stopped at exit)")
-	flag.StringVar(&pprofHeap, "pprof-heap", "",
-		"write a heap profile to PATH at exit (after a final GC)")
-	flag.BoolVar(&help, "help", false, "show help")
-	flag.BoolVar(&help, "h", false, "show help")
-	flag.BoolVar(&version, "version", false, "print version (binary + pinned tsgo revision) and exit")
-	flag.Parse()
-
-	// Which flags the user actually passed. The build-config merge layers the
-	// tsconfig plugin entry UNDER any explicitly-set flag (tsc precedence), so
-	// it must tell an explicit value from an absent flag.
-	setFlags := map[string]bool{}
-	flag.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
-
-	if help {
-		flag.Usage()
+	switch args[0] {
+	case "-h", "--help", "help":
+		fmt.Fprint(os.Stdout, usage)
 		return
-	}
-
-	if version {
+	case "-v", "--version", "version":
 		fmt.Printf("ts-runtypes %s (tsgo %s)\n", constants.Version, constants.TsgoVersion)
 		return
 	}
+	run, ok := commands[args[0]]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "ts-runtypes: unknown command %q\n\n", args[0])
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
+	}
+	run(args[1:])
+}
 
-	if pprofCPU != "" {
-		cpuFile, err := os.Create(pprofCPU)
+// sharedFlags are the resolver-configuring knobs common to serve + compile,
+// registered on each subcommand's own FlagSet by registerSharedFlags so a knob
+// spells and means the same thing wherever it appears.
+type sharedFlags struct {
+	tsconfig               string
+	cwd                    string
+	hashLength             int
+	singleThreaded         bool
+	noSingleThreaded       bool
+	noParallelScan         bool
+	noParallelRender       bool
+	emitMode               string
+	inlineMode             string
+	moduleMode             string
+	allowUncheckedPatterns bool
+	pureFnReportWire       bool
+	pureFnReportFile       bool
+	sizeBias               float64
+	sizeItems              int
+	sizeStringBytes        int
+	sizeMaxBytes           int
+	numberMode             string
+	pprofCPU               string
+	pprofHeap              string
+}
+
+func registerSharedFlags(fs *flag.FlagSet) *sharedFlags {
+	s := &sharedFlags{}
+	fs.StringVar(&s.tsconfig, "tsconfig", "", "tsconfig.json path (default: discover upward from --cwd, tsc-style)")
+	fs.StringVar(&s.cwd, "cwd", "", "working directory (default: $PWD)")
+	fs.IntVar(&s.hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 7)")
+	fs.BoolVar(&s.singleThreaded, "single-threaded", false, "single-threaded mode (also disables the parallel scan + renders)")
+	fs.BoolVar(&s.noSingleThreaded, "no-single-threaded", false,
+		"force multi-threaded (the default), overriding a tsconfig singleThreaded:true")
+	fs.BoolVar(&s.noParallelScan, "no-parallel-scan", false, "disable the parallel marker scan (parallel is the default)")
+	fs.BoolVar(&s.noParallelRender, "no-parallel-render", false, "disable the parallel cache renders (parallel is the default)")
+	fs.StringVar(&s.emitMode, "emit-mode", string(constants.EmitCode),
+		"what each cache entry ships in its code/factory slots: code (default) | functions | both")
+	fs.StringVar(&s.inlineMode, "inline-mode", string(constants.InlineModeDefault),
+		"child-inlining policy: default (unnamed compounds inline, named external) | allInternal")
+	fs.StringVar(&s.moduleMode, "module-mode", constants.ModuleModeDefault,
+		"virtual-module grouping: default | allSingle | allModules")
+	fs.BoolVar(&s.allowUncheckedPatterns, "allow-unchecked-patterns", false,
+		"silence the fail-closed FMT004 build error for format patterns whose mockSamples RE2 can't verify")
+	fs.BoolVar(&s.pureFnReportWire, "pure-fn-report-wire", false,
+		"emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan")
+	fs.BoolVar(&s.pureFnReportFile, "pure-fn-report-file", false,
+		"also write the whole-program pure-fn report as JSON to <genDir>/types/pure-fns-report.json")
+	fs.Float64Var(&s.sizeBias, "size-bias", constants.DefaultSizeBias,
+		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest, 1 = most generous (default 0.8)")
+	fs.IntVar(&s.sizeItems, "size-items", constants.DefaultSizeItems,
+		"assumed element count for an unbounded collection in the binary cold-start estimate (default 100)")
+	fs.IntVar(&s.sizeStringBytes, "size-string-bytes", constants.DefaultSizeStringBytes,
+		"assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)")
+	fs.IntVar(&s.sizeMaxBytes, "size-max-bytes", constants.DefaultSizeMaxBytes,
+		"per-type cap on the binary cold-start estimate (default 65536)")
+	fs.StringVar(&s.numberMode, "number-mode", "",
+		"project-wide default for the validate numberMode option: isFinite (default) | typeof | notNaN")
+	fs.StringVar(&s.pprofCPU, "pprof-cpu", "", "write a CPU profile to PATH (whole run)")
+	fs.StringVar(&s.pprofHeap, "pprof-heap", "", "write a heap profile to PATH at exit")
+	return s
+}
+
+// startProfiling honors --pprof-cpu / --pprof-heap and returns a stop function
+// the caller defers; a no-op when neither flag is set.
+func startProfiling(s *sharedFlags) func() {
+	var stops []func()
+	if s.pprofCPU != "" {
+		cpuFile, err := os.Create(s.pprofCPU)
 		if err != nil {
 			fatal("pprof-cpu: %v", err)
 		}
 		if err := pprof.StartCPUProfile(cpuFile); err != nil {
 			fatal("pprof-cpu: %v", err)
 		}
-		defer func() {
-			pprof.StopCPUProfile()
-			cpuFile.Close()
-		}()
+		stops = append(stops, func() { pprof.StopCPUProfile(); cpuFile.Close() })
 	}
-	if pprofHeap != "" {
-		defer func() {
-			heapFile, err := os.Create(pprofHeap)
+	if s.pprofHeap != "" {
+		heapPath := s.pprofHeap
+		stops = append(stops, func() {
+			heapFile, err := os.Create(heapPath)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "pprof-heap: %v\n", err)
 				return
@@ -240,9 +200,26 @@ func main() {
 			if err := pprof.WriteHeapProfile(heapFile); err != nil {
 				fmt.Fprintf(os.Stderr, "pprof-heap: %v\n", err)
 			}
-		}()
+		})
 	}
+	return func() {
+		for i := len(stops) - 1; i >= 0; i-- {
+			stops[i]()
+		}
+	}
+}
 
+// sessionConfig is the resolved config + options a Program-building subcommand
+// (serve / compile) consumes — the output of the ONE shared config pipeline.
+type sessionConfig struct {
+	absCwd       string
+	tsconfigPath string
+	genDir       string // compile's cache-module output root (merged flag > plugin > default)
+	opts         resolver.Options
+}
+
+// resolveCwd resolves the --cwd flag (empty → $PWD) to an absolute path.
+func resolveCwd(cwdFlag string) string {
 	cwd := cwdFlag
 	if cwd == "" {
 		d, err := os.Getwd()
@@ -255,50 +232,53 @@ func main() {
 	if err != nil {
 		fatal("abs(cwd): %v", err)
 	}
+	return absCwd
+}
 
-	// Layer the build config: an on-disk tsconfig (the default mode) supplies
-	// the project knobs as a base, explicitly-set flags override them. The
-	// inline / server modes carry no tsconfig, so they run on flags + defaults
-	// alone (hasTsconfig=false also withholds the node_modules cache default).
-	hasTsconfig := !inlineServer && !inlineSourcesStdin
+// resolveSharedConfig runs the ONE config+options pipeline for a Program-building
+// subcommand: resolve cwd, resolve the ONE tsconfig (resolveConfigPath — the
+// single policy), read the build plugin when readBuildPlugin, merge flags over
+// the plugin over the binary defaults (tsc precedence), validate, and build
+// resolver.Options. genDirFlag is compile's --gen-dir (serve passes ""), and
+// readBuildPlugin is the old hasTsconfig gate: the overlay serve modes
+// (--sources stdin|ops) do not merge the tsconfig plugin block.
+func resolveSharedConfig(fs *flag.FlagSet, s *sharedFlags, genDirFlag string, readBuildPlugin bool) sessionConfig {
+	absCwd := resolveCwd(s.cwd)
+	tsconfigPath := resolveConfigPath(absCwd, s.tsconfig)
+
+	// Which flags the user actually passed, so the merge can tell an explicit
+	// value from an absent flag (tsc precedence — the plugin fills only gaps).
+	setFlags := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+
 	var plugin tsRuntypesPlugin
-	if hasTsconfig {
+	if readBuildPlugin {
 		plugin, _ = resolveBuildPlugin(absCwd, tsconfigPath)
-		// A misspelt key is otherwise silently ignored, so the option appears
-		// to have no effect. Warn on stderr (the host inherits it into the
-		// build log) listing the unrecognised keys.
+		// A misspelt key is otherwise silently ignored; warn on stderr.
 		if unknown := unknownPluginKeys(absCwd, tsconfigPath); len(unknown) > 0 {
 			fmt.Fprintf(os.Stderr, "ts-runtypes: ignoring unknown ts-runtypes plugin key(s) in tsconfig: %v\n", unknown)
 		}
 	}
 	merged := mergeBuildOptions(buildFlags{
 		set:                    setFlags,
-		hashLength:             hashLength,
-		singleThreaded:         singleThreaded,
-		noParallelScan:         noParallelScan,
-		noParallelRender:       noParallelRender,
-		genDir:                 genDir,
-		emitMode:               emitMode,
-		inlineMode:             inlineMode,
-		moduleMode:             moduleMode,
-		allowUncheckedPatterns: allowUncheckedPatterns,
-		pureFnReportWire:       pureFnReportWire,
-		pureFnReportFile:       pureFnReportFile,
-		sizeBias:               sizeBias,
-		sizeItems:              sizeItems,
-		sizeStringBytes:        sizeStringBytes,
-		sizeMaxBytes:           sizeMaxBytes,
+		hashLength:             s.hashLength,
+		singleThreaded:         s.singleThreaded,
+		noSingleThreaded:       s.noSingleThreaded,
+		noParallelScan:         s.noParallelScan,
+		noParallelRender:       s.noParallelRender,
+		genDir:                 genDirFlag,
+		emitMode:               s.emitMode,
+		inlineMode:             s.inlineMode,
+		moduleMode:             s.moduleMode,
+		allowUncheckedPatterns: s.allowUncheckedPatterns,
+		pureFnReportWire:       s.pureFnReportWire,
+		pureFnReportFile:       s.pureFnReportFile,
+		sizeBias:               s.sizeBias,
+		sizeItems:              s.sizeItems,
+		sizeStringBytes:        s.sizeStringBytes,
+		sizeMaxBytes:           s.sizeMaxBytes,
+		numberMode:             s.numberMode,
 	}, plugin, absCwd)
-
-	// Stdio decoder/encoder is built up front because in inline-sources mode
-	// we consume one handshake line from stdin BEFORE constructing the
-	// Program, then keep the same decoder for the request loop so any bytes
-	// buffered by the JSON decoder past the handshake aren't lost. Stdout is
-	// buffered (flushed once per response in serveRequests) so a large
-	// response doesn't degrade into many small pipe writes.
-	stdinDec := json.NewDecoder(bufio.NewReader(os.Stdin))
-	stdoutBuf := bufio.NewWriter(os.Stdout)
-	stdoutEnc := json.NewEncoder(stdoutBuf)
 
 	// Validate the MERGED values: a bad mode can arrive from tsconfig as
 	// readily as from a flag, so the check sits after the merge.
@@ -308,7 +288,6 @@ func main() {
 		fatal("module-mode: unknown value %q (expected %s | %s | %s)",
 			merged.moduleMode, constants.ModuleModeDefault, constants.ModuleModeAllSingle, constants.ModuleModeAllModules)
 	}
-
 	if !constants.EmitMode(merged.emitMode).Valid() {
 		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid emit-mode %q (want code | functions | both)\n", merged.emitMode)
 		os.Exit(2)
@@ -317,26 +296,35 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid inline-mode %q (want default | allInternal)\n", merged.inlineMode)
 		os.Exit(2)
 	}
+	switch merged.numberMode {
+	case "", constants.NumberModeIsFinite, constants.NumberModeTypeof, constants.NumberModeNotNaN:
+	default:
+		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid number-mode %q (want isFinite | typeof | notNaN)\n", merged.numberMode)
+		os.Exit(2)
+	}
 
-	// RT disk cache: the internal RT_CACHE_DIR env var is the only control
-	// (the public cacheDir plugin/tsconfig knob was dropped). Three states:
-	// unset → the cache follows the project's incremental/composite setting
-	// (CacheFollowsIncremental, resolved against the loaded Program); set to a
-	// path → force the cache on at that path; set to "" → force it off.
+	// RT disk cache: the internal RT_CACHE_DIR env var is the only control.
+	// Unset → the cache follows the project's incremental/composite setting; set
+	// to a path → force on there; set to "" → force off.
 	cacheDirOverride, cacheDirSet := os.LookupEnv("RT_CACHE_DIR")
 
-	// tsconfig `genDir` (raw, pre-default) rides into the resolver so the
-	// build lane's resolveOutDir agrees with the CLI lanes; when unset the
-	// resolver keeps its <srcDir>/__runtypes inference.
+	// tsconfig `genDir` (raw, pre-default) rides into the resolver so the build
+	// lane's resolveOutDir agrees with the CLI lanes; when unset the resolver
+	// keeps its <srcDir>/__runtypes inference.
 	tsconfigGenDir := strings.TrimSpace(plugin.GenDir)
 	if tsconfigGenDir != "" && !filepath.IsAbs(tsconfigGenDir) {
 		tsconfigGenDir = filepath.Join(absCwd, tsconfigGenDir)
 	}
-	resolverOpts := resolver.Options{
+
+	opts := resolver.Options{
 		HashLength:              merged.hashLength,
 		Marker:                  marker.Options{},
 		Cwd:                     absCwd,
+		TsconfigPath:            tsconfigPath,
 		TsconfigGenDir:          tsconfigGenDir,
+		TsconfigFailOnError:     plugin.FailOnError,
+		EnrichSourceLocale:      pluginI18nSourceLocale(plugin),
+		EnrichLocales:           pluginI18nLocales(plugin),
 		SingleThreaded:          merged.singleThreaded,
 		DisableParallelScan:     merged.disableParallelScan,
 		DisableParallelRender:   merged.disableParallelRender,
@@ -352,110 +340,145 @@ func main() {
 		SizeItems:               merged.sizeItems,
 		SizeStringBytes:         merged.sizeStringBytes,
 		SizeMaxBytes:            merged.sizeMaxBytes,
+		ValidateDefaults:        resolver.ValidateDefaults{NumberMode: merged.numberMode},
+	}
+	return sessionConfig{absCwd: absCwd, tsconfigPath: tsconfigPath, genDir: merged.genDir, opts: opts}
+}
+
+// pluginI18nSourceLocale / pluginI18nLocales project the tsconfig plugin's i18n
+// block onto the resolver Options defaults (project serve mode); the serve
+// --enrich-locales / --enrich-source-locale flags override them.
+func pluginI18nSourceLocale(plugin tsRuntypesPlugin) string {
+	if plugin.I18n == nil {
+		return ""
+	}
+	return plugin.I18n.SourceLocale
+}
+
+func pluginI18nLocales(plugin tsRuntypesPlugin) []string {
+	if plugin.I18n == nil {
+		return nil
+	}
+	return plugin.I18n.Locales
+}
+
+// printUsage renders a subcommand's help: its synopsis, then EVERY flag it
+// accepts (its own + the shared knobs registered on the same FlagSet) with a
+// one-line description — so each `ts-runtypes <cmd> -h` is self-documenting and
+// can never drift from the registered flags. Like flag.PrintDefaults but with
+// the `--name` convention the synopsis and docs use (Go accepts both -x / --x).
+func printUsage(fs *flag.FlagSet, synopsis string) {
+	fmt.Fprint(os.Stderr, synopsis)
+	fmt.Fprintln(os.Stderr, "\nFlags:")
+	fs.VisitAll(func(f *flag.Flag) {
+		typeName, usage := flag.UnquoteUsage(f)
+		label := "  --" + f.Name
+		if typeName != "" {
+			label += " " + typeName
+		}
+		fmt.Fprintf(os.Stderr, "%s\n    \t%s\n", label, usage)
+	})
+}
+
+const serveUsage = `ts-runtypes serve — serve the resolver protocol on stdio
+
+Usage:
+    ts-runtypes serve [--sources project|stdin|ops] [OPTIONS]
+
+Holds a Program + checker in memory and speaks newline-delimited JSON on stdio
+(the resolver protocol the bundler plugin drives). --sources selects where the
+startup Program comes from: project (build from the tsconfig file list, the
+default), stdin (a {"sources":{…}} handshake line, one inferred Program), or ops
+(no startup Program; the client drives setSources / scanFiles / dump).
+`
+
+// runServe serves the resolver protocol on stdio. The startup Program source is
+// selected by --sources (project | stdin | ops), collapsing the former default /
+// --inline-sources-stdin / --inline-server modes into one command.
+func runServe(args []string) {
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	s := registerSharedFlags(fs)
+	sources := fs.String("sources", "project", "startup Program source: project | stdin | ops")
+	outJSON := fs.String("out-json", "", "after stdin EOF, write the cache as JSON to PATH")
+	outModules := fs.String("out-modules", "", "after stdin EOF, write per-entry virtual modules to DIR")
+	// Session config the wire deliberately does NOT carry (the wire carries
+	// events — which files, which op; the session carries config). --gen-dir is
+	// the explicit output-root override (the host plugin's genDir option); the
+	// --enrich-* flags configure OpEnrich: the families to maintain, and the
+	// per-locale translation-mirror sync whose locales/sourceLocale default from
+	// the tsconfig plugin i18n block (project mode) unless overridden here.
+	genDirFlag := fs.String("gen-dir", "", "RunTypes output root override (precedence: this flag > tsconfig genDir > inferred <srcDir>/__runtypes)")
+	enrichFriendly := fs.Bool("enrich-friendly", false, "OpEnrich maintains the FriendlyText mirrors (neither family flag = both)")
+	enrichMock := fs.Bool("enrich-mock", false, "OpEnrich maintains the MockData mirrors (neither family flag = both)")
+	enrichI18n := fs.Bool("enrich-i18n", false, "OpEnrich also syncs the per-locale translation mirrors (scaffold + sync only, never translated content)")
+	enrichLocales := fs.String("enrich-locales", "", "comma-separated target locales for --enrich-i18n (default: the tsconfig i18n.locales)")
+	enrichSourceLocale := fs.String("enrich-source-locale", "", "authoring locale of the source FriendlyText mirrors (default: the tsconfig i18n.sourceLocale)")
+	fs.Usage = func() { printUsage(fs, serveUsage) }
+	_ = fs.Parse(args)
+
+	switch *sources {
+	case "project", "stdin", "ops":
+	default:
+		fatal("serve: unknown --sources %q (want project | stdin | ops)", *sources)
 	}
 
-	// Compile mode is a batch build, not a stdio session: it drives the two-pass
-	// transform + tsgo emit + map composition itself and returns. Requires a
-	// tsconfig (the inline / server overlay modes have no emit options to honor).
-	if compileMode {
-		if !hasTsconfig {
-			fatal("compile: requires a tsconfig (not compatible with --inline-server / --inline-sources-stdin)")
+	defer startProfiling(s)()
+
+	// Only the on-disk project mode merges the tsconfig plugin block; the
+	// overlay modes (stdin/ops) have no on-disk build options to honor.
+	cfg := resolveSharedConfig(fs, s, "", *sources == "project")
+
+	// Apply the serve-local session config onto the resolved Options: the
+	// explicit flags win over the tsconfig-seeded defaults resolveSharedConfig
+	// already folded in (i18n locales/sourceLocale).
+	if *genDirFlag != "" {
+		genDir := *genDirFlag
+		if !filepath.IsAbs(genDir) {
+			genDir = filepath.Join(cfg.absCwd, genDir)
 		}
-		compileResult, compileErr := batchcompile.Run(batchcompile.Options{
-			Cwd:          absCwd,
-			TsconfigPath: tsconfigPath,
-			// merged.genDir layers the flag over the tsconfig
-			// `genDir` entry over the <cwd>/__runtypes default.
-			GenDir:       merged.genDir,
-			ResolverOpts: resolverOpts,
-		})
-		if compileErr != nil {
-			fatal("compile: %v", compileErr)
-		}
-		errorCount := 0
-		for _, d := range compileResult.Diagnostics {
-			fmt.Fprintln(os.Stderr, diagnostics.FormatDebug(d))
-			if d.Severity == diagnostics.SeverityError {
-				errorCount++
+		cfg.opts.GenDir = genDir
+	}
+	cfg.opts.EnrichFriendly = *enrichFriendly
+	cfg.opts.EnrichMock = *enrichMock
+	cfg.opts.EnrichI18n = *enrichI18n
+	if *enrichLocales != "" {
+		var locales []string
+		for _, locale := range strings.Split(*enrichLocales, ",") {
+			if trimmed := strings.TrimSpace(locale); trimmed != "" {
+				locales = append(locales, trimmed)
 			}
 		}
-		fmt.Fprintf(os.Stderr, "ts-runtypes: compiled %d file(s), %d cache module(s)\n",
-			len(compileResult.EmittedFiles), len(compileResult.Caches))
-		if errorCount > 0 {
-			os.Exit(1)
-		}
-		return
+		cfg.opts.EnrichLocales = locales
+	}
+	if *enrichSourceLocale != "" {
+		cfg.opts.EnrichSourceLocale = *enrichSourceLocale
 	}
 
-	var r *resolver.Session
-	switch {
-	case inlineServer:
-		// Persistent server mode: no startup Program. The client installs
-		// one via setSources, and may swap it many times before EOF / socket
-		// disconnect. resolver.NewServer cannot fail (no checker lease yet).
-		r = resolver.NewServer(resolverOpts)
-	case inlineSourcesStdin:
-		var handshake struct {
-			Sources map[string]string `json:"sources"`
-		}
-		if err := stdinDec.Decode(&handshake); err != nil {
-			fatal("inline-sources handshake decode: %v", err)
-		}
-		overlay := make(map[string]string, len(handshake.Sources))
-		fileNames := make([]string, 0, len(handshake.Sources))
-		for rel, content := range handshake.Sources {
-			abs := tspath.ResolvePath(tspath.NormalizePath(absCwd), rel)
-			overlay[abs] = content
-			fileNames = append(fileNames, abs)
-		}
-		p, err := program.NewInferred(program.Options{
-			Cwd:            absCwd,
-			SingleThreaded: merged.singleThreaded,
-			Overlay:        overlay,
-		}, fileNames)
-		if err != nil {
-			fatal("program (inferred): %v", err)
-		}
-		r, err = resolver.New(p, resolverOpts)
-		if err != nil {
-			fatal("resolver: %v", err)
-		}
-	default:
-		p, err := program.New(program.Options{
-			Cwd:            absCwd,
-			TsconfigPath:   tsconfigPath,
-			SingleThreaded: merged.singleThreaded,
-		})
-		if err != nil {
-			fatal("program: %v", err)
-		}
-		r, err = resolver.New(p, resolverOpts)
-		if err != nil {
-			fatal("resolver: %v", err)
-		}
+	// Stdin decoder built up front because --sources stdin consumes one
+	// handshake line BEFORE constructing the Program, then keeps the same
+	// decoder for the request loop so any bytes buffered past the handshake
+	// aren't lost. Stdout is buffered (flushed once per response).
+	stdinDec := json.NewDecoder(bufio.NewReader(os.Stdin))
+	stdoutBuf := bufio.NewWriter(os.Stdout)
+	stdoutEnc := json.NewEncoder(stdoutBuf)
+
+	r, err := newStdioSession(*sources, cfg, stdinDec)
+	if err != nil {
+		fatal("%v", err)
 	}
 	defer r.Close()
 
-	switch {
-	case daemon:
-		runDaemon(r, socketPath)
-	default:
-		serveRequests(r.Dispatch, stdinDec, stdoutEnc, stdoutBuf.Flush)
-	}
+	serveRequests(r.Dispatch, stdinDec, stdoutEnc, stdoutBuf.Flush)
 
-	// Optional file outputs after stdin is drained. Both formats share one
-	// resolver state so file emissions are consistent with the JSON the
-	// caller already saw on stdout.
-	dump := protocol.Dump{
-		RunTypes: r.Cache().Dump(),
-		Sites:    r.Sites(),
-	}
-	if outJSON != "" {
-		if err := writeFile(outJSON, dump.WriteJSON); err != nil {
+	// Optional file outputs after stdin is drained. Both share one resolver
+	// state so file emissions are consistent with the JSON already sent.
+	if *outJSON != "" {
+		dump := protocol.Dump{RunTypes: r.Cache().Dump(), Sites: r.Sites()}
+		if err := writeFile(*outJSON, dump.WriteJSON); err != nil {
 			fatal("out-json: %v", err)
 		}
 	}
-	if outModulesDir != "" {
+	if *outModules != "" {
 		// Re-dispatch a dump so the modules flow through the same pipeline
 		// (cross-family fixpoint, cascade, stubs) the wire response uses.
 		response := r.Dispatch(protocol.Request{Op: protocol.OpDump})
@@ -463,7 +486,7 @@ func main() {
 			fatal("out-modules: %s", response.Error)
 		}
 		for basename, source := range response.EntryModules {
-			target := filepath.Join(outModulesDir, basename+".js")
+			target := filepath.Join(*outModules, basename+".js")
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				fatal("out-modules: %v", err)
 			}
@@ -474,14 +497,134 @@ func main() {
 	}
 }
 
-func runOneShot(dispatch func(protocol.Request) protocol.Response, in io.Reader, out io.Writer) {
-	outBuf := bufio.NewWriter(out)
-	serveRequests(dispatch, json.NewDecoder(bufio.NewReader(in)), json.NewEncoder(outBuf), outBuf.Flush)
+// newStdioSession builds the resolver Session for a serve run, keyed on the
+// --sources mode. project builds a Program from the tsconfig's own file list;
+// stdin builds an inferred Program from a one-shot handshake overlay; ops starts
+// with no Program (the client installs one via setSources).
+func newStdioSession(sources string, cfg sessionConfig, stdinDec *json.Decoder) (*resolver.Session, error) {
+	switch sources {
+	case "ops":
+		// Persistent server mode: no startup Program. resolver.NewServer cannot
+		// fail (no checker lease yet).
+		return resolver.NewServer(cfg.opts), nil
+
+	case "stdin":
+		var handshake struct {
+			Sources map[string]string `json:"sources"`
+		}
+		if err := stdinDec.Decode(&handshake); err != nil {
+			return nil, fmt.Errorf("inline-sources handshake decode: %w", err)
+		}
+		overlay := make(map[string]string, len(handshake.Sources))
+		fileNames := make([]string, 0, len(handshake.Sources))
+		for rel, content := range handshake.Sources {
+			abs := tspath.ResolvePath(tspath.NormalizePath(cfg.absCwd), rel)
+			overlay[abs] = content
+			fileNames = append(fileNames, abs)
+		}
+		// Same tsconfig contract as every lane: parse the ONE resolved path once
+		// and adopt the full options wholesale, so the one-shot type-checks
+		// exactly like a build. Strict like tsc — a broken resolved config is
+		// fatal; only no-config-anywhere falls back to the inferred defaults.
+		inferredConfig, err := program.ParseInferredConfig(cfg.absCwd, cfg.tsconfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("tsconfig: %w", err)
+		}
+		p, err := program.NewInferred(program.Options{
+			Cwd:            cfg.absCwd,
+			SingleThreaded: cfg.opts.SingleThreaded,
+			Overlay:        overlay,
+			Config:         inferredConfig,
+		}, fileNames)
+		if err != nil {
+			return nil, fmt.Errorf("program (inferred): %w", err)
+		}
+		return resolver.New(p, cfg.opts)
+
+	default: // "project"
+		// This lane builds the Program from the config's own file list, so a
+		// config must exist — the same refusal tsc gives when discovery finds
+		// nothing.
+		if cfg.tsconfigPath == "" {
+			return nil, fmt.Errorf("no tsconfig.json found searching upward from %s (tsc-style discovery) — pass --tsconfig", cfg.absCwd)
+		}
+		p, err := program.New(program.Options{
+			Cwd:            cfg.absCwd,
+			TsconfigPath:   cfg.tsconfigPath,
+			SingleThreaded: cfg.opts.SingleThreaded,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("program: %w", err)
+		}
+		return resolver.New(p, cfg.opts)
+	}
 }
 
-// serveRequests drains the request stream, dispatching each and encoding
-// the response. flush runs after every response so the buffered writer's
-// bytes reach the client before the next read blocks.
+const compileUsage = `ts-runtypes compile — tsc-like batch compile
+
+Usage:
+    ts-runtypes compile [--gen-dir DIR] [--no-emit] [OPTIONS]
+
+Transforms every marker file, emits .js via tsgo with source maps composed back
+to the ORIGINAL source, and writes the generated cache modules to disk. Emits to
+the tsconfig outDir; requires a tsconfig; no stdio protocol.
+
+--no-emit runs the scan + RunType-family diagnostics only and writes nothing
+(tsc --noEmit-style).
+`
+
+// runCompile is the tsc-like batch build: it drives the two-pass transform +
+// tsgo emit + map composition itself and returns. Requires a tsconfig.
+func runCompile(args []string) {
+	fs := flag.NewFlagSet("compile", flag.ExitOnError)
+	s := registerSharedFlags(fs)
+	genDir := fs.String("gen-dir", "",
+		"where compile writes the generated cache modules (default <cwd>/__runtypes; also the tsconfig \"genDir\" plugin key, flag overrides it)")
+	noEmit := fs.Bool("no-emit", false,
+		"report the RunType-family diagnostics without writing (tsc --noEmit-style): scan only, emit no .js and no cache modules")
+	fs.Usage = func() { printUsage(fs, compileUsage) }
+	_ = fs.Parse(args)
+
+	defer startProfiling(s)()
+
+	cfg := resolveSharedConfig(fs, s, *genDir, true)
+	if cfg.tsconfigPath == "" {
+		fatal("compile: no tsconfig.json found searching upward from %s (tsc-style discovery) — pass --tsconfig", cfg.absCwd)
+	}
+
+	compileResult, compileErr := batchcompile.Run(batchcompile.Options{
+		Cwd:          cfg.absCwd,
+		TsconfigPath: cfg.tsconfigPath,
+		// cfg.genDir layers the flag over the tsconfig `genDir` entry over the
+		// <cwd>/__runtypes default.
+		GenDir:       cfg.genDir,
+		ResolverOpts: cfg.opts,
+		NoEmit:       *noEmit,
+	})
+	if compileErr != nil {
+		fatal("compile: %v", compileErr)
+	}
+	errorCount := 0
+	for _, d := range compileResult.Diagnostics {
+		fmt.Fprintln(os.Stderr, diagnostics.FormatDebug(d))
+		if d.Severity == diagnostics.SeverityError {
+			errorCount++
+		}
+	}
+	if *noEmit {
+		fmt.Fprintf(os.Stderr, "ts-runtypes: checked %d file(s), wrote nothing (--no-emit)\n", len(compileResult.Diagnostics))
+	} else {
+		fmt.Fprintf(os.Stderr, "ts-runtypes: compiled %d file(s), %d cache module(s)\n",
+			len(compileResult.EmittedFiles), len(compileResult.Caches))
+	}
+	if errorCount > 0 {
+		os.Exit(1)
+	}
+}
+
+// serveRequests drains the request stream, dispatching each and encoding the
+// response. flush runs after every response so the buffered writer's bytes reach
+// the client before the next read blocks.
 func serveRequests(dispatch func(protocol.Request) protocol.Response, dec *json.Decoder, enc *json.Encoder, flush func() error) {
 	for {
 		var req protocol.Request
@@ -500,40 +643,6 @@ func serveRequests(dispatch func(protocol.Request) protocol.Response, dec *json.
 		if err := flush(); err != nil {
 			fatal("flush: %v", err)
 		}
-	}
-}
-
-func runDaemon(r *resolver.Session, socketPath string) {
-	_ = os.Remove(socketPath)
-	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		fatal("listen: %v", err)
-	}
-	defer listener.Close()
-
-	fmt.Fprintf(os.Stderr, "ts-runtypes daemon listening on %s\n", socketPath)
-
-	// One Session serves every connection, so dispatches are serialized:
-	// the resolver session state (cache, sites, scan bookkeeping — and the
-	// parallel scan inside a dispatch) assumes one op at a time. Without
-	// this, two connections issuing ops concurrently raced on shared maps.
-	var dispatchMutex sync.Mutex
-	dispatch := func(request protocol.Request) protocol.Response {
-		dispatchMutex.Lock()
-		defer dispatchMutex.Unlock()
-		return r.Dispatch(request)
-	}
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "accept: %v\n", err)
-			continue
-		}
-		go func(c net.Conn) {
-			defer c.Close()
-			runOneShot(dispatch, c, c)
-		}(conn)
 	}
 }
 

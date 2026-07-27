@@ -12,10 +12,10 @@
 
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
   registerClassSerializer,
   getRunTypeId,
 } from '@ts-runtypes/core';
@@ -72,8 +72,8 @@ describe('classSerializer / generic classes — one registration covers every in
 
   it('(static) a NON-registered instantiation reconstructs through JSON via the name lane', () => {
     registerWireError(); // registered as WireError<string> only
-    const encode = createJsonEncoder<WireError<'other', {n: number}>>();
-    const decode = createJsonDecoder<WireError<'other', {n: number}>>();
+    const encode = createJsonEncoderFn<WireError<'other', {n: number}>>();
+    const decode = createJsonDecoderFn<WireError<'other', {n: number}>>();
 
     const decoded = decode(encode(new WireError('other', 'boom', {n: 4})) as string) as WireError<'other', {n: number}>;
     expect(decoded).toBeInstanceOf(WireError);
@@ -86,8 +86,8 @@ describe('classSerializer / generic classes — one registration covers every in
   it('(reflect) value-inferred instantiation reconstructs through JSON too', () => {
     registerWireError();
     const sample = new WireError<'nf', {id: number}>('nf', 'seed');
-    const encode = createJsonEncoder(sample);
-    const decode = createJsonDecoder(sample);
+    const encode = createJsonEncoderFn(sample);
+    const decode = createJsonDecoderFn(sample);
 
     const decoded = decode(encode(new WireError('nf', 'missing', {id: 7})) as string) as WireError<'nf', {id: number}>;
     expect(decoded).toBeInstanceOf(WireError);
@@ -96,8 +96,8 @@ describe('classSerializer / generic classes — one registration covers every in
 
   it('a NON-registered instantiation reconstructs through BINARY', () => {
     registerWireError();
-    const encode = createBinaryEncoder<WireError<'bin', {bytes: number}>>();
-    const decode = createBinaryDecoder<WireError<'bin', {bytes: number}>>();
+    const encode = createBinaryEncoderFn<WireError<'bin', {bytes: number}>>();
+    const decode = createBinaryDecoderFn<WireError<'bin', {bytes: number}>>();
 
     const decoded = decode(encode(new WireError('bin', 'wire', {bytes: 3}))) as WireError<'bin', {bytes: number}>;
     expect(decoded).toBeInstanceOf(WireError);
@@ -108,8 +108,8 @@ describe('classSerializer / generic classes — one registration covers every in
   it('a union containing a non-registered instantiation discriminates AND reconstructs', () => {
     registerWireError();
     type Result = WireError<'not-found', {id: number}> | {ok: true};
-    const encode = createJsonEncoder<Result>();
-    const decode = createJsonDecoder<Result>();
+    const encode = createJsonEncoderFn<Result>();
+    const decode = createJsonDecoderFn<Result>();
 
     const err = decode(encode(new WireError('not-found', 'missing', {id: 9})) as string) as WireError<'not-found', {id: number}>;
     expect(err).toBeInstanceOf(WireError);
@@ -132,8 +132,8 @@ describe('classSerializer / generic classes — one registration covers every in
     // the name lane routes independently of any instantiation id
     expect(getClassSerializer('nonexistent-id', 'WireError')).toBeDefined();
     // and a concrete instantiation reconstructs end-to-end
-    const decode = createJsonDecoder<WireError<'bare', {ok: boolean}>>();
-    const encode = createJsonEncoder<WireError<'bare', {ok: boolean}>>();
+    const decode = createJsonDecoderFn<WireError<'bare', {ok: boolean}>>();
+    const encode = createJsonEncoderFn<WireError<'bare', {ok: boolean}>>();
     const decoded = decode(encode(new WireError('bare', 'works', {ok: true})) as string) as WireError<'bare', {ok: boolean}>;
     expect(decoded).toBeInstanceOf(WireError);
     expect(decoded.data).toEqual({ok: true});
@@ -167,8 +167,8 @@ describe('classSerializer / generic classes — one registration covers every in
     expect(wideEntry).toBe(narrowEntry);
 
     // last-registered handlers win for every key
-    const decode = createJsonDecoder<WireError<string>>();
-    const encode = createJsonEncoder<WireError<string>>();
+    const decode = createJsonDecoderFn<WireError<string>>();
+    const encode = createJsonEncoderFn<WireError<string>>();
     const decoded = decode(encode(new WireError('x', 'y')) as string) as WireError<string>;
     expect(decoded).toBeInstanceOf(WireError);
     expect(secondHandlerRan).toBe(true);

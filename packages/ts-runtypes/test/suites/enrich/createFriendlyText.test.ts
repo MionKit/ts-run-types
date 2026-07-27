@@ -97,14 +97,30 @@ describe('createFriendlyText — error rendering', () => {
     expect(friendly.errors(errs).map((m) => m.message)).toEqual(['Age must be at least 0', 'Age must be no more than 120']);
   });
 
-  it('rt$default mode → the one catch-all message renders for every failure', () => {
+  it('rt$default mode → ONE message per field, not one per failed constraint', () => {
+    // `score` fails both `min` and `max`, but its node uses the exclusive rt$default
+    // catch-all — the field yields a SINGLE message, not one per constraint (FT009).
     const errs: RTValidationError[] = [
       {path: ['profile', 'score'], expected: 'number', format: {name: 'numberFormat', val: 0, formatPath: ['min']}},
       {path: ['profile', 'score'], expected: 'number', format: {name: 'numberFormat', val: 100, formatPath: ['max']}},
     ];
     const out = friendly.errors(errs);
-    expect(out).toHaveLength(2); // per-constraint accumulation, same catch-all text
-    expect(out.map((m) => m.message)).toEqual(['Score must be valid', 'Score must be valid']);
+    expect(out).toHaveLength(1); // exclusive catch-all: one message for the whole field
+    expect(out).toEqual([{path: 'profile.score', label: 'Score', message: 'Score must be valid'}]);
+  });
+
+  it('rt$default with $[val] renders once from the FIRST failed constraint bound', () => {
+    const m: FriendlyText<{name: TF.String<{minLength: 2; maxLength: 8}>}> = {
+      rt$label: 'Form',
+      rt$errors: {type: 'Form is invalid'},
+      name: {rt$label: 'Name', rt$errors: {rt$default: '$[label] is off (bound $[val])'}},
+    };
+    const out = createFriendlyText(m).errors([
+      {path: ['name'], expected: 'string', format: {name: 'stringFormat', val: 2, formatPath: ['minLength']}},
+      {path: ['name'], expected: 'string', format: {name: 'stringFormat', val: 8, formatPath: ['maxLength']}},
+    ]);
+    expect(out).toHaveLength(1); // one message, not one per constraint
+    expect(out[0].message).toBe('Name is off (bound 2)'); // FIRST error's bound
   });
 
   it('rt$default catches an unlisted constraint', () => {

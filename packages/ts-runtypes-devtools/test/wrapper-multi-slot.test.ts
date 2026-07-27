@@ -27,7 +27,7 @@ const TSCONFIG_SRC = JSON.stringify({
 // params-side marker (validator + JSON decoder), the response-side marker (JSON
 // encoder), and a reflection marker for the params runtype graph. Each marker
 // param is forwarded to its factory / resolver.
-const WRAPPER_SRC = `import {createGetValidationErrors, createJsonDecoder, createJsonEncoder, getRunType} from '@ts-runtypes/core';
+const WRAPPER_SRC = `import {createGetValidationErrorsFn, createJsonDecoderFn, createJsonEncoderFn, getRunType} from '@ts-runtypes/core';
 import type {InjectTypeFnArgs, InjectRunTypeId} from '@ts-runtypes/core';
 
 type AnyHandler = (...args: any[]) => unknown;
@@ -39,9 +39,9 @@ export function route<H extends AnyHandler>(
   responseFns?: InjectTypeFnArgs<ReturnType<H>, 'jsonEncoder'>,
   meta?: InjectRunTypeId<Parameters<H>>,
 ) {
-  const getErrors = createGetValidationErrors(undefined, undefined, paramsFns?.[0] as never);
-  const decodeParams = createJsonDecoder(undefined, undefined, paramsFns?.[1] as never);
-  const encodeResponse = createJsonEncoder(undefined, undefined, responseFns as never);
+  const getErrors = createGetValidationErrorsFn(undefined, undefined, paramsFns?.[0] as never);
+  const decodeParams = createJsonDecoderFn(undefined, undefined, paramsFns?.[1] as never);
+  const encodeResponse = createJsonEncoderFn(undefined, undefined, responseFns as never);
   const paramsNode = getRunType(undefined, meta as never);
   return {handler, opts, getErrors, decodeParams, encodeResponse, paramsNode};
 }

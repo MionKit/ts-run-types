@@ -222,7 +222,7 @@ The audience can build a toy of this today:
 
 ```
 Reflection  : Zod schema  (or RunTypes getRunType<T>())   →  introspectable T
-Generator   : zod-fast-check / createMockData<T>()         →  values of T
+Generator   : zod-fast-check / createMockDataFn<T>()         →  values of T
 Directive   : round-trip  decode(encode(x)) == x           →  derived oracle
 Harness     : fast-check  (seed + shrink built in)         →  deterministic runner
 Fix agent   : Claude / GPT given the shrunk counterexample →  patch proposal

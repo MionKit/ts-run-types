@@ -52,6 +52,27 @@ check_dep() {
   fi
 }
 
+# Go gets its own check: a present-but-too-old Go is an ERROR, never an
+# auto-upgrade. We can't know how Go was installed here (brew/apt/asdf/gvm/manual),
+# so clobbering /usr/local/go or running brew would be unsafe and often useless
+# (the active `go` may live elsewhere on PATH, so we wouldn't even fix it). Absent
+# Go still installs - nothing to clobber - via check_dep's normal path. (Go >= 1.21
+# with GOTOOLCHAIN=auto + network auto-fetches the go.mod-required toolchain at
+# build time, but we do not rely on that: we require an active Go >= min and tell
+# the user to upgrade.)
+check_go() {
+  local min="$1" cur
+  if command -v go >/dev/null 2>&1; then
+    cur="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+    if [ -z "$cur" ]; then ok "go present (version unknown)"; return 0; fi
+    if version_ge "$cur" "$min"; then ok "go $cur (>= $min)"; return 0; fi
+    err "go $cur present but this repo needs >= $min. Upgrade Go (macOS: brew upgrade go; Linux/other: https://go.dev/dl/ or your version manager) and re-run."
+    FAILED=1
+    return 0
+  fi
+  check_dep go "$min" "go version | awk '{print \$3}' | sed 's/^go//'" 0
+}
+
 # PM-agnostic pnpm install: corepack first, npm global fallback.
 # Every pm/*.sh module defines install_pnpm = install_pnpm_common (no PM-specific path).
 install_pnpm_common() {

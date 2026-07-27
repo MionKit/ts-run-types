@@ -50,7 +50,7 @@ func (state scanState) detectAnyFromUnresolvedImport(file string, call *ast.Node
 
 // hasExplicitBroadKeywordTypeArg reports whether the call spells a broad
 // keyword (`any` / `unknown`) directly in its type-argument list —
-// `createValidate<any>()` is deliberate and never diagnosed.
+// `createValidateFn<any>()` is deliberate and never diagnosed.
 func hasExplicitBroadKeywordTypeArg(call *ast.Node) bool {
 	callExpression := call.AsCallExpression()
 	if callExpression == nil || callExpression.TypeArguments == nil {

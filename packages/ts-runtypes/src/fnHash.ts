@@ -36,6 +36,10 @@ export type FnHashKey = keyof typeof FN_HASHES;
 export interface FnHashOptions {
   noLiterals?: boolean;
   noIsArrayCheck?: boolean;
+  /** Selects the base `number` kind check (validate / validationErrors):
+   *  'isFinite' (default) / 'typeof' / 'notNaN'. The two non-default values ride
+   *  as canonical option names (numberTypeof / numberNotNaN) in the variant token. */
+  numberMode?: string;
   strategy?: string;
   runsAfterValidation?: boolean;
   /** Arms the circular-reference guard — forks a CircularGuarded family's fnHash
@@ -44,16 +48,27 @@ export interface FnHashOptions {
   rejectCircularRefs?: boolean;
 }
 
+// Mirror of Go constants.NumberModeOptionName: the two non-default numberMode
+// values are carried as canonical option names in VALIDATE_OPTION_LETTERS; the
+// default isFinite (and any unrecognized value) adds no name.
+function numberModeOptionName(mode: string | undefined): string {
+  if (mode === 'typeof') return 'numberTypeof';
+  if (mode === 'notNaN') return 'numberNotNaN';
+  return '';
+}
+
 // Mirror of Go constants.ValidateVariantSuffix: 'N' + the letters of the present
 // options concatenated in declaration order, or '' when none is set. The letter
 // table itself is generated from the Go source, so only this assembly is
 // hand-written (and it is pinned by fnHash.test.ts against the generated hashes).
 function validateVariantToken(options: FnHashOptions | undefined): string {
   if (!options) return '';
+  const numberModeName = numberModeOptionName(options.numberMode);
   let suffix = 'N';
   let hit = false;
   for (const [name, letter] of VALIDATE_OPTION_LETTERS) {
-    if (options[name as 'noLiterals' | 'noIsArrayCheck']) {
+    const present = name === numberModeName || options[name as 'noLiterals' | 'noIsArrayCheck'];
+    if (present) {
       suffix += letter;
       hit = true;
     }

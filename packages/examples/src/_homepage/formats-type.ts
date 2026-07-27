@@ -1,5 +1,5 @@
 import type * as TF from '@ts-runtypes/core/formats';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
 // A format brands a string or number — the validator checks its exact
 // shape, not just "is it a string".
@@ -10,5 +10,5 @@ type Account = {
   logins: TF.PositiveInt;
 };
 
-const isAccount = createValidate<Account>();
+const isAccount = createValidateFn<Account>();
 isAccount({id: 'nope', email: 'ada@x.com', ip: '10.0.0.1', logins: 3}); // false — id isn't a uuid

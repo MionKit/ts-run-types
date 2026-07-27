@@ -11,6 +11,7 @@
 package formats
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -219,4 +220,25 @@ func LookupForRunType(rt *protocol.RunType) (Emitter, bool) {
 		return nil, false
 	}
 	return Lookup(rt.Kind, rt.FormatAnnotation.Name)
+}
+
+// Registered returns every registered format Emitter, sorted by base Kind
+// then canonical Name so enumeration is deterministic. Used by codegen
+// (cmd/gen-type-formats emits the TS metadata table off this) and any
+// tooling that needs the full format list; never on a hot path. The slice is
+// a fresh snapshot — mutating it does not touch the registry.
+func Registered() []Emitter {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	out := make([]Emitter, 0, len(registry))
+	for _, emitter := range registry {
+		out = append(out, emitter)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Kind() != out[j].Kind() {
+			return out[i].Kind() < out[j].Kind()
+		}
+		return out[i].Name() < out[j].Name()
+	})
+	return out
 }

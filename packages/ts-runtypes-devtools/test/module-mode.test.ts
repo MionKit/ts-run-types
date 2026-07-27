@@ -1,14 +1,14 @@
 // moduleMode wiring: allSingle (per-family bundle modules + named-export
 // imports at call sites) and allModules (per-node runtype modules — the
 // pre-bundle layout). Default-mode shapes are locked by rewrite.test.ts.
-// Each mode spawns its own --inline-server resolver (the shared per-worker
+// Each mode spawns its own `serve --sources ops` resolver (the shared per-worker
 // client runs the binary default).
 
 import {describe, expect, it} from 'vitest';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ResolverClient} from '../src/resolver-client.ts';
-import {BIN, hasBinary, RUNTYPES_DTS, rewrite} from './helpers/inline.ts';
+import {BARE_CWD, BIN, hasBinary, RUNTYPES_DTS, rewrite} from './helpers/inline.ts';
 import {
   ENTRY_BINDING_PREFIX,
   FNS_BUNDLE_DIR,
@@ -18,7 +18,6 @@ import {
   ENTRY_MODULE_PREFIX,
 } from '../src/go-generated/runtypes-constants.generated.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const register = hasBinary() ? it : it.skip;
 
 async function withModeClient<T>(
@@ -26,7 +25,7 @@ async function withModeClient<T>(
   sources: Record<string, string>,
   fn: (client: ResolverClient) => Promise<T>
 ): Promise<T> {
-  const client = new ResolverClient(BIN, ROOT, '', {serverMode: true, moduleMode: mode});
+  const client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, moduleMode: mode});
   try {
     await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
     return await fn(client);
@@ -68,11 +67,11 @@ export const reflectedId = getRunTypeId(u);
   });
 
   register('allSingle createX: two validate sites dedupe into ONE family-bundle import statement', async () => {
-    const code = `import {createValidate} from '@ts-runtypes/core';
+    const code = `import {createValidateFn} from '@ts-runtypes/core';
 interface Alpha { alphaProp: string }
 interface Beta { betaProp: number }
-export const isAlpha = createValidate<Alpha>();
-export const isBeta = createValidate<Beta>();
+export const isAlpha = createValidateFn<Alpha>();
+export const isBeta = createValidateFn<Beta>();
 `;
     await withModeClient(MODULE_MODE_ALL_SINGLE, {'pair.ts': code}, async (client) => {
       const {code: out, sites} = await rewrite('pair.ts', code, client);

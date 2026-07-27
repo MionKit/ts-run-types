@@ -1,7 +1,7 @@
 // DataOnly non-data lane: generate random types that deliberately carry the
 // DataOnly-stripped kinds (symbol / function / property method / callable
 // interface / Promise / declare class / non-serialisable natives), build a REAL
-// value for each via createMockData (nonDataTypes:true), and assert the DataOnly
+// value for each via createMockDataFn (nonDataTypes:true), and assert the DataOnly
 // serialization contract:
 //
 //   • a type the resolver accepts (no Error diagnostic) SERIALIZES — the stripped

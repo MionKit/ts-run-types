@@ -1,17 +1,29 @@
 // Package resolver is the session orchestrator. It owns a tsgo Program +
-// checker pool and dispatches incoming protocol ops across the three
-// cache generators under internal/cachegen/:
+// checker pool and dispatches incoming protocol ops across the cache
+// generators under internal/cachegen/:
 //
 //   - runtype: resolves call-site type queries, deduplicates serialized
 //     RunType records, and emits the runTypes cache module.
-//   - typefunctions: precompiles `validate` validators for cached
-//     RunTypes the emitter supports.
-//   - purefunctions: extracts `registerPureFnFactory(...)` bodies and
-//     emits the pureFns cache module.
+//   - typefunctions: precompiles the per-family functions (validate,
+//     JSON/binary codecs, mock data, …) for cached RunTypes the emitter
+//     supports.
+//   - purefunctions + builtinpurefns: extract `registerPureFnFactory(...)`
+//     bodies (and serve the built-in ones) into the pureFns cache module.
+//   - operations, diskcache, hashid: shared op plumbing, the incremental
+//     on-disk artifact cache, and the short structural-hash ids.
 //
-// Per-op handlers live in dispatch.go; scanning helpers in scan.go;
-// per-file scope projection in scope.go; cache-module rendering and
-// wire-shape conversions in render.go.
+// The package's own files, by role:
+//
+//   - dispatch.go — per-op handlers, the entry point for every protocol op.
+//   - scan.go / scan_parallel.go — marker scanning, serial and pooled.
+//   - scope.go — per-file scope projection (which entries a file demands).
+//   - generate.go / render.go — cache-module generation, rendering, and
+//     wire-shape conversions.
+//   - overrides.go — tsconfig/flag option resolution.
+//   - relimports.go — relative-import paths from a site file to its modules.
+//   - enrichcheck.go / enrich_op.go — the enrichment plan/check leaf and its op.
+//   - missingtypeargs.go, temporal_guard.go, nonenumerable_lint.go,
+//     unresolved_import_guard.go — the build-diagnostic guards.
 package resolver
 
 import (
@@ -44,12 +56,30 @@ type Options struct {
 	// is supplied to New(). When unset, SetSources falls back to the
 	// existing Program's GetCurrentDirectory.
 	Cwd string
+	// TsconfigPath is the project tsconfig (relative to Cwd, or absolute) whose
+	// FULL parsed options SetSources adopts in every inferred Program, so
+	// daemon rebuilds type-check exactly like the build. Main resolves it once
+	// at process entry (explicit --tsconfig, else DiscoverTsconfig's tsc-style
+	// upward walk) — the daemon receives the already-resolved path; empty means
+	// no config exists anywhere (the inferred-defaults posture). Ignored when a
+	// Program is supplied to New().
+	TsconfigPath string
 	// TsconfigGenDir is the tsconfig `genDir` value (absolute; empty when the
 	// tsconfig sets none). resolveOutDir prefers it over the inferred
 	// <srcDir>/__runtypes default, so every lane (bundler plugin, --compile,
 	// enrich CLI) agrees on the output root; an explicit per-request outDir
 	// (the plugin's own genDir option) still wins.
 	TsconfigGenDir string
+	// GenDir is the EXPLICIT output-root override (the serve --gen-dir flag —
+	// the host plugin's own genDir option, forwarded at spawn). resolveOutDir
+	// prefers it over TsconfigGenDir; a per-request outDir (generate/transform)
+	// still wins. Session config, not wire config: OpEnrich reads only this
+	// (via resolveOutDir), never a request field.
+	GenDir string
+	// TsconfigFailOnError is the tsconfig plugin's failOnError (nil when unset);
+	// OpGenerate echoes it on Response.FailOnError so the dependency-free host
+	// can honor a tsconfig-only setting. The resolver never acts on it.
+	TsconfigFailOnError *bool
 	// SingleThreaded forces single-checker mode on Programs built by
 	// SetSources. Mirrors program.Options.SingleThreaded. Also forces the
 	// serial scan path (a one-checker pool has nothing to fan out over).
@@ -95,7 +125,7 @@ type Options struct {
 	// sandboxed iframes, browser CSP without `unsafe-eval`) that disallow
 	// dynamic-code construction yet read `.code`. The vitest configs set
 	// EmitBoth so the suite covers both the inline-factory path (via
-	// createValidate<T>) and the new-Function path (via
+	// createValidateFn<T>) and the new-Function path (via
 	// deserializeValidate<T>) on every case.
 	EmitMode constants.EmitMode
 	// InlineMode selects the child-inlining policy (constants.InlineMode,
@@ -141,6 +171,35 @@ type Options struct {
 	// part of the module manifest nor resolvable as an rtmod:/ specifier) — it is
 	// not configurable, matching every other path under the output root.
 	PureFnReportFile bool
+	// ValidateDefaults carries project-wide defaults for the per-call-site
+	// ValidateOptions bag (validate / validationErrors). The scanner merges it
+	// per field into every call site (site value wins per field). NOT a
+	// disk-fingerprint input: it forks each entry's fnHash variant exactly like
+	// a per-site option, so distinct defaults key distinct cache entries on
+	// their own.
+	ValidateDefaults ValidateDefaults
+	// Enrichment session config for OpEnrich — spawn-time, never wire fields
+	// (the wire carries only the target Files; the session carries the config).
+	// EnrichFriendly / EnrichMock select the families to maintain; both false
+	// means both (the CLI default). EnrichI18n turns per-locale translation-mirror
+	// sync on (scaffold + sync only, never translated content); EnrichLocales /
+	// EnrichSourceLocale configure it — serve seeds them from the tsconfig plugin
+	// i18n block (project mode) with the --enrich-locales / --enrich-source-locale
+	// flags as explicit overrides.
+	EnrichFriendly     bool
+	EnrichMock         bool
+	EnrichI18n         bool
+	EnrichLocales      []string
+	EnrichSourceLocale string
+}
+
+// ValidateDefaults is the project-wide default subset of ValidateOptions a
+// build may set through the `validate` plugin / tsconfig object. An empty
+// field means "unset" — the call site's own value, else the built-in default,
+// applies.
+type ValidateDefaults struct {
+	// NumberMode defaults ValidateOptions.numberMode ("" = unset → isFinite).
+	NumberMode string
 }
 
 // Session owns a Program and answers type queries against it. The serializer
@@ -158,6 +217,16 @@ type Session struct {
 	sites        []protocol.Site
 	marker       marker.Options
 	opts         Options
+	// inferredConfig caches the project tsconfig parsed from opts.TsconfigPath —
+	// the FULL frozen CompilerOptions, adopted wholesale by every setSources-built
+	// Program so daemon rebuilds type-check exactly like the build. Parsed ONCE
+	// (cwd + tsconfig path are fixed per session); nil with the done flag set
+	// means "no tsconfig named" (the inferred-defaults fallback). A FAILED parse
+	// leaves the done flag unset: the op errors (strict like tsc, CFG001) and the
+	// next setSources re-parses, so a fixed config heals without a respawn.
+	// Session-lifetime, not reset on a Program swap.
+	inferredConfig     *program.InferredConfig
+	inferredConfigDone bool
 	// pureFnHashes is the session-wide index of every pure-fn entry
 	// the resolver has observed so far, keyed by "<ns>::<fnName>" with
 	// the entry's bodyHash as the value. Used by dispatchScanFiles to
@@ -323,7 +392,7 @@ func New(prog *program.Program, opts Options) (*Session, error) {
 	}, nil
 }
 
-// NewServer builds a Session with no Program. Callers (the --inline-server
+// NewServer builds a Session with no Program. Callers (the `serve --sources ops`
 // CLI path) install one later via the setSources op. The cache is created
 // up front with a nil checker; Rebind is called on first SetProgram.
 func NewServer(opts Options) *Session {

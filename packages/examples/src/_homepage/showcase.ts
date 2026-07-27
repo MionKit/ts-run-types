@@ -1,12 +1,12 @@
 import type * as TF from '@ts-runtypes/core/formats';
 import {
-  createValidate,
-  createGetValidationErrors,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
-  createMockData,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
+  createMockDataFn,
   createStandardSchema,
 } from '@ts-runtypes/core';
 
@@ -32,31 +32,31 @@ const order: Order = {
 };
 
 // start-validate
-const isOrder = createValidate<Order>();
+const isOrder = createValidateFn<Order>();
 isOrder(order); // true
 
-const orderErrors = createGetValidationErrors<Order>();
+const orderErrors = createGetValidationErrorsFn<Order>();
 orderErrors({...order, total: 'free'}); // [{path: ['total'], expected: 'number'}]
 // end-validate
 
 // start-json
-const toJson = createJsonEncoder<Order>();
-const fromJson = createJsonDecoder<Order>();
+const toJson = createJsonEncoderFn<Order>();
+const fromJson = createJsonDecoderFn<Order>();
 
 const wire = toJson(order)!; // Date -> string (undefined only for undefined input)
 const back = fromJson(wire); // string -> Date again, typed as DataOnly<Order>
 // end-json
 
 // start-binary
-const toBytes = createBinaryEncoder<Order>();
-const fromBytes = createBinaryDecoder<Order>();
+const toBytes = createBinaryEncoderFn<Order>();
+const fromBytes = createBinaryDecoderFn<Order>();
 
 const bytes = toBytes(order); // a Uint8Array — the compact wire, smaller than JSON
 const order2 = fromBytes(bytes); // back to a typed object
 // end-binary
 
 // start-mock
-const mockOrder = createMockData<Order>();
+const mockOrder = createMockDataFn<Order>();
 const fake = mockOrder(); // a valid, randomized Order for your tests
 // end-mock
 

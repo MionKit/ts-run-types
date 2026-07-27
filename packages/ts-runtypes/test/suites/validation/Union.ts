@@ -1,6 +1,12 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createStandardSchema,
+  type DataOnly,
+} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -12,7 +18,7 @@ export const UNION = {
       'Validates as an OR-chain — first matching arm wins.',
       'Each arm runs its full atomic check: numbers reject NaN / Infinity, Dates reject Invalid Date, etc.',
     ],
-    validate: () => createValidate<Date | number | string | null | bigint>(),
+    validate: () => createValidateFn<Date | number | string | null | bigint>(),
     standardSchema: () => createStandardSchema<Date | number | string | null | bigint>(),
     // One hand-authored Standard Schema expectation per file. Every other case
     // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
@@ -30,34 +36,34 @@ export const UNION = {
       [{message: 'Expected union', path: [], expected: 'union'}],
       [{message: 'Expected union', path: [], expected: 'union'}],
     ],
-    validateDataOnly: () => createValidate<DataOnly<Date | number | string | null | bigint>>(),
-    validateSchema: () => createValidate(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
+    validateDataOnly: () => createValidateFn<DataOnly<Date | number | string | null | bigint>>(),
+    validateSchema: () => createValidateFn(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
     deserializeValidate: () => deserializeValidate<Date | number | string | null | bigint>(),
     validateReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: Date | number | string | null | bigint = 123;
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Date | number | string | null | bigint>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date | number | string | null | bigint>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<Date | number | string | null | bigint>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<Date | number | string | null | bigint>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
+      createGetValidationErrorsFn(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date | number | string | null | bigint>(),
     getValidationErrorsReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: Date | number | string | null | bigint = 123;
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<Date | number | string | null | bigint>(),
+    mockType: () => createMockDataFn<Date | number | string | null | bigint>(),
     mockTypeReflect: () => {
       const v: Date | number | string | null | bigint = 123;
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [new Date(), 123, 'hello', null, 1n],
@@ -80,36 +86,36 @@ export const UNION = {
     description:
       'union.spec.ts "validate union discriminator string" where only the exact, case-sensitive declared strings pass.',
     validateNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
-    validate: () => createValidate<'UNO' | 'DOS' | 'TRES'>(),
+    validate: () => createValidateFn<'UNO' | 'DOS' | 'TRES'>(),
     standardSchema: () => createStandardSchema<'UNO' | 'DOS' | 'TRES'>(),
-    validateDataOnly: () => createValidate<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
-    validateSchema: () => createValidate(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+    validateDataOnly: () => createValidateFn<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
+    validateSchema: () => createValidateFn(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
     deserializeValidate: () => deserializeValidate<'UNO' | 'DOS' | 'TRES'>(),
     validateReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<'UNO' | 'DOS' | 'TRES'>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<'UNO' | 'DOS' | 'TRES'>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+      createGetValidationErrorsFn(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<'UNO' | 'DOS' | 'TRES'>(),
     getValidationErrorsReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<'UNO' | 'DOS' | 'TRES'>(),
+    mockType: () => createMockDataFn<'UNO' | 'DOS' | 'TRES'>(),
     mockTypeReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: ['UNO', 'DOS', 'TRES'],
@@ -134,13 +140,13 @@ export const UNION = {
       'Past the 4 positional union() overloads, the value-first builder routes 8 heterogeneous arms (literals, primitives, and a {a}/{a;b} subset+superset pair) through the recursive UnionOf<T> infer fallback, which must both generate a correct validator and converge on the type-first union id while preserving the subset/superset arms with no subtype collapse at depth 8.',
     validateNotes:
       'The `{a}`/`{a; b}` subset pair both stay reachable: a value matching the smaller `{a: string}` arm passes (e.g. `{a: "x"}` is valid), so the superset arm never swallows it. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
-    validate: () => createValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    validate: () => createValidateFn<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     standardSchema: () =>
       createStandardSchema<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     validateDataOnly: () =>
-      createValidate<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
+      createValidateFn<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([
           RT.literal('a'),
           RT.literal('b'),
@@ -156,20 +162,20 @@ export const UNION = {
       deserializeValidate<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     validateReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
       return deserializeValidate(v);
     },
     getValidationErrors: () =>
-      createGetValidationErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+      createGetValidationErrorsFn<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<
+      createGetValidationErrorsFn<
         DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>
       >(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([
           RT.literal('a'),
           RT.literal('b'),
@@ -185,16 +191,16 @@ export const UNION = {
       deserializeGetValidationErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     getValidationErrorsReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    mockType: () => createMockDataFn<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     mockTypeReflect: () => {
       const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: ['a', 'b', 42, true, null, {a: 'x'}, {a: 'x', b: 1}, {c: 10n}],
@@ -217,35 +223,35 @@ export const UNION = {
     description: 'The union `string | number`, where a value passes if either the string or number arm matches.',
     validateNotes:
       'The number arm uses `Number.isFinite`, so `NaN` and `Infinity` are rejected even though they pass `typeof === "number"`; `BigInt` is rejected (it satisfies neither arm).',
-    validate: () => createValidate<string | number>(),
+    validate: () => createValidateFn<string | number>(),
     standardSchema: () => createStandardSchema<string | number>(),
-    validateDataOnly: () => createValidate<DataOnly<string | number>>(),
-    validateSchema: () => createValidate(RT.union([TF.string(), TF.number()])),
+    validateDataOnly: () => createValidateFn<DataOnly<string | number>>(),
+    validateSchema: () => createValidateFn(RT.union([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<string | number>(),
     validateReflect: () => {
       const v: string | number = 'hello';
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: string | number = 'hello';
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<string | number>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string | number>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([TF.string(), TF.number()])),
+    getValidationErrors: () => createGetValidationErrorsFn<string | number>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<string | number>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.union([TF.string(), TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string | number>(),
     getValidationErrorsReflect: () => {
       const v: string | number = 'hello';
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: string | number = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<string | number>(),
+    mockType: () => createMockDataFn<string | number>(),
     mockTypeReflect: () => {
       const v: string | number = 'hello';
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: ['hello', 42, 0, ''],
@@ -269,36 +275,36 @@ export const UNION = {
       'union.spec.ts "Union Arr" where the union is over whole array types, dispatched per array rather than per element.',
     validateNotes:
       'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
-    validate: () => createValidate<string[] | number[] | boolean[]>(),
+    validate: () => createValidateFn<string[] | number[] | boolean[]>(),
     standardSchema: () => createStandardSchema<string[] | number[] | boolean[]>(),
-    validateDataOnly: () => createValidate<DataOnly<string[] | number[] | boolean[]>>(),
-    validateSchema: () => createValidate(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
+    validateDataOnly: () => createValidateFn<DataOnly<string[] | number[] | boolean[]>>(),
+    validateSchema: () => createValidateFn(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
     deserializeValidate: () => deserializeValidate<string[] | number[] | boolean[]>(),
     validateReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<string[] | number[] | boolean[]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[] | number[] | boolean[]>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<string[] | number[] | boolean[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<string[] | number[] | boolean[]>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
+      createGetValidationErrorsFn(RT.union([RT.array(TF.string()), RT.array(TF.number()), RT.array(RT.boolean())])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[] | number[] | boolean[]>(),
     getValidationErrorsReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<string[] | number[] | boolean[]>(),
+    mockType: () => createMockDataFn<string[] | number[] | boolean[]>(),
     mockTypeReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [['a'], [1], [true, false], [], ['a', 'b']],
@@ -321,36 +327,36 @@ export const UNION = {
     description: 'union.spec.ts "Arr with union of types" where each element independently runs the full union OR-chain.',
     validateNotes:
       'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
-    validate: () => createValidate<(string | bigint | boolean | Date)[]>(),
+    validate: () => createValidateFn<(string | bigint | boolean | Date)[]>(),
     standardSchema: () => createStandardSchema<(string | bigint | boolean | Date)[]>(),
-    validateDataOnly: () => createValidate<DataOnly<(string | bigint | boolean | Date)[]>>(),
-    validateSchema: () => createValidate(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
+    validateDataOnly: () => createValidateFn<DataOnly<(string | bigint | boolean | Date)[]>>(),
+    validateSchema: () => createValidateFn(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
     deserializeValidate: () => deserializeValidate<(string | bigint | boolean | Date)[]>(),
     validateReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<(string | bigint | boolean | Date)[]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<(string | bigint | boolean | Date)[]>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<(string | bigint | boolean | Date)[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<(string | bigint | boolean | Date)[]>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
+      createGetValidationErrorsFn(RT.array(RT.union([TF.string(), TF.bigInt(), RT.boolean(), TF.date()]))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<(string | bigint | boolean | Date)[]>(),
     getValidationErrorsReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<(string | bigint | boolean | Date)[]>(),
+    mockType: () => createMockDataFn<(string | bigint | boolean | Date)[]>(),
     mockTypeReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [[1n, 'b', new Date(), true]],
@@ -382,42 +388,42 @@ export const UNION = {
       "union.spec.ts 'Union Obj' where disjoint object-typed members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
     validateNotes:
       'An input passes if it satisfies AT LEAST one arm\'s required props; extra props are ignored (structural), so `{a: "x", aa: true, b: 1}` passes via the `{b: number}` arm. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
-    validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    validate: () => createValidateFn<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     standardSchema: () => createStandardSchema<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-    validateDataOnly: () => createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([RT.object({a: TF.string(), aa: RT.boolean()}), RT.object({b: TF.number()}), RT.object({c: TF.bigInt()})])
       ),
     deserializeValidate: () => deserializeValidate<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     validateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    getValidationErrors: () => createGetValidationErrorsFn<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
+      createGetValidationErrorsFn<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([RT.object({a: TF.string(), aa: RT.boolean()}), RT.object({b: TF.number()}), RT.object({c: TF.bigInt()})])
       ),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+    mockType: () => createMockDataFn<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     mockTypeReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       // union.spec.ts uses loose matching — `{a, b, c}` passes
@@ -445,41 +451,41 @@ export const UNION = {
       'union.spec.ts "Union with discriminator property" where arms share a kind literal with different payloads; the OR-chain is semantically correct and the discriminator-aware early-return optimization is a separate emit-shape concern handled later.',
     validateNotes:
       'Each arm is validated in full; the discriminator literal narrows which arm matches. A value passes if it fully satisfies AT LEAST ONE arm.',
-    validate: () => createValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    validate: () => createValidateFn<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     standardSchema: () => createStandardSchema<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-    validateDataOnly: () => createValidate<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
       ),
     deserializeValidate: () => deserializeValidate<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     validateReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<{kind: 'a'; n: number} | {kind: 'b'; s: string}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
       ),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     getValidationErrorsReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+    mockType: () => createMockDataFn<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     mockTypeReflect: () => {
       const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -526,11 +532,11 @@ export const UNION = {
           RT.array(RT.self()),
         ])
       );
-      return createValidate(uc);
+      return createValidateFn(uc);
     },
     validate: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createValidate<UnionC>();
+      return createValidateFn<UnionC>();
     },
     standardSchema: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -538,7 +544,7 @@ export const UNION = {
     },
     validateDataOnly: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createValidate<DataOnly<UnionC>>();
+      return createValidateFn<DataOnly<UnionC>>();
     },
     deserializeValidate: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -547,7 +553,7 @@ export const UNION = {
     validateReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       const v: UnionC = 'hello';
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -556,11 +562,11 @@ export const UNION = {
     },
     getValidationErrors: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createGetValidationErrors<UnionC>();
+      return createGetValidationErrorsFn<UnionC>();
     },
     getValidationErrorsDataOnly: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createGetValidationErrors<DataOnly<UnionC>>();
+      return createGetValidationErrorsFn<DataOnly<UnionC>>();
     },
     getValidationErrorsSchema: () => {
       const uc = RT.circular(
@@ -572,7 +578,7 @@ export const UNION = {
           RT.array(RT.self()),
         ])
       );
-      return createGetValidationErrors(uc);
+      return createGetValidationErrorsFn(uc);
     },
     deserializeGetValidationErrors: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -581,7 +587,7 @@ export const UNION = {
     getValidationErrorsReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       const v: UnionC = 'hello';
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -590,12 +596,12 @@ export const UNION = {
     },
     mockType: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createMockData<UnionC>();
+      return createMockDataFn<UnionC>();
     },
     mockTypeReflect: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       const v: UnionC = 'hello';
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
@@ -619,11 +625,11 @@ export const UNION = {
       'union.spec.ts "Union with objects containing methods" where each arm carries a method that is skipped via the property-emit function-skip rule, so the AND chain inside each object reduces to the data-only props.',
     validateNotes:
       'TS DIVERGENCE: method members (`getName`/`getAge`) are non-serializable and dropped, so each arm checks only its data prop — `{name: "x"}` with no method at all PASSES, and a wrong-typed method would not be caught.',
-    validate: () => createValidate<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    validate: () => createValidateFn<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     standardSchema: () => createStandardSchema<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-    validateDataOnly: () => createValidate<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([
           RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
           RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
@@ -635,7 +641,7 @@ export const UNION = {
         name: 'x',
         getName: () => 'x',
       };
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
@@ -644,11 +650,11 @@ export const UNION = {
       };
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    getValidationErrors: () => createGetValidationErrorsFn<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
+      createGetValidationErrorsFn<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([
           RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
           RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
@@ -661,7 +667,7 @@ export const UNION = {
         name: 'x',
         getName: () => 'x',
       };
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
@@ -670,13 +676,13 @@ export const UNION = {
       };
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+    mockType: () => createMockDataFn<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     mockTypeReflect: () => {
       const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
         name: 'x',
         getName: () => 'x',
       };
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
@@ -701,36 +707,36 @@ export const UNION = {
       'intersection.spec.ts where tsgo/deepkit resolves the intersection of object shapes to one merged ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection and runtime behavior matches `{a: string; b: number}` byte-for-byte.',
     validateNotes:
       'Because the intersection collapses to one merged object, getValidationErrors reports PER-PROPERTY paths (e.g. `expected: "number"` at `["b"]`), not a single root `expected: "union"`. Both props are required and `b: NaN` is rejected despite passing `typeof === "number"`.',
-    validate: () => createValidate<{a: string} & {b: number}>(),
+    validate: () => createValidateFn<{a: string} & {b: number}>(),
     standardSchema: () => createStandardSchema<{a: string} & {b: number}>(),
-    validateDataOnly: () => createValidate<DataOnly<{a: string} & {b: number}>>(),
-    validateSchema: () => createValidate(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
+    validateDataOnly: () => createValidateFn<DataOnly<{a: string} & {b: number}>>(),
+    validateSchema: () => createValidateFn(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
     deserializeValidate: () => deserializeValidate<{a: string} & {b: number}>(),
     validateReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<{a: string} & {b: number}>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string} & {b: number}>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<{a: string} & {b: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<{a: string} & {b: number}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
+      createGetValidationErrorsFn(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string} & {b: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<{a: string} & {b: number}>(),
+    mockType: () => createMockDataFn<{a: string} & {b: number}>(),
     mockTypeReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -764,12 +770,12 @@ export const UNION = {
       "union.spec.ts 'validate an union with index property' where one arm carries a named prop and an index signature, accepting index-typed extras alongside the named prop.",
     validateNotes:
       'The index arm is NOT a catch-all: every extra key must match the index value type, so `{c: 1n, d: 2n}` passes but `{c: 1n, d: "hello"}` fails (string under a `bigint` index). A failing value reports a single `expected: "union"` at the root.',
-    validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    validate: () => createValidateFn<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     standardSchema: () => createStandardSchema<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     validateDataOnly: () =>
-      createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
+      createValidateFn<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([
           RT.object({a: TF.string(), aa: RT.boolean()}),
           RT.object({b: TF.number()}),
@@ -779,18 +785,18 @@ export const UNION = {
     deserializeValidate: () => deserializeValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     validateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
       return deserializeValidate(v);
     },
     getValidationErrors: () =>
-      createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      createGetValidationErrorsFn<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
+      createGetValidationErrorsFn<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([
           RT.object({a: TF.string(), aa: RT.boolean()}),
           RT.object({b: TF.number()}),
@@ -801,16 +807,16 @@ export const UNION = {
       deserializeGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    mockType: () => createMockDataFn<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     mockTypeReflect: () => {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
@@ -843,13 +849,13 @@ export const UNION = {
       "union.spec.ts 'validate union same prop with different types' where one shared prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
     validateNotes:
       'The `type` literal pins which arm applies, so `prop` must match THAT arm\'s type — `{type: "a", prop: 123}` fails even though `123` would satisfy the `type: "b"` arm. A failing value reports a single `expected: "union"` at the root.',
-    validate: () => createValidate<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    validate: () => createValidateFn<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     standardSchema: () =>
       createStandardSchema<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     validateDataOnly: () =>
-      createValidate<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
+      createValidateFn<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([
           RT.object({type: RT.literal('a'), prop: RT.boolean()}),
           RT.object({type: RT.literal('b'), prop: TF.number()}),
@@ -863,7 +869,7 @@ export const UNION = {
         type: 'a',
         prop: true,
       };
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
@@ -873,11 +879,11 @@ export const UNION = {
       return deserializeValidate(v);
     },
     getValidationErrors: () =>
-      createGetValidationErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      createGetValidationErrorsFn<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
+      createGetValidationErrorsFn<DataOnly<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([
           RT.object({type: RT.literal('a'), prop: RT.boolean()}),
           RT.object({type: RT.literal('b'), prop: TF.number()}),
@@ -891,7 +897,7 @@ export const UNION = {
         type: 'a',
         prop: true,
       };
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
@@ -900,13 +906,13 @@ export const UNION = {
       };
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+    mockType: () => createMockDataFn<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     mockTypeReflect: () => {
       const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
         type: 'a',
         prop: true,
       };
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -944,17 +950,17 @@ export const UNION = {
     validateNotes:
       'Array arms match the WHOLE array, so a mixed array like `[1, "b"]` fails (no single array arm covers it); object arms accept extra props (`{b: 123, c: 123n}` passes via the `{b: number}` arm). A failing value reports a single `expected: "union"` at the root.',
     validate: () =>
-      createValidate<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      createValidateFn<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     standardSchema: () =>
       createStandardSchema<
         string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
       >(),
     validateDataOnly: () =>
-      createValidate<
+      createValidateFn<
         DataOnly<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>
       >(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([
           RT.array(TF.string()),
           RT.array(TF.number()),
@@ -972,7 +978,7 @@ export const UNION = {
         'b',
         'c',
       ];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
@@ -983,15 +989,15 @@ export const UNION = {
       return deserializeValidate(v);
     },
     getValidationErrors: () =>
-      createGetValidationErrors<
+      createGetValidationErrorsFn<
         string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
       >(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<
+      createGetValidationErrorsFn<
         DataOnly<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>
       >(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([
           RT.array(TF.string()),
           RT.array(TF.number()),
@@ -1011,7 +1017,7 @@ export const UNION = {
         'b',
         'c',
       ];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
@@ -1022,14 +1028,14 @@ export const UNION = {
       return deserializeGetValidationErrors(v);
     },
     mockType: () =>
-      createMockData<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      createMockDataFn<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     mockTypeReflect: () => {
       const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
         'a',
         'b',
         'c',
       ];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -1066,36 +1072,36 @@ export const UNION = {
       "union.spec.ts 'validate union with merged properties' where a single shared prop carries different value types, so `a` accepts boolean or number.",
     validateNotes:
       'Effectively `{a: boolean | number}`, but the number arm still runs `Number.isFinite`, so `{a: NaN}` is rejected. A failing value reports a single `expected: "union"` at the root.',
-    validate: () => createValidate<{a: boolean} | {a: number}>(),
+    validate: () => createValidateFn<{a: boolean} | {a: number}>(),
     standardSchema: () => createStandardSchema<{a: boolean} | {a: number}>(),
-    validateDataOnly: () => createValidate<DataOnly<{a: boolean} | {a: number}>>(),
-    validateSchema: () => createValidate(RT.union([RT.object({a: RT.boolean()}), RT.object({a: TF.number()})])),
+    validateDataOnly: () => createValidateFn<DataOnly<{a: boolean} | {a: number}>>(),
+    validateSchema: () => createValidateFn(RT.union([RT.object({a: RT.boolean()}), RT.object({a: TF.number()})])),
     deserializeValidate: () => deserializeValidate<{a: boolean} | {a: number}>(),
     validateReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<{a: boolean} | {a: number}>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: boolean} | {a: number}>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<{a: boolean} | {a: number}>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<{a: boolean} | {a: number}>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.union([RT.object({a: RT.boolean()}), RT.object({a: TF.number()})])),
+      createGetValidationErrorsFn(RT.union([RT.object({a: RT.boolean()}), RT.object({a: TF.number()})])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: boolean} | {a: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<{a: boolean} | {a: number}>(),
+    mockType: () => createMockDataFn<{a: boolean} | {a: number}>(),
     mockTypeReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
@@ -1119,7 +1125,7 @@ export const UNION = {
     validateNotes:
       'Each index arm constrains ALL extra keys to its value type, so `{a: "hello", b: 123n}` fails every arm (the string-index arm rejects the `bigint` `b`, the bigint-index arm rejects the string `a`). A failing value reports a single `expected: "union"` at the root.',
     validate: () =>
-      createValidate<
+      createValidateFn<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
@@ -1135,7 +1141,7 @@ export const UNION = {
         | {[key: string]: bigint; b: bigint}
       >(),
     validateDataOnly: () =>
-      createValidate<
+      createValidateFn<
         DataOnly<
           | string[]
           | {a: string; aa: boolean}
@@ -1145,7 +1151,7 @@ export const UNION = {
         >
       >(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([
           RT.array(TF.string()),
           RT.object({a: TF.string(), aa: RT.boolean()}),
@@ -1169,7 +1175,7 @@ export const UNION = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v:
@@ -1181,7 +1187,7 @@ export const UNION = {
       return deserializeValidate(v);
     },
     getValidationErrors: () =>
-      createGetValidationErrors<
+      createGetValidationErrorsFn<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
@@ -1189,7 +1195,7 @@ export const UNION = {
         | {[key: string]: bigint; b: bigint}
       >(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<
+      createGetValidationErrorsFn<
         DataOnly<
           | string[]
           | {a: string; aa: boolean}
@@ -1199,7 +1205,7 @@ export const UNION = {
         >
       >(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([
           RT.array(TF.string()),
           RT.object({a: TF.string(), aa: RT.boolean()}),
@@ -1223,7 +1229,7 @@ export const UNION = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v:
@@ -1235,7 +1241,7 @@ export const UNION = {
       return deserializeGetValidationErrors(v);
     },
     mockType: () =>
-      createMockData<
+      createMockDataFn<
         | string[]
         | {a: string; aa: boolean}
         | {b: number}
@@ -1249,7 +1255,7 @@ export const UNION = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint} = ['a'];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -1277,35 +1283,35 @@ export const UNION = {
       "union.spec.ts 'support union with any type' where tsgo collapses `T | any` to `any`, so every value passes and the validator is effectively a no-op true.",
     validateNotes:
       '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
-    validate: () => createValidate<string | any>(),
+    validate: () => createValidateFn<string | any>(),
     standardSchema: () => createStandardSchema<string | any>(),
-    validateDataOnly: () => createValidate<DataOnly<string | any>>(),
-    validateSchema: () => createValidate(RT.any()),
+    validateDataOnly: () => createValidateFn<DataOnly<string | any>>(),
+    validateSchema: () => createValidateFn(RT.any()),
     deserializeValidate: () => deserializeValidate<string | any>(),
     validateReflect: () => {
       const v: string | any = 'hello';
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: string | any = 'hello';
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<string | any>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string | any>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.any()),
+    getValidationErrors: () => createGetValidationErrorsFn<string | any>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<string | any>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.any()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string | any>(),
     getValidationErrorsReflect: () => {
       const v: string | any = 'hello';
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: string | any = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<string | any>(),
+    mockType: () => createMockDataFn<string | any>(),
     mockTypeReflect: () => {
       const v: string | any = 'hello';
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -1321,35 +1327,35 @@ export const UNION = {
       "union.spec.ts 'support union with unknown type' where tsgo collapses `T | unknown` to `unknown`, so every value passes.",
     validateNotes:
       'The `unknown` arm is fully absorbing: `T | unknown` collapses to `unknown` at the type-checker layer, so the validator is a no-op that returns true for EVERY input (no sample can be invalid).',
-    validate: () => createValidate<string | unknown>(),
+    validate: () => createValidateFn<string | unknown>(),
     standardSchema: () => createStandardSchema<string | unknown>(),
-    validateDataOnly: () => createValidate<DataOnly<string | unknown>>(),
-    validateSchema: () => createValidate(RT.unknown()),
+    validateDataOnly: () => createValidateFn<DataOnly<string | unknown>>(),
+    validateSchema: () => createValidateFn(RT.unknown()),
     deserializeValidate: () => deserializeValidate<string | unknown>(),
     validateReflect: () => {
       const v: string | unknown = 'hello';
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: string | unknown = 'hello';
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<string | unknown>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string | unknown>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.unknown()),
+    getValidationErrors: () => createGetValidationErrorsFn<string | unknown>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<string | unknown>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.unknown()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<string | unknown>(),
     getValidationErrorsReflect: () => {
       const v: string | unknown = 'hello';
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: string | unknown = 'hello';
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<string | unknown>(),
+    mockType: () => createMockDataFn<string | unknown>(),
     mockTypeReflect: () => {
       const v: string | unknown = 'hello';
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -1372,7 +1378,7 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createValidate<SmallObj | LargeObj>();
+      return createValidateFn<SmallObj | LargeObj>();
     },
     standardSchema: () => {
       interface SmallObj {
@@ -1392,9 +1398,9 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createValidate<DataOnly<SmallObj | LargeObj>>();
+      return createValidateFn<DataOnly<SmallObj | LargeObj>>();
     },
-    validateSchema: () => createValidate(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
+    validateSchema: () => createValidateFn(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
     deserializeValidate: () => {
       interface SmallObj {
         a: string;
@@ -1414,7 +1420,7 @@ export const UNION = {
         b: number;
       }
       const v: SmallObj | LargeObj = {a: 'hello'};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface SmallObj {
@@ -1435,7 +1441,7 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createGetValidationErrors<SmallObj | LargeObj>();
+      return createGetValidationErrorsFn<SmallObj | LargeObj>();
     },
     getValidationErrorsDataOnly: () => {
       interface SmallObj {
@@ -1445,10 +1451,10 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createGetValidationErrors<DataOnly<SmallObj | LargeObj>>();
+      return createGetValidationErrorsFn<DataOnly<SmallObj | LargeObj>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
+      createGetValidationErrorsFn(RT.union([RT.object({a: TF.string()}), RT.object({a: TF.string(), b: TF.number()})])),
     deserializeGetValidationErrors: () => {
       interface SmallObj {
         a: string;
@@ -1468,7 +1474,7 @@ export const UNION = {
         b: number;
       }
       const v: SmallObj | LargeObj = {a: 'hello'};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface SmallObj {
@@ -1489,7 +1495,7 @@ export const UNION = {
         a: string;
         b: number;
       }
-      return createMockData<SmallObj | LargeObj>();
+      return createMockDataFn<SmallObj | LargeObj>();
     },
     mockTypeReflect: () => {
       interface SmallObj {
@@ -1500,7 +1506,7 @@ export const UNION = {
         b: number;
       }
       const v: SmallObj | LargeObj = {a: 'hello'};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{a: 'hello'}, {a: 'hello', b: 123}],
@@ -1537,7 +1543,7 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createValidate<Tiny | Medium | Large>();
+      return createValidateFn<Tiny | Medium | Large>();
     },
     standardSchema: () => {
       interface Tiny {
@@ -1567,10 +1573,10 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createValidate<DataOnly<Tiny | Medium | Large>>();
+      return createValidateFn<DataOnly<Tiny | Medium | Large>>();
     },
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([
           RT.object({x: TF.string()}),
           RT.object({x: TF.string(), y: TF.number()}),
@@ -1606,7 +1612,7 @@ export const UNION = {
         z: boolean;
       }
       const v: Tiny | Medium | Large = {x: 'hello'};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface Tiny {
@@ -1637,7 +1643,7 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createGetValidationErrors<Tiny | Medium | Large>();
+      return createGetValidationErrorsFn<Tiny | Medium | Large>();
     },
     getValidationErrorsDataOnly: () => {
       interface Tiny {
@@ -1652,10 +1658,10 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createGetValidationErrors<DataOnly<Tiny | Medium | Large>>();
+      return createGetValidationErrorsFn<DataOnly<Tiny | Medium | Large>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([
           RT.object({x: TF.string()}),
           RT.object({x: TF.string(), y: TF.number()}),
@@ -1691,7 +1697,7 @@ export const UNION = {
         z: boolean;
       }
       const v: Tiny | Medium | Large = {x: 'hello'};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface Tiny {
@@ -1722,7 +1728,7 @@ export const UNION = {
         y: number;
         z: boolean;
       }
-      return createMockData<Tiny | Medium | Large>();
+      return createMockDataFn<Tiny | Medium | Large>();
     },
     mockTypeReflect: () => {
       interface Tiny {
@@ -1738,7 +1744,7 @@ export const UNION = {
         z: boolean;
       }
       const v: Tiny | Medium | Large = {x: 'hello'};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
@@ -1774,7 +1780,7 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createValidate<Base | Extended | Unrelated>();
+      return createValidateFn<Base | Extended | Unrelated>();
     },
     standardSchema: () => {
       interface Base {
@@ -1800,10 +1806,10 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createValidate<DataOnly<Base | Extended | Unrelated>>();
+      return createValidateFn<DataOnly<Base | Extended | Unrelated>>();
     },
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.union([RT.object({id: TF.string()}), RT.object({id: TF.string(), name: TF.string()}), RT.object({value: TF.number()})])
       ),
     deserializeValidate: () => {
@@ -1831,7 +1837,7 @@ export const UNION = {
         value: number;
       }
       const v: Base | Extended | Unrelated = {id: '123'};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface Base {
@@ -1858,7 +1864,7 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createGetValidationErrors<Base | Extended | Unrelated>();
+      return createGetValidationErrorsFn<Base | Extended | Unrelated>();
     },
     getValidationErrorsDataOnly: () => {
       interface Base {
@@ -1871,10 +1877,10 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createGetValidationErrors<DataOnly<Base | Extended | Unrelated>>();
+      return createGetValidationErrorsFn<DataOnly<Base | Extended | Unrelated>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.union([RT.object({id: TF.string()}), RT.object({id: TF.string(), name: TF.string()}), RT.object({value: TF.number()})])
       ),
     deserializeGetValidationErrors: () => {
@@ -1902,7 +1908,7 @@ export const UNION = {
         value: number;
       }
       const v: Base | Extended | Unrelated = {id: '123'};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface Base {
@@ -1929,7 +1935,7 @@ export const UNION = {
       interface Unrelated {
         value: number;
       }
-      return createMockData<Base | Extended | Unrelated>();
+      return createMockDataFn<Base | Extended | Unrelated>();
     },
     mockTypeReflect: () => {
       interface Base {
@@ -1943,7 +1949,7 @@ export const UNION = {
         value: number;
       }
       const v: Base | Extended | Unrelated = {id: '123'};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],

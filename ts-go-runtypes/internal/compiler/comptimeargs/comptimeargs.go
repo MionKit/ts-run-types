@@ -678,7 +678,7 @@ func isWidenedPrimitive(tsType *checker.Type) bool {
 // `const` variable declaration the identifier resolves to, or
 // (nil, false) when there is no const binding or it carries no
 // annotation. Exported for the resolver's reflect-form annotation
-// honoring (`const v: T = literal; createValidate(v)` reads `T`, not
+// honoring (`const v: T = literal; createValidateFn(v)` reads `T`, not
 // CFA's narrowed apparent type).
 func ConstTypeAnnotation(typeChecker *checker.Checker, identifier *ast.Node) (*ast.Node, bool) {
 	var typeNode *ast.Node

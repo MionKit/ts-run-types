@@ -14,6 +14,7 @@
 // global slot survives.
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
@@ -22,6 +23,13 @@ import {type Replacement, type Site, type RunType, type SourceMap} from '../../s
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-runtypes');
 export const hasBinary = (): boolean => fs.existsSync(BIN);
+
+// BARE_CWD is the working directory for bare (config-less) server spawns. The
+// daemon resolves the tsconfig exactly as tsc does — searching upward from
+// cwd — so a spawn rooted at the repo would adopt the repo's own tsconfig.
+// Bare suites pin the no-config posture instead: a temp dir with no
+// tsconfig.json above it (nothing sits above the system temp root).
+export const BARE_CWD = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-bare-'));
 
 // Mirror of internal/testfixtures/runtypes.d.ts. Always overlaid by
 // `withInlineSources` so per-test fixtures don't have to redeclare the
@@ -39,17 +47,18 @@ export const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
   export interface ValidateOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
+    numberMode?: 'isFinite' | 'typeof' | 'notNaN';
   }
   export type ValidateFn = (value: unknown) => boolean;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
-  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
+  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+  export function createGetValidationErrorsFn<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
   export function deserializeValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
-  export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
-  export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
+  export function createBinaryEncoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
+  export function createBinaryDecoderFn<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate' | 'direct' | 'compact'};
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve' | 'compact'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
-  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export function createJsonEncoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
+  export function createJsonDecoderFn<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
   export function overrideValidate<T>(fn: PureFunction<(v: unknown) => boolean>, id?: InjectTypeFnArgs<T, 'val'>): void;
   export function overrideGetValidationErrors<T>(fn: PureFunction<(value: unknown, path?: unknown[], errors?: unknown[]) => unknown[]>, id?: InjectTypeFnArgs<T, 'verr'>): void;
   export function overrideJsonEncoder<T>(fn: PureFunction<(value: unknown) => string | undefined>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): void;
@@ -147,7 +156,7 @@ function getClient(): ResolverClient {
   const stash = workerStash();
   if (stash.client) return stash.client;
   if (!hasBinary()) throw new Error(`ts-runtypes binary not built: ${BIN}`);
-  // --inline-server: no startup Program, no handshake. cwd = repo root so
+  // serve --sources ops: no startup Program, no handshake. cwd = repo root so
   // setSources keys like "user.ts" resolve to <repo>/user.ts.
   // emitMode:'both' mirrors the sibling `ts-runtypes` vitest config —
   // every cache module rendered during the test run carries BOTH the body
@@ -155,7 +164,7 @@ function getClient(): ResolverClient {
   // diagnostic-style tests can assert against either form. Per-test cases that
   // need the production default ('code', no inline factory) spin up a one-shot
   // client with that mode when needed.
-  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitMode: 'both'});
+  stash.client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, emitMode: 'both'});
   if (!stash.atExitWired) {
     stash.atExitWired = true;
     // Best-effort cleanup if the worker exits without going through the

@@ -23,7 +23,7 @@
 // safe decoder nukes undeclared keys before returning.
 
 import {describe, expect, it} from 'vitest';
-import {createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
+import {createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 
 describe('safe decoder — ukuWire strips undeclared keys at union nodes', () => {
   type Disjoint = {a: string} | {b: number};
@@ -34,7 +34,7 @@ describe('safe decoder — ukuWire strips undeclared keys at union nodes', () =>
     // merged object with an extra key smuggled in. The safe decoder must
     // strip the extra before returning.
     const wire = JSON.stringify({a: 'hi', evil: 'sneaky'});
-    const decode = createJsonDecoder<Disjoint>();
+    const decode = createJsonDecoderFn<Disjoint>();
     const restored = decode(wire);
     expect((restored as Record<string, unknown>).a).toBe('hi');
     expect((restored as Record<string, unknown>).evil).toBeUndefined();
@@ -44,8 +44,8 @@ describe('safe decoder — ukuWire strips undeclared keys at union nodes', () =>
     // Sanity: the safe encoder strips extras by construction, so the
     // safe decoder pipeline shouldn't see them — happy path still
     // works.
-    const encode = createJsonEncoder<Disjoint>();
-    const decode = createJsonDecoder<Disjoint>();
+    const encode = createJsonEncoderFn<Disjoint>();
+    const decode = createJsonDecoderFn<Disjoint>();
     const value: Disjoint = {a: 'hello'};
     const wire = encode(value)!;
     const back = decode(wire);
@@ -55,8 +55,8 @@ describe('safe decoder — ukuWire strips undeclared keys at union nodes', () =>
   it('unsafe encoder → safe decoder strips extras', () => {
     // Unsafe encoder lets extras through; safe decoder must nuke
     // them at union arms. Without ukuWire, the extras would survive.
-    const unsafeEncode = createJsonEncoder<Disjoint>(undefined, {strategy: 'mutate'});
-    const decode = createJsonDecoder<Disjoint>();
+    const unsafeEncode = createJsonEncoderFn<Disjoint>(undefined, {strategy: 'mutate'});
+    const decode = createJsonDecoderFn<Disjoint>();
     const dirty = {a: 'hello', stranger: 'bad'} as Disjoint;
     const wire = unsafeEncode(dirty)!;
     const back = decode(wire);
@@ -69,7 +69,7 @@ describe('safe decoder — ukuWire strips undeclared keys at union nodes', () =>
     // every member is JSON-natural so the wire has NO wrapper. The
     // decoder must work identity-style on raw atomics — no wrapper
     // peel attempted.
-    const decode = createJsonDecoder<string | number>();
+    const decode = createJsonDecoderFn<string | number>();
     expect(decode('"hi"')).toBe('hi');
     expect(decode('42')).toBe(42);
   });

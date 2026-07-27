@@ -1,6 +1,6 @@
 // Public surface for the mock-value generator — separated from
 // `createRTFunctions.ts` so bundlers can drop the whole mock subtree from
-// bundles that don't reference `createMockData`. Mock has no per-type RT
+// bundles that don't reference `createMockDataFn`. Mock has no per-type RT
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
 import {getRTUtils, isRunTypeSchema} from '../runtypes/rtUtils.ts';
@@ -11,16 +11,17 @@ import {mockRunType} from './mockType.ts';
 import {mockRunTypeInvalid} from './mockInvalid.ts';
 import {mockRunTypeOversized} from './mockOversized.ts';
 import {applyInBoundsSizing} from './binarySize.ts';
+import {MockRandom, nativeMockRandom} from './mockRandom.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockDataNode, MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
 
 /** Returns a mock-value generator for `T`. Each call produces a fresh value
  *  that passes `validate<T>`. Options merge: call < factory < defaults. Accepts
- *  either a value-first schema (`createMockData(rt)`) or the value/static form.
+ *  either a value-first schema (`createMockDataFn(rt)`) or the value/static form.
  *  Throws if the Vite plugin isn't active (no `id` injected). **/
-export function createMockData<T>(schema: RunType<T>, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
-export function createMockData<T>(val?: T, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
-export function createMockData<T>(
+export function createMockDataFn<T>(schema: RunType<T>, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
+export function createMockDataFn<T>(val?: T, options?: RunTypeMockOptions<T>, id?: InjectRunTypeId<T>): MockTypeFn<T>;
+export function createMockDataFn<T>(
   valOrSchema?: T | RunType<T>,
   options?: RunTypeMockOptions<T>,
   id?: InjectRunTypeId<T>
@@ -35,20 +36,25 @@ export function createMockData<T>(
   const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : injectedId;
   if (effectiveId === undefined) {
     throw new Error(
-      'createMockData(): no id injected. ts-runtypes-devtools must be active for createMockData to resolve the runtype graph.'
+      'createMockDataFn(): no id injected. ts-runtypes-devtools must be active for createMockDataFn to resolve the runtype graph.'
     );
   }
   const utils = getRTUtils();
   const runType = utils.getRunType(effectiveId);
   if (!runType) {
     throw new Error(
-      `createMockData(): no RunType entry for "${effectiveId}" in rtUtils. The build pipeline didn't emit a cache entry for that runtype.`
+      `createMockDataFn(): no RunType entry for "${effectiveId}" in rtUtils. The build pipeline didn't emit a cache entry for that runtype.`
     );
   }
   const factoryOpts = mergeMockOptions(undefined, options as DeepPartial<RunTypeMockOptions<unknown>> | undefined);
   return ((callOpts) => {
     const merged = mergeMockOptions(factoryOpts, callOpts as DeepPartial<RunTypeMockOptions<unknown>> | undefined);
     const mockOpts = merged.mock as MockOptions;
+    // One random source per generation, carried on the options bag so it threads
+    // through the whole walk (and the deferred Promise resolver, which closes
+    // over `merged`). A fresh seeded instance each call ⇒ the same seed always
+    // reproduces the same value; no seed reuses the stateless native instance.
+    mockOpts.random = mockOpts.seed === undefined ? nativeMockRandom : new MockRandom(mockOpts.seed);
     // Steer generation to FIT the binary cold-start estimate — only when
     // explicitly requested (`=== true`). `undefined` leaves the random generator
     // untouched; `false` (oversized) inflates a position past the budget and

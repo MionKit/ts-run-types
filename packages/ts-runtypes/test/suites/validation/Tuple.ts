@@ -1,6 +1,12 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createStandardSchema,
+  type DataOnly,
+} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -13,7 +19,7 @@ export const TUPLE = {
       'Tuples enforce exact length — both fewer (missing required) and more (excess) elements fail.',
       'Each slot runs the atomic check for its declared type.',
     ],
-    validate: () => createValidate<[string, number]>(),
+    validate: () => createValidateFn<[string, number]>(),
     standardSchema: () => createStandardSchema<[string, number]>(),
     // One hand-authored Standard Schema expectation per file. Every other case
     // derives its expected issues from getExpectedErrors via runTypeErrorsToIssues
@@ -39,33 +45,33 @@ export const TUPLE = {
       [{message: 'Expected string', path: [0], expected: 'string'}],
       [{message: 'Expected number', path: [1], expected: 'number'}],
     ],
-    validateDataOnly: () => createValidate<DataOnly<[string, number]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.string(), TF.number()])),
+    validateDataOnly: () => createValidateFn<DataOnly<[string, number]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[string, number]>(),
     validateReflect: () => {
       const v: [string, number] = ['hello', 1];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [string, number] = ['hello', 1];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[string, number]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[string, number]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.string(), TF.number()])),
+    getValidationErrors: () => createGetValidationErrorsFn<[string, number]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[string, number]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.tuple([TF.string(), TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[string, number]>(),
     getValidationErrorsReflect: () => {
       const v: [string, number] = ['hello', 1];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [string, number] = ['hello', 1];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[string, number]>(),
+    mockType: () => createMockDataFn<[string, number]>(),
     mockTypeReflect: () => {
       const v: [string, number] = ['hello', 1];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -116,39 +122,39 @@ export const TUPLE = {
       'A six-element heterogeneous tuple where each slot runs its declared atomic check (tuple.spec.ts "validate tuple").',
     validateNotes:
       'Each slot runs its declared atomic check: an Invalid Date at slot 0, `NaN` at slot 1, or `undefined` at the `null`-literal slot 3 all fail (`undefined` is not `null`).',
-    validate: () => createValidate<[Date, number, string, null, string[], bigint]>(),
+    validate: () => createValidateFn<[Date, number, string, null, string[], bigint]>(),
     standardSchema: () => createStandardSchema<[Date, number, string, null, string[], bigint]>(),
-    validateDataOnly: () => createValidate<DataOnly<[Date, number, string, null, string[], bigint]>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<[Date, number, string, null, string[], bigint]>>(),
     validateSchema: () =>
-      createValidate(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+      createValidateFn(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
     deserializeValidate: () => deserializeValidate<[Date, number, string, null, string[], bigint]>(),
     validateReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[Date, number, string, null, string[], bigint]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[Date, number, string, null, string[], bigint]>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<[Date, number, string, null, string[], bigint]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[Date, number, string, null, string[], bigint]>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])
       ),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[Date, number, string, null, string[], bigint]>(),
     getValidationErrorsReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[Date, number, string, null, string[], bigint]>(),
+    mockType: () => createMockDataFn<[Date, number, string, null, string[], bigint]>(),
     mockTypeReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
@@ -186,35 +192,36 @@ export const TUPLE = {
       'A tuple with trailing optional elements that may each be absent or explicitly undefined (tuple.spec.ts "validate tuple with optional parameters").',
     validateNotes:
       'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
-    validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
+    validate: () => createValidateFn<[number, bigint?, boolean?, number?]>(),
     standardSchema: () => createStandardSchema<[number, bigint?, boolean?, number?]>(),
-    validateDataOnly: () => createValidate<DataOnly<[number, bigint?, boolean?, number?]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    validateDataOnly: () => createValidateFn<DataOnly<[number, bigint?, boolean?, number?]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[number, bigint?, boolean?, number?]>(),
     validateReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[number, bigint?, boolean?, number?]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[number, bigint?, boolean?, number?]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    getValidationErrors: () => createGetValidationErrorsFn<[number, bigint?, boolean?, number?]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[number, bigint?, boolean?, number?]>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrorsFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[number, bigint?, boolean?, number?]>(),
     getValidationErrorsReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[number, bigint?, boolean?, number?]>(),
+    mockType: () => createMockDataFn<[number, bigint?, boolean?, number?]>(),
     mockTypeReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
@@ -240,35 +247,35 @@ export const TUPLE = {
     description: 'An array of fixed-length tuples that exercises a tuple inside an array dependency call.',
     validateNotes:
       'Each element is a fixed-length tuple, so a non-array element (e.g. `"not tuple"`) fails with `expected: "tuple"` while element-level failures report the nested `[index, slot]` path.',
-    validate: () => createValidate<[string, number][]>(),
+    validate: () => createValidateFn<[string, number][]>(),
     standardSchema: () => createStandardSchema<[string, number][]>(),
-    validateDataOnly: () => createValidate<DataOnly<[string, number][]>>(),
-    validateSchema: () => createValidate(RT.array(RT.tuple([TF.string(), TF.number()]))),
+    validateDataOnly: () => createValidateFn<DataOnly<[string, number][]>>(),
+    validateSchema: () => createValidateFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
     deserializeValidate: () => deserializeValidate<[string, number][]>(),
     validateReflect: () => {
       const v: [string, number][] = [];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [string, number][] = [];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[string, number][]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[string, number][]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.tuple([TF.string(), TF.number()]))),
+    getValidationErrors: () => createGetValidationErrorsFn<[string, number][]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[string, number][]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[string, number][]>(),
     getValidationErrorsReflect: () => {
       const v: [string, number][] = [];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [string, number][] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[string, number][]>(),
+    mockType: () => createMockDataFn<[string, number][]>(),
     mockTypeReflect: () => {
       const v: [string, number][] = [];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -309,35 +316,35 @@ export const TUPLE = {
       "A tuple with a trailing rest segment that absorbs any number of trailing elements via a for-loop from the member's position to v.length, skipping the length-bound check (tuple.spec.ts 'validate tuple with rest parameter').",
     validateNotes:
       'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
-    validate: () => createValidate<[number, ...string[]]>(),
+    validate: () => createValidateFn<[number, ...string[]]>(),
     standardSchema: () => createStandardSchema<[number, ...string[]]>(),
-    validateDataOnly: () => createValidate<DataOnly<[number, ...string[]]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.number()], TF.string())),
+    validateDataOnly: () => createValidateFn<DataOnly<[number, ...string[]]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.number()], TF.string())),
     deserializeValidate: () => deserializeValidate<[number, ...string[]]>(),
     validateReflect: () => {
       const v: [number, ...string[]] = [3];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [number, ...string[]] = [3];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[number, ...string[]]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[number, ...string[]]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.number()], TF.string())),
+    getValidationErrors: () => createGetValidationErrorsFn<[number, ...string[]]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[number, ...string[]]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.tuple([TF.number()], TF.string())),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[number, ...string[]]>(),
     getValidationErrorsReflect: () => {
       const v: [number, ...string[]] = [3];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [number, ...string[]] = [3];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[number, ...string[]]>(),
+    mockType: () => createMockDataFn<[number, ...string[]]>(),
     mockTypeReflect: () => {
       const v: [number, ...string[]] = [3];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
@@ -373,7 +380,7 @@ export const TUPLE = {
       'The cycle closes via a trailing OPTIONAL self-ref slot, so a non-recursive value (the first six slots only) is valid; nested tuples recurse to whatever depth the value supplies.',
     validate: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createValidate<TupleCircular>();
+      return createValidateFn<TupleCircular>();
     },
     standardSchema: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -381,7 +388,7 @@ export const TUPLE = {
     },
     validateDataOnly: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createValidate<DataOnly<TupleCircular>>();
+      return createValidateFn<DataOnly<TupleCircular>>();
     },
     // A ROOT-level recursive tuple can't be authored value-first — `Recursive<[…,
     // Self?]>` hits TS2589 (TS can't build a recursive tuple type via the mapping).
@@ -396,7 +403,7 @@ export const TUPLE = {
     validateReflect: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -405,11 +412,11 @@ export const TUPLE = {
     },
     getValidationErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createGetValidationErrors<TupleCircular>();
+      return createGetValidationErrorsFn<TupleCircular>();
     },
     getValidationErrorsDataOnly: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createGetValidationErrors<DataOnly<TupleCircular>>();
+      return createGetValidationErrorsFn<DataOnly<TupleCircular>>();
     },
     deserializeGetValidationErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -418,7 +425,7 @@ export const TUPLE = {
     getValidationErrorsReflect: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -427,12 +434,12 @@ export const TUPLE = {
     },
     mockType: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createMockData<TupleCircular>();
+      return createMockDataFn<TupleCircular>();
     },
     mockTypeReflect: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => {
       const tc: any = [new Date(), 1, 'a', null, [], 1n];
@@ -475,35 +482,36 @@ export const TUPLE = {
       'A chain of trailing optional slots (TS grammar bars optionals before required elements) where each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.',
     validateNotes:
       'An optional slot may be absent or explicitly `undefined`. The optional strips the redundant `undefined` and keeps the inner type atomic (`boolean?` stays `boolean`, not a `undefined | true | false` union), so a wrong value there reports the bare atomic token (`expected: "boolean"`).',
-    validate: () => createValidate<[number, bigint?, boolean?, number?]>(),
+    validate: () => createValidateFn<[number, bigint?, boolean?, number?]>(),
     standardSchema: () => createStandardSchema<[number, bigint?, boolean?, number?]>(),
-    validateDataOnly: () => createValidate<DataOnly<[number, bigint?, boolean?, number?]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    validateDataOnly: () => createValidateFn<DataOnly<[number, bigint?, boolean?, number?]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[number, bigint?, boolean?, number?]>(),
     validateReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[number, bigint?, boolean?, number?]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[number, bigint?, boolean?, number?]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    getValidationErrors: () => createGetValidationErrorsFn<[number, bigint?, boolean?, number?]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[number, bigint?, boolean?, number?]>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrorsFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[number, bigint?, boolean?, number?]>(),
     getValidationErrorsReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[number, bigint?, boolean?, number?]>(),
+    mockType: () => createMockDataFn<[number, bigint?, boolean?, number?]>(),
     mockTypeReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -558,35 +566,35 @@ export const TUPLE = {
     // RT.tuple builder models the UNLABELED shape, so the two forms are
     // different types informationally and cannot converge on one id.
     idDivergent: true,
-    validate: () => createValidate<[name: string, age: number]>(),
+    validate: () => createValidateFn<[name: string, age: number]>(),
     standardSchema: () => createStandardSchema<[name: string, age: number]>(),
-    validateDataOnly: () => createValidate<DataOnly<[name: string, age: number]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.string(), TF.number()])),
+    validateDataOnly: () => createValidateFn<DataOnly<[name: string, age: number]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<[name: string, age: number]>(),
     validateReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[name: string, age: number]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[name: string, age: number]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.string(), TF.number()])),
+    getValidationErrors: () => createGetValidationErrorsFn<[name: string, age: number]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[name: string, age: number]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.tuple([TF.string(), TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[name: string, age: number]>(),
     getValidationErrorsReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[name: string, age: number]>(),
+    mockType: () => createMockDataFn<[name: string, age: number]>(),
     mockTypeReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -641,35 +649,35 @@ export const TUPLE = {
       'TS DIVERGENCE: A function-typed tuple slot must be MISSING or explicitly `undefined`. A real function FAILS the check.',
       'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
     ],
-    validate: () => createValidate<[number, () => any]>(),
+    validate: () => createValidateFn<[number, () => any]>(),
     standardSchema: () => createStandardSchema<[number, () => any]>(),
-    validateDataOnly: () => createValidate<DataOnly<[number, () => any]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    validateDataOnly: () => createValidateFn<DataOnly<[number, () => any]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
     deserializeValidate: () => deserializeValidate<[number, () => any]>(),
     validateReflect: () => {
       const v: [number, () => any] = [3, () => null];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [number, () => any] = [3, () => null];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[number, () => any]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[number, () => any]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    getValidationErrors: () => createGetValidationErrorsFn<[number, () => any]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[number, () => any]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[number, () => any]>(),
     getValidationErrorsReflect: () => {
       const v: [number, () => any] = [3, () => null];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [number, () => any] = [3, () => null];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[number, () => any]>(),
+    mockType: () => createMockDataFn<[number, () => any]>(),
     mockTypeReflect: () => {
       const v: [number, () => any] = [3, () => null];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       // `[3]` is valid — v[1] is undefined which satisfies the
@@ -704,35 +712,35 @@ export const TUPLE = {
       'A zero-length tuple whose validator accepts only `[]` via Array.isArray plus length === 0, mirroring the `children.length === 0` branch.',
     validateNotes:
       'Only the empty array `[]` passes — any element at all (even `[null]`) fails the exact length-0 check; a plain object `{}` is also rejected.',
-    validate: () => createValidate<[]>(),
+    validate: () => createValidateFn<[]>(),
     standardSchema: () => createStandardSchema<[]>(),
-    validateDataOnly: () => createValidate<DataOnly<[]>>(),
-    validateSchema: () => createValidate(RT.tuple([])),
+    validateDataOnly: () => createValidateFn<DataOnly<[]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([])),
     deserializeValidate: () => deserializeValidate<[]>(),
     validateReflect: () => {
       const v: [] = [];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [] = [];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([])),
+    getValidationErrors: () => createGetValidationErrorsFn<[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.tuple([])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[]>(),
     getValidationErrorsReflect: () => {
       const v: [] = [];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [] = [];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[]>(),
+    mockType: () => createMockDataFn<[]>(),
     mockTypeReflect: () => {
       const v: [] = [];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [[]],
@@ -755,35 +763,35 @@ export const TUPLE = {
       'A one-slot tuple that exercises the length-bound corner case (length must be exactly 1 modulo optional/rest) using the same emit shape as multi-element tuples.',
     validateNotes:
       'Length must be exactly 1 — both an empty array `[]` and an over-length `["hello", "extra"]` fail; the single slot runs the atomic check for its declared type.',
-    validate: () => createValidate<[string]>(),
+    validate: () => createValidateFn<[string]>(),
     standardSchema: () => createStandardSchema<[string]>(),
-    validateDataOnly: () => createValidate<DataOnly<[string]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.string()])),
+    validateDataOnly: () => createValidateFn<DataOnly<[string]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.string()])),
     deserializeValidate: () => deserializeValidate<[string]>(),
     validateReflect: () => {
       const v: [string] = ['x'];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: [string] = ['x'];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<[string]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[string]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.string()])),
+    getValidationErrors: () => createGetValidationErrorsFn<[string]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[string]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.tuple([TF.string()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[string]>(),
     getValidationErrorsReflect: () => {
       const v: [string] = ['x'];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: [string] = ['x'];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<[string]>(),
+    mockType: () => createMockDataFn<[string]>(),
     mockTypeReflect: () => {
       const v: [string] = ['x'];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [['hello'], ['']],
@@ -809,35 +817,35 @@ export const TUPLE = {
       'A `readonly [T, U]` tuple whose readonly bit is TS-only and erased at runtime, so the validator is identical to the bare `[T, U]` shape.',
     validateNotes:
       'The `readonly` modifier has NO runtime impact — the validator is identical to the mutable `[string, number]`; the compiler enforces readonly at write sites only.',
-    validate: () => createValidate<readonly [string, number]>(),
+    validate: () => createValidateFn<readonly [string, number]>(),
     standardSchema: () => createStandardSchema<readonly [string, number]>(),
-    validateDataOnly: () => createValidate<DataOnly<readonly [string, number]>>(),
-    validateSchema: () => createValidate(RT.tuple([TF.string(), TF.number()])),
+    validateDataOnly: () => createValidateFn<DataOnly<readonly [string, number]>>(),
+    validateSchema: () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
     deserializeValidate: () => deserializeValidate<readonly [string, number]>(),
     validateReflect: () => {
       const v: readonly [string, number] = ['x', 1];
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: readonly [string, number] = ['x', 1];
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<readonly [string, number]>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<readonly [string, number]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.tuple([TF.string(), TF.number()])),
+    getValidationErrors: () => createGetValidationErrorsFn<readonly [string, number]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<readonly [string, number]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.tuple([TF.string(), TF.number()])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<readonly [string, number]>(),
     getValidationErrorsReflect: () => {
       const v: readonly [string, number] = ['x', 1];
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: readonly [string, number] = ['x', 1];
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<readonly [string, number]>(),
+    mockType: () => createMockDataFn<readonly [string, number]>(),
     mockTypeReflect: () => {
       const v: readonly [string, number] = ['x', 1];
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [

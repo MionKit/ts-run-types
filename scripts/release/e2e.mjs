@@ -34,6 +34,7 @@ import {loadEnv, REPO_ROOT} from '../lib/env.mjs';
 import {requireEngine} from '../lib/engine.mjs';
 import {startRegistry, startToolchainContainer, stopRegistry} from '../container/image.mjs';
 import {capture, die, note, noteErr, reportCliError, run, runOrThrow, sleep, which} from '../lib/proc.mjs';
+import {describeReceipt, writeReceipt} from './receipt.mjs';
 
 const E2E_DIR = join(REPO_ROOT, 'container/pre-publish-e2e');
 const HOST_SMOKE_DIR = join(E2E_DIR, 'host-smoke');
@@ -76,6 +77,13 @@ async function waitHealthy(engine, container, timeoutS = 240) {
     const status = capture(engine, ['inspect', '--format', '{{.State.Health.Status}}', container]).stdout.trim();
     if (status === 'healthy') return;
     if (status === 'unhealthy') break;
+    // The reported status only advances when podman's healthcheck TIMER fires,
+    // and that timer is a transient systemd unit — so where systemd isn't init
+    // (agent/dev containers, some rootless setups) the status sits at 'starting'
+    // forever while the registry is long since ready. Run the SAME healthcheck
+    // synchronously to settle it: exit 0 means the container's own health
+    // command passed, which is exactly what 'healthy' would have meant.
+    if (capture(engine, ['healthcheck', 'run', container]).status === 0) return;
     await sleep(1500);
   }
   noteErr('registry did not become healthy - last 60 log lines:');
@@ -278,6 +286,19 @@ function parseArgs(argv) {
   return opts;
 }
 
+// A PASS leaves a receipt beside the tarballs it validated, so the publishing
+// verbs can require proof over THESE bytes instead of trusting run order. Only the
+// pre-publish backends write one: the npm backend verifies packages that are
+// already live, so there is nothing left to gate.
+function recordReceipt(version, opts) {
+  const receipt = writeReceipt(TARBALLS, {
+    version,
+    backend: opts.backend,
+    covered: {matrix: opts.matrix, hostSmoke: opts.hostSmoke},
+  });
+  note(describeReceipt(receipt));
+}
+
 async function main(argv) {
   const opts = parseArgs(argv);
   const version = opts.version || readVersion();
@@ -287,12 +308,16 @@ async function main(argv) {
   // pack, or publish. Install them from the real registry and run the same suite.
   if (opts.backend === 'npm') return runNpmBackend(version, opts.registry || DEFAULT_NPM_REGISTRY, opts);
   ensureTarballs(opts.pack);
-  if (opts.backend === 'host-npx') return runHostNpxBackend(version, opts.port, opts);
+  if (opts.backend === 'host-npx') {
+    await runHostNpxBackend(version, opts.port, opts);
+    return recordReceipt(version, opts);
+  }
   // container backend: podman must be reachable (fail clearly if not).
   const engine = process.env.RT_WEBSITE_ENGINE || 'podman';
   if (!which(engine)) die(`e2e: container engine '${engine}' not found. Install podman (see the ts-runtypes-setup skill), or on a CI mac/win runner pass --backend host-npx.`);
   requireEngine(engine);
   await runContainerBackend(version, opts.port, opts);
+  recordReceipt(version, opts);
   note('pre-publish e2e: PASS');
 }
 

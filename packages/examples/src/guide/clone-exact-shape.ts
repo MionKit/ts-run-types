@@ -1,11 +1,11 @@
-import {createCloneExactShape, createValidate} from '@ts-runtypes/core';
+import {createCloneExactShapeFn, createValidateFn} from '@ts-runtypes/core';
 
 type User = {id: number; name: string};
 
-// createCloneExactShape -> a NEW value of exactly the declared shape.
+// createCloneExactShapeFn -> a NEW value of exactly the declared shape.
 // Undeclared keys are dropped by construction (the clone is built FROM the
 // type, never `{...v}`); the input is never mutated — frozen inputs work.
-const cloneUser = createCloneExactShape<User>();
+const cloneUser = createCloneExactShapeFn<User>();
 
 const dirty = {id: 1, name: 'Ada', admin: true, token: 'secret'};
 const clean = cloneUser(dirty as User); // {id: 1, name: 'Ada'} — fresh object
@@ -13,7 +13,7 @@ const clean = cloneUser(dirty as User); // {id: 1, name: 'Ada'} — fresh object
 
 // The intended pipeline: validate untrusted data, then clone to the exact
 // declared shape so nothing undeclared flows downstream.
-const isUser = createValidate<User>();
+const isUser = createValidateFn<User>();
 export function parseUser(data: unknown): User {
   if (!isUser(data)) throw new Error('not a User');
   return cloneUser(data);

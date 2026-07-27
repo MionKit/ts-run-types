@@ -8,6 +8,6 @@ registerMockingFunction(RunTypeKind.string, (annotation: FormatAnnotation) => {
   return undefined; // defer to the built-in mock for everything else
 });
 
-// From now on createMockData<T>() uses this when it mocks a string format.
-// (createMockData itself is covered in the Mocking guide.)
+// From now on createMockDataFn<T>() uses this when it mocks a string format.
+// (createMockDataFn itself is covered in the Mocking guide.)
 export {};

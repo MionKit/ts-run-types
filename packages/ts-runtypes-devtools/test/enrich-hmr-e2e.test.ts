@@ -17,7 +17,7 @@
 //      reconcile re-parsed it).
 //
 // One source file mirrors into TWO generated files, one per enrichment family:
-// <enrichDir>/friendly/<rel>.ts (friendly consts) and <enrichDir>/mock/<rel>.ts
+// <genDir>/enriched/friendly/<rel>.ts (friendly consts) and <genDir>/enriched/mock/<rel>.ts
 // (mock consts); whole-output oracles (convergence, orphan absence) read both.
 //
 // Where Layer 1 (internal/enrichment/mirror property test) drives Reconcile with a
@@ -62,7 +62,7 @@ function setupProject(fields: Field[], typeName = 'User'): Project {
   const src = path.join(dir, 'src', 'models.ts');
   fs.writeFileSync(src, renderSource(fields, typeName));
   const genDir = path.join(dir, 'generated');
-  // Split mirror layout: one generated file per enrichment family under <enrichDir>/<family>/<rel>.
+  // Split mirror layout: one generated file per enrichment family under <genDir>/enriched/<family>/<rel>.
   return {
     dir,
     src,
@@ -79,8 +79,11 @@ function readMirrors(project: Project): string {
 }
 
 // genUpdate runs the real reconcile (the op a dev-loop save handler fires).
+// cwd is the fixture root: the CLI discovers the tsconfig exactly as tsc does
+// (upward from the working directory), like a user running it from the project.
 function genUpdate(project: Project, typeName = 'User'): {status: number; output: string} {
-  const result = spawnSync(BIN, ['gen', project.src, typeName, '--update', '--gen-dir', project.genDir], {
+  const result = spawnSync(BIN, ['enrich', project.src, typeName, '--update', '--gen-dir', project.genDir], {
+    cwd: path.dirname(project.src),
     encoding: 'utf8',
   });
   return {status: result.status ?? -1, output: (result.stdout ?? '') + (result.stderr ?? '')};

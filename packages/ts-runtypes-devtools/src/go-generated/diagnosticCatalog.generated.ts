@@ -21,7 +21,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       '`cloneExactShape` does not support unions with object members — the emitter cannot know which declared shape to rebuild at runtime.',
     severity: 'error',
     detail:
-      'A clone built from the declared shape needs to know WHICH union arm the\nruntime value matches; v1 has no arm discrimination, and silently keeping\nunknown keys would defeat the strip guarantee, so the build fails instead.\n\nWorkarounds: narrow the value to one arm before cloning (one\n`createCloneExactShape<Arm>()` per arm), or restructure the union into a\nsingle object with optional properties.',
+      'A clone built from the declared shape needs to know WHICH union arm the\nruntime value matches; v1 has no arm discrimination, and silently keeping\nunknown keys would defeat the strip guarantee, so the build fails instead.\n\nWorkarounds: narrow the value to one arm before cloning (one\n`createCloneExactShapeFn<Arm>()` per arm), or restructure the union into a\nsingle object with optional properties.',
   },
   CES003: {
     headline: '`cloneExactShape` cannot clone a function-typed value.',
@@ -54,6 +54,13 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     detail:
       "Declared members are never dropped (only UNDECLARED keys are — that is the\nstrip guarantee). A value the emitter cannot rebuild passes through by\nreference instead: the clone's property points at the SAME handle as the\ninput's, so mutations through it are visible on both sides. Register\n`overrideCloneExactShape<T>()` if this type needs custom copying.",
   },
+  CFG001: {
+    headline:
+      'Project tsconfig failed to load ({0}) — the build, the linter, and the CLI all read this config, so nothing can run until it loads.',
+    severity: 'error',
+    detail:
+      'RunTypes derives every type query from your project tsconfig, the same\nfile your build uses. A tsconfig that was named (or found next to your\nproject) but is missing or does not parse stops the operation, exactly\nlike `tsc --project` would, instead of silently falling back to defaults\nthat could resolve your types differently.\n\nFix — repair the tsconfig (the message names the first parse problem),\nor point the tooling at the right file (the plugin/lint `tsconfig`\nsetting, or the CLI `--tsconfig` flag).',
+  },
   CLS001: {
     headline:
       'class `{0}` is serialized structurally; register it via `registerClassSerializer({0}, { deserialize })` to round-trip a real instance.',
@@ -66,7 +73,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       '`CompTimeArgs<T>` argument must be a literal at the call site, or a `const` whose initializer is itself entirely literal (a same-module or imported `const` both work).',
     severity: 'error',
     detail:
-      "The build resolves the argument before running, so it needs to read its\nvalue from the source. Function-call results, property accesses, ternary\nexpressions, and `let`/`var` bindings can't be evaluated at build time.\nAccepted: an inline literal, or a `const` whose initializer is itself\nfully literal — including a `const` imported from another module. (An\nobject `const` must be `as const` so its members stay literal; see CTA004.)\n\nFix — inline at the call site:\n-  const opts = getOpts();\n-  const isUser = createValidate<User>(undefined, opts);\n+  const isUser = createValidate<User>(undefined, {mode: 'unsafe'});\n\nFix — use a const of literals (here or in another module):\n  const opts = {mode: 'unsafe'} as const;   // literal initializer ✓\n  const isUser = createValidate<User>(undefined, opts);",
+      "The build resolves the argument before running, so it needs to read its\nvalue from the source. Function-call results, property accesses, ternary\nexpressions, and `let`/`var` bindings can't be evaluated at build time.\nAccepted: an inline literal, or a `const` whose initializer is itself\nfully literal — including a `const` imported from another module. (An\nobject `const` must be `as const` so its members stay literal; see CTA004.)\n\nFix — inline at the call site:\n-  const opts = getOpts();\n-  const isUser = createValidateFn<User>(undefined, opts);\n+  const isUser = createValidateFn<User>(undefined, {mode: 'unsafe'});\n\nFix — use a const of literals (here or in another module):\n  const opts = {mode: 'unsafe'} as const;   // literal initializer ✓\n  const isUser = createValidateFn<User>(undefined, opts);",
   },
   CTA002: {
     headline: '`CompTimeArgs<T>` literal nesting exceeds the depth cap (16) — refactor to flatten.',
@@ -85,7 +92,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       '`CompTimeArgs<T>` value comes from a `const` with a widened (non-literal) member ({0}) — declare the const `as const`.',
     severity: 'error',
     detail:
-      "A `const` used as a CompTimeArgs / CompTimeFnArgs argument (a whole option\nbag, or a builder child) must carry LITERAL value types, so the value the\nbuild reads matches the type TypeScript resolves the call against. Without\n`as const`, an object literal's members widen — `{strategy: 'mutate'}`\nbecomes `{strategy: string}` — which can let the type system select one\nfunction variant while the build injects another.\n\nWhole imported consts now resolve cross-module (like a spread fragment), so\nthis rule keeps that path sound.\n\nFix — add `as const`:\n-  const preset = {strategy: 'mutate'};\n+  const preset = {strategy: 'mutate'} as const;\n   createJsonEncoder(undefined, preset);",
+      "A `const` used as a CompTimeArgs / CompTimeFnArgs argument (a whole option\nbag, or a builder child) must carry LITERAL value types, so the value the\nbuild reads matches the type TypeScript resolves the call against. Without\n`as const`, an object literal's members widen — `{strategy: 'mutate'}`\nbecomes `{strategy: string}` — which can let the type system select one\nfunction variant while the build injects another.\n\nWhole imported consts now resolve cross-module (like a spread fragment), so\nthis rule keeps that path sound.\n\nFix — add `as const`:\n-  const preset = {strategy: 'mutate'};\n+  const preset = {strategy: 'mutate'} as const;\n   createJsonEncoderFn(undefined, preset);",
   },
   FB001: {
     headline: 'Type `{0}` can never be deserialised from binary — the generated function will always fail.',
@@ -174,7 +181,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'TypeFormat mockSample violates a sibling constraint — {0}',
     severity: 'error',
     detail:
-      "A mockSample is meant to be a canonical VALID value for the format, so it\nmust satisfy the format's own statically checkable siblings (length /\nminLength / maxLength, and the plain-string allowedChars / disallowedChars /\ndisallowedValues ops). A sample that its siblings reject means\n`createMockData` would either produce an invalid value or filter every\nsample out and throw at mock time.\n\nLengths are counted in UTF-16 code units, exactly as the emitted validator's\n`.length` check counts them.\n\nFix — adjust the offending sample(s), or relax the constraint:\n  -  String<{minLength: 5; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>\n+  String<{minLength: 1; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>",
+      "A mockSample is meant to be a canonical VALID value for the format, so it\nmust satisfy the format's own statically checkable siblings (length /\nminLength / maxLength, and the plain-string allowedChars / disallowedChars /\ndisallowedValues ops). A sample that its siblings reject means\n`createMockDataFn` would either produce an invalid value or filter every\nsample out and throw at mock time.\n\nLengths are counted in UTF-16 code units, exactly as the emitted validator's\n`.length` check counts them.\n\nFix — adjust the offending sample(s), or relax the constraint:\n  -  String<{minLength: 5; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>\n+  String<{minLength: 1; pattern: {source: '^b+$'; mockSamples: ['b', 'bb']}}>",
   },
   FMT004: {
     headline:
@@ -187,7 +194,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'Unknown field `{0}` — the type does not declare it, so this FriendlyText entry is dead.',
     severity: 'error',
     detail:
-      "The FriendlyText map names a field the source type does not have\n(removed, renamed, or a typo). Its labels and messages can never be\nused.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const friendlyUser: FriendlyText<User> = {\n    name: {rt$label: 'Name'},\n-   nick: {rt$label: 'Nickname'},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type (a renamed field carries its authored values along):\n  ts-runtypes gen <source.ts> <Type> --update",
+      "The FriendlyText map names a field the source type does not have\n(removed, renamed, or a typo). Its labels and messages can never be\nused.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const friendlyUser: FriendlyText<User> = {\n    name: {rt$label: 'Name'},\n-   nick: {rt$label: 'Nickname'},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type (a renamed field carries its authored values along):\n  ts-runtypes enrich <source.ts> <Type> --update",
   },
   FT003: {
     headline: 'Error key `{0}` is not a declared constraint of this field — the message can never fire.',
@@ -238,41 +245,48 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       "The generator stamps a `@todo` line on every freshly-scaffolded const in\na FriendlyText mirror file. It means \"this skeleton still carries\ngenerated blanks\". A clean, committed mirror has none.\n\nExample — a fresh scaffold:\n  /** @rtType User#a1b2c3 @rtIds {name: d4e5f6} */\n- // @todo: generated skeleton — fill in real data, then delete this line\n  export const friendlyUser: FriendlyText<User> = {\n-   name: {rt$label: ''},\n+   name: {rt$label: 'Name'},\n  };\n\nFix — author the real labels and error messages for the const, then\ndelete the whole `@todo` line (the compiler never removes it for you).",
   },
   FT021: {
-    headline: 'Stale `@rtOrphan` carcass — run `ts-runtypes gen --prune` to remove it (or restore the type).',
+    headline: 'Stale `@rtOrphan` carcass — run `ts-runtypes enrich --prune` to remove it (or restore the type).',
     severity: 'error',
     detail:
-      'The reconcile commented this FriendlyText const out because its source\ntype was deleted or renamed. The carcass preserves your authored labels\nand messages so a reappearing type can restore them — but a clean,\ncommitted mirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes gen --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes gen <source.ts> <NewName> --update',
+      'The reconcile commented this FriendlyText const out because its source\ntype was deleted or renamed. The carcass preserves your authored labels\nand messages so a reappearing type can restore them — but a clean,\ncommitted mirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes enrich --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes enrich <source.ts> <NewName> --update',
   },
   FT022: {
-    headline: 'Stale `@rtOrphanChild` field carcass — run `ts-runtypes gen --prune` to remove it (or restore the field).',
+    headline: 'Stale `@rtOrphanChild` field carcass — run `ts-runtypes enrich --prune` to remove it (or restore the field).',
     severity: 'error',
     detail:
-      "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const friendlyUser: FriendlyText<User> = {\n-   /* @rtOrphanChild nick: {rt$label: 'Nickname'}, */\n    name: {rt$label: 'Name'},\n  };\n\nFix — if the field is really gone: `ts-runtypes gen --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
+      "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const friendlyUser: FriendlyText<User> = {\n-   /* @rtOrphanChild nick: {rt$label: 'Nickname'}, */\n    name: {rt$label: 'Name'},\n  };\n\nFix — if the field is really gone: `ts-runtypes enrich --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
+  },
+  FT023: {
+    headline: 'Unfilled blank value — a scaffolded label or message is still empty; fill in the real text.',
+    severity: 'error',
+    detail:
+      "An empty string (`''`) at a `rt$label` / `rt$errors` slot is a generated\nblank that never got authored — it ships blank to the UI wherever the\nfriendly text is shown, so it is exactly as incomplete as a `@todo`\nmarker. This is why removing the `@todo` line without filling the values\nis not \"done\".\n\nExample:\n  export const friendlyUser: FriendlyText<User> = {\n-   name: {rt$label: ''},\n+   name: {rt$label: 'Name'},\n  };\n\nFix — author the real label / message. Only the completeness gate\n(`ts-runtypes enrich --require-complete`) fails on it; a plain\n`--no-emit` health check reports it without failing.",
   },
   GE000: {
     headline: 'Cannot read enrichment mirror file: {0}',
     severity: 'error',
     detail:
-      'The drift check could not read this mirror file (permissions, a broken\nsymlink, or a race with a concurrent write).\n\nFix — make the file readable and re-run `ts-runtypes gen --check`.',
+      'The drift check could not read this mirror file (permissions, a broken\nsymlink, or a race with a concurrent write).\n\nFix — make the file readable and re-run `ts-runtypes enrich --no-emit`.',
   },
   GE001: {
     headline:
-      'Mirror location drift — the source maps to `{0}` but this file lives at `{1}`; re-run `ts-runtypes gen` to relocate.',
+      'Mirror location drift — the source maps to `{0}` but this file lives at `{1}`; re-run `ts-runtypes enrich` to relocate.',
     severity: 'warning',
     detail:
-      'Each source file mirrors to ONE computed path per family under the\nenrich root (friendly/… and mock/…, plus per-locale translation twins).\nThis file is not at its computed location — usually after a source move,\nan enrich-dir change, or a pre-split combined mirror that still needs\nmigrating.\n\nFix — re-run the generator; it writes the per-family files at the right\npaths and migrates a legacy combined mirror:\n  ts-runtypes gen <source.ts> <Type> --update',
+      'Each source file mirrors to ONE computed path per family under the\nenrich root (friendly/… and mock/…, plus per-locale translation twins).\nThis file is not at its computed location — usually after a source move,\na genDir change, or a pre-split combined mirror that still needs\nmigrating.\n\nFix — re-run the generator; it writes the per-family files at the right\npaths and migrates a legacy combined mirror:\n  ts-runtypes enrich <source.ts> <Type> --update',
   },
   GE002: {
-    headline: 'Breadcrumb source `{0}` no longer exists ({1}) — the mirror is orphaned; delete it or re-run `ts-runtypes gen`.',
+    headline:
+      'Breadcrumb source `{0}` no longer exists ({1}) — the mirror is orphaned; delete it or re-run `ts-runtypes enrich`.',
     severity: 'error',
     detail:
       "The mirror's `import type { … } from '<source>'` breadcrumb resolves to\na file that is gone. Its consts describe types that no longer exist\nanywhere.\n\nFix — if the source was deleted, delete the mirror file (both family\nfiles and any translation twins).\nFix — if the source moved, re-run the generator from the new location\nand prune the old mirror.",
   },
   GE003: {
-    headline: 'Source {0} no longer declares type `{1}` — re-run `ts-runtypes gen`.',
+    headline: 'Source {0} no longer declares type `{1}` — re-run `ts-runtypes enrich`.',
     severity: 'error',
     detail:
-      'The mirror imports a type name its source file no longer declares (the\ntype was renamed or removed). The reconcile turns its consts into\n`@rtOrphan` carcasses so your authored values survive.\n\nFix — re-run the reconcile against the current source, then prune any\ncarcasses that should not come back:\n  ts-runtypes gen <source.ts> <Type> --update\n  ts-runtypes gen --prune',
+      'The mirror imports a type name its source file no longer declares (the\ntype was renamed or removed). The reconcile turns its consts into\n`@rtOrphan` carcasses so your authored values survive.\n\nFix — re-run the reconcile against the current source, then prune any\ncarcasses that should not come back:\n  ts-runtypes enrich <source.ts> <Type> --update\n  ts-runtypes enrich --prune',
   },
   HUK010: {
     headline:
@@ -290,7 +304,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'Unknown field `{0}` — the type does not declare it, so this MockData entry is dead.',
     severity: 'error',
     detail:
-      "The MockData map names a field the source type does not have (removed,\nrenamed, or a typo). Its pool/range can never feed a generated mock.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const mockUser: MockData<User> = {\n    name: {pool: ['Ada', 'Linus']},\n-   nick: {pool: ['ada99']},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type:\n  ts-runtypes gen <source.ts> <Type> --update",
+      "The MockData map names a field the source type does not have (removed,\nrenamed, or a typo). Its pool/range can never feed a generated mock.\n\nExample — `nick` no longer exists on the type:\n  interface User { name: string }\n  export const mockUser: MockData<User> = {\n    name: {pool: ['Ada', 'Linus']},\n-   nick: {pool: ['ada99']},\n  };\n\nFix — remove the entry, or re-run the reconcile so the mirror follows\nthe type:\n  ts-runtypes enrich <source.ts> <Type> --update",
   },
   MD011: {
     headline: 'Property `{0}` collides with the reserved `rt$` enrichment prefix — the type cannot be enriched.',
@@ -305,42 +319,48 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
       "The generator stamps a `@todo` line on every freshly-scaffolded const in\na MockData mirror file. It means \"this skeleton still carries generated\nblanks\". A clean, committed mirror has none.\n\nExample — a fresh scaffold:\n  /** @rtType User#a1b2c3 @rtIds {name: d4e5f6} */\n- // @todo: generated skeleton — fill in real data, then delete this line\n  export const mockUser: MockData<User> = {\n-   name: {pool: []},\n+   name: {pool: ['Ada Lovelace', 'Linus Torvalds']},\n  };\n\nFix — author realistic sample pools/ranges for the const, then delete\nthe whole `@todo` line (the compiler never removes it for you).",
   },
   MD021: {
-    headline: 'Stale `@rtOrphan` carcass — run `ts-runtypes gen --prune` to remove it (or restore the type).',
+    headline: 'Stale `@rtOrphan` carcass — run `ts-runtypes enrich --prune` to remove it (or restore the type).',
     severity: 'error',
     detail:
-      'The reconcile commented this MockData const out because its source type\nwas deleted or renamed. The carcass preserves your authored pools and\nranges so a reappearing type can restore them — but a clean, committed\nmirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes gen --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes gen <source.ts> <NewName> --update',
+      'The reconcile commented this MockData const out because its source type\nwas deleted or renamed. The carcass preserves your authored pools and\nranges so a reappearing type can restore them — but a clean, committed\nmirror has none.\n\nFix — if the type is really gone, prune the carcass:\n  ts-runtypes enrich --prune\n\nFix — if the type was renamed, re-run the reconcile; a matching carcass\nis restored with your values intact:\n  ts-runtypes enrich <source.ts> <NewName> --update',
   },
   MD022: {
-    headline: 'Stale `@rtOrphanChild` field carcass — run `ts-runtypes gen --prune` to remove it (or restore the field).',
+    headline: 'Stale `@rtOrphanChild` field carcass — run `ts-runtypes enrich --prune` to remove it (or restore the field).',
     severity: 'error',
     detail:
-      "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const mockUser: MockData<User> = {\n-   /* @rtOrphanChild nick: {pool: ['ada99']}, */\n    name: {pool: ['Ada', 'Linus']},\n  };\n\nFix — if the field is really gone: `ts-runtypes gen --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
+      "The reconcile commented this field out because the source type no longer\ndeclares it. The carcass preserves your authored value inline — but a\nclean, committed mirror has none.\n\nExample:\n  export const mockUser: MockData<User> = {\n-   /* @rtOrphanChild nick: {pool: ['ada99']}, */\n    name: {pool: ['Ada', 'Linus']},\n  };\n\nFix — if the field is really gone: `ts-runtypes enrich --prune`.\nFix — if the field was renamed, re-run `--update`; the authored value\nmoves to the renamed field when the ids match.",
+  },
+  MD023: {
+    headline: 'Unfilled blank value — a scaffolded sample pool or range is still empty; fill in real data.',
+    severity: 'error',
+    detail:
+      "An empty pool (`pool: []`) is a generated blank that never got authored —\nit mocks nothing, so it is exactly as incomplete as a `@todo` marker.\nThis is why removing the `@todo` line without filling the values is not\n\"done\".\n\nExample:\n  export const mockUser: MockData<User> = {\n-   name: {pool: []},\n+   name: {pool: ['Ada Lovelace', 'Linus Torvalds']},\n  };\n\nFix — author realistic sample data. Only the completeness gate\n(`ts-runtypes enrich --require-complete`) fails on it; a plain\n`--no-emit` health check reports it without failing.",
   },
   MKR001: {
     headline:
       '`{0}()` is being called at runtime just so the marker can read its return type — side effects, throws, or async work run for nothing.',
     severity: 'warning',
     detail:
-      'Reflect-form markers (`createValidate(value)`, `getRunTypeId(value)`)\ninvoke their argument expression at runtime; the value is then discarded —\nonly its inferred type is used.\n\nFix — use the static form with `ReturnType<>`:\n  -  const isUser = createValidate({0}());\n+  const isUser = createValidate<ReturnType<typeof {0}>>();\n\nFix — pass an existing value of the desired type:\n  const existingUser: User = ...;\n  const isUser = getRunTypeId(existingUser);',
+      'Reflect-form markers (`createValidateFn(value)`, `getRunTypeId(value)`)\ninvoke their argument expression at runtime; the value is then discarded —\nonly its inferred type is used.\n\nFix — use the static form with `ReturnType<>`:\n  -  const isUser = createValidateFn({0}());\n+  const isUser = createValidateFn<ReturnType<typeof {0}>>();\n\nFix — pass an existing value of the desired type:\n  const existingUser: User = ...;\n  const isUser = getRunTypeId(existingUser);',
   },
   MKR003: {
     headline:
       'Marker call is inside a generic function — the type argument is unresolved, so no id can be computed at build time.',
     severity: 'error',
     detail:
-      "The build can only compute an id for a concrete type (`User`,\n`{name: string}`, etc.). A type parameter like `T` is abstract — it\ntakes a different value at each call site of the surrounding function,\nso a single id can't represent it.\n\nFix — inline the marker at each concrete call site:\n  function isUser(value: unknown) {\n    return createValidate<User>()(value);\n  }\n\nFix — accept a pre-computed id from the caller:\n  function makeChecker<T>(id: InjectRunTypeId<T>) {\n    return createValidate<T>(id);\n  }\n  const isUser = makeChecker<User>(getRunTypeId<User>());",
+      "The build can only compute an id for a concrete type (`User`,\n`{name: string}`, etc.). A type parameter like `T` is abstract — it\ntakes a different value at each call site of the surrounding function,\nso a single id can't represent it.\n\nFix — inline the marker at each concrete call site:\n  function isUser(value: unknown) {\n    return createValidateFn<User>()(value);\n  }\n\nFix — accept a pre-computed id from the caller:\n  function makeChecker<T>(id: InjectRunTypeId<T>) {\n    return createValidateFn<T>(id);\n  }\n  const isUser = makeChecker<User>(getRunTypeId<User>());",
   },
   MKR004: {
     headline: "`noLiterals: true` has no effect here — the type argument doesn't resolve to literal values.",
     severity: 'warning',
     detail:
-      "The `noLiterals` validate option skips the exact-value check that literal\ntypes (`'admin'`, `42`, `true`) compile to. This call's type argument\nresolves to a non-literal type, so there is no literal check to skip and\nthe option is a silent no-op.\n\nFix — drop the option:\n-  const isRole = createValidate<string>({noLiterals: true});\n+  const isRole = createValidate<string>();\n\nOr, if you meant to relax a literal union, point the option at the type\nthat actually carries the literals:\n  const isRole = createValidate<'admin' | 'user'>({noLiterals: true});",
+      "The `noLiterals` validate option skips the exact-value check that literal\ntypes (`'admin'`, `42`, `true`) compile to. This call's type argument\nresolves to a non-literal type, so there is no literal check to skip and\nthe option is a silent no-op.\n\nFix — drop the option:\n-  const isRole = createValidateFn<string>({noLiterals: true});\n+  const isRole = createValidateFn<string>();\n\nOr, if you meant to relax a literal union, point the option at the type\nthat actually carries the literals:\n  const isRole = createValidateFn<'admin' | 'user'>({noLiterals: true});",
   },
   MKR005: {
     headline: '`noIsArrayCheck: true` has no effect here — the type argument is not an array type.',
     severity: 'warning',
     detail:
-      "The `noIsArrayCheck` validate option skips the `Array.isArray` guard that\narray types compile to. This call's type argument resolves to a non-array\ntype, so there is no guard to skip and the option is a silent no-op.\n\nFix — drop the option:\n-  const isUser = createValidate<User>({noIsArrayCheck: true});\n+  const isUser = createValidate<User>();\n\nOr point it at the array type you meant:\n  const isUsers = createValidate<User[]>({noIsArrayCheck: true});",
+      "The `noIsArrayCheck` validate option skips the `Array.isArray` guard that\narray types compile to. This call's type argument resolves to a non-array\ntype, so there is no guard to skip and the option is a silent no-op.\n\nFix — drop the option:\n-  const isUser = createValidateFn<User>({noIsArrayCheck: true});\n+  const isUser = createValidateFn<User>();\n\nOr point it at the array type you meant:\n  const isUsers = createValidateFn<User[]>({noIsArrayCheck: true});",
   },
   MKR006: {
     headline: '`InjectTypeFnArgs` names the function family `{0}` more than once — remove the duplicate key.',
@@ -354,6 +374,34 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     severity: 'error',
     detail:
       "TypeScript could not resolve the import, so the type it should have\nprovided checked as `any` at this marker call. A validator over `any` is\nthe always-true identity, a mock over `any` is `undefined`, and encoders\npass values through untouched — with no runtime signal that anything is\nwrong. This usually means the build tool and the type scanner resolve\nmodules differently (e.g. an extensionless relative import under\n`moduleResolution: NodeNext`, a missing dependency, or a `paths` alias the\nscan tsconfig doesn't declare).\n\nFix — make the import resolve for the type scanner:\n-  import {User} from './user.runtype';\n+  import {User} from './user.runtype.ts';\n\nOr align the tsconfig the plugin scans with the one your bundler uses.\nIf the `any` is genuinely intentional, write the marker over an alias\ndeclared in resolving code (e.g. `type Loose = any`) in a file with no\nfailing imports.",
+  },
+  MKR008: {
+    headline:
+      'This type is too deeply nested to reflect — computing its structural id hit the recursion depth cap, so the build stops here instead of crashing.',
+    severity: 'error',
+    detail:
+      'The build computes a structural id by walking the type, and the walk is\ncapped at a depth far beyond any realistic shape. Hitting the cap with no\nsingle recurring type on the path means literally written (or generated)\nnesting hundreds of levels deep.\n\nFix — reflect a concrete, bounded projection of the type (e.g. the element\nor data type you actually send), or restructure the recursion so the same\nnamed type recurs by reference (a plain recursive interface is fine).',
+  },
+  MKR009: {
+    headline:
+      'Type `{0}` re-instantiates itself with fresh type arguments at every level (a self-instantiating generic), so its structural id never resolves. Reflect a monomorphic shape instead.',
+    severity: 'error',
+    detail:
+      "A generic method's own type parameters (the `U` in `map<U>(fn: (x: T) => U):\nIter<U>`) are bound at each CALL of the method, so they can never be resolved\nwhile reflecting the containing type — and when such a method returns a fresh\ninstantiation of its own container, the type graph grows a new level forever.\nRenaming the type parameters does not resolve them; the fix is a monomorphic\n(fully resolved) recursive shape, which closes by reference:\n\n-  interface Iter<T> { map<U>(fn: (x: T) => U): Iter<U> }\n+  interface NumberIter { map(fn: (x: string) => number): NumberIter }\n\nOrdinary generics are unaffected: instantiated types (Map<string, User>, a\nconcrete Iter<string>'s data members) and generic methods that do not\nre-instantiate their container reflect fine. Validators also drop methods\nentirely (methods aren't data), so reflecting just the data shape usually\nsidesteps the problem.",
+  },
+  MKR010: {
+    headline:
+      'Type argument contains the unresolved type parameter `{0}` — a generic must be fully resolved at the marker call, so no id can be computed. See Related for where `{0}` is declared.',
+    severity: 'error',
+    detail:
+      "The build can only compute an id for a fully concrete type. `{0}` is a type\nparameter of the surrounding generic — it takes a different type at each call\nsite, so a single build-time id would alias every instantiation onto one\n(wrong) shape. A parameter DEFAULT does not help here: defaults resolve where\na caller omits the argument, never inside the generic's own body.\n\nFix — resolve the generic before reflecting it:\n  interface Box<T> { value: T }\n  type BoxString = Box<string>;\n  const isBoxString = createValidateFn<BoxString>();   // resolved — ok\n\nFix — or accept a pre-computed id from the caller and inline the marker at\neach concrete call site (same patterns as MKR003):\n  function makeChecker<T>(id: InjectRunTypeId<T>) {\n    return createValidateFn<T>(id);\n  }\n  const isBox = makeChecker<Box<string>>(getRunTypeId<Box<string>>());\n\nGeneric METHODS on a concrete type (`find<T>(query: string): T[]`) are\nunaffected — their own type parameters are bound per call of the method and\nmethods aren't data.",
+  },
+  MKR011: {
+    headline:
+      'Generic type `{0}` is used without its required type argument(s) — parameter `{1}` has no default, so the type cannot resolve to an id. See Related for where `{1}` is declared.',
+    severity: 'error',
+    detail:
+      "TypeScript itself rejects this usage (TS2314), but dev-server builds don't\nrun the type checker, so the scan reads the written type arguments and stops\nthe build here instead of silently reflecting `any` (a validator over `any`\naccepts everything).\n\nFix — pass the missing type argument:\n-  const isA = createValidateFn<A>();\n+  const isA = createValidateFn<A<string>>();\n\nFix — or give the parameter a default, which the compiler resolves at every\nbare use site:\n-  interface A<S extends string> { a: S }\n+  interface A<S extends string = string> { a: S }\n   const isA = createValidateFn<A>();   // now resolves to A<string>",
   },
   NE001: {
     headline:
@@ -379,7 +427,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: 'Overriding `validate` for this type also changes how JSON and binary decoders narrow unions containing it.',
     severity: 'warning',
     detail:
-      "`validate` is a shared dependency across function families: JSON and\nbinary union decoders call the member validators to pick the matching\nbranch. An `overrideValidate<T>()` therefore reaches past\n`createValidate<T>()` — decoders of any union containing T now narrow\nwith YOUR function.\n\nThis is informational; the build proceeds. If the override should only\naffect direct validation, give the union members a discriminant so\ndecoders never fall back to member validation:\n  type Event = {kind: 'click'; x: number} | {kind: 'key'; code: string};",
+      "`validate` is a shared dependency across function families: JSON and\nbinary union decoders call the member validators to pick the matching\nbranch. An `overrideValidate<T>()` therefore reaches past\n`createValidateFn<T>()` — decoders of any union containing T now narrow\nwith YOUR function.\n\nThis is informational; the build proceeds. If the override should only\naffect direct validation, give the union members a discriminant so\ndecoders never fall back to member validation:\n  type Event = {kind: 'click'; x: number} | {kind: 'key'; code: string};",
   },
   PFE9004: {
     headline: 'Duplicate `registerPureFnFactory` for `{0}` with a different body — only one definition can win.',
@@ -886,7 +934,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: '`validationErrors` on `any` / `unknown` always returns an empty error array — nothing is checked.',
     severity: 'warning',
     detail:
-      'Same reason as VL021: `any` and `unknown` describe "anything", so the\nchecker has no structure to compare against. The returned error array\nwill always be empty.\n\nFix — narrow the type to the actual shape you expect:\n  -  const errors = createGetValidationErrors<unknown>()(value);\n+  const errors = createGetValidationErrors<User>()(value);',
+      'Same reason as VL021: `any` and `unknown` describe "anything", so the\nchecker has no structure to compare against. The returned error array\nwill always be empty.\n\nFix — narrow the type to the actual shape you expect:\n  -  const errors = createGetValidationErrorsFn<unknown>()(value);\n+  const errors = createGetValidationErrorsFn<User>()(value);',
   },
   VL001: {
     headline: 'Type `{0}` can never be validated — the generated function will always fail.',
@@ -943,6 +991,6 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
     headline: '`validate` on `any` / `unknown` always returns true — the validator accepts every value.',
     severity: 'warning',
     detail:
-      '`any` and `unknown` describe "anything", so a structural validator has\nnothing to check. The resulting function passes for every input —\nincluding the ones you probably wanted to reject.\n\nFix — narrow the type to the actual shape you expect:\n  -  const isUser = createValidate<unknown>();\n+  const isUser = createValidate<User>();',
+      '`any` and `unknown` describe "anything", so a structural validator has\nnothing to check. The resulting function passes for every input —\nincluding the ones you probably wanted to reject.\n\nFix — narrow the type to the actual shape you expect:\n  -  const isUser = createValidateFn<unknown>();\n+  const isUser = createValidateFn<User>();',
   },
 };

@@ -307,7 +307,7 @@ export interface User {
 import type { FriendlyText } from '@ts-runtypes/core';
 import type { User } from './user';
 
-// scaffolded by `gen`: every field in place, each blank marked @todo
+// scaffolded by `enrich`: every field in place, each blank marked @todo
 export const userFriendly: FriendlyText<User> = {
   rt$label: '', // @todo
   rt$errors: { type: '' }, // @todo
@@ -379,7 +379,7 @@ export interface User {
 import type { MockData } from '@ts-runtypes/core';
 import type { User } from './user';
 
-// scaffolded by `gen`: one entry per field, each blank marked @todo
+// scaffolded by `enrich`: one entry per field, each blank marked @todo
 export const userMock: MockData<User> = {
   name: { pool: [] },       // @todo believable names
   age: { min: 0, max: 0 },  // @todo realistic range
@@ -468,15 +468,10 @@ tiles:
     sub: Random inputs and randomly-generated types, checked against invariants — every finding replayable from a seed.
     hue: 280
     wide: true
-    to: /suites/fuzzing
 ---
 :::::
 
 Every transform, cache shape and generated function is covered — on top of an extensive structured suite spanning validation, JSON, binary, mocks and reflection.
-
-:::::div{class="rt-card-footer"}
-[Correctness, pinned down →](/suites/validation)
-:::::
 ::::
 :::
 ::
@@ -504,7 +499,7 @@ type Order = {
   email: string;
 };
 
-const isUser = createValidate<User>();
+const isUser = createValidateFn<User>();
 ```
 ::::
 
@@ -518,7 +513,7 @@ type Order = {
   email: string;
 };
 
-const isUser = createValidate<User>(__rt_a1b_Xk7);
+const isUser = createValidateFn<User>(__rt_a1b_Xk7);
 ```
 ::::
 

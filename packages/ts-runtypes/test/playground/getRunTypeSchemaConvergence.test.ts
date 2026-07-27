@@ -2,7 +2,7 @@
 // reflected the ts-runtypes `RunType` wrapper interface (RunType / FormatAnnotation
 // / Record + ~40 property signatures) instead of the type the schema models,
 // because getRunType lacked the `(schema: RunType<T>)` overload every createX /
-// createMockData carries. With the overload, the schema form reflects the modeled
+// createMockDataFn carries. With the overload, the schema form reflects the modeled
 // type and converges with the type-first form.
 import {beforeAll, describe, expect, it} from 'vitest';
 import {run, setResolver} from '../../../../container/website/app/playground/index.ts';

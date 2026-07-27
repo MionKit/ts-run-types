@@ -1,33 +1,29 @@
-# ts-runtypes-bin
+# @ts-runtypes/bin
 
-Platform launcher for the [`ts-runtypes`](https://github.com/mionkit/ts-runtypes) resolver binary.
+Platform launcher for the **RunTypes** compiler binary.
 
-This package ships **zero runtime dependencies**. The actual native binary is
-delivered as a per-platform **optional dependency** named
-`ts-runtypes-binary-<os>-<arch>` (e.g. `ts-runtypes-binary-linux-x64`). Each of
-those declares `os` + `cpu`, so your package manager installs only the one
-matching your machine and silently skips the rest.
+You normally never install this directly:
+[`@ts-runtypes/devtools`](https://www.npmjs.com/package/@ts-runtypes/devtools)
+depends on it and uses it to locate the binary for the host it is running on. The
+binary itself rides as a per-platform optional dependency named
+`@ts-runtypes/binary-<os>-<arch>`, so your package manager downloads only the one
+your machine needs. This package ships **zero runtime dependencies**.
 
-You normally never install this directly — `ts-runtypes-devtools` depends on it
-and calls `getExePath()` to locate the binary.
+## Documentation
 
-## API
+Install, guides, and the factory reference live at
+**[runtypes.pages.dev](https://runtypes.pages.dev/)**.
 
-```js
-import {getExePath} from 'ts-runtypes-bin';
+- [Quick start](https://runtypes.pages.dev/introduction/quick-start)
+- [Built on typescript-go](https://runtypes.pages.dev/introduction/built-on-typescript-go)
+- [Source and issues](https://github.com/MionKit/ts-run-types)
 
-const exe = getExePath(); // absolute path to the resolver binary for this host
-```
+## Status
 
-`getExePath()` throws a descriptive error if no compatible
-`ts-runtypes-binary-*` package is installed (unsupported platform, or the
-optional dependency was skipped).
+Experimental.
 
-## CLI
+## License
 
-```sh
-npx ts-runtypes-bin --version
-```
-
-Execs the resolved binary with the given arguments (forwarding stdio and exit
-code).
+Proprietary — all rights reserved. No use, copying, or distribution without prior
+written authorization. See
+[LICENSE](https://github.com/MionKit/ts-run-types/blob/main/LICENSE).

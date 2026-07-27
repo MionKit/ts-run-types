@@ -142,7 +142,7 @@ func CollectEntriesPerNode(dump protocol.Dump) entrymodules.Graph {
 
 // reflectionRoots returns the deduped, sorted ids of every reflection-only
 // site — sites injecting the bare id (FnId empty), i.e. getRunTypeId /
-// value-first builders / createMockData. createX sites
+// value-first builders / createMockDataFn. createX sites
 // demand fn entries instead and never import runtype modules.
 func reflectionRoots(sites []protocol.Site) []string {
 	var roots []string

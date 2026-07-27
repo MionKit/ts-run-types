@@ -1,6 +1,6 @@
 // Real-world DTO scenarios — slim, marker-free copy. Only the named
 // interfaces (imported by the ts-go / typia competitors) plus per-case
-// samples remain; the createValidate / RT.* thunks are dropped so a
+// samples remain; the createValidateFn / RT.* thunks are dropped so a
 // competitor importing these never transitively pulls the marker package.
 
 import type {SharedCase} from '../types.ts';

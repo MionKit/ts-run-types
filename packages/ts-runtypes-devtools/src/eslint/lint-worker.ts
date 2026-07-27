@@ -21,6 +21,7 @@
 // would surface.
 
 import {spawn, type ChildProcess} from 'node:child_process';
+import {existsSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parentPort, workerData} from 'node:worker_threads';
@@ -60,18 +61,35 @@ parentPort?.postMessage({shimReady: true});
 
 let connection: ResolverConnection | null = null;
 
+// resolveConfiguredBinary checks a `settings.runtypes.binary` path up front so a
+// typo reports as a config mistake naming the setting, not as an opaque spawn
+// failure. Same rule the launcher applies to RT_BIN: never fall back to a
+// different binary, whose version would key caches differently.
+function resolveConfiguredBinary(binary: string): string {
+  const resolved = path.resolve(binary);
+  if (!existsSync(resolved)) {
+    throw new Error(`settings.runtypes.binary=${binary} does not exist (resolved to ${resolved})`);
+  }
+  return resolved;
+}
+
 // ensureConnection lazily opens the resolver on the first request, preferring
-// the pre-spawned shim, then a direct spawn.
-async function ensureConnection(): Promise<ResolverConnection> {
+// the pre-spawned shim, then a direct spawn. The tsconfig and the binary are read
+// here, once: the connection is long-lived for the whole run, so the first
+// request's values fix the resolution options for every later file.
+async function ensureConnection(tsconfig: string, binary: string): Promise<ResolverConnection> {
   if (connection) return connection;
-  // No configuration: resolve the host-platform binary from the ts-runtypes-bin
-  // launcher (the same resolution the bundler plugins use; throws with a clear
-  // message if none is installed), rooted at process.cwd() — the directory the
-  // linter itself runs in, like any other linter. Single-threaded: the session
-  // lints one file at a time, and a light child keeps editor/CI hosts well
-  // under process/memory limits.
-  const binaryPath = getExePath();
-  const args = buildResolverArgs(process.cwd(), '', {serverMode: true, singleThreaded: true});
+  // A configured `settings.runtypes.binary` wins; otherwise resolve the
+  // host-platform binary from the ts-runtypes-bin launcher (which honours RT_BIN
+  // and throws with a clear message when no platform package is installed),
+  // rooted at process.cwd() — the directory the linter itself runs in, like any
+  // other linter. Only an explicitly configured tsconfig is forwarded; otherwise
+  // the Go side discovers it exactly as tsc does (upward from cwd) and adopts its
+  // FULL options, so lint type-checks like the build.
+  // Single-threaded: the session lints one file at a time, and a light child keeps
+  // editor/CI hosts well under process/memory limits.
+  const binaryPath = binary ? resolveConfiguredBinary(binary) : getExePath();
+  const args = buildResolverArgs(process.cwd(), tsconfig, {serverMode: true, singleThreaded: true});
   if (shim?.stdin && shim.stdout && shim.exitCode === null) {
     const launcher = shim;
     launcher.stdin!.write(JSON.stringify({exec: binaryPath, args}) + '\n');
@@ -80,7 +98,7 @@ async function ensureConnection(): Promise<ResolverConnection> {
     connection = stream;
     return connection;
   }
-  connection = new ResolverClient(binaryPath, process.cwd(), '', {serverMode: true, singleThreaded: true});
+  connection = new ResolverClient(binaryPath, process.cwd(), tsconfig, {serverMode: true, singleThreaded: true});
   return connection;
 }
 
@@ -126,7 +144,7 @@ async function lintOne(request: LintWorkerRequest): Promise<LintWorkerResponse> 
   for (let attempt = 0; ; attempt++) {
     let stage: 'connect' | 'scan' = 'connect';
     try {
-      const resolver = await ensureConnection();
+      const resolver = await ensureConnection(request.tsconfig ?? '', request.binary ?? '');
       stage = 'scan';
       const rel = path.relative(process.cwd(), request.file) || request.file;
       await resolver.setSources({[rel]: request.text});
@@ -140,13 +158,33 @@ async function lintOne(request: LintWorkerRequest): Promise<LintWorkerResponse> 
       ];
       return {seq: request.seq, diagnostics};
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // A CFG001-tagged op error is the daemon refusing to load the project
+      // tsconfig (strict like tsc) — deterministic, so retrying is pointless.
+      // Surface it as a real Error-severity lint diagnostic at the file top
+      // (the config problem is the actionable finding) instead of reporting
+      // the engine unavailable. The connection stays up: the daemon re-parses
+      // on the next setSources, so a fixed config heals the very next lint.
+      if (message.includes('CFG001')) {
+        return {
+          seq: request.seq,
+          diagnostics: [
+            {
+              code: 'CFG001',
+              family: Family.Marker,
+              severity: Severity.Error,
+              args: [message.replace(/^.*CFG001\s*/, '')],
+              site: {filePath: request.file, startLine: 1, startCol: 1},
+            },
+          ],
+        };
+      }
       connection?.close();
       connection = null;
       if (attempt === 0) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
-      const message = error instanceof Error ? error.message : String(error);
       return {seq: request.seq, error: message, fatal: stage === 'connect' || connectionLostPattern.test(message)};
     }
   }

@@ -24,11 +24,11 @@ const ENTRY = path.join(FIXTURE_DIR, 'entry.ts');
 // shared dir would race-delete this fixture's modules. Cleaned with FIXTURE_DIR.
 const OUT_DIR = path.join(FIXTURE_DIR, '__runtypes');
 
-const FIXTURE = `import {createValidate} from '@ts-runtypes/core';
+const FIXTURE = `import {createValidateFn} from '@ts-runtypes/core';
 interface RollupThing {
   rollupProp: string;
 }
-export const isThing = createValidate<RollupThing>();
+export const isThing = createValidateFn<RollupThing>();
 `;
 
 // unplugin emits each Rollup hook as either a plain function or a { handler }

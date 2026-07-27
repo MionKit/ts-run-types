@@ -25,7 +25,7 @@
 // calendar/time-zone variety is out of scope (documented in the spec).
 
 import {RunTypeSubKind} from '../go-generated/runTypeKind.generated.ts';
-import {random} from './mockUtils.ts';
+import type {MockRandom} from './mockRandom.ts';
 
 // Minimal structural views of the global Temporal namespace — just the
 // constructors + statics the builders call. Avoids a hard dependency on the
@@ -72,51 +72,51 @@ const pad = (n: number, width = 2): string => String(n).padStart(width, '0');
 
 // Random calendar parts in safe ranges (day ≤ 28 to avoid month-length edge
 // cases — every month has 28 days).
-function randomDateParts(): {year: number; month: number; day: number} {
-  return {year: random(1970, 2099), month: random(1, 12), day: random(1, 28)};
+function randomDateParts(random: MockRandom): {year: number; month: number; day: number} {
+  return {year: random.int(1970, 2099), month: random.int(1, 12), day: random.int(1, 28)};
 }
-function randomTimeParts(): {hour: number; minute: number; second: number} {
-  return {hour: random(0, 23), minute: random(0, 59), second: random(0, 59)};
+function randomTimeParts(random: MockRandom): {hour: number; minute: number; second: number} {
+  return {hour: random.int(0, 23), minute: random.int(0, 59), second: random.int(0, 59)};
 }
 
-function mockPlainDate(): unknown {
-  const d = randomDateParts();
+function mockPlainDate(random: MockRandom): unknown {
+  const d = randomDateParts(random);
   return temporal().PlainDate.from(`${pad(d.year, 4)}-${pad(d.month)}-${pad(d.day)}`);
 }
-function mockPlainTime(): unknown {
-  const tm = randomTimeParts();
+function mockPlainTime(random: MockRandom): unknown {
+  const tm = randomTimeParts(random);
   return temporal().PlainTime.from(`${pad(tm.hour)}:${pad(tm.minute)}:${pad(tm.second)}`);
 }
-function mockPlainDateTime(): unknown {
-  const d = randomDateParts();
-  const tm = randomTimeParts();
+function mockPlainDateTime(random: MockRandom): unknown {
+  const d = randomDateParts(random);
+  const tm = randomTimeParts(random);
   return temporal().PlainDateTime.from(
     `${pad(d.year, 4)}-${pad(d.month)}-${pad(d.day)}T${pad(tm.hour)}:${pad(tm.minute)}:${pad(tm.second)}`
   );
 }
-function mockPlainYearMonth(): unknown {
-  const d = randomDateParts();
+function mockPlainYearMonth(random: MockRandom): unknown {
+  const d = randomDateParts(random);
   return temporal().PlainYearMonth.from(`${pad(d.year, 4)}-${pad(d.month)}`);
 }
-function mockPlainMonthDay(): unknown {
-  const d = randomDateParts();
+function mockPlainMonthDay(random: MockRandom): unknown {
+  const d = randomDateParts(random);
   return temporal().PlainMonthDay.from(`${pad(d.month)}-${pad(d.day)}`);
 }
-function mockInstant(): unknown {
+function mockInstant(random: MockRandom): unknown {
   // Random epoch ms within a few decades around the epoch.
-  return temporal().Instant.fromEpochMilliseconds(random(0, 4102444800000));
+  return temporal().Instant.fromEpochMilliseconds(random.int(0, 4102444800000));
 }
-function mockZonedDateTime(): unknown {
-  const d = randomDateParts();
-  const tm = randomTimeParts();
+function mockZonedDateTime(random: MockRandom): unknown {
+  const d = randomDateParts(random);
+  const tm = randomTimeParts(random);
   return temporal().ZonedDateTime.from(
     `${pad(d.year, 4)}-${pad(d.month)}-${pad(d.day)}T${pad(tm.hour)}:${pad(tm.minute)}:${pad(tm.second)}[UTC]`
   );
 }
-function mockDuration(): unknown {
+function mockDuration(random: MockRandom): unknown {
   // A simple, always-valid positive duration.
   return temporal().Duration.from(
-    `P${random(0, 5)}Y${random(0, 11)}M${random(0, 27)}DT${random(0, 23)}H${random(0, 59)}M${random(0, 59)}S`
+    `P${random.int(0, 5)}Y${random.int(0, 11)}M${random.int(0, 27)}DT${random.int(0, 23)}H${random.int(0, 59)}M${random.int(0, 59)}S`
   );
 }
 
@@ -158,7 +158,7 @@ function instantFromNs(ns: bigint): {toZonedDateTimeISO(tz: string): unknown} {
   return temporal().Instant.fromEpochNanoseconds(ns) as {toZonedDateTimeISO(tz: string): unknown};
 }
 
-function boundAdapter(subKind: number): BoundAdapter | undefined {
+function boundAdapter(subKind: number, random: MockRandom): BoundAdapter | undefined {
   const T = temporal();
   switch (subKind) {
     case RunTypeSubKind.temporalInstant:
@@ -168,7 +168,7 @@ function boundAdapter(subKind: number): BoundAdapter | undefined {
         fromLiteral: (s) => T.Instant.from(s),
         key: (i) => (i as {epochNanoseconds: bigint}).epochNanoseconds,
         fromKey: (k) => T.Instant.fromEpochNanoseconds(k),
-        fallback: mockInstant,
+        fallback: () => mockInstant(random),
       };
     case RunTypeSubKind.temporalZonedDateTime:
       return {
@@ -177,7 +177,7 @@ function boundAdapter(subKind: number): BoundAdapter | undefined {
         fromLiteral: (s) => T.ZonedDateTime.from(s),
         key: (i) => (i as {epochNanoseconds: bigint}).epochNanoseconds,
         fromKey: (k) => instantFromNs(k).toZonedDateTimeISO('UTC'),
-        fallback: mockZonedDateTime,
+        fallback: () => mockZonedDateTime(random),
       };
     case RunTypeSubKind.temporalPlainDate:
       return {
@@ -186,7 +186,7 @@ function boundAdapter(subKind: number): BoundAdapter | undefined {
         fromLiteral: (s) => T.PlainDate.from(s),
         key: (i) => (i as {toZonedDateTime(tz: string): {epochNanoseconds: bigint}}).toZonedDateTime('UTC').epochNanoseconds,
         fromKey: (k) => (instantFromNs(k).toZonedDateTimeISO('UTC') as {toPlainDate(): unknown}).toPlainDate(),
-        fallback: mockPlainDate,
+        fallback: () => mockPlainDate(random),
       };
     case RunTypeSubKind.temporalPlainTime:
       return {
@@ -198,7 +198,7 @@ function boundAdapter(subKind: number): BoundAdapter | undefined {
             .toPlainDateTime(i)
             .toZonedDateTime('UTC').epochNanoseconds,
         fromKey: (k) => (instantFromNs(k).toZonedDateTimeISO('UTC') as {toPlainTime(): unknown}).toPlainTime(),
-        fallback: mockPlainTime,
+        fallback: () => mockPlainTime(random),
       };
     case RunTypeSubKind.temporalPlainDateTime:
       return {
@@ -207,7 +207,7 @@ function boundAdapter(subKind: number): BoundAdapter | undefined {
         fromLiteral: (s) => T.PlainDateTime.from(s),
         key: (i) => (i as {toZonedDateTime(tz: string): {epochNanoseconds: bigint}}).toZonedDateTime('UTC').epochNanoseconds,
         fromKey: (k) => (instantFromNs(k).toZonedDateTimeISO('UTC') as {toPlainDateTime(): unknown}).toPlainDateTime(),
-        fallback: mockPlainDateTime,
+        fallback: () => mockPlainDateTime(random),
       };
     case RunTypeSubKind.temporalPlainYearMonth:
       return {
@@ -219,7 +219,7 @@ function boundAdapter(subKind: number): BoundAdapter | undefined {
           return BigInt(ym.year) * 12n + BigInt(ym.month - 1);
         },
         fromKey: (k) => T.PlainYearMonth.from({year: Number(k / 12n), month: Number(k % 12n) + 1}),
-        fallback: mockPlainYearMonth,
+        fallback: () => mockPlainYearMonth(random),
       };
     default:
       return undefined;
@@ -248,7 +248,7 @@ function boundKey(adapter: BoundAdapter, bound: string): bigint {
 
 // randomBigIntBelow returns a uniform-ish bigint in [0, n) for n > 0, drawing
 // 30 random bits at a time (mocking needs spread, not cryptographic quality).
-function randomBigIntBelow(n: bigint): bigint {
+function randomBigIntBelow(n: bigint, random: MockRandom): bigint {
   if (n <= 1n) return 0n;
   const bits = n.toString(2).length;
   const mask = (1n << BigInt(bits)) - 1n;
@@ -256,22 +256,22 @@ function randomBigIntBelow(n: bigint): bigint {
   do {
     result = 0n;
     for (let b = 0; b < bits; b += 30) {
-      result = (result << 30n) | BigInt(Math.floor(Math.random() * (1 << 30)));
+      result = (result << 30n) | BigInt(Math.floor(random.float() * (1 << 30)));
     }
     result &= mask;
   } while (result >= n);
   return result;
 }
 
-function randBigInt(lo: bigint, hi: bigint): bigint {
+function randBigInt(lo: bigint, hi: bigint, random: MockRandom): bigint {
   if (hi <= lo) return lo;
-  return lo + randomBigIntBelow(hi - lo + 1n);
+  return lo + randomBigIntBelow(hi - lo + 1n, random);
 }
 
 // mockBoundedTemporal returns a value of the orderable Temporal type for
 // `adapter` satisfying the bound set, or the adapter's unbounded fallback
 // when no bound is set.
-function mockBoundedTemporal(adapter: BoundAdapter, bounds: TemporalBounds): unknown {
+function mockBoundedTemporal(adapter: BoundAdapter, bounds: TemporalBounds, random: MockRandom): unknown {
   let lo: bigint | undefined;
   let hi: bigint | undefined;
   const raise = (candidate: bigint): void => {
@@ -291,34 +291,34 @@ function mockBoundedTemporal(adapter: BoundAdapter, bounds: TemporalBounds): unk
   if (lo === undefined) lo = (hi as bigint) - spread;
   if (hi === undefined) hi = lo + spread;
   if (hi < lo) hi = lo; // contradictory bounds — collapse to the lower edge
-  return adapter.fromKey(randBigInt(lo, hi));
+  return adapter.fromKey(randBigInt(lo, hi, random));
 }
 
 // mockTemporal returns a random valid instance for a Temporal SubKind
 // (honoring FormatTemporalX bounds when present), or undefined when the
 // subKind isn't a Temporal type (caller falls through).
-export function mockTemporal(subKind: number, bounds?: TemporalBounds): unknown {
+export function mockTemporal(subKind: number, bounds: TemporalBounds | undefined, random: MockRandom): unknown {
   if (bounds) {
-    const adapter = boundAdapter(subKind);
-    if (adapter) return mockBoundedTemporal(adapter, bounds);
+    const adapter = boundAdapter(subKind, random);
+    if (adapter) return mockBoundedTemporal(adapter, bounds, random);
   }
   switch (subKind) {
     case RunTypeSubKind.temporalInstant:
-      return mockInstant();
+      return mockInstant(random);
     case RunTypeSubKind.temporalZonedDateTime:
-      return mockZonedDateTime();
+      return mockZonedDateTime(random);
     case RunTypeSubKind.temporalPlainDate:
-      return mockPlainDate();
+      return mockPlainDate(random);
     case RunTypeSubKind.temporalPlainTime:
-      return mockPlainTime();
+      return mockPlainTime(random);
     case RunTypeSubKind.temporalPlainDateTime:
-      return mockPlainDateTime();
+      return mockPlainDateTime(random);
     case RunTypeSubKind.temporalPlainYearMonth:
-      return mockPlainYearMonth();
+      return mockPlainYearMonth(random);
     case RunTypeSubKind.temporalPlainMonthDay:
-      return mockPlainMonthDay();
+      return mockPlainMonthDay(random);
     case RunTypeSubKind.temporalDuration:
-      return mockDuration();
+      return mockDuration(random);
     default:
       return undefined;
   }

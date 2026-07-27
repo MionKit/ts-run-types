@@ -3,6 +3,7 @@ package typefunctions
 import (
 	"strconv"
 
+	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -131,6 +132,20 @@ func (ctx *EmitContext) IsRoot() bool {
 	return ctx.walker != nil && len(ctx.walker.Stack) == 1
 }
 
+// ParentIsUnion reports whether the immediate parent frame is a union.
+// compileNode resolves refs before pushStack (walker.go), so the parent
+// frame's RT is the real resolved type, never a ref placeholder. Used by
+// emitObjectValidate to drop its own `typeof === 'object'` guard when it
+// sits as a direct union member — emitUnionValidate already wraps the whole
+// object OR-chain in one shared guard, so the per-arm repeat is dead weight.
+func (ctx *EmitContext) ParentIsUnion() bool {
+	if ctx.walker == nil || len(ctx.walker.Stack) < 2 {
+		return false
+	}
+	parent := ctx.walker.Stack[len(ctx.walker.Stack)-2].RT
+	return parent != nil && parent.Kind == protocol.KindUnion
+}
+
 // HasVariantOption reports whether the current walker is rendering
 // the variant identified by `name` (e.g. "noLiterals",
 // "noIsArrayCheck"). Always false for plain walkers. Root-scoped:
@@ -142,6 +157,14 @@ func (ctx *EmitContext) HasVariantOption(name string) bool {
 		return false
 	}
 	return ctx.walker.VariantOptions[name]
+}
+
+// NumberMode returns the numberMode (validateOptions.numberMode) the current
+// variant root is rendering — "typeof" / "notNaN" / "isFinite" (default).
+// Root-scoped like HasVariantOption: nested same-kind nodes render with the
+// default check and dispatch to plain factories.
+func (ctx *EmitContext) NumberMode() string {
+	return constants.NumberModeFromOptions(ctx.HasVariantOption)
 }
 
 // ResolveRef dereferences a KindRef sentinel via the walker's ref

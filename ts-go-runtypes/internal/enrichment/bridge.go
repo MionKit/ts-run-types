@@ -2,9 +2,12 @@ package enrichment
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
+	"github.com/microsoft/typescript-go/shim/bundled"
 	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
@@ -17,7 +20,7 @@ type Resolved struct {
 	// Node is the canonical full RunType for the named type (not a ref).
 	Node *protocol.RunType
 	// Resolve looks up a KindRef's canonical node by id — pass this as the
-	// walkers' DescribeOptions.Resolve / the skeleton emitters' resolve arg.
+	// skeleton / closure emitters' resolve arg.
 	Resolve func(id string) *protocol.RunType
 	// DeclFiles maps a named type's RunType.ID to the absolute path of its
 	// declaration source file (followed through re-exports/aliases to the
@@ -32,7 +35,7 @@ type Resolved struct {
 // path, it finds the type alias / interface / class declaration named
 // typeName, asks the checker for its declared type, and projects it through
 // the cache to a canonical *protocol.RunType. The returned Resolve closure
-// (cache.NodeByID) lets the emit/describe walkers follow ref sentinels in the
+// (cache.NodeByID) lets the emit walkers follow ref sentinels in the
 // child slots.
 //
 // Callers pass the resolver's OWN checker + cache (res.Checker() /
@@ -81,7 +84,7 @@ func ResolveType(prog *program.Program, typeChecker *checker.Checker, cache *run
 // the emitter follows those refs.
 //
 // Use this for EmitClosure (multi-const, references between named types); the
-// single-const describe/gen path stays on ResolveType (which inlines).
+// single-const gen path stays on ResolveType (which inlines).
 func ResolveTypeRaw(prog *program.Program, typeChecker *checker.Checker, cache *runtype.Cache, absPath, typeName string) (*Resolved, error) {
 	if prog == nil {
 		return nil, fmt.Errorf("enrich.ResolveTypeRaw: program is nil")
@@ -137,6 +140,18 @@ func collectDeclFiles(typeChecker *checker.Checker, cache *runtype.Cache, tsType
 // this is the backstop, matching enrich.maxWalkDepth).
 const declFileWalkDepth = 64
 
+// bundledLibPrefix is the bundled default-lib directory (normalized). A type
+// declared under it is a LIB type and is never AssignID'd or descended
+// member-wise here: the architecture projects builtins atomically and never
+// walks or interns lib members, and the newer libs' deeply generic
+// self-referential structures (lib.esnext's IteratorObject family) instantiate
+// FRESH types on every member query — pointer-based cycle detection never
+// fires and the structural-id walk overflows the stack. Only reached when the
+// project tsconfig selects such a lib (target esnext / target unset); a lib
+// file is also never a valid mirror target. Type ARGUMENTS still descend, so a
+// user type inside Map<string, User> is found.
+var bundledLibPrefix = tspath.NormalizePath(bundled.LibPath())
+
 func walkDeclFiles(typeChecker *checker.Checker, cache *runtype.Cache, tsType *checker.Type, out map[string]string, visited map[*checker.Type]bool, depth int) {
 	if tsType == nil || depth > declFileWalkDepth || visited[tsType] {
 		return
@@ -145,8 +160,17 @@ func walkDeclFiles(typeChecker *checker.Checker, cache *runtype.Cache, tsType *c
 
 	// Record this type's decl file when it is a NAMED type (alias or interface/
 	// class symbol with a declaration). AssignID projects it into the cache and
-	// returns the same structural id the closure emitter keys on.
+	// returns the same structural id the closure emitter keys on. Lib-declared
+	// types record nothing and stop the member descent (see bundledLibPrefix).
 	if file := declFileForType(tsType); file != "" {
+		if strings.HasPrefix(tspath.NormalizePath(file), bundledLibPrefix) {
+			if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
+				for _, typeArgument := range typeChecker.GetTypeArguments(tsType) {
+					walkDeclFiles(typeChecker, cache, typeArgument, out, visited, depth+1)
+				}
+			}
+			return
+		}
 		id := cache.AssignID(tsType)
 		if id != "" {
 			out[id] = file

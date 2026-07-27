@@ -1,4 +1,4 @@
-// Reference interpreter for `createCloneExactShape<T>()` — the executable
+// Reference interpreter for `createCloneExactShapeFn<T>()` — the executable
 // oracle the clone fuzz compares the COMPILED clone against (O15).
 //
 // A naive, obviously-correct walk of the reflected RunType graph that mirrors

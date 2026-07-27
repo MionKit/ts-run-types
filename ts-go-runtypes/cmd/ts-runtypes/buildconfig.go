@@ -18,6 +18,7 @@ type buildFlags struct {
 	set                    map[string]bool
 	hashLength             int
 	singleThreaded         bool
+	noSingleThreaded       bool
 	noParallelScan         bool
 	noParallelRender       bool
 	genDir                 string
@@ -31,6 +32,7 @@ type buildFlags struct {
 	sizeItems              int
 	sizeStringBytes        int
 	sizeMaxBytes           int
+	numberMode             string
 }
 
 // buildOptions is the merged build configuration the resolver consumes.
@@ -50,6 +52,7 @@ type buildOptions struct {
 	sizeItems              int
 	sizeStringBytes        int
 	sizeMaxBytes           int
+	numberMode             string
 }
 
 // mergeBuildOptions resolves the effective build configuration from the CLI
@@ -76,6 +79,7 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		sizeItems:              flags.sizeItems,
 		sizeStringBytes:        flags.sizeStringBytes,
 		sizeMaxBytes:           flags.sizeMaxBytes,
+		numberMode:             flags.numberMode,
 	}
 
 	if !flags.set["emit-mode"] && strings.TrimSpace(plugin.EmitMode) != "" {
@@ -90,7 +94,17 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 	if !flags.set["hash-length"] && plugin.HashLength != nil {
 		out.hashLength = *plugin.HashLength
 	}
-	if !flags.set["single-threaded"] && plugin.SingleThreaded != nil {
+	// singleThreaded: an explicit --single-threaded / --no-single-threaded (either
+	// direction) wins over the tsconfig entry; the tsconfig fills in only when
+	// NEITHER was passed. The --no-single-threaded opt-out lets a host plugin force
+	// multi-threaded (its singleThreaded:false) over a tsconfig singleThreaded:true,
+	// matching the parallelScan / parallelRender override shape.
+	switch {
+	case flags.set["single-threaded"]:
+		out.singleThreaded = true
+	case flags.set["no-single-threaded"]:
+		out.singleThreaded = false
+	case plugin.SingleThreaded != nil:
 		out.singleThreaded = *plugin.SingleThreaded
 	}
 	if !flags.set["allow-unchecked-patterns"] && plugin.AllowUncheckedPatterns != nil {
@@ -125,6 +139,12 @@ func mergeBuildOptions(flags buildFlags, plugin tsRuntypesPlugin, absCwd string)
 		if !flags.set["size-max-bytes"] && size.MaxBytes != nil {
 			out.sizeMaxBytes = *size.MaxBytes
 		}
+	}
+
+	// numberMode default (validate.numberMode): a tsconfig value fills in only
+	// when --number-mode was not explicitly passed, tsc-style.
+	if !flags.set["number-mode"] && plugin.Validate != nil && strings.TrimSpace(plugin.Validate.NumberMode) != "" {
+		out.numberMode = strings.TrimSpace(plugin.Validate.NumberMode)
 	}
 
 	// parallelScan / parallelRender read true=on (matching the host plugin's

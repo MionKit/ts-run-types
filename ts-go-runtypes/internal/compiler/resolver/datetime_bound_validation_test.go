@@ -29,9 +29,9 @@ type boundCase struct {
 // snippet and returns the FMT002 diagnostics.
 func scanBoundCase(t *testing.T, format, params string) []diagnostics.Diagnostic {
 	t.Helper()
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<string, '` + format + `', ` + params + `>>();
+export const _ = createValidateFn<TypeFormat<string, '` + format + `', ` + params + `>>();
 `
 	return scanForFormatParamDiagnostics(t, code)
 }

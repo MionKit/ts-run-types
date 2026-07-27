@@ -391,6 +391,13 @@ const (
 	// is the filesystem-output path that replaces virtual modules; the
 	// transform op injects relative imports to these real files.
 	OpGenerate = "generate"
+	// OpEnrich scaffolds / reconciles the enrichment mirror files — the daemon face
+	// of the CLI `enrich` verb, so a bundler plugin can drive the scaffold + sync
+	// pass over the warm connection instead of spawning. It returns the computed
+	// mirror CONTENT (Response.EnrichFiles) and NEVER writes; EnrichNoEmit=true
+	// returns Diagnostics only. Shares enrichgen.Plan + mirror.Scaffold/Reconcile
+	// with the CLI verb, so the two produce byte-identical mirrors.
+	OpEnrich = "enrich"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -448,6 +455,12 @@ type Request struct {
 	// (self-contained maps stay the norm); the transform-mode benchmark sweeps
 	// it. No effect in 'edits' mode (the FE generates its own map).
 	OmitSourcesContent bool `json:"omitSourcesContent,omitempty"`
+	// OpEnrich carries NO fields of its own beyond Files: the wire carries the
+	// EVENT (which files changed; empty = whole program) and the session carries
+	// the CONFIG — families, i18n locales, and the output root all ride
+	// resolver.Options, loaded once at spawn (the serve --gen-dir / --enrich-*
+	// flags, defaulting from the tsconfig plugin entry). The daemon owns the
+	// (demanded type name → source file) mapping the caller cannot do itself.
 }
 
 // Metrics is the per-op performance block, populated only when
@@ -580,12 +593,23 @@ type Response struct {
 	// import sniffing required. Emitted via the hand-rolled MarshalJSON
 	// below (the struct tag alone doesn't put it on the wire).
 	SiteFiles []string `json:"siteFiles,omitempty"`
+	// EnrichFiles is OpEnrich's computed enrichment mirror files (path + desired
+	// CONTENT + Added + Kind). The daemon never writes — the caller (a bundler
+	// plugin) writes them under its own HMR-suppression window. Emitted via the
+	// hand-rolled MarshalJSON below (the struct tag alone doesn't put it on the wire).
+	EnrichFiles []EnrichFile `json:"enrichFiles,omitempty"`
 	// OutDir is the RunTypes output root OpGenerate actually wrote to. When the
 	// request left OutDir empty the resolver infers <srcDir>/__runtypes from the
 	// tsconfig (rootDir → common-ancestor of the program's files → baseUrl →
 	// cwd) and echoes the resolved absolute path here, so the dependency-free
 	// plugin can adopt it (write .gitignore/.gitkeep, reuse it for transform).
 	OutDir string `json:"outDir,omitempty"`
+	// FailOnError echoes the tsconfig plugin's failOnError on OpGenerate (nil
+	// when the tsconfig sets none) so the dependency-free host can honor a
+	// tsconfig-only setting; the plugin adopts it as the halt default (its own
+	// option wins, then this echo, then the built-in true). Emitted via the
+	// hand-rolled MarshalJSON below.
+	FailOnError *bool `json:"failOnError,omitempty"`
 	// Transformed carries one TransformResult per file for OpTransform: the
 	// fully rewritten source + its source map (+ the cache modules the file now
 	// imports). Keyed by file path, scoped to the request's Files.
@@ -692,6 +716,17 @@ type UncheckedPattern struct {
 	Flags   string           `json:"flags,omitempty"`
 	Samples []string         `json:"samples"`
 	Site    diagnostics.Site `json:"site"`
+}
+
+// EnrichFile is one computed enrichment mirror file returned by OpEnrich: its
+// absolute Path, the desired CONTENT (the daemon never writes — the caller writes
+// it under its own HMR-suppression window), whether it is newly Added (no prior
+// on-disk file), and its family Kind ("friendly" | "mock").
+type EnrichFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	Added   bool   `json:"added,omitempty"`
+	Kind    string `json:"kind,omitempty"`
 }
 
 // PureFnSite is one generated pure-fn entry a build produced, reported in
@@ -898,8 +933,14 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if len(response.SiteFiles) > 0 {
 		out["siteFiles"] = response.SiteFiles
 	}
+	if len(response.EnrichFiles) > 0 {
+		out["enrichFiles"] = response.EnrichFiles
+	}
 	if response.OutDir != "" {
 		out["outDir"] = response.OutDir
+	}
+	if response.FailOnError != nil {
+		out["failOnError"] = *response.FailOnError
 	}
 	if len(response.Transformed) > 0 {
 		out["transformed"] = response.Transformed

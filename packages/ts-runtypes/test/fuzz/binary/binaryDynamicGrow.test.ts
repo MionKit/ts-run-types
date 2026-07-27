@@ -10,7 +10,7 @@
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect, beforeAll, afterAll} from 'vitest';
 import * as RT from '@ts-runtypes/core/schema';
-import {createBinaryEncoder, createBinaryDecoder} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createBinaryDecoderFn} from '@ts-runtypes/core';
 import {setSerializationOptions} from '../../../src/runtypes/dataView.ts';
 
 beforeAll(() => setSerializationOptions({defaultBufferSize: 1, sizeHistory: new Map()}));
@@ -19,18 +19,18 @@ afterAll(() => setSerializationOptions({defaultBufferSize: 2 ** 14, sizeHistory:
 describe('dynamic sizing grows in place from a 1-byte buffer (no backstop)', () => {
   it('number scalar + fixed-width number array (container reserve)', () => {
     const obj = RT.object({n: TF.number(), flag: RT.boolean()});
-    const e1 = createBinaryEncoder(obj);
-    expect(createBinaryDecoder(obj)(e1({n: 3.14159, flag: true}))).toEqual({n: 3.14159, flag: true});
+    const e1 = createBinaryEncoderFn(obj);
+    expect(createBinaryDecoderFn(obj)(e1({n: 3.14159, flag: true}))).toEqual({n: 3.14159, flag: true});
 
     const arr = RT.array(TF.number());
     const big = Array.from({length: 500}, (_, i) => i * 1.5);
-    expect(createBinaryDecoder(arr)(createBinaryEncoder(arr)(big))).toEqual(big);
+    expect(createBinaryDecoderFn(arr)(createBinaryEncoderFn(arr)(big))).toEqual(big);
   });
 
   it('long string array (serString in-place grow)', () => {
     const s = RT.array(TF.string());
     const v = Array.from({length: 50}, (_, i) => 'x'.repeat(200 + i));
-    expect(createBinaryDecoder(s)(createBinaryEncoder(s)(v))).toEqual(v);
+    expect(createBinaryDecoderFn(s)(createBinaryEncoderFn(s)(v))).toEqual(v);
   });
 
   it('multi-optional object (optional bitmap zero-loop reserve)', () => {
@@ -45,30 +45,30 @@ describe('dynamic sizing grows in place from a 1-byte buffer (no backstop)', () 
       h: RT.optional(TF.string()),
       i: RT.optional(TF.string()), // > 8 optionals → multi-byte bitmap zero-loop
     });
-    const dec = createBinaryDecoder(s);
-    const enc = createBinaryEncoder(s);
+    const dec = createBinaryDecoderFn(s);
+    const enc = createBinaryEncoderFn(s);
     expect(dec(enc({a: 'hi', e: 42, i: 'end'}))).toEqual({a: 'hi', e: 42, i: 'end'});
     expect(dec(enc({}))).toEqual({});
   });
 
   it('discriminated union (tag reserve)', () => {
     const s = RT.union([RT.object({k: RT.literal('a'), x: TF.number()}), RT.object({k: RT.literal('b'), y: TF.string()})]);
-    const dec = createBinaryDecoder(s);
-    const enc = createBinaryEncoder(s);
+    const dec = createBinaryDecoderFn(s);
+    const enc = createBinaryEncoderFn(s);
     expect(dec(enc({k: 'a', x: 7}))).toEqual({k: 'a', x: 7});
     expect(dec(enc({k: 'b', y: 'hello'}))).toEqual({k: 'b', y: 'hello'});
   });
 
   it('record / index signature (count slot + key reserve)', () => {
-    const s = createBinaryEncoder<{[k: string]: number}>(undefined, {cacheKey: 'grow-record'});
+    const s = createBinaryEncoderFn<{[k: string]: number}>(undefined, {cacheKey: 'grow-record'});
     const v = {alpha: 1, beta: 2, gamma: 3, delta: 4};
-    expect(createBinaryDecoder<{[k: string]: number}>()(s(v))).toEqual(v);
+    expect(createBinaryDecoderFn<{[k: string]: number}>()(s(v))).toEqual(v);
   });
 
   it('Date array (8-byte inline reserve)', () => {
-    const s = createBinaryEncoder<Date[]>(undefined, {cacheKey: 'grow-dates'});
+    const s = createBinaryEncoderFn<Date[]>(undefined, {cacheKey: 'grow-dates'});
     const v = [new Date('2020-01-01T00:00:00Z'), new Date('2021-06-15T12:30:00Z')];
-    const out = createBinaryDecoder<Date[]>()(s(v)) as Date[];
+    const out = createBinaryDecoderFn<Date[]>()(s(v)) as Date[];
     expect(out.map((d) => d.getTime())).toEqual(v.map((d) => d.getTime()));
   });
 
@@ -85,6 +85,6 @@ describe('dynamic sizing grows in place from a 1-byte buffer (no backstop)', () 
       profile: {name: 'Ada Lovelace', age: 36, active: true, bio: 'mathematician'},
       tags: ['alpha', 'beta', 'gamma', 'delta', 'epsilon'],
     };
-    expect(createBinaryDecoder(s)(createBinaryEncoder(s)(v))).toEqual(v);
+    expect(createBinaryDecoderFn(s)(createBinaryEncoderFn(s)(v))).toEqual(v);
   });
 });

@@ -1,6 +1,12 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createStandardSchema,
+  type DataOnly,
+} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -102,7 +108,7 @@ export const REALWORLD = {
         active: boolean;
         createdAt: string;
       }
-      return createValidate<User>();
+      return createValidateFn<User>();
     },
     standardSchema: () => createStandardSchema<User>(),
     // One hand-authored Standard Schema expectation per file. Every other case
@@ -119,9 +125,9 @@ export const REALWORLD = {
       [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
       [{message: 'Expected objectLiteral', path: [], expected: 'objectLiteral'}],
     ],
-    validateDataOnly: () => createValidate<DataOnly<User>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<User>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.object({
           id: TF.number(),
           email: TF.string(),
@@ -135,16 +141,16 @@ export const REALWORLD = {
     deserializeValidate: () => deserializeValidate<User>(),
     validateReflect: () => {
       const v: User = sampleUser();
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: User = sampleUser();
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<User>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<User>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<User>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<User>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.object({
           id: TF.number(),
           email: TF.string(),
@@ -158,16 +164,16 @@ export const REALWORLD = {
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<User>(),
     getValidationErrorsReflect: () => {
       const v: User = sampleUser();
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: User = sampleUser();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<User>(),
+    mockType: () => createMockDataFn<User>(),
     mockTypeReflect: () => {
       const v: User = sampleUser();
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [sampleUser(), sampleUser({age: 30, roles: ['admin', 'editor']})],
@@ -217,12 +223,12 @@ export const REALWORLD = {
         total: number;
         note?: string;
       }
-      return createValidate<Order>();
+      return createValidateFn<Order>();
     },
     standardSchema: () => createStandardSchema<Order>(),
-    validateDataOnly: () => createValidate<DataOnly<Order>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<Order>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.object({
           id: TF.string(),
           customer: RT.object({id: TF.number(), email: TF.string()}),
@@ -248,16 +254,16 @@ export const REALWORLD = {
     deserializeValidate: () => deserializeValidate<Order>(),
     validateReflect: () => {
       const v: Order = makeOrder();
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: Order = makeOrder();
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Order>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Order>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<Order>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<Order>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.object({
           id: TF.string(),
           customer: RT.object({id: TF.number(), email: TF.string()}),
@@ -283,16 +289,16 @@ export const REALWORLD = {
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Order>(),
     getValidationErrorsReflect: () => {
       const v: Order = makeOrder();
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: Order = makeOrder();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<Order>(),
+    mockType: () => createMockDataFn<Order>(),
     mockTypeReflect: () => {
       const v: Order = makeOrder();
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => {
       const ok = makeOrder();
@@ -336,12 +342,12 @@ export const REALWORLD = {
         publishedAt?: string;
         meta: {views: number; likes: number};
       }
-      return createValidate<BlogPost>();
+      return createValidateFn<BlogPost>();
     },
     standardSchema: () => createStandardSchema<BlogPost>(),
-    validateDataOnly: () => createValidate<DataOnly<BlogPost>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<BlogPost>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.object({
           id: TF.number(),
           title: TF.string(),
@@ -357,16 +363,16 @@ export const REALWORLD = {
     deserializeValidate: () => deserializeValidate<BlogPost>(),
     validateReflect: () => {
       const v: BlogPost = makeBlogPost();
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: BlogPost = makeBlogPost();
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<BlogPost>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<BlogPost>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<BlogPost>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<BlogPost>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.object({
           id: TF.number(),
           title: TF.string(),
@@ -382,16 +388,16 @@ export const REALWORLD = {
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<BlogPost>(),
     getValidationErrorsReflect: () => {
       const v: BlogPost = makeBlogPost();
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: BlogPost = makeBlogPost();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<BlogPost>(),
+    mockType: () => createMockDataFn<BlogPost>(),
     mockTypeReflect: () => {
       const v: BlogPost = makeBlogPost();
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => {
       const ok = makeBlogPost();
@@ -428,12 +434,12 @@ export const REALWORLD = {
         categories: string[];
         dimensions?: {width: number; height: number; depth: number};
       }
-      return createValidate<Product>();
+      return createValidateFn<Product>();
     },
     standardSchema: () => createStandardSchema<Product>(),
-    validateDataOnly: () => createValidate<DataOnly<Product>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<Product>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.object({
           id: TF.string(),
           name: TF.string(),
@@ -448,16 +454,16 @@ export const REALWORLD = {
     deserializeValidate: () => deserializeValidate<Product>(),
     validateReflect: () => {
       const v: Product = makeProduct();
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: Product = makeProduct();
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<Product>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Product>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<Product>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<Product>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.object({
           id: TF.string(),
           name: TF.string(),
@@ -472,16 +478,16 @@ export const REALWORLD = {
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<Product>(),
     getValidationErrorsReflect: () => {
       const v: Product = makeProduct();
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: Product = makeProduct();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<Product>(),
+    mockType: () => createMockDataFn<Product>(),
     mockTypeReflect: () => {
       const v: Product = makeProduct();
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => {
       const ok = makeProduct();
@@ -528,12 +534,12 @@ export const REALWORLD = {
         total: number;
         hasMore: boolean;
       }
-      return createValidate<ProductPage>();
+      return createValidateFn<ProductPage>();
     },
     standardSchema: () => createStandardSchema<ProductPage>(),
-    validateDataOnly: () => createValidate<DataOnly<ProductPage>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<ProductPage>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.object({
           data: RT.array(
             RT.object({
@@ -556,16 +562,16 @@ export const REALWORLD = {
     deserializeValidate: () => deserializeValidate<ProductPage>(),
     validateReflect: () => {
       const v: ProductPage = {data: [makeProduct()], page: 1, pageSize: 20, total: 1, hasMore: false};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: ProductPage = {data: [makeProduct()], page: 1, pageSize: 20, total: 1, hasMore: false};
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<ProductPage>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<ProductPage>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<ProductPage>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<ProductPage>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.object({
           data: RT.array(
             RT.object({
@@ -588,16 +594,16 @@ export const REALWORLD = {
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<ProductPage>(),
     getValidationErrorsReflect: () => {
       const v: ProductPage = {data: [makeProduct()], page: 1, pageSize: 20, total: 1, hasMore: false};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: ProductPage = {data: [makeProduct()], page: 1, pageSize: 20, total: 1, hasMore: false};
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<ProductPage>(),
+    mockType: () => createMockDataFn<ProductPage>(),
     mockTypeReflect: () => {
       const v: ProductPage = {data: [makeProduct()], page: 1, pageSize: 20, total: 1, hasMore: false};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => {
       const p = makeProduct();
@@ -635,12 +641,12 @@ export const REALWORLD = {
         acceptedTerms: true;
         profile: {firstName: string; lastName: string; age?: number};
       }
-      return createValidate<RegistrationForm>();
+      return createValidateFn<RegistrationForm>();
     },
     standardSchema: () => createStandardSchema<RegistrationForm>(),
-    validateDataOnly: () => createValidate<DataOnly<RegistrationForm>>(),
+    validateDataOnly: () => createValidateFn<DataOnly<RegistrationForm>>(),
     validateSchema: () =>
-      createValidate(
+      createValidateFn(
         RT.object({
           email: TF.string(),
           password: TF.string(),
@@ -651,16 +657,16 @@ export const REALWORLD = {
     deserializeValidate: () => deserializeValidate<RegistrationForm>(),
     validateReflect: () => {
       const v: RegistrationForm = makeRegistrationForm();
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       const v: RegistrationForm = makeRegistrationForm();
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<RegistrationForm>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<RegistrationForm>>(),
+    getValidationErrors: () => createGetValidationErrorsFn<RegistrationForm>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<RegistrationForm>>(),
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(
+      createGetValidationErrorsFn(
         RT.object({
           email: TF.string(),
           password: TF.string(),
@@ -671,16 +677,16 @@ export const REALWORLD = {
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<RegistrationForm>(),
     getValidationErrorsReflect: () => {
       const v: RegistrationForm = makeRegistrationForm();
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       const v: RegistrationForm = makeRegistrationForm();
       return deserializeGetValidationErrors(v);
     },
-    mockType: () => createMockData<RegistrationForm>(),
+    mockType: () => createMockDataFn<RegistrationForm>(),
     mockTypeReflect: () => {
       const v: RegistrationForm = makeRegistrationForm();
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => {
       const ok = makeRegistrationForm();

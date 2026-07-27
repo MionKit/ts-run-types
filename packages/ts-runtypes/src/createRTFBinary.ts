@@ -1,7 +1,7 @@
 // Binary I/O public surface — separated from `createRTFunctions.ts` so
 // bundlers can leave the binary subtree (encoder, decoder, DataView helper
-// classes) out of bundles that never touch `createBinaryEncoder` /
-// `createBinaryDecoder`. Entries arrive as per-entry virtual-module tuples
+// classes) out of bundles that never touch `createBinaryEncoderFn` /
+// `createBinaryDecoderFn`. Entries arrive as per-entry virtual-module tuples
 // injected at each call site (see runtypes/entryTuple.ts).
 
 import {isRunTypeSchema} from './runtypes/rtUtils.ts';
@@ -36,7 +36,7 @@ export type ToBinaryFn = (value: unknown, Ser: DataViewSerializer) => DataViewSe
  *  returns the decoded value. `ret` is a placeholder the RT body writes into. **/
 export type FromBinaryFn<T = unknown> = (ret: unknown, Des: DataViewDeserializer) => T;
 
-// Encoder returned by `createBinaryEncoder<T>()`. The exact signature depends on
+// Encoder returned by `createBinaryEncoderFn<T>()`. The exact signature depends on
 // the `sizeStrategy` (see the per-strategy overloads): all return a `Uint8Array` VIEW of the
 // written bytes — zero-copy, with `byteLength` the exact byte count (`.slice()`
 // for an owned copy). For the `intoBuffer` strategy the view aliases the caller's
@@ -50,20 +50,20 @@ export type BinaryEncoderSizeFn = (value: unknown, size: number) => Uint8Array;
 export type BinaryEncoderIntoFn = (value: unknown, into: ArrayBuffer) => Uint8Array;
 
 /** Options narrowed to a specific `sizeStrategy` literal. These drive the
- *  per-strategy overloads of `createBinaryEncoder`: overload resolution matches
+ *  per-strategy overloads of `createBinaryEncoderFn`: overload resolution matches
  *  on the OPTIONS argument, so the returned signature specialises whether `T` is
  *  inferred (from a schema or value) OR supplied explicitly as
- *  `createBinaryEncoder<T>()` — an explicit type argument would otherwise defeat
+ *  `createBinaryEncoderFn<T>()` — an explicit type argument would otherwise defeat
  *  inference of a return-shaping type parameter. **/
 type InitialSizeOptions = BinaryEncoderOptions & {sizeStrategy: 'initialSize'};
 type IntoBufferOptions = BinaryEncoderOptions & {sizeStrategy: 'intoBuffer'};
 
-/** Decoder returned by `createBinaryDecoder<T>()`. Accepts a raw buffer, a
+/** Decoder returned by `createBinaryDecoderFn<T>()`. Accepts a raw buffer, a
  *  typed-array view (e.g. the encoder's `Uint8Array` output, so `decode(encode(v))`
  *  round-trips), or a pre-built `DataViewDeserializer`. **/
 export type BinaryDecoderFn<T = unknown> = (input: BinaryInput | DataViewDeserializer) => T;
 
-/** Caller-controlled options for `createBinaryEncoder<T>()`. **/
+/** Caller-controlled options for `createBinaryEncoderFn<T>()`. **/
 export interface BinaryEncoderOptions {
   /** Stable string used to bucket adaptive-sizing history. Defaults to the
    *  runtype hash so every encoder for the same `T` shares size history. **/
@@ -88,7 +88,7 @@ export interface BinaryEncoderOptions {
   sizeStrategy?: 'dynamic' | 'precalculate' | 'initialSize' | 'intoBuffer';
 }
 
-/** Caller-controlled options for `createBinaryDecoder<T>()`. **/
+/** Caller-controlled options for `createBinaryDecoderFn<T>()`. **/
 export interface BinaryDecoderOptions {
   /** Stable string used as a diagnostic label. Defaults to the runtype hash. **/
   cacheKey?: string;
@@ -104,8 +104,8 @@ const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 // Overflow message for the fixed-size strategies (`initialSize` / `intoBuffer`).
 function fixedBufferTooSmall(capacity: number): RangeError {
   return new RangeError(
-    `createBinaryEncoder: the payload does not fit in the ${capacity}-byte buffer. ` +
-      `Use createBinarySizer<T>() to compute the exact size, enlarge the buffer, or use sizeStrategy 'dynamic' / 'precalculate'.`
+    `createBinaryEncoderFn: the payload does not fit in the ${capacity}-byte buffer. ` +
+      `Use createBinarySizerFn<T>() to compute the exact size, enlarge the buffer, or use sizeStrategy 'dynamic' / 'precalculate'.`
   );
 }
 
@@ -137,40 +137,44 @@ function binarySizingKey(schemaId: string | undefined, injected: unknown): strin
 }
 
 /** Returns a binary encoder for `T`. Accepts a value-first schema
- *  (`createBinaryEncoder(rt, …)`), the value form (`createBinaryEncoder(val, …)`),
- *  or the static form (`createBinaryEncoder<T>(undefined, …)`). The `sizeStrategy`
+ *  (`createBinaryEncoderFn(rt, …)`), the value form (`createBinaryEncoderFn(val, …)`),
+ *  or the static form (`createBinaryEncoderFn<T>(undefined, …)`). The `sizeStrategy`
  *  option (a static literal) selects the returned function's signature + behaviour;
  *  these per-strategy overloads specialise the return for every call form. **/
 // 'initialSize' → (value, size) => Uint8Array
-export function createBinaryEncoder<T>(
+export function createBinaryEncoderFn<T>(
   schema: RunType<T>,
   options: InitialSizeOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderSizeFn;
-export function createBinaryEncoder<T>(
+export function createBinaryEncoderFn<T>(
   val: T | undefined,
   options: InitialSizeOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderSizeFn;
 // 'intoBuffer' → (value, into) => Uint8Array
-export function createBinaryEncoder<T>(
+export function createBinaryEncoderFn<T>(
   schema: RunType<T>,
   options: IntoBufferOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderIntoFn;
-export function createBinaryEncoder<T>(
+export function createBinaryEncoderFn<T>(
   val: T | undefined,
   options: IntoBufferOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderIntoFn;
 // 'dynamic' (default) / 'precalculate' → (value) => Uint8Array
-export function createBinaryEncoder<T>(
+export function createBinaryEncoderFn<T>(
   schema: RunType<T>,
   options?: BinaryEncoderOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderFn;
-export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectTypeFnArgs<T, 'tb'>): BinaryEncoderFn;
-export function createBinaryEncoder<T>(
+export function createBinaryEncoderFn<T>(
+  val?: T,
+  options?: BinaryEncoderOptions,
+  id?: InjectTypeFnArgs<T, 'tb'>
+): BinaryEncoderFn;
+export function createBinaryEncoderFn<T>(
   valOrSchema?: T | RunType<T>,
   options?: BinaryEncoderOptions,
   id?: InjectTypeFnArgs<T, 'tb'>
@@ -180,7 +184,7 @@ export function createBinaryEncoder<T>(
   // `rejectCircularRefs` is compile-time (the plugin baked it into `id`'s fnHash,
   // arming the encoder body's inline guard); the runtime resolves the injected
   // tuple. `cacheKey` / `sizeStrategy` below stay runtime.
-  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoder', noopToBinaryFn, schemaId, id);
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinaryEncoderFn', noopToBinaryFn, schemaId, id);
   const sizeStrategy = options?.sizeStrategy ?? 'dynamic';
 
   // 'precalculate': measure pass over the SAME body → allocate exactly, growth OFF.
@@ -200,7 +204,7 @@ export function createBinaryEncoder<T>(
   if (sizeStrategy === 'initialSize') {
     const fn: BinaryEncoderSizeFn = (value, size) => {
       if (typeof size !== 'number')
-        throw new Error("createBinaryEncoder: sizeStrategy 'initialSize' requires a numeric `size` argument.");
+        throw new Error("createBinaryEncoderFn: sizeStrategy 'initialSize' requires a numeric `size` argument.");
       return encodeFixed(encodeFn, value, createDataViewSerializer(cacheKey, {size, grow: false}), size);
     };
     return fn;
@@ -210,7 +214,7 @@ export function createBinaryEncoder<T>(
   if (sizeStrategy === 'intoBuffer') {
     const fn: BinaryEncoderIntoFn = (value, into) => {
       if (!(into instanceof ArrayBuffer))
-        throw new Error("createBinaryEncoder: sizeStrategy 'intoBuffer' requires an ArrayBuffer `into` argument.");
+        throw new Error("createBinaryEncoderFn: sizeStrategy 'intoBuffer' requires an ArrayBuffer `into` argument.");
       return encodeFixed(encodeFn, value, createDataViewSerializer(cacheKey, {buffer: into}), into.byteLength);
     };
     return fn;
@@ -232,22 +236,22 @@ export function createBinaryEncoder<T>(
   return fn;
 }
 
-/** Sizer returned by `createBinarySizer<T>()`. Returns the exact on-wire byte
+/** Sizer returned by `createBinarySizerFn<T>()`. Returns the exact on-wire byte
  *  count without allocating an output buffer. **/
 export type BinarySizerFn = (value: unknown) => number;
 
-/** Returns the exact on-wire byte count `createBinaryEncoder<T>()` would produce
+/** Returns the exact on-wire byte count `createBinaryEncoderFn<T>()` would produce
  *  for `value`, WITHOUT allocating an output buffer. Runs the SAME emitted `'tb'`
  *  body as the encoder against a no-op measure serializer, so the count is exact:
- *  `createBinarySizer(v) === createBinaryEncoder(v)(…).byteLength`. Use it to size a
+ *  `createBinarySizerFn(v) === createBinaryEncoderFn(v)(…).byteLength`. Use it to size a
  *  `sizeStrategy: 'initialSize'` encoder or to allocate an exact buffer for `intoBuffer`.
  *  Reuses the encoder's `'tb'` cache entry — no new family. **/
-export function createBinarySizer<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn;
-export function createBinarySizer<T>(val?: T, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn;
-export function createBinarySizer<T>(valOrSchema?: T | RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn {
+export function createBinarySizerFn<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn;
+export function createBinarySizerFn<T>(val?: T, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn;
+export function createBinarySizerFn<T>(valOrSchema?: T | RunType<T>, id?: InjectTypeFnArgs<T, 'tb'>): BinarySizerFn {
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
   const cacheKey = binarySizingKey(schemaId, id);
-  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinarySizer', noopToBinaryFn, schemaId, id);
+  const encodeFn = resolveEntryTupleFn<ToBinaryFn>('createBinarySizerFn', noopToBinaryFn, schemaId, id);
   return (value) => {
     const sizer = createSizingSerializer(cacheKey);
     encodeFn(value, sizer);
@@ -256,25 +260,30 @@ export function createBinarySizer<T>(valOrSchema?: T | RunType<T>, id?: InjectTy
 }
 
 /** Returns a binary decoder for `T`. Accepts either a value-first schema
- *  (`createBinaryDecoder(rt)`) or the value/static form. **/
-export function createBinaryDecoder<T>(
+ *  (`createBinaryDecoderFn(rt)`) or the value/static form. **/
+export function createBinaryDecoderFn<T>(
   schema: RunType<T>,
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
 ): BinaryDecoderFn<DataOnly<T>>;
-export function createBinaryDecoder<T>(
+export function createBinaryDecoderFn<T>(
   val?: T,
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
 ): BinaryDecoderFn<DataOnly<T>>;
-export function createBinaryDecoder<T>(
+export function createBinaryDecoderFn<T>(
   valOrSchema?: T | RunType<T>,
   options?: BinaryDecoderOptions,
   id?: InjectTypeFnArgs<T, 'fb'>
 ): BinaryDecoderFn<DataOnly<T>> {
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
   const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
-  const decodeFn = resolveEntryTupleFn<FromBinaryFn<T>>('createBinaryDecoder', noopFromBinaryFn as FromBinaryFn<T>, schemaId, id);
+  const decodeFn = resolveEntryTupleFn<FromBinaryFn<T>>(
+    'createBinaryDecoderFn',
+    noopFromBinaryFn as FromBinaryFn<T>,
+    schemaId,
+    id
+  );
   // A decoded value is reconstructed from bytes, so it only ever holds
   // serialisable data — the return is the data-only projection `DataOnly<T>`
   // (identity on clean DTOs). The runtime value is unchanged; the single cast

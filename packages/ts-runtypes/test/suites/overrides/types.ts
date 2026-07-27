@@ -13,7 +13,7 @@ import type {GetValidationErrorsFn, JsonEncoderFn, JsonDecoderFn, BinaryEncoderF
 export interface OverrideCase {
   title: string;
 
-  /** validate — `createValidate<T>()` returns the custom predicate. */
+  /** validate — `createValidateFn<T>()` returns the custom predicate. */
   validate: () => (value: unknown) => boolean;
   /** Samples the override predicate must accept / reject. */
   validateSamples: {pass: unknown[]; fail: unknown[]};

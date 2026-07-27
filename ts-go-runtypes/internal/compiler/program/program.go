@@ -7,6 +7,7 @@ package program
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/bundled"
@@ -30,8 +31,16 @@ type Options struct {
 	// (CustomConditions). The enrichment CLI passes ["source"] so `ts-runtypes`
 	// resolves to its in-tree `src` — where the TypeFormat brands live — so a
 	// `TF.String<{minLength}>` projects with its FormatAnnotation rather than as a
-	// bare `string`. Empty (the default) leaves resolution unchanged. NewInferred only.
+	// bare `string`. Consumed ONLY by the no-config fallback literal: when Config
+	// is set, extras were already folded into it at parse time (pass the same
+	// extras to ParseInferredConfig). Empty leaves resolution unchanged. NewInferred only.
 	Conditions []string
+	// Config carries the project tsconfig's frozen, fully parsed CompilerOptions
+	// for NewInferred to adopt WHOLESALE, so daemon/enrich Programs behave exactly
+	// like the build lane under the same config. Produced by ParseInferredConfig;
+	// nil (the default) means no config anywhere — the fixed inferred defaults
+	// apply (tsc's loose-file posture). NewInferred only.
+	Config *InferredConfig
 }
 
 type Program struct {
@@ -52,12 +61,13 @@ func New(opts Options) (*Program, error) {
 		fileSystem = newOverlayFS(baseFS, opts.Overlay)
 	}
 
-	configPath := opts.TsconfigPath
-	if configPath == "" {
-		configPath = tspath.ResolvePath(cwd, "tsconfig.json")
-	} else {
-		configPath = tspath.ResolvePath(cwd, configPath)
+	// Callers resolve the config FIRST (explicit --tsconfig, else
+	// DiscoverTsconfig's tsc-style upward walk) — New never invents a default,
+	// so every lane shares one resolution seam.
+	if opts.TsconfigPath == "" {
+		return nil, errors.New("program.New: TsconfigPath is required — resolve it first (explicit flag, else DiscoverTsconfig)")
 	}
+	configPath := tspath.ResolvePath(cwd, opts.TsconfigPath)
 	if !fileSystem.FileExists(configPath) {
 		return nil, fmt.Errorf("tsconfig not found at %s", configPath)
 	}
@@ -69,6 +79,13 @@ func New(opts Options) (*Program, error) {
 	)
 	if len(diagnostics) > 0 {
 		return nil, fmt.Errorf("tsconfig parse failed: %s", ast.Diagnostic_Localize(diagnostics[0], ast.DefaultLocale()))
+	}
+	// Content errors (malformed JSON, invalid option values) ride the parsed
+	// result, not the second return — without this check a garbage tsconfig
+	// silently built a default-options Program. Strict like tsc, TS18003
+	// included: this lane consumes the config's own file list.
+	if contentDiagnostic := firstConfigContentError(parsedConfig, false); contentDiagnostic != nil {
+		return nil, fmt.Errorf("tsconfig parse failed: %s", ast.Diagnostic_Localize(contentDiagnostic, ast.DefaultLocale()))
 	}
 
 	// Project references are a build-orchestration concept (tsc --build); the
@@ -102,8 +119,11 @@ func New(opts Options) (*Program, error) {
 	return &Program{TS: tsProgram, FS: fileSystem}, nil
 }
 
-// NewInferred builds a Program without a tsconfig — used when the caller just
-// has a set of loose files (e.g. a daemon serving one file at a time).
+// NewInferred builds a Program from explicit file roots instead of a config
+// file's include set (a daemon serving overlay buffers, the enrich CLI). The
+// project tsconfig still governs it: opts.Config carries the frozen parsed
+// options, adopted wholesale; only with no config anywhere do the fixed
+// inferred defaults apply.
 func NewInferred(opts Options, fileNames []string) (*Program, error) {
 	cwd := tspath.NormalizePath(opts.Cwd)
 
@@ -115,24 +135,41 @@ func NewInferred(opts Options, fileNames []string) (*Program, error) {
 
 	host := compiler.NewCompilerHost(cwd, fileSystem, bundled.LibPath(), nil, nil)
 
+	// One tsconfig, one behavior: with a parsed project config, adopt its frozen
+	// CompilerOptions WHOLESALE — zero curation, tsgo enforces every flag — so a
+	// daemon rebuild, the inline one-shot, and the enrich CLI type-check exactly
+	// like the build lane (and the tsgo CLI) under the same config. The pointer is
+	// shared across sequential Programs (tsgo's own LSP pattern; nothing mutates
+	// CompilerOptions after parse). The hardcoded bundler-style literal below is
+	// ONLY the no-config fallback — tsc's loose-file posture — for the WASM
+	// playground, bare test spawns, and gen-builtin-purefns.
+	var compilerOptions *core.CompilerOptions
+	if cfg := opts.Config; cfg != nil && cfg.options != nil {
+		compilerOptions = cfg.options
+	} else {
+		compilerOptions = &core.CompilerOptions{
+			Module:                     core.ModuleKindESNext,
+			ModuleResolution:           core.ModuleResolutionKindBundler,
+			Target:                     core.ScriptTargetES2022,
+			AllowImportingTsExtensions: core.TSTrue,
+			StrictNullChecks:           core.TSTrue,
+			StrictFunctionTypes:        core.TSTrue,
+			ESModuleInterop:            core.TSTrue,
+			AllowNonTsExtensions:       core.TSTrue,
+			ResolveJsonModule:          core.TSTrue,
+			CustomConditions:           opts.Conditions,
+		}
+	}
+
 	programOpts := compiler.ProgramOptions{
-		Config: &tsoptions.ParsedCommandLine{
-			ParsedConfig: &core.ParsedOptions{
-				CompilerOptions: &core.CompilerOptions{
-					Module:                     core.ModuleKindESNext,
-					ModuleResolution:           core.ModuleResolutionKindBundler,
-					Target:                     core.ScriptTargetES2022,
-					AllowImportingTsExtensions: core.TSTrue,
-					StrictNullChecks:           core.TSTrue,
-					StrictFunctionTypes:        core.TSTrue,
-					ESModuleInterop:            core.TSTrue,
-					AllowNonTsExtensions:       core.TSTrue,
-					ResolveJsonModule:          core.TSTrue,
-					CustomConditions:           opts.Conditions,
-				},
-				FileNames: fileNames,
-			},
-		},
+		// NewParsedCommandLine (vs a hand-built struct literal) also populates the
+		// wrapper's comparePathsOptions; ProjectReferences stays nil by
+		// construction — the roots are exactly the caller-supplied fileNames,
+		// never the tsconfig's own include set.
+		Config: tsoptions.NewParsedCommandLine(compilerOptions, fileNames, tspath.ComparePathsOptions{
+			UseCaseSensitiveFileNames: fileSystem.UseCaseSensitiveFileNames(),
+			CurrentDirectory:          cwd,
+		}),
 		SingleThreaded: core.TSFalse,
 		Host:           host,
 	}
@@ -146,6 +183,19 @@ func NewInferred(opts Options, fileNames []string) (*Program, error) {
 	}
 	tsProgram.BindSourceFiles()
 	return &Program{TS: tsProgram, FS: fileSystem}, nil
+}
+
+// mergeConditions unions extra onto base, order-preserving and deduped, so
+// ParseInferredConfig's extraConditions and a tsconfig's customConditions
+// coexist on the cloned effective options.
+func mergeConditions(base, extra []string) []string {
+	out := append([]string(nil), base...)
+	for _, condition := range extra {
+		if !slices.Contains(out, condition) {
+			out = append(out, condition)
+		}
+	}
+	return out
 }
 
 // SourceFile returns the parsed source file for the given absolute path, or nil

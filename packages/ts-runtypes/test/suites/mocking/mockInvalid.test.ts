@@ -1,4 +1,4 @@
-// Negative ("invalid") mock generation. `createMockData` needs the Vite-plugin
+// Negative ("invalid") mock generation. `createMockDataFn` needs the Vite-plugin
 // injected runtype graph, so these tests drive the lower-level
 // `mockRunTypeInvalid(runType, options, [])` directly over hand-built RunType
 // graphs — the same shape the plugin would feed in. Each assertion checks the

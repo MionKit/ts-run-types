@@ -6,15 +6,15 @@
 // `InferType<typeof X>` recovers `T`:
 //
 //   import {boolean, literal, enumType} from '@ts-runtypes/core/schema';
-//   import {createValidate, type InferType} from '@ts-runtypes/core';
+//   import {createValidateFn, type InferType} from '@ts-runtypes/core';
 //
 //   const Flag = boolean();              // RunType<boolean>
-//   const isFlag = createValidate(Flag); // validator from the schema
+//   const isFlag = createValidateFn(Flag); // validator from the schema
 //
 // The Go scanner reflects the SAME kind off the builder's `InjectRunTypeId<…>`
 // brand as the type-first surface, so a value-first leaf and the hand-written type
 // converge on one structural id; the runtime then resolves the same precompiled
-// factory (see createValidate).
+// factory (see createValidateFn).
 //
 // The FORMAT leaf builders (`string` / `number` / `bigInt` / `date` / `email` / …
 // and the `temporal.*` family) moved to the `ts-runtypes/formats` surface
@@ -60,7 +60,7 @@ export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
 /** A `symbol` builder — `symbol()` → `RunType<symbol>`. Provided for
  *  composition/parity; symbol identity is not round-trippable, so the Go side
  *  emits an unsupported validator (docs/UNSUPPORTED-KINDS.md) — a standalone
- *  `createValidate(symbol())` throws the same way the type-first `symbol` case
+ *  `createValidateFn(symbol())` throws the same way the type-first `symbol` case
  *  does. **/
 export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
   return builderResult(id, {type: 'symbol', formatParams: {}});
@@ -68,7 +68,7 @@ export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
 
 // Top / bottom atomic builders — `any` / `unknown` / `never` / `void`. Dedicated
 // builders: each carries its kind off the trailing `InjectRunTypeId<…>` brand, so
-// the scanner reflects the SAME kind as the type-first `createValidate<any>()` /
+// the scanner reflects the SAME kind as the type-first `createValidateFn<any>()` /
 // `<never>` / … surface and the value-first form converges on one structural id.
 
 /** An `any` builder — `any()` → `RunType<any>` (no-op validator; every value
@@ -98,7 +98,7 @@ export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
 
 /** A class builder — `classType(MyClass)` → `RunType<MyClass>`. `Instance` infers
  *  directly from the constructor's instance type, so it converges with the
- *  type-first `createValidate<MyClass>()`. validate matches by SHAPE (data properties;
+ *  type-first `createValidateFn<MyClass>()`. validate matches by SHAPE (data properties;
  *  methods skipped), NOT `instanceof` — a plain object of the right shape passes.
  *  For a GENERIC class the instance type is pinned explicitly
  *  (`classType<Box<number>>(Box)`); otherwise it infers the unparameterised

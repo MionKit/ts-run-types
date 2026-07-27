@@ -23,9 +23,9 @@ func runtypeDiagsOf(diags []diagnostics.Diagnostic) []diagnostics.Diagnostic {
 // fans out one entry per call site (per user direction: dedup is
 // one-per-call-site, not one-per-type-id).
 func TestDiag_RunTypeRTThrow_NeverAtRoot_PrepareForJson(t *testing.T) {
-	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
-	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+	// pj is demand-driven now, so seed it via createJsonEncoderFn(mutate) → [pj].
+	const code = `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -68,9 +68,9 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 // throw across the JSON families. `getRunTypeId<() => void>()` reaches
 // the function-root RTThrow in each family.
 func TestDiag_RunTypeRTThrow_FunctionAtRoot_PrepareForJson(t *testing.T) {
-	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
-	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<() => void>(undefined, {strategy: 'mutate'});
+	// pj is demand-driven now, so seed it via createJsonEncoderFn(mutate) → [pj].
+	const code = `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<() => void>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"f.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -101,12 +101,12 @@ export const _ = createJsonEncoder<() => void>(undefined, {strategy: 'mutate'});
 // see which RT family produced the diagnostic without parsing
 // message text.
 func TestDiag_PerFamilyPrefix_NeverAtRoot_DistinctCodes(t *testing.T) {
-	// All three families are demand-driven now: seed pj via createJsonEncoder(mutate),
-	// sj via createJsonEncoder(direct), and tb via its own createBinaryEncoder.
-	const code = `import {createJsonEncoder, createBinaryEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
-export const _s = createJsonEncoder<never>(undefined, {strategy: 'direct'});
-export const _b = createBinaryEncoder<never>();
+	// All three families are demand-driven now: seed pj via createJsonEncoderFn(mutate),
+	// sj via createJsonEncoderFn(direct), and tb via its own createBinaryEncoderFn.
+	const code = `import {createJsonEncoderFn, createBinaryEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoderFn<never>(undefined, {strategy: 'direct'});
+export const _b = createBinaryEncoderFn<never>();
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -135,10 +135,10 @@ export const _b = createBinaryEncoder<never>();
 // to the root. The rest of the object's validator still works.
 // See docs/UNSUPPORTED-KINDS.md.
 func TestDiag_PropertyAbsorbsUnsupportedChild_NeverProp(t *testing.T) {
-	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
-	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
+	// pj is demand-driven now, so seed it via createJsonEncoderFn(mutate) → [pj].
+	const code = `import {createJsonEncoderFn} from '@ts-runtypes/core';
 interface User { name: string; bad: never; }
-export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
+export const _ = createJsonEncoderFn<User>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -216,12 +216,12 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 // (or its per-family equivalent code) across every RT family.
 func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
 	// validate seeds `it` (all-emit); pj/sj/tb are demand-driven, so seed pj via
-	// createJsonEncoder(mutate), sj via createJsonEncoder(direct), tb via createBinaryEncoder.
-	const code = `import {createValidate, createJsonEncoder, createBinaryEncoder} from '@ts-runtypes/core';
-export const _ = createValidate<symbol>();
-export const _p = createJsonEncoder<symbol>(undefined, {strategy: 'mutate'});
-export const _s = createJsonEncoder<symbol>(undefined, {strategy: 'direct'});
-export const _b = createBinaryEncoder<symbol>();
+	// createJsonEncoderFn(mutate), sj via createJsonEncoderFn(direct), tb via createBinaryEncoderFn.
+	const code = `import {createValidateFn, createJsonEncoderFn, createBinaryEncoderFn} from '@ts-runtypes/core';
+export const _ = createValidateFn<symbol>();
+export const _p = createJsonEncoderFn<symbol>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoderFn<symbol>(undefined, {strategy: 'direct'});
+export const _b = createBinaryEncoderFn<symbol>();
 `
 	r := setupInline(t, map[string]string{"s.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -250,9 +250,9 @@ export const _b = createBinaryEncoder<symbol>();
 // code resolved JS-side and not an inline throwing factory body. The Go↔plugin
 // wire still carries only the diagnostic code.
 func TestDiag_AlwaysThrowEntry_EmbedsRenderedMessage(t *testing.T) {
-	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
-	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
-export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+	// pj is demand-driven now, so seed it via createJsonEncoderFn(mutate) → [pj].
+	const code = `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const _ = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -282,9 +282,9 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 // TypeScript parses the member as a method or a property — both flow
 // through the same family prefix (IT) so consumers can grep by prefix.
 func TestDiag_SilentSkip_FunctionMember_Validate(t *testing.T) {
-	const code = `import {createValidate} from '@ts-runtypes/core';
+	const code = `import {createValidateFn} from '@ts-runtypes/core';
 interface User { name: string; onClick: () => void; }
-export const _ = createValidate<User>();
+export const _ = createValidateFn<User>();
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -322,12 +322,12 @@ export const _ = createValidate<User>();
 // same problem, emit N diagnostics — one per call site — not one
 // shared by them all.
 func TestDiag_RunTypeFansOutAcrossCallSites(t *testing.T) {
-	// pj is demand-driven; three createJsonEncoder(mutate) sites share one `never`
+	// pj is demand-driven; three createJsonEncoderFn(mutate) sites share one `never`
 	// id, so the single rendered pj entry fans the PJ001 diag out to all three.
-	const code = `import {createJsonEncoder} from '@ts-runtypes/core';
-export const a = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
-export const b = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
-export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+	const code = `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const a = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
+export const b = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
+export const c = createJsonEncoderFn<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"multi.ts": code})
 	resp := r.Dispatch(protocol.Request{

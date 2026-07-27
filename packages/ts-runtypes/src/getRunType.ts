@@ -2,7 +2,7 @@
 // Where `getRunTypeId<T>()` returns the opaque id string, `getRunType<T>()`
 // returns the traversable `RunType<T>` node the build registered for `T`, i.e.
 // `getRTUtils().getRunType(getRunTypeId<T>())` collapsed into one call. Kept in
-// its own file (like `createMockData`) so markers.ts stays registry-free.
+// its own file (like `createMockDataFn`) so markers.ts stays registry-free.
 
 import {getRTUtils} from './runtypes/rtUtils.ts';
 import {entryTupleKey, initFromTuple, isEntryTuple} from './runtypes/entryTuple.ts';
@@ -12,7 +12,7 @@ import type {RunType} from './runtypes/types.ts';
 /**
  * Returns the reflected `RunType<T>` node — the parsed, traversable type graph
  * (`kind`, `children`, `parameters`, `child`, `return`, format annotations, …).
- * Three call shapes, mirroring `createMockData`:
+ * Three call shapes, mirroring `createMockDataFn`:
  *
  *   - STATIC — bring the type, no value: `getRunType<User>()`.
  *   - REFLECTION — let `T` be inferred from a runtime value: `getRunType(user)`.
@@ -38,7 +38,7 @@ export function getRunType<T>(_valueOrSchema?: T | RunType<T>, id?: InjectRunTyp
   let injectedId: string | undefined = id;
   if (isEntryTuple(id)) {
     // The plugin injects the runtype's entry-module tuple — register the type
-    // graph and recover the id string, exactly as createMockData does.
+    // graph and recover the id string, exactly as createMockDataFn does.
     initFromTuple(id);
     injectedId = entryTupleKey(id);
   }

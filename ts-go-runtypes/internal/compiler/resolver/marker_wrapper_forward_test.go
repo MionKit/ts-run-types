@@ -160,14 +160,14 @@ export const schema = objectBuilder({a: stringBuilder()});`,
 // trailing slot inside a generic body (the genuinely-unsupported case — `T`
 // unresolved, no handle to forward) still emits the MKR003 build-time error for
 // BOTH the reflection marker (getRunTypeId) and a createX fn-args marker
-// (createValidate). This is the "never a silent runtime throw" guarantee.
+// (createValidateFn). This is the "never a silent runtime throw" guarantee.
 func TestScan_MarkerInGenericBody_EmitsMKR003(t *testing.T) {
 	cases := map[string]string{
 		"getRunTypeId": `import {getRunTypeId} from '@ts-runtypes/core';
 function wrap<T>() { return getRunTypeId<T>(); }
 export const x = wrap<{a: number}>();`,
-		"createValidate": `import {createValidate} from '@ts-runtypes/core';
-function wrap<T>() { return createValidate<T>(); }
+		"createValidateFn": `import {createValidateFn} from '@ts-runtypes/core';
+function wrap<T>() { return createValidateFn<T>(); }
 export const x = wrap<{a: number}>();`,
 	}
 	for name, src := range cases {

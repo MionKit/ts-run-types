@@ -15,7 +15,7 @@ import (
 // behind the friendly/ + mock/ path segments. It runs before every gen pass
 // over a source file and is a silent no-op when there is nothing to migrate.
 //
-// Guards (all conservative — when in doubt, migrate nothing and let gen --check
+// Guards (all conservative — when in doubt, migrate nothing and let `check`
 // flag the drift):
 //   - the legacy file must exist and carry a source breadcrumb that resolves
 //     back to THIS source file (an unrelated file that happens to sit at the
@@ -24,7 +24,7 @@ import (
 //   - neither family file may already exist (a half-migrated state is
 //     surfaced, never clobbered).
 func migrateLegacyMirror(config enrichConfig, declFile string) {
-	legacyPath := config.legacyMirrorPath(declFile)
+	legacyPath := config.LegacyMirrorPath(declFile)
 	legacyBytes, err := os.ReadFile(legacyPath)
 	if err != nil {
 		return // no legacy combined mirror — nothing to migrate
@@ -39,12 +39,12 @@ func migrateLegacyMirror(config enrichConfig, declFile string) {
 		return // some other source's file — not this mirror's legacy home
 	}
 
-	friendlyPath := config.mirrorPath(familyFriendly, declFile)
-	mockPath := config.mirrorPath(familyMock, declFile)
+	friendlyPath := config.MirrorPath(familyFriendly, declFile)
+	mockPath := config.MirrorPath(familyMock, declFile)
 	for _, familyPath := range []string{friendlyPath, mockPath} {
 		if _, statErr := os.Stat(familyPath); statErr == nil {
 			fmt.Fprintf(os.Stderr,
-				"gen: legacy combined mirror %s NOT migrated: %s already exists — merge them by hand (or delete one), then re-run\n",
+				"enrich: legacy combined mirror %s NOT migrated: %s already exists — merge them by hand (or delete one), then re-run\n",
 				legacyPath, familyPath)
 			return
 		}
@@ -52,7 +52,7 @@ func migrateLegacyMirror(config enrichConfig, declFile string) {
 
 	friendlyOut, mockOut, err := mirror.SplitCombined(legacyPath, legacyBytes, friendlyPath, mockPath, declFile)
 	if err != nil {
-		fatal("gen: migrate legacy mirror %s: %v", legacyPath, err)
+		fatal("enrich: migrate legacy mirror %s: %v", legacyPath, err)
 	}
 	if friendlyOut == nil && mockOut == nil {
 		return // nothing worth carrying — leave the legacy file for the user
@@ -64,18 +64,18 @@ func migrateLegacyMirror(config enrichConfig, declFile string) {
 		writeMigratedFamily(mockPath, mockOut)
 	}
 	if err := os.Remove(legacyPath); err != nil {
-		fatal("gen: migrate legacy mirror: remove %s: %v", legacyPath, err)
+		fatal("enrich: migrate legacy mirror: remove %s: %v", legacyPath, err)
 	}
-	fmt.Printf("gen: migrated combined mirror %s into %s + %s\n", legacyPath, friendlyPath, mockPath)
+	fmt.Printf("enrich: migrated combined mirror %s into %s + %s\n", legacyPath, friendlyPath, mockPath)
 }
 
 // writeMigratedFamily writes one family's migrated content, creating parent
 // dirs as needed.
 func writeMigratedFamily(familyPath string, content []byte) {
 	if err := os.MkdirAll(filepath.Dir(familyPath), 0o755); err != nil {
-		fatal("gen: migrate legacy mirror: mkdir %s: %v", filepath.Dir(familyPath), err)
+		fatal("enrich: migrate legacy mirror: mkdir %s: %v", filepath.Dir(familyPath), err)
 	}
 	if err := atomicWriteFile(familyPath, content, 0o644); err != nil {
-		fatal("gen: migrate legacy mirror: write %s: %v", familyPath, err)
+		fatal("enrich: migrate legacy mirror: write %s: %v", familyPath, err)
 	}
 }

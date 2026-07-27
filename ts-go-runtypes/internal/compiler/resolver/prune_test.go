@@ -17,13 +17,13 @@ import (
 // import closure) leave the resolver.
 
 // TestPrune_ElidedPrimitivesNotEmitted — a plain JSON-compatible DTO through
-// createJsonDecoder (default strip): rj is identity, the jdST composite
+// createJsonDecoderFn (default strip): rj is identity, the jdST composite
 // elides it, and the rj module must disappear from the payload while the live
 // ukuw half stays imported.
 func TestPrune_ElidedPrimitivesNotEmitted(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@ts-runtypes/core';
+	resp := scopeScan(t, `import {createJsonDecoderFn} from '@ts-runtypes/core';
 type PlainDTO = {a: string; b?: number};
-export const dec = createJsonDecoder<PlainDTO>();
+export const dec = createJsonDecoderFn<PlainDTO>();
 `)
 	if hasFamilyEntry(resp, "restoreFromJson") {
 		t.Errorf("noop rj entry must be pruned once the composite elides it, got %v", familyEntryKeys(resp, "restoreFromJson"))
@@ -67,10 +67,10 @@ func compositeEntryKeys(t *testing.T, resp protocol.Response, opName, strategy s
 // substitutes native JSON.stringify / JSON.parse, and the orphaned pj / rj
 // primitives are pruned.
 func TestPrune_CollapsedCompositeShortFormEmitted(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonEncoder, createJsonDecoder} from '@ts-runtypes/core';
+	resp := scopeScan(t, `import {createJsonEncoderFn, createJsonDecoderFn} from '@ts-runtypes/core';
 type PlainDTO = {a: string; b?: number};
-export const enc = createJsonEncoder<PlainDTO>(undefined, {strategy: 'mutate'});
-export const dec = createJsonDecoder<PlainDTO>(undefined, {strategy: 'preserve'});
+export const enc = createJsonEncoderFn<PlainDTO>(undefined, {strategy: 'mutate'});
+export const dec = createJsonDecoderFn<PlainDTO>(undefined, {strategy: 'preserve'});
 `)
 	if hasFamilyEntry(resp, "prepareForJson") {
 		t.Errorf("noop pj entry must be pruned once the composite collapses, got %v", familyEntryKeys(resp, "prepareForJson"))
@@ -103,8 +103,8 @@ export const dec = createJsonDecoder<PlainDTO>(undefined, {strategy: 'preserve'}
 // orphaned sj module is pruned. The object-root control keeps both halves live
 // (sj really strips extras + fixes member order there).
 func TestPrune_DirectStrategyTwoLayerCollapse(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonEncoder} from '@ts-runtypes/core';
-export const encStr = createJsonEncoder<string>(undefined, {strategy: 'direct'});
+	resp := scopeScan(t, `import {createJsonEncoderFn} from '@ts-runtypes/core';
+export const encStr = createJsonEncoderFn<string>(undefined, {strategy: 'direct'});
 `)
 	if hasFamilyEntry(resp, "stringifyJson") {
 		t.Errorf("noop sj entry must be pruned once the composite collapses, got %v", familyEntryKeys(resp, "stringifyJson"))
@@ -117,9 +117,9 @@ export const encStr = createJsonEncoder<string>(undefined, {strategy: 'direct'})
 		t.Errorf("the collapsed jeDI composite must be the noop short-form:\n%s", module)
 	}
 
-	control := scopeScan(t, `import {createJsonEncoder} from '@ts-runtypes/core';
+	control := scopeScan(t, `import {createJsonEncoderFn} from '@ts-runtypes/core';
 type PlainDTO = {a: string; b?: number};
-export const encObj = createJsonEncoder<PlainDTO>(undefined, {strategy: 'direct'});
+export const encObj = createJsonEncoderFn<PlainDTO>(undefined, {strategy: 'direct'});
 `)
 	if !hasFamilyEntry(control, "stringifyJson") {
 		t.Error("sj does real work for an object root — its module must survive the prune")
@@ -133,9 +133,9 @@ export const encObj = createJsonEncoder<PlainDTO>(undefined, {strategy: 'direct'
 // keeps its rj entry (real `new Date(v)` rebuild) referenced by the composite
 // and therefore emitted.
 func TestPrune_LivePrimitivesStayEmitted(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@ts-runtypes/core';
+	resp := scopeScan(t, `import {createJsonDecoderFn} from '@ts-runtypes/core';
 type Stamped = {a: string; at: Date};
-export const dec = createJsonDecoder<Stamped>();
+export const dec = createJsonDecoderFn<Stamped>();
 `)
 	if !hasFamilyEntry(resp, "restoreFromJson") {
 		t.Error("rj must stay emitted when the decoder needs the Date rebuild")
@@ -146,12 +146,12 @@ export const dec = createJsonDecoder<Stamped>();
 }
 
 // TestPrune_KeepsDirectlyDemandedNoopRoots — a rewrite-injected binding must
-// always resolve, even when its entry is the noop short-form: createValidate
+// always resolve, even when its entry is the noop short-form: createValidateFn
 // over `any` collapses to identity, but the site imports `__rt_<val>_<id>`
 // directly, so the module must survive the prune.
 func TestPrune_KeepsDirectlyDemandedNoopRoots(t *testing.T) {
-	resp := scopeScan(t, `import {createValidate} from '@ts-runtypes/core';
-export const isAnything = createValidate<any>();
+	resp := scopeScan(t, `import {createValidateFn} from '@ts-runtypes/core';
+export const isAnything = createValidateFn<any>();
 `)
 	keys := familyEntryKeys(resp, "validate")
 	if len(keys) != 1 {
@@ -182,12 +182,12 @@ export const id = getRunTypeId<{a: string}>();
 
 // TestPrune_AlwaysThrowPrimitiveSurvives — an unsupported root (symbol) makes
 // rj an alwaysThrow entry, which is live, not noop: the composite keeps its
-// binding and the module must stay emitted so createJsonDecoder<symbol>()
+// binding and the module must stay emitted so createJsonDecoderFn<symbol>()
 // throws with the RJ code at factory-creation time instead of silently
 // decoding garbage.
 func TestPrune_AlwaysThrowPrimitiveSurvives(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@ts-runtypes/core';
-export const dec = createJsonDecoder<symbol>();
+	resp := scopeScan(t, `import {createJsonDecoderFn} from '@ts-runtypes/core';
+export const dec = createJsonDecoderFn<symbol>();
 `)
 	if !hasFamilyEntry(resp, "restoreFromJson") {
 		t.Error("the alwaysThrow rj entry must survive the prune — it is live, not noop")
@@ -202,11 +202,11 @@ export const dec = createJsonDecoder<symbol>();
 // (rj live): exactly the live rj survives, keyed to the Date-bearing type,
 // proving liveness is per-entry rather than per-family.
 func TestPrune_MixedSitesDoNotCrossContaminate(t *testing.T) {
-	resp := scopeScan(t, `import {createJsonDecoder} from '@ts-runtypes/core';
+	resp := scopeScan(t, `import {createJsonDecoderFn} from '@ts-runtypes/core';
 type PlainDTO = {a: string; b?: number};
 type Stamped = {a: string; at: Date};
-export const decPlain = createJsonDecoder<PlainDTO>();
-export const decStamped = createJsonDecoder<Stamped>();
+export const decPlain = createJsonDecoderFn<PlainDTO>();
+export const decStamped = createJsonDecoderFn<Stamped>();
 `)
 	keys := familyEntryKeys(resp, "restoreFromJson")
 	if len(keys) != 1 {

@@ -12,13 +12,13 @@ import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
 import * as RT from '@ts-runtypes/core/schema';
 import {
-  createMockData,
-  createValidate,
-  createGetValidationErrors,
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
-  createBinaryDecoder,
+  createMockDataFn,
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
+  createBinaryDecoderFn,
 } from '@ts-runtypes/core';
 import {runFuzz, runFuzzForDuration} from './fuzzRunner.ts';
 import type {FuzzTarget} from './fuzzOracle.ts';
@@ -31,13 +31,13 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'User',
     schema,
-    mock: createMockData(schema),
-    validate: createValidate(schema),
-    getValidationErrors: createGetValidationErrors(schema),
-    jsonEncode: createJsonEncoder(schema),
-    jsonDecode: createJsonDecoder(schema),
-    binaryEncode: createBinaryEncoder(schema),
-    binaryDecode: createBinaryDecoder(schema),
+    mock: createMockDataFn(schema),
+    validate: createValidateFn(schema),
+    getValidationErrors: createGetValidationErrorsFn(schema),
+    jsonEncode: createJsonEncoderFn(schema),
+    jsonDecode: createJsonDecoderFn(schema),
+    binaryEncode: createBinaryEncoderFn(schema),
+    binaryDecode: createBinaryDecoderFn(schema),
   });
 }
 
@@ -47,13 +47,13 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'Nested',
     schema,
-    mock: createMockData(schema),
-    validate: createValidate(schema),
-    getValidationErrors: createGetValidationErrors(schema),
-    jsonEncode: createJsonEncoder(schema),
-    jsonDecode: createJsonDecoder(schema),
-    binaryEncode: createBinaryEncoder(schema),
-    binaryDecode: createBinaryDecoder(schema),
+    mock: createMockDataFn(schema),
+    validate: createValidateFn(schema),
+    getValidationErrors: createGetValidationErrorsFn(schema),
+    jsonEncode: createJsonEncoderFn(schema),
+    jsonDecode: createJsonDecoderFn(schema),
+    binaryEncode: createBinaryEncoderFn(schema),
+    binaryDecode: createBinaryDecoderFn(schema),
   });
 }
 
@@ -63,13 +63,13 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'Tuple',
     schema,
-    mock: createMockData(schema),
-    validate: createValidate(schema),
-    getValidationErrors: createGetValidationErrors(schema),
-    jsonEncode: createJsonEncoder(schema),
-    jsonDecode: createJsonDecoder(schema),
-    binaryEncode: createBinaryEncoder(schema),
-    binaryDecode: createBinaryDecoder(schema),
+    mock: createMockDataFn(schema),
+    validate: createValidateFn(schema),
+    getValidationErrors: createGetValidationErrorsFn(schema),
+    jsonEncode: createJsonEncoderFn(schema),
+    jsonDecode: createJsonDecoderFn(schema),
+    binaryEncode: createBinaryEncoderFn(schema),
+    binaryDecode: createBinaryDecoderFn(schema),
   });
 }
 
@@ -79,13 +79,13 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'OptionalLiteral',
     schema,
-    mock: createMockData(schema),
-    validate: createValidate(schema),
-    getValidationErrors: createGetValidationErrors(schema),
-    jsonEncode: createJsonEncoder(schema),
-    jsonDecode: createJsonDecoder(schema),
-    binaryEncode: createBinaryEncoder(schema),
-    binaryDecode: createBinaryDecoder(schema),
+    mock: createMockDataFn(schema),
+    validate: createValidateFn(schema),
+    getValidationErrors: createGetValidationErrorsFn(schema),
+    jsonEncode: createJsonEncoderFn(schema),
+    jsonDecode: createJsonDecoderFn(schema),
+    binaryEncode: createBinaryEncoderFn(schema),
+    binaryDecode: createBinaryDecoderFn(schema),
   });
 }
 
@@ -95,13 +95,13 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'DateBigint',
     schema,
-    mock: createMockData(schema),
-    validate: createValidate(schema),
-    getValidationErrors: createGetValidationErrors(schema),
-    jsonEncode: createJsonEncoder(schema),
-    jsonDecode: createJsonDecoder(schema),
-    binaryEncode: createBinaryEncoder(schema),
-    binaryDecode: createBinaryDecoder(schema),
+    mock: createMockDataFn(schema),
+    validate: createValidateFn(schema),
+    getValidationErrors: createGetValidationErrorsFn(schema),
+    jsonEncode: createJsonEncoderFn(schema),
+    jsonDecode: createJsonDecoderFn(schema),
+    binaryEncode: createBinaryEncoderFn(schema),
+    binaryDecode: createBinaryDecoderFn(schema),
   });
 }
 
@@ -111,13 +111,13 @@ const targets: FuzzTarget[] = [];
   targets.push({
     title: 'UnionField',
     schema,
-    mock: createMockData(schema),
-    validate: createValidate(schema),
-    getValidationErrors: createGetValidationErrors(schema),
-    jsonEncode: createJsonEncoder(schema),
-    jsonDecode: createJsonDecoder(schema),
-    binaryEncode: createBinaryEncoder(schema),
-    binaryDecode: createBinaryDecoder(schema),
+    mock: createMockDataFn(schema),
+    validate: createValidateFn(schema),
+    getValidationErrors: createGetValidationErrorsFn(schema),
+    jsonEncode: createJsonEncoderFn(schema),
+    jsonDecode: createJsonDecoderFn(schema),
+    binaryEncode: createBinaryEncoderFn(schema),
+    binaryDecode: createBinaryDecoderFn(schema),
   });
 }
 

@@ -20,9 +20,9 @@ import (
 // and any FMT002 diagnostics.
 func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diagnostics.Diagnostic) {
 	t.Helper()
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<Date, 'nativeDate', ` + params + `>>();
+export const _ = createValidateFn<TypeFormat<Date, 'nativeDate', ` + params + `>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{

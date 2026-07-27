@@ -1,8 +1,8 @@
-import {createMockData} from '@ts-runtypes/core';
+import {createMockDataFn} from '@ts-runtypes/core';
 import type {User} from './user';
 import {mockUser} from './mock-user';
 
-const newUser = createMockData<User>(undefined, {data: mockUser});
+const newUser = createMockDataFn<User>(undefined, {data: mockUser});
 
 newUser();
 // → { name: 'Liang Wei', age: 41, isActive: true,

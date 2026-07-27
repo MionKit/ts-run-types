@@ -4,7 +4,7 @@
 // cases. Minimal coverage: one cyclic case + one acyclic DAG control.
 
 import type * as TF from '@ts-runtypes/core/formats';
-import {createBinaryEncoder, createJsonEncoder} from '@ts-runtypes/core';
+import {createBinaryEncoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 import '@ts-runtypes/core/formats';
 import type {CircularGuardSerializationCase} from '../../util/circularGuardAsserts.ts';
 
@@ -18,14 +18,14 @@ export const CIRCULAR_GUARD = {
         id: TF.UUIDv4;
         next?: Node;
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         id: TF.UUIDv4;
         next?: Node;
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const node: {id: string; next?: unknown} = {id: UUID_V4};
@@ -42,14 +42,14 @@ export const CIRCULAR_GUARD = {
         id: TF.UUIDv4;
         children: Node[];
       }
-      return createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     binaryEncoder: () => {
       interface Node {
         id: TF.UUIDv4;
         children: Node[];
       }
-      return createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
+      return createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
     },
     getValue: () => {
       const shared = {id: UUID_V4, children: [] as unknown[]};

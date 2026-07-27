@@ -1,4 +1,4 @@
-import {createGetValidationErrors, createJsonDecoder, createJsonEncoder, type InjectTypeFnArgs} from '@ts-runtypes/core';
+import {createGetValidationErrorsFn, createJsonDecoderFn, createJsonEncoderFn, type InjectTypeFnArgs} from '@ts-runtypes/core';
 
 // A single marker can ask for SEVERAL generated functions at once. A route
 // wrapper wants to validate a request, decode it from JSON, and encode the
@@ -7,9 +7,9 @@ import {createGetValidationErrors, createJsonDecoder, createJsonEncoder, type In
 type Handler = (...args: any[]) => unknown;
 
 function route<H extends Handler>(handler: H, fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'jsonEncoder'>) {
-  const getErrors = createGetValidationErrors(undefined, undefined, fns?.[0] as never);
-  const decodeParams = createJsonDecoder(undefined, undefined, fns?.[1] as never);
-  const encodeParams = createJsonEncoder(undefined, undefined, fns?.[2] as never);
+  const getErrors = createGetValidationErrorsFn(undefined, undefined, fns?.[0] as never);
+  const decodeParams = createJsonDecoderFn(undefined, undefined, fns?.[1] as never);
+  const encodeParams = createJsonEncoderFn(undefined, undefined, fns?.[2] as never);
   return {handler, getErrors, decodeParams, encodeParams};
 }
 

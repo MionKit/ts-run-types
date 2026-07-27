@@ -1,6 +1,6 @@
 ---
 name: ts-runtypes-setup
-description: End-to-end autonomous setup for **RunTypes**. Installs host deps (podman, Node, pnpm, Go, garble), starts the podman engine, bootstraps the tsgolint + typescript-go submodules + patches, installs workspace deps, builds the Go resolver binary + ts-runtypes-devtools, then smoke-tests the docs website container (curl :3000) and the benchmarks container (vite build inside). Use when setting up / bootstrapping RunTypes, installing podman for it, or verifying the containerized apps are runnable. Supports Linux and macOS; prints a not-ready message on other OSes. Specific to RunTypes - NOT a generic project setup (the rest of the monorepo needs only pnpm).
+description: End-to-end autonomous setup for **RunTypes**. Installs host deps (podman, Node, pnpm, Go), starts the podman engine, bootstraps the tsgolint + typescript-go submodules + patches, installs workspace deps, builds the Go resolver binary + ts-runtypes-devtools, then smoke-tests the docs website container (curl :3000) and the benchmarks container (vite build inside). Use when setting up / bootstrapping RunTypes, installing podman for it, or verifying the containerized apps are runnable. Supports Linux and macOS; prints a not-ready message on other OSes. Specific to RunTypes - NOT a generic project setup (the rest of the monorepo needs only pnpm).
 ---
 
 # RunTypes setup (docs website + benchmarks containers)
@@ -79,7 +79,7 @@ unsupported OS or no supported package manager.
 binary + vite plugin wiring ([scripts/core/smoke.mjs](../../../scripts/core/smoke.mjs)).
 Spawns `bin/ts-runtypes` in `--inline-server` mode, installs three tiny
 in-memory fixtures (`getRunTypeId<T>()` static, `getRunTypeId(v)` reflect,
-`createValidate<T>()` to exercise the `InjectTypeFnArgs` createX path), runs
+`createValidateFn<T>()` to exercise the `InjectTypeFnArgs` createX path), runs
 the plugin's `rewrite()` over each, then calls `scanFiles` with
 `includeEntryModules: true` and asserts the resolver returned a Site per
 fixture and at least one rendered entry module. `rt dev smoke` first runs

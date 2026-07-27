@@ -49,7 +49,7 @@ export type BigUInt64 = BigInt<{min: 0n; max: 18446744073709551615n}>;
 //
 // Value-first builder per named alias (`TF.bigInt64()` → `RunType<BigInt64>`, …),
 // carrying the CONCRETE alias above so the value-first id converges with the
-// type-first `createValidate<BigInt64>()`. Fixed presets → a single no-arg overload
+// type-first `createValidateFn<BigInt64>()`. Fixed presets → a single no-arg overload
 // via `presetBuilder`. For ad-hoc constraints use `TF.bigInt({min, max, …})`.
 
 /** ≥ 0n (`BigPositive`). **/

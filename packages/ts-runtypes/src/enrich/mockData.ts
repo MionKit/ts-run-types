@@ -1,6 +1,6 @@
 // `MockData<T>` — the realistic sample-value enrichment map for a type: per-field
 // pools / ranges / element + length / overrides that feed the existing
-// `createMockData<T>()` generator (see docs/AI_ENRICHMENT.md). The AI supplies
+// `createMockDataFn<T>()` generator (see docs/AI_ENRICHMENT.md). The AI supplies
 // realistic values; the mechanical generator stays deterministic.
 //
 // Same construction as `FriendlyNode` (./friendlyType.ts) and `DataOnly<T>`

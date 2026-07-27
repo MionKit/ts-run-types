@@ -620,7 +620,7 @@ const sizingView = {
  *  encoder, but every write is a no-op and only `index` advances — so after a run
  *  `getLength()` is EXACTLY the byte count the real encoder would produce (same
  *  code path, same branches, formats, temporal packing, union arms, deps). Used
- *  by `createBinaryEncoder(value, {sizing: 'precalculate'})` to size the buffer up
+ *  by `createBinaryEncoderFn(value, {sizing: 'precalculate'})` to size the buffer up
  *  front so no inline write can overflow. Only `serString`/`serLength` need overriding
  *  (they would otherwise touch the buffer); every other framing method is
  *  inherited unchanged, so the size rules can never drift from the encoder. **/

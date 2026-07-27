@@ -2,9 +2,9 @@
 // custom-class-serializer.ts. A per-call circular guard throws, and a
 // registered class serializer rebuilds a real instance on decode.
 import {
-  createJsonEncoder,
-  createJsonDecoder,
-  createBinaryEncoder,
+  createJsonEncoderFn,
+  createJsonDecoderFn,
+  createBinaryEncoderFn,
   CircularReferenceError,
   registerClassSerializer,
   type DataOnly,
@@ -34,10 +34,10 @@ interface Account {
   balance: Money;
 }
 
-export const encodeNode = createJsonEncoder<Node>(undefined, {rejectCircularRefs: true});
-export const encodeNodeBin = createBinaryEncoder<Node>(undefined, {rejectCircularRefs: true});
-export const encodeAccount = createJsonEncoder<Account>();
-export const decodeAccount = createJsonDecoder<Account>();
+export const encodeNode = createJsonEncoderFn<Node>(undefined, {rejectCircularRefs: true});
+export const encodeNodeBin = createBinaryEncoderFn<Node>(undefined, {rejectCircularRefs: true});
+export const encodeAccount = createJsonEncoderFn<Account>();
+export const decodeAccount = createJsonDecoderFn<Account>();
 
 export function checkSerializationEdge(): CheckResult[] {
   const cyclic: {name: string; next?: unknown} = {name: 'a'};

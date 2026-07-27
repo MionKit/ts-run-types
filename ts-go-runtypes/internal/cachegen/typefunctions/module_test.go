@@ -379,11 +379,11 @@ func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
 	}
 }
 
-// TestValidateModule_ArrayNoIsArrayCheck — when a createValidate site requests the
+// TestValidateModule_ArrayNoIsArrayCheck — when a createValidateFn site requests the
 // `noIsArrayCheck` ValidateOptions variant for an array runtype, the
 // emitter fans out an extra `valNA_<id>` factory whose body omits the
 // leading `if (!Array.isArray(v)) return false;` guard. A plain
-// createValidate site still emits the guarded `val_<id>` factory. Mirrors
+// createValidateFn site still emits the guarded `val_<id>` factory. Mirrors
 // the `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
 // demand-scoped: the scanner attaches each site's structured Demand, so the
 // plain `it` entry and the `NA` variant ride distinct SiteDemand entries —
@@ -398,9 +398,9 @@ func TestValidateModule_ArrayNoIsArrayCheck(t *testing.T) {
 			},
 		},
 		Sites: []protocol.Site{
-			// Plain createValidate<T[]>() — demands the guarded `val_an1`.
+			// Plain createValidateFn<T[]>() — demands the guarded `val_an1`.
 			{File: "call.ts", Pos: 0, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val"}}},
-			// createValidate<T[]>(undefined, {noIsArrayCheck: true}) — demands
+			// createValidateFn<T[]>(undefined, {noIsArrayCheck: true}) — demands
 			// the `valNA_an1` variant whose body omits the Array.isArray guard.
 			{File: "call.ts", Pos: 40, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val", VariantSuffix: "NA", Options: []string{"noIsArrayCheck"}}}},
 		},
@@ -678,36 +678,169 @@ func TestValidateModule_UnionAtomicEmitBody(t *testing.T) {
 	}
 }
 
-// TestValidateModule_UnionObjectsShareNullGuard — when union members
-// include object-like kinds, the emit lifts the
-// `typeof === 'object' && !== null` guard outside their OR-chain so a
-// null input short-circuits before any property access.
-func TestValidateModule_UnionObjectsShareNullGuard(t *testing.T) {
-	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
-	propA := &protocol.RunType{
-		ID:         "pA",
-		Kind:       protocol.KindPropertySignature,
-		Name:       "a",
-		IsSafeName: true,
-		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+// prop builds an inline (non-ref) property signature wrapping child.
+func prop(id, name string, optional bool, child *protocol.RunType) *protocol.RunType {
+	return &protocol.RunType{
+		ID: id, Kind: protocol.KindPropertySignature, Name: name,
+		IsSafeName: true, Optional: optional, Child: child,
 	}
-	obj1 := &protocol.RunType{
-		ID:       "ob1",
-		Kind:     protocol.KindObjectLiteral,
-		Children: []*protocol.RunType{{ID: "pA", Kind: protocol.KindRef}},
+}
+
+// TestValidateModule_UnionObjectsShareNullGuard — a union with an object
+// member lifts the `typeof === 'object' && !== null` guard to ONE shared
+// root guard; the object arm no longer repeats it inside the OR-chain
+// (union-validate-dedup). Inline children + a single union root keep the
+// rendered output to just the union body, so the guard count is exact.
+func TestValidateModule_UnionObjectsShareNullGuard(t *testing.T) {
+	obj := &protocol.RunType{
+		ID:   "ob1",
+		Kind: protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{
+			prop("pA", "a", false, &protocol.RunType{ID: "s", Kind: protocol.KindString}),
+		},
 	}
 	un := &protocol.RunType{
 		ID:   "un2",
 		Kind: protocol.KindUnion,
 		Children: []*protocol.RunType{
-			{ID: "str", Kind: protocol.KindRef},
-			{ID: "ob1", Kind: protocol.KindRef},
+			{ID: "s0", Kind: protocol.KindString},
+			obj,
 		},
 	}
-	dump := protocol.Dump{RunTypes: []*protocol.RunType{un, obj1, propA, stringRT}}
-	out := renderToString(t, dump)
-	if !strings.Contains(out, "typeof v === 'object' && v !== null") {
-		t.Errorf("expected shared object-null guard in union body, got:\n%s", out)
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{un}})
+	if n := strings.Count(out, "typeof v === 'object' && v !== null"); n != 1 {
+		t.Errorf("union object guard must appear exactly once (shared root), got %d in:\n%s", n, out)
+	}
+	// The arm still carries its own property check (guard-free).
+	if !strings.Contains(out, "typeof v.a === 'string'") {
+		t.Errorf("object arm must keep its own property check, in:\n%s", out)
+	}
+}
+
+// TestValidateModule_UnionMultiObjectShareGuard — several object members
+// share ONE object guard; each arm keeps only its own property checks.
+func TestValidateModule_UnionMultiObjectShareGuard(t *testing.T) {
+	objA := &protocol.RunType{ID: "obA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pA", "a", false, &protocol.RunType{ID: "s", Kind: protocol.KindString}),
+	}}
+	objB := &protocol.RunType{ID: "obB", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pB", "b", false, &protocol.RunType{ID: "n", Kind: protocol.KindNumber}),
+	}}
+	un := &protocol.RunType{ID: "un3", Kind: protocol.KindUnion, Children: []*protocol.RunType{
+		{ID: "s0", Kind: protocol.KindString}, objA, objB,
+	}}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{un}})
+	if n := strings.Count(out, "typeof v === 'object' && v !== null"); n != 1 {
+		t.Errorf("multi-object union must share ONE object guard, got %d in:\n%s", n, out)
+	}
+	for _, frag := range []string{"typeof v.a === 'string'", "Number.isFinite(v.b)"} {
+		if !strings.Contains(out, frag) {
+			t.Errorf("expected arm check %q in:\n%s", frag, out)
+		}
+	}
+}
+
+// TestValidateModule_UnionAllOptionalObjectKeepsBrandGuard — an all-optional
+// object member's `[object Object]` brand guard sits AFTER the dropped typeof
+// term, so it must survive as the arm's own leading check.
+func TestValidateModule_UnionAllOptionalObjectKeepsBrandGuard(t *testing.T) {
+	obj := &protocol.RunType{ID: "obO", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pA", "a", true, &protocol.RunType{ID: "s", Kind: protocol.KindString}),
+	}}
+	un := &protocol.RunType{ID: "un4", Kind: protocol.KindUnion, Children: []*protocol.RunType{
+		{ID: "s0", Kind: protocol.KindString}, obj,
+	}}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{un}})
+	if n := strings.Count(out, "typeof v === 'object' && v !== null"); n != 1 {
+		t.Errorf("all-optional object union must share ONE object guard, got %d in:\n%s", n, out)
+	}
+	if !strings.Contains(out, "=== '[object Object]'") {
+		t.Errorf("expected surviving [object Object] brand guard in the arm, in:\n%s", out)
+	}
+}
+
+// TestValidateModule_UnionNestedObjectKeepsGuard — dropping the object arm's
+// guard must NOT strip a NESTED property-object's guard: the nested object's
+// parent frame is the outer object, not the union. The shared `v` guard
+// appears once; the nested `v.x` object keeps its own.
+func TestValidateModule_UnionNestedObjectKeepsGuard(t *testing.T) {
+	inner := &protocol.RunType{ID: "inn", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pA", "a", false, &protocol.RunType{ID: "n", Kind: protocol.KindNumber}),
+	}}
+	outer := &protocol.RunType{ID: "out", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pX", "x", false, inner),
+	}}
+	un := &protocol.RunType{ID: "un5", Kind: protocol.KindUnion, Children: []*protocol.RunType{
+		{ID: "s0", Kind: protocol.KindString}, outer,
+	}}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{un}})
+	if n := strings.Count(out, "typeof v === 'object' && v !== null"); n != 1 {
+		t.Errorf("outer object arm's guard must be dropped: want the shared v-guard once, got %d in:\n%s", n, out)
+	}
+	if !strings.Contains(out, "typeof v.x === 'object' && v.x !== null") {
+		t.Errorf("nested property object must KEEP its own guard, in:\n%s", out)
+	}
+}
+
+// TestValidateModule_UnionMixedArrayObjectGuardOnce — an array member is
+// object-like too, but has no strippable typeof prefix (it uses Array.isArray).
+// The object arm is deduped; the array arm is untouched.
+func TestValidateModule_UnionMixedArrayObjectGuardOnce(t *testing.T) {
+	obj := &protocol.RunType{ID: "obM", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pA", "a", false, &protocol.RunType{ID: "s", Kind: protocol.KindString}),
+	}}
+	arr := &protocol.RunType{ID: "arrM", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "n", Kind: protocol.KindNumber}}
+	un := &protocol.RunType{ID: "un6", Kind: protocol.KindUnion, Children: []*protocol.RunType{obj, arr}}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{un}})
+	if n := strings.Count(out, "typeof v === 'object' && v !== null"); n != 1 {
+		t.Errorf("mixed array+object union must share ONE object guard, got %d in:\n%s", n, out)
+	}
+	if !strings.Contains(out, "Array.isArray") {
+		t.Errorf("array arm must keep its own Array.isArray path, in:\n%s", out)
+	}
+}
+
+// TestValidateModule_UnionObjectGuard_ParentNotChildren pins the guard's
+// POSITION, not just its count: the shared `typeof===object` guard must live at
+// the UNION (parent) level, wrapping the object OR-chain, and must NOT be
+// repeated inside any child arm. This catches a regression the plain count==1
+// tests miss on their own — if the parent guard were dropped but a single child
+// kept its own guard, the total count would still be 1. Here we assert BOTH that
+// the parent guard wraps the chain (`guard && (`) AND that it occurs exactly
+// once (so no child repeats it).
+func TestValidateModule_UnionObjectGuard_ParentNotChildren(t *testing.T) {
+	// string | {a: string} | {b: number} — two object members, so the shared
+	// parent guard is genuinely load-bearing (each child would otherwise need
+	// its own).
+	objA := &protocol.RunType{ID: "ogA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pA", "a", false, &protocol.RunType{ID: "s", Kind: protocol.KindString}),
+	}}
+	objB := &protocol.RunType{ID: "ogB", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{
+		prop("pB", "b", false, &protocol.RunType{ID: "n", Kind: protocol.KindNumber}),
+	}}
+	un := &protocol.RunType{ID: "unG", Kind: protocol.KindUnion, Children: []*protocol.RunType{
+		{ID: "s0", Kind: protocol.KindString}, objA, objB,
+	}}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{un}})
+	guard := "typeof v === 'object' && v !== null"
+
+	// Parent-level: the shared guard wraps the object OR-chain, i.e. it is
+	// immediately followed by ` && (`. Removing the parent guard deletes this
+	// exact substring, so the test fails loudly.
+	if !strings.Contains(out, guard+" && (") {
+		t.Errorf("shared object guard must sit at the union (parent) level wrapping the OR-chain, got:\n%s", out)
+	}
+	// Children: exactly one guard total, so the sole occurrence is the parent's
+	// and no child arm repeats it. Re-introducing a per-arm guard makes this 2.
+	if n := strings.Count(out, guard); n != 1 {
+		t.Errorf("object guard must appear exactly once (parent only, none in children), got %d in:\n%s", n, out)
+	}
+	// Belt-and-suspenders: the object OR-chain the parent guard wraps (everything
+	// after `guard && (`) is itself guard-free — no child arm carries a typeof
+	// object check of its own.
+	chain := out[strings.Index(out, guard+" && (")+len(guard+" && ("):]
+	if strings.Contains(chain, "typeof v === 'object'") {
+		t.Errorf("child object arms must be guard-free (the guard belongs to the parent union), chain was:\n%s", chain)
 	}
 }
 

@@ -91,7 +91,8 @@ The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.np
 | ----------- | ------------------------ | ---------------------------------------------------------------------------------- |
 | Website     | `pnpm rtx website dev`   | Hot-reload dev server on `:3000` (bind-mounted source).                            |
 | Website     | `pnpm rtx website check` | Build image (if stale) + boot dev server detached + curl `:3000` + tear down.      |
-| Website     | `pnpm rtx website build` | Production build to `container/website/.output`.                                             |
+| Website     | `pnpm rtx website build` | Production build to `container/website/.output` (ends with the render check below).          |
+| Website     | `pnpm rtx website check --static` | Serve the built `.output/public` and assert every benchmark page renders its benchmark. |
 | Benchmarks  | `pnpm rtx bench prep`    | Build the resolver binary (host + Linux cross) + JS packages on the host.          |
 | Benchmarks  | `pnpm rtx bench`         | Build + run EVERY competitor in its own isolated container, then aggregate.         |
 | Benchmarks  | `pnpm rtx bench --one <n>` | Build + run a SINGLE competitor + aggregate (fastest verification loop).            |
@@ -125,6 +126,7 @@ The docs site documents the runtime packages: its `<code-import>` and `::twoslas
 - `RT_WEBSITE_REPO_CONTEXT` — host path to the checkout containing `packages/`. **Default:** sibling `../mion` if present, else this repo. Override to point anywhere.
 - Only `packages/` (+ the drizzle-orm `.d.ts` allowlist) is mounted — never the repo root. The resolvers additionally **confine every `path=` read to `packages/`** (`resolveInPackages` in [`server/utils/repo-root.ts`](container/website/server/utils/repo-root.ts)); a path escaping it is rejected.
 - `pnpm rtx website check --docs` boots the dev server and checks code-import + twoslash + the security boundary end-to-end (curl/grep, no browser).
+- `pnpm rtx website check --static` works on the OTHER end — the finished artifact. It serves `container/website/.output/public` through the same clean-URL resolution Cloudflare Pages uses and replays what a browser does on every `content/<N>.benchmarks/` page: the page must be prerendered with its `::bench-table`, the `/bench-data/<bench>/index.json` the table fetches must exist, and its numbers must actually paint cells (a dataset that would render every cell `n-a` fails). The bench tables render client-side and fall back to a "data not generated yet" notice, so without this a benchmark stage that dies mid-run ships a GREEN build with empty pages. `pnpm rtx website build` runs it as its last stage, and [website-deploy.yml](.github/workflows/website-deploy.yml) runs it again as an explicit gate before the Cloudflare upload.
 
 ### Docs read benchmark/test results from `.docdata/`
 
@@ -249,6 +251,20 @@ bin/ts-runtypes --daemon --tsconfig tsconfig.json --socket /tmp/ts-runtypes.sock
 --no-parallel-render          sequential cache-family renders
 ```
 
+### Pointing a consumer project at a specific binary (`RT_BIN`)
+
+Outside this repo, `@ts-runtypes/bin`'s `getExePath()` resolves the per-platform `@ts-runtypes/binary-<os>-<arch>` package. **`RT_BIN=<path>` overrides that lookup for every lane** — the bundler plugins (behind their explicit `binary` option, which still wins) *and* the lint plugin, which resolves its binary through the launcher and takes no `binary` option:
+
+```bash
+RT_BIN=/abs/path/to/ts-runtypes pnpm run lint     # in the consumer project
+```
+
+Use it to validate an **unpublished** build in a real consumer (packing `@ts-runtypes/{core,devtools,bin}` as `file:` tarballs leaves no platform package to resolve, so the lint lane would otherwise fail), to bisect a resolver regression without editing `node_modules`, or to run a binary delivered out-of-band. A value that is missing, not a file, or not executable throws — a typo never falls through to a different binary.
+
+A lint config can pin the same thing without an env var: **`settings.runtypes.binary`** (alongside `timeoutMs` and `tsconfig`) in `.oxlintrc.json` / `eslint.config.js`. It **wins over `RT_BIN`**, mirroring the bundler lane where an explicit `binary` option beats the launcher, so the full order is `settings.runtypes.binary` → plugin `binary` option → `RT_BIN` → in-repo dev binary → platform package. A configured path that is not there fails the lint run naming the setting. Any OTHER key under `settings.runtypes` (`cwd`, a typo) is ignored, with one warning per run on stderr.
+
+> ⚠️ The resolver's version folds into every typeId, so an override of a different version produces cache entries that diverge from a normal install. Clear `node_modules/.cache/ts-runtypes` when switching back.
+
 ---
 
 ## pnpm policies (workspace security posture)
@@ -328,13 +344,11 @@ Commit the new `.patch` file under `ts-go-runtypes/third_party/tsgolint/patches/
 
 All three published packages (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`) move in lockstep off the single version in [version.json](version.json) (bumped by [scripts/release/bump-version.mjs](scripts/release/bump-version.mjs)). `@ts-runtypes/core` emits **dual** module output (ESM + CJS: a second `tsc` pass — [tsconfig.cjs.json](packages/ts-runtypes/tsconfig.cjs.json) — writes a CommonJS build into `dist/cjs/` with a `type:commonjs` marker, so `require('@ts-runtypes/core')` works under the `type:module` root); `@ts-runtypes/devtools` is ESM-only (build-time tooling); `@ts-runtypes/bin` ships hand-written JS + types (no build step).
 
-The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `ts-runtypes-binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `@ts-runtypes/bin`. A consumer installs only the one matching their machine, and `@ts-runtypes/devtools` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
-
-The published binaries **and** the playground wasm are **obfuscated with [garble](https://github.com/burrowers/garble)** (`-tiny`, scoped to our module via `GOGARBLE=github.com/mionkit/*`) so the proprietary resolver logic is not trivially readable — typescript-go itself is left untouched (it is public source, and garble cannot rewrite it). The publishing host needs garble installed (`go install mvdan.cc/garble@v0.16.0`); set **`RT_GARBLE=0`** to build plain (faster, real panic stack traces) for local iteration. Obfuscation preserves struct layout and `-X` version injection, and is verified safe. See [scripts/lib/garble.mjs](scripts/lib/garble.mjs).
+The native resolver binary is distributed esbuild-style: it is cross-compiled per platform into `@ts-runtypes/binary-<os>-<arch>` packages (each `os`/`cpu`-gated), declared as `optionalDependencies` of `@ts-runtypes/bin`. A consumer installs only the one matching their machine, and `@ts-runtypes/devtools` locates it via `getExePath()`. The publishing host needs the Go toolchain — pure Go (`CGO_ENABLED=0`), so one host cross-compiles every target with no per-platform C toolchain.
 
 > **Versioning:** standard semver on our own release cadence. The pinned tsgo / tsgolint revision is metadata only (the binary's `--version` output + the launcher's `package.json` `tsgo` field), never encoded into the package version.
 
-There are two publish paths, both building the same artifacts in the same dependency-safe order: a **local, interactive** direct publish for a maintainer at a terminal, and the **CI staged** publish that runs on every merge to `prod` (the recommended path — [Releasing through CI](#releasing-through-ci--staged-publishing--trusted-publishing-oidc) below).
+There are two publish paths, both building the same artifacts in the same dependency-safe order: a **local, interactive** direct publish for a maintainer at a terminal, and the **CI staged** publish that runs on every merge to `prod` (the recommended path — [Releasing through CI](#releasing-through-ci--staged-publishing-npm_token--2fa-approval) below).
 
 ### Local (manual) publish
 
@@ -350,10 +364,10 @@ pnpm rtx release npm         # interactive: version -> build binaries -> publish
 1. `npm whoami` check.
 2. Working-tree clean check.
 3. `node scripts/release/bump-version.mjs <patch|minor|major|X.Y.Z>` (lockstep bump: writes `version.json` + every `package.json`, then commits + tags).
-4. [`scripts/release/build-binaries.mjs`](scripts/release/build-binaries.mjs) — cross-compiles the 7-platform matrix (obfuscated with garble unless `RT_GARBLE=0`) and stages `ts-runtypes-binary-*` + the launcher (its `optionalDependencies` filled, pinned exact-equal) under `dist-binaries/`.
+4. [`scripts/release/build-binaries.mjs`](scripts/release/build-binaries.mjs) — cross-compiles the 7-platform matrix and stages `@ts-runtypes/binary-*` + the launcher (its `optionalDependencies` filled, pinned exact-equal) under `dist-binaries/`.
 5. Prompts for npm OTP, then publishes the platform packages **first** and the launcher **last** (so the launcher never references a not-yet-published optional dep), then `pnpm publish` for the two FE packages (`@ts-runtypes/bin` is already live by then). `pnpm publish` rewrites their `workspace:*` deps to concrete versions, exactly like the CI pack path.
 
-**Changelog & GitHub Release.** Refresh [CHANGELOG.md](CHANGELOG.md) with `pnpm run changelog` when preparing a release and commit it in the release PR. When the release PR lands on `prod`, [`.github/workflows/publish.yml`](.github/workflows/publish.yml) stages every package to npm (via OIDC — see below), pushes the `v<version>` tag, then generates that tag's notes with [`orhun/git-cliff-action`](https://github.com/orhun/git-cliff-action) and creates the matching **GitHub Release**. The committed file and the Release notes are produced from the same [`cliff.toml`](cliff.toml).
+**Changelog & GitHub Release.** Refresh [CHANGELOG.md](CHANGELOG.md) with `pnpm run changelog` when preparing a release and commit it in the release PR. When the release PR lands on `prod`, [`.github/workflows/publish.yml`](.github/workflows/publish.yml) stages every package to npm (via `NPM_TOKEN` — see below), pushes the `v<version>` tag, then generates that tag's notes with [`orhun/git-cliff-action`](https://github.com/orhun/git-cliff-action) and creates the matching **GitHub Release**. The committed file and the Release notes are produced from the same [`cliff.toml`](cliff.toml).
 
 Unpublish a bad release:
 
@@ -361,42 +375,42 @@ Unpublish a bad release:
 pnpm rtx release unpublish <version>
 ```
 
-### Releasing through CI — staged publishing + trusted publishing (OIDC)
+### Releasing through CI — staged publishing (`NPM_TOKEN`) + 2FA approval
 
-Merging a release PR into `prod` runs [`publish.yml`](.github/workflows/publish.yml): the full release gate, then it **stages** every package to npm and tags the release. It never holds a 2FA-capable credential — CI stages, a human approves. Two GA npm features compose for this:
+Merging a release PR into `prod` runs [`publish.yml`](.github/workflows/publish.yml): the full release gate, then it **stages** every package to npm and tags the release. CI holds an automation token that cannot pass a 2FA challenge — CI stages, a human approves. Two pieces compose for this:
 
-- **Trusted Publishing (OIDC)** — npm ↔ GitHub trust over OIDC, so there is **no `NPM_TOKEN`** in CI. The `publish-npm` job grants `id-token: write`. Provenance is **off by default** — npm refuses provenance from a private source repo; once this repo is public, set repo variable `RT_NPM_PROVENANCE=1` to re-enable it (no code change).
-- **Staged publishing** — `npm stage publish` uploads to a **stage queue** and needs **no 2FA**, so CI can stage unattended. A maintainer then **approves** each staged version with a **live 2FA challenge** — the one step that cannot be done by a token, OIDC, or any non-interactive path.
+- **Token staging** — CI authenticates with `NPM_TOKEN` (an automation/granular token, so the unattended stage isn't 2FA-blocked); the `publish-npm` job writes it to `~/.npmrc`. Provenance is **off by default** — npm refuses provenance from a private source repo, so the job grants `id-token: write` **only** for that optional attestation; once this repo is public, set repo variable `RT_NPM_PROVENANCE=1` to re-enable it (no code change).
+- **Staged publishing** — `npm stage publish` uploads to a **stage queue** and needs **no 2FA**, so CI can stage unattended. A maintainer then **approves** each staged version with a **live 2FA challenge** — the one step that cannot be done by a token or any non-interactive path.
 
-The trusted publisher is configured **stage-only** (allow `npm stage publish`, disallow `npm publish`), so every CI publish is forced through the stage queue and nothing goes live without a human 2FA approval.
+The `publish-npm` job only ever runs `npm stage publish` (never a direct `npm publish`), so every CI publish is forced through the stage queue and nothing goes live without a human 2FA approval.
 
-**Approve the staged release (2FA, leaves-first).** `npm stage approve` takes a single `<stage-id>` — there is no atomic/group approval, and approving one publishes **that** package immediately. So order matters: approve **leaves-first** (every `@ts-runtypes/binary-<os>-<arch>` first, then `@ts-runtypes/bin`, then `@ts-runtypes/core` + `@ts-runtypes/devtools`), the same order [`publish-tarballs.mjs`](scripts/release/publish-tarballs.mjs) staged in, so a consumer install never resolves a launcher whose platform binary isn't live yet. The helper walks the queue for you (npm prompts for the OTP per id):
+**Approve the staged release (2FA, leaves-first).** `npm stage approve` takes a single `<stage-id>` — there is no atomic/group approval, and approving one publishes **that** package immediately. So order matters: approve **leaves-first** (every `@ts-runtypes/binary-<os>-<arch>` first, then `@ts-runtypes/bin`, then `@ts-runtypes/core` + `@ts-runtypes/devtools`), the same order [`publish-tarballs.mjs`](scripts/release/publish-tarballs.mjs) staged in, so a consumer install never resolves a launcher whose platform binary isn't live yet. The helper walks the queue for you: it asks for your 2FA OTP **once** and reuses it while its ~30s window lasts (the registry accepts the same TOTP for rapid consecutive requests), re-prompting only when a code expires — so a 10-package approval typically needs two or three codes, not ten. An empty answer at the prompt falls back to npm prompting per package. After the last approval it waits for npm to actually serve the new version, then auto-dispatches the website deploy (see below):
 
 ```bash
-pnpm rtx release stage-approve            # approve this version's stage-ids, leaves-first
-pnpm rtx release stage-approve --dry-run  # print the approval order without approving
+pnpm rtx release stage-approve                # one OTP prompt; approve leaves-first, then auto-deploy the site
+pnpm rtx release stage-approve --dry-run      # print the approval order without approving
+pnpm rtx release stage-approve --no-deploy    # approve only; skip the website-deploy dispatch
+pnpm rtx release stage-approve --deploy-only  # no approvals; wait for npm to serve the version, then dispatch the deploy
 ```
 
 If the queue can't be read automatically (not logged in, npm too old), the helper prints the exact leaves-first commands to run by hand (`npm stage list`, then `npm stage approve <stage-id>` in order).
 
-**Deploy the docs site (manual).** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate, manually-triggered workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`). After the stage-ids are approved, run it from **Actions → prod · deploy website → Run workflow**, selecting the **`prod`** ref. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only. A pre-build guard ([`rtx release verify-live`](scripts/release/verify-live.mjs)) aborts the deploy unless the checked-out tree matches the **live** npm release (all `@ts-runtypes/*` packages, in lockstep) — so a deploy dispatched from `main`, or from `prod` before the stage-ids are approved, fails fast instead of shipping docs for a version nobody can install yet.
+**Deploy the docs site.** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`) that must run only after the stage-ids are approved. `stage-approve` dispatches it automatically once npm serves the freshly-approved version (a fresh publish lags a little on the registry CDN, so it polls before dispatching; `--no-deploy` skips, `--deploy-only` re-fires a skipped or failed dispatch). The manual path remains as fallback: **Actions → prod · deploy website → Run workflow**, selecting the **`prod`** ref. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only. A pre-build guard ([`rtx release verify-live`](scripts/release/verify-live.mjs)) aborts the deploy unless the checked-out tree matches the **live** npm release (all `@ts-runtypes/*` packages, in lockstep) — so a deploy dispatched from `main`, or from `prod` before the stage-ids are approved, fails fast instead of shipping docs for a version nobody can install yet.
 
-**First-publish bootstrap (one-time, in order).** Trusted Publishing **cannot create a package that does not exist yet** — npm only lets you register a trusted publisher for a package that already has at least one published version. So the very first version of every `@ts-runtypes/*` package must be published manually, and only then can CI take over:
+**First-publish bootstrap (one-time).** npm can't **stage** a package name that has no published version yet, so the very first version of each `@ts-runtypes/*` package must be a plain, live publish before CI's staged path can take over. The initial versions were published manually with `pnpm rtx release manual-publish` — it builds the ten packages, does an interactive `npm login` (one 2FA challenge for the whole run), then publishes them all **live** and **leaves-first** with `--access public` (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and the seven `@ts-runtypes/binary-<os>-<arch>`); it's **resumable**, so already-live versions are skipped. Use the same command to bootstrap any new sibling package before its first CI release, and make sure the repo `NPM_TOKEN` secret is set so `publish-npm` can authenticate.
 
-1. **Publish the initial version manually.** Run `pnpm rtx release manual-publish` — it builds the ten packages, does an interactive `npm login` (one 2FA challenge for the whole run, no token needed since classic/automation tokens are gone), then publishes them all **live** and **leaves-first** with `--access public` (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and the seven `@ts-runtypes/binary-<os>-<arch>`). It's **resumable** — already-live versions are skipped, so an OTP hiccup mid-run just needs a re-run.
-2. **Register the trusted publisher (stage-only) for each now-existing package** on [npmjs.com](https://www.npmjs.com/): repo `MionKit/ts-run-types`, workflow `publish.yml`, **stage-only** permissions, for all ten package names above.
-3. **Verify one OIDC staged run** (merge a version-bump PR into `prod`; `publish-npm` should stage without a token), then delete the `NPM_TOKEN` **repo secret** — CI no longer uses it (the local direct publish still reads `NPM_TOKEN` from `.env`).
-
-CI runs Node 26; staged publishing needs npm **≥ 11.15.0** (OIDC needs ≥ 11.5.1). The `publish-npm` job runs `npm install -g npm@latest` to guarantee it.
+CI runs Node 26; staged publishing needs npm **≥ 11.15.0**. The `publish-npm` job runs `npm install -g npm@latest` to guarantee it.
 
 **Cutting a release (after the bootstrap).** The whole flow is driven end-to-end by the **[release-to-prod skill](.claude/skills/release-to-prod/)** — an agent opens the PRs, watches CI, and fixes failures forward; a maintainer reviews and clicks the merges. The shape:
 
 1. **Bump PR into `main`.** On a branch: `pnpm rtx release bump <patch|minor|major|X.Y.Z>` ([`bump-version.mjs`](scripts/release/bump-version.mjs) writes `version.json` + every `package.json` and commits `chore(release): v<version>`; delete the local tag it creates — CI tags the `prod` commit itself). Curate `CHANGELOG.md` into the same commit. Lands on `main` via the normal rebase-merge.
-2. **Release PR — `main` straight into `prod`, no intermediate branch:** `gh pr create --base prod --head main --title "release: vX.Y.Z"`. [`pre-publish.yml`](.github/workflows/pre-publish.yml) runs the full gate plus a PR-time `version-fresh` check (red if `version.json` is already live on npm). Because the head IS `main`, fixes merged to `main` flow into the PR automatically.
+2. **Cut `release/vX.Y.Z` from the bumped `main`, then open the release PR from it into `prod`:** `git fetch origin main && git branch release/vX.Y.Z origin/main && git push -u origin release/vX.Y.Z`, then `gh pr create --base prod --head release/vX.Y.Z --title "release: vX.Y.Z"`. The branch is a frozen prefix of `main` (a snapshot, not a live view), so the release scope is fixed at the cut point. [`pre-publish.yml`](.github/workflows/pre-publish.yml) runs the full gate, a `version-fresh` check (red if `version.json` is already live on npm), and `main-ancestor` (red unless the head is an ancestor of `origin/main`). To pull in a fix, land it on `main` first, then re-cut the branch forward: `git branch -f release/vX.Y.Z origin/main && git push --force-with-lease origin release/vX.Y.Z`. Never author a commit on the release branch, and never cherry-pick onto it.
 3. **Merge with "Create a merge commit" — never rebase, never squash.** `prod` must advance only by true merge commits of `main`; a rebase/squash breaks the shared ancestry and the next release PR stops being mergeable. [`publish.yml`](.github/workflows/publish.yml)'s first job (`merge-shape`) fails fast on a wrong-method merge and prints the recovery (an empty `main → prod` re-merge PR).
-4. `publish.yml` runs the gate again, then **stages** every package to npm (OIDC) and tags the release on `prod`.
-5. Approve the staged packages with 2FA, leaves-first: `pnpm rtx release stage-approve`.
-6. Deploy the docs: **Actions → prod · deploy website → Run workflow**, against the **`prod`** ref (the `verify-live` guard aborts if `prod`'s version isn't live on npm yet — i.e. if step 5 hasn't completed).
+4. `publish.yml` runs the gate again, then **stages** every package to npm (with `NPM_TOKEN`) and tags the release on `prod`. Delete the frozen branch once the tag exists: `git push origin --delete release/vX.Y.Z`.
+5. Approve the staged packages with 2FA, leaves-first: `pnpm rtx release stage-approve` (one OTP prompt, reused while its window lasts). Once npm serves the new version, it **auto-dispatches the website deploy**.
+6. Docs deploy fallback — only if step 5 reported `DEPLOY NOT TRIGGERED`: `pnpm rtx release stage-approve --deploy-only`, or **Actions → prod · deploy website → Run workflow** against the **`prod`** ref (the `verify-live` guard aborts if the version isn't live on npm yet).
+
+> **One-time (prod ruleset).** The `prod` branch ruleset must require the pre-publish checks as status checks — including **`release head is an ancestor of main`** (the `main-ancestor` job) alongside the gate and `version-fresh` — so a release branch that drifted off `main` cannot merge. Configure it under **Settings → Rules → prod**.
 
 ### Pre-publish e2e — `pnpm rtx release e2e`
 
@@ -413,6 +427,8 @@ It packs the tarballs (if `tarballs/` is missing), then runs two axes:
 - **Per-OS binary smoke, host-native.** A lean vitest fixture (`host-smoke/`) installs the published packages from the port-published `:4873` and runs on **this** OS/arch, so the plugin resolves + spawns the real host-platform binary via `@ts-runtypes/bin`'s optional-dependency model (the one thing no container can substitute).
 
 **Supply-chain point (why the container):** verdaccio and its whole dependency tree run **inside** the rootless container (read-only tarballs mount + a loopback port, nothing else) — **never** installed into your host's node/npm environment. On a dev machine the flow is **container-or-error**: if podman is down it fails with a pointer to the [ts-runtypes-setup skill](.claude/skills/ts-runtypes-setup/) and never falls back to a host verdaccio. The `host-npx` fallback (on-runner `npx verdaccio`) exists **only** for CI's macOS/Windows runners (which can't run a Linux container) and is guarded by `CI` — it refuses to run locally.
+
+**The receipt — "e2e passed" is a checkable precondition, not a convention.** A PASS writes `tarballs/.e2e-receipt.json`: the version, which backend and halves ran, and a **sha256 per tarball**. [`publish-tarballs.mjs`](scripts/release/publish-tarballs.mjs) (`pnpm rtx release tarballs`, the CI stage-publish) then REFUSES to publish unless a receipt covers exactly those bytes at this version, so repacking after the gate, or publishing an older `tarballs/`, fails loudly instead of shipping unverified bytes. In CI the receipt rides from the gate's e2e job to the publish job as its own artifact (the tarballs themselves are one artifact packed once, so the bytes are identical end to end). Escape hatch for the first-publish bootstrap and emergencies: `--no-receipt`, or `RT_ALLOW_UNVERIFIED_PUBLISH=1`, which prints a conspicuous warning. Two paths are deliberately NOT gated: `--registry <verdaccio>` (that publish IS part of running the e2e, so requiring its own receipt would be circular) and `rtx release manual-publish` (the bootstrap rebuilds tarballs by default, invalidating any receipt by construction — it prints whether one is valid and lets you decide).
 
 The e2e is gated in CI by [`release-gate.yml`](.github/workflows/release-gate.yml) (the ubuntu lane uses the container backend; the macOS/Windows lanes use host-npx). The builder toolchains are baked into the `tsrt-e2e` image (`container/pre-publish-e2e/_deps`), so each run installs only the changing `@ts-runtypes/*` — a **republish** of that image (`pnpm rtx container push e2e`) is required after any change to `container/pre-publish-e2e/{_deps,registry}/` or its Containerfile.
 
@@ -438,7 +454,7 @@ It waits for the version to be resolvable (a fresh publish can lag across the re
 | `pnpm install` rejects a dependency with "minimum release age" | `pnpm-workspace.yaml` blocks packages <30 days old                          | Wait or add a targeted entry under `minimumReleaseAgeExclude`.                                                                 |
 | `pnpm install` fails on a peer dep                             | `strictPeerDependencies: true`                                              | Add the peer to the package's `peerDependencies` or `devDependencies`.                                                         |
 | JS plugin tests error spawning the resolver                    | `bin/ts-runtypes` not built                                             | `pnpm run check:builds` or `go -C ts-go-runtypes build -o ../bin/ts-runtypes ./cmd/ts-runtypes`.                       |
-| `build-binaries.mjs` aborts with "garble not found"            | garble not installed (publish-time prereq for obfuscated binaries)          | `go install mvdan.cc/garble@v0.16.0`, or `RT_GARBLE=0` to build without obfuscation.                                          |
+| A consumer project's lint lane fails `Unable to resolve @ts-runtypes/binary-<os>-<arch>` | No platform package installed (an unpublished build consumed as `file:` tarballs, a `--no-optional` install, or an air-gapped mirror) | Point the launcher at a binary: `RT_BIN=/abs/path/to/ts-runtypes` (see [Dev loop](#pointing-a-consumer-project-at-a-specific-binary-rt_bin)). |
 | `pnpm run typecheck` errors "cannot find project" / missing reference | New package missing from root `tsconfig.json` `references`            | Add the package path to the root `tsconfig.json`.                                                                              |
 | oxlint fails to load with `Plugin 'runtypes' not found`        | Stale/missing `@ts-runtypes/devtools` dist (the `jsPlugins` entry)              | Rebuild it: `pnpm --filter @ts-runtypes/devtools run build` (or `pnpm run check:builds`).                                          |
 | Husky hook not firing                                          | `prepare` script did not run                                                | `pnpm install` again, or `pnpm exec husky` to force activation.                                                                |
@@ -447,7 +463,7 @@ It waits for the version to be resolvable (a fresh publish can lag across the re
 | `podman machine start` fails with `vfkit exited unexpectedly`  | Rosetta 2 missing on Apple Silicon                                          | `softwareupdate --install-rosetta --agree-to-license`, then re-run `podman machine start`.                                     |
 | `@ts-runtypes/devtools` container build fails with garbled errors | Host-arch Go binary mounted into a Linux container                        | The bench script auto-cross-compiles `bin/ts-runtypes-linux-<arch>`; force a refresh with `pnpm rtx bench prep`.           |
 | Marker package `tsc --build` fails with `Cannot find namespace 'Temporal'` | Missing `esnext.temporal` in the marker `tsconfig.json` `lib`           | Restore the `esnext.temporal` entry — its absence makes tsc skip declaration emit on the offending file, leaving `markers.d.ts` / `createRTFunctions.d.ts` missing and breaking call-site resolution. |
-| Bench errors `createValidate(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
+| Bench errors `createValidateFn(): no id injected`                | Stale or partial marker/plugin `dist/` (`.d.ts.map` without `.d.ts`)        | `pnpm run check:builds` — wipes `tsconfig.tsbuildinfo` and rebuilds the affected dist clean. CI never hits this; only fresh-checkout-then-interrupt scenarios do. |
 
 ---
 
@@ -467,6 +483,7 @@ pnpm rtx dev fuzz <suite> [--soak]  # unit|value|types|enrich|i18n|typemod|race|
 pnpm rtx dev smoke               # resolver + devtools end-to-end smoke
 pnpm rtx website dev [--agent]   # hot-reload docs server (:3000, or :3100 --agent)
 pnpm rtx website build [--no-bench] [--quick]   # build the docs site
+pnpm rtx website check --static  # serve the built site + assert the benchmark pages render
 pnpm rtx bench [--one <name>|--full|--website] [--quick]   # benchmarks
 pnpm rtx verify                  # lint + typecheck + format check
 pnpm rtx fmt [--check]           # format (oxfmt + prettier + gofmt)

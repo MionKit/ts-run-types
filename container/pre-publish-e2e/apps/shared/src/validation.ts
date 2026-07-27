@@ -1,6 +1,6 @@
 // Family 1 — Validation & errors. Mirrors packages/examples/src/guide/
 // validation-*.ts against the PUBLISHED @ts-runtypes/core surface.
-import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';
+import {createValidateFn, createGetValidationErrorsFn} from '@ts-runtypes/core';
 import {type CheckResult, eq, ok} from './check';
 
 export interface Account {
@@ -9,12 +9,12 @@ export interface Account {
   roles: ('admin' | 'user')[];
 }
 
-export const isAccount = createValidate<Account>();
-export const accountErrors = createGetValidationErrors<Account>();
+export const isAccount = createValidateFn<Account>();
+export const accountErrors = createGetValidationErrorsFn<Account>();
 
 // A build-time option literal routes the call to a specialized validator arm —
 // exercises the CompTimeArgs path (nothing is read at runtime).
-export const isAccountLoose = createValidate<Account>(undefined, {noLiterals: true});
+export const isAccountLoose = createValidateFn<Account>(undefined, {noLiterals: true});
 
 export function checkValidation(): CheckResult[] {
   const good = {id: 1, name: 'Ada', roles: ['admin'] as ('admin' | 'user')[]};

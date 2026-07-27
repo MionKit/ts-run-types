@@ -3,10 +3,10 @@
 // option (there is no global toggle): the default (unarmed) validator, the
 // explicit `{rejectCircularRefs:false}` which is just the default, and the armed
 // guard as a no-op over a non-circular type. Per the marker test-coverage rule,
-// each arming assertion is paired across both `createValidate` call shapes —
-// static `createValidate<T>()` and reflection `createValidate(value)`.
+// each arming assertion is paired across both `createValidateFn` call shapes —
+// static `createValidateFn<T>()` and reflection `createValidateFn(value)`.
 import {describe, expect, it} from 'vitest';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
 interface Node {
   name: string;
@@ -21,20 +21,20 @@ function selfCycle(): Node {
 
 describe('validation / CircularGuard modes (compile-time option)', () => {
   it('per-call {rejectCircularRefs:true} arms — static form', () => {
-    const isNode = createValidate<Node>(undefined, {rejectCircularRefs: true});
+    const isNode = createValidateFn<Node>(undefined, {rejectCircularRefs: true});
     expect(isNode(selfCycle())).toBe(false);
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
   });
 
   it('per-call {rejectCircularRefs:true} arms — reflection form', () => {
     const inference: Node = {name: 'a'};
-    const isNode = createValidate(inference, {rejectCircularRefs: true});
+    const isNode = createValidateFn(inference, {rejectCircularRefs: true});
     expect(isNode(selfCycle())).toBe(false);
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
   });
 
   it('unarmed by default — the plain validator has no cycle guard (static form)', () => {
-    const isNode = createValidate<Node>();
+    const isNode = createValidateFn<Node>();
     // No guard: an acyclic value validates exactly as without the feature.
     // (A cyclic value would recurse forever — that is the unguarded contract.)
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
@@ -42,7 +42,7 @@ describe('validation / CircularGuard modes (compile-time option)', () => {
 
   it('explicit {rejectCircularRefs:false} is just the default (reflection form)', () => {
     const inference: Node = {name: 'a'};
-    const isNode = createValidate(inference, {rejectCircularRefs: false});
+    const isNode = createValidateFn(inference, {rejectCircularRefs: false});
     expect(isNode({name: 'a', next: {name: 'b'}})).toBe(true);
   });
 
@@ -51,7 +51,7 @@ describe('validation / CircularGuard modes (compile-time option)', () => {
       id: number;
       label: string;
     }
-    const isPlain = createValidate<Plain>(undefined, {rejectCircularRefs: true});
+    const isPlain = createValidateFn<Plain>(undefined, {rejectCircularRefs: true});
     expect(isPlain({id: 1, label: 'x'})).toBe(true);
     expect(isPlain({id: 'no', label: 'x'} as unknown)).toBe(false);
   });
@@ -62,7 +62,7 @@ describe('validation / CircularGuard modes (compile-time option)', () => {
       label: string;
     }
     const inference: Plain = {id: 1, label: 'x'};
-    const isPlain = createValidate(inference, {rejectCircularRefs: true});
+    const isPlain = createValidateFn(inference, {rejectCircularRefs: true});
     expect(isPlain({id: 1, label: 'x'})).toBe(true);
     expect(isPlain({id: 'no', label: 'x'} as unknown)).toBe(false);
   });

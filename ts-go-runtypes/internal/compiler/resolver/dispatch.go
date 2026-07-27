@@ -165,7 +165,7 @@ func (sess *Session) collectEntryModules(dump protocol.Dump, rtOpts typefunction
 	// `utl.getRT(key).fn` — assert every referenced primitive actually
 	// rendered (post-fixpoint) so an invariant breach fails the build
 	// instead of crashing at runtime. ProvenanceSites anchors any breach at
-	// the demanding createJsonEncoder/Decoder call site.
+	// the demanding createJsonEncoderFn/Decoder call site.
 	typefunctions.AssertCompositeSoftDeps(graph, rtOpts.ProvenanceSites, rtOpts.DiagSink)
 	// Same invariant for cfn redirects: every `utl.usePureFn('cfn::…')` must
 	// have its module in the graph or the build fails (OVR002) instead of
@@ -949,6 +949,9 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			return protocol.Response{Error: genErr.Error()}
 		}
 		genResponse := protocol.Response{Generated: manifest, OutDir: outDir, SiteFiles: uniqueSiteFiles(genDump.Sites, sess.pureFnReplacementFiles(metrics))}
+		// Echo the tsconfig plugin's failOnError (nil when unset) so the
+		// dependency-free host can adopt a tsconfig-only setting, same as OutDir.
+		genResponse.FailOnError = sess.opts.TsconfigFailOnError
 		// Pure-fn build report (opt-in): populate the structured records for the
 		// in-process callback, and — when file output is enabled — write the JSON
 		// file alongside the generated modules so out-of-process consumers (a
@@ -988,6 +991,8 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 			return protocol.Response{}
 		}
 		return protocol.Response{RunTypes: []*protocol.RunType{runType}}
+	case protocol.OpEnrich:
+		return sess.dispatchEnrich(request)
 	case protocol.OpTsCompile:
 		ms, err := sess.dispatchTsCompile()
 		if err != nil {
@@ -1137,6 +1142,24 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 		return errors.New("setSources: no cwd configured")
 	}
 	cwd = tspath.NormalizePath(cwd)
+
+	// Parse the project tsconfig ONCE per session (cwd + tsconfig path are fixed
+	// for the session lifetime) and adopt its options wholesale in every inferred
+	// Program, so daemon rebuilds type-check exactly like the build. Strict like
+	// tsc: a named config that is missing or broken fails the op — CFG001 tags the
+	// message so lint hosts can synthesize the catalog diagnostic — and the done
+	// flag stays unset, so the next setSources re-parses and a fixed config heals
+	// without a respawn. (nil, nil) means no config was named: the fixed inferred
+	// defaults apply.
+	if !sess.inferredConfigDone {
+		inferredConfig, err := program.ParseInferredConfig(cwd, sess.opts.TsconfigPath)
+		if err != nil {
+			return fmt.Errorf("setSources: %s %v", diagnostics.CodeTsconfigLoadFailed, err)
+		}
+		sess.inferredConfig = inferredConfig
+		sess.inferredConfigDone = true
+	}
+
 	overlay := make(map[string]string, len(sources))
 	fileNames := make([]string, 0, len(sources))
 	for relativePath, content := range sources {
@@ -1148,6 +1171,7 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 		Cwd:            cwd,
 		SingleThreaded: sess.opts.SingleThreaded,
 		Overlay:        overlay,
+		Config:         sess.inferredConfig,
 	}, fileNames)
 	if err != nil {
 		return fmt.Errorf("setSources: %w", err)

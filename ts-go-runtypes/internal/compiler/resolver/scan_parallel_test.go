@@ -20,14 +20,14 @@ import (
 // group carries projection-heavy work.
 func parallelFixtureLarge() string {
 	var sb strings.Builder
-	sb.WriteString("import {createValidate, createGetValidationErrors} from '@ts-runtypes/core';\n")
+	sb.WriteString("import {createValidateFn, createGetValidationErrorsFn} from '@ts-runtypes/core';\n")
 	sb.WriteString("export interface Big {\n")
 	for i := 0; i < 6; i++ {
 		fmt.Fprintf(&sb, "  s%d: string; n%d: number; o%d?: {a: string; b: number[]; c: 'x' | 'y' | %d}; d%d: Date;\n", i, i, i, i, i)
 	}
 	sb.WriteString("}\n")
-	sb.WriteString("export const v = createValidate<Big>();\n")
-	sb.WriteString("export const e = createGetValidationErrors<Big>();\n")
+	sb.WriteString("export const v = createValidateFn<Big>();\n")
+	sb.WriteString("export const e = createGetValidationErrorsFn<Big>();\n")
 	return sb.String()
 }
 
@@ -38,7 +38,7 @@ func parallelFixtureLarge() string {
 // reflect-form annotation honoring, and classes/builtins.
 func parallelFixtureSources() map[string]string {
 	return map[string]string{
-		"a_objects.ts": `import {createValidate, createGetValidationErrors, getRunTypeId} from '@ts-runtypes/core';
+		"a_objects.ts": `import {createValidateFn, createGetValidationErrorsFn, getRunTypeId} from '@ts-runtypes/core';
 export interface Address {street: string; city: string; zip?: string}
 export interface User {
   id: number;
@@ -50,68 +50,68 @@ export interface User {
   createdAt: Date;
   meta: {[key: string]: string};
 }
-export const v = createValidate<User>();
-export const e = createGetValidationErrors<User>();
+export const v = createValidateFn<User>();
+export const e = createGetValidationErrorsFn<User>();
 export const idStatic = getRunTypeId<Address>();
 const addr: Address = {street: 's', city: 'c'};
 export const idReflect = getRunTypeId(addr);
 `,
-		"b_unions.ts": `import {createValidate, createJsonEncoder, createJsonDecoder, getRunTypeId} from '@ts-runtypes/core';
+		"b_unions.ts": `import {createValidateFn, createJsonEncoderFn, createJsonDecoderFn, getRunTypeId} from '@ts-runtypes/core';
 export type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; size: number} | {kind: 'rect'; w: number; h: number};
 export type Mixed = string | number | Date | {a: string} | string[];
-export const v = createValidate<Shape>();
-export const enc = createJsonEncoder<Shape>();
-export const dec = createJsonDecoder<Mixed>();
+export const v = createValidateFn<Shape>();
+export const enc = createJsonEncoderFn<Shape>();
+export const dec = createJsonDecoderFn<Mixed>();
 export const idStatic = getRunTypeId<Shape>();
 const sh: Shape = {kind: 'circle', radius: 1};
 export const idReflect = getRunTypeId(sh);
 `,
 		"c_large.ts": parallelFixtureLarge(),
-		"d_shared.ts": `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+		"d_shared.ts": `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 export interface AddressClone {street: string; city: string; zip?: string}
-export const v = createValidate<AddressClone>();
+export const v = createValidateFn<AddressClone>();
 export const idStatic = getRunTypeId<AddressClone>();
 const a: AddressClone = {street: 'x', city: 'y'};
 export const idReflect = getRunTypeId(a);
 `,
-		"e_diags.ts": `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
-export function wrap<T>() { return createValidate<T>(); }
+		"e_diags.ts": `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
+export function wrap<T>() { return createValidateFn<T>(); }
 function make() { return {a: 1}; }
-export const viaCall = createValidate(make());
-export const noopOpt = createValidate<string>(undefined, {noLiterals: true});
+export const viaCall = createValidateFn(make());
+export const noopOpt = createValidateFn<string>(undefined, {noLiterals: true});
 const opts = {noLiterals: true};
-export const nonLiteral = createValidate<string>(undefined, opts);
+export const nonLiteral = createValidateFn<string>(undefined, opts);
 const made: {a: number} = {a: 2};
 export const reflected = getRunTypeId(made);
 `,
-		"f_enum_literals.ts": `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+		"f_enum_literals.ts": `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 export enum Color {Red, Green = 'green', Blue = 2}
 export type Route = ` + "`api/user/${number}`" + `;
 export type Pair = [string, number?];
 export const a = getRunTypeId<Color>();
-export const b = createValidate<Route>();
-export const c = createValidate<Pair>();
+export const b = createValidateFn<Route>();
+export const c = createValidateFn<Pair>();
 const pair: Pair = ['x', 1];
 export const d = getRunTypeId(pair);
 `,
-		"g_reflect.ts": `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+		"g_reflect.ts": `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 export type Mode = 'on' | 'off';
 const mode: Mode = 'on';
-export const fromValue = createValidate(mode);
-export const fromType = createValidate<Mode>();
+export const fromValue = createValidateFn(mode);
+export const fromType = createValidateFn<Mode>();
 export const idStatic = getRunTypeId<Mode>();
 `,
-		"h_classes.ts": `import {createValidate, getRunTypeId} from '@ts-runtypes/core';
+		"h_classes.ts": `import {createValidateFn, getRunTypeId} from '@ts-runtypes/core';
 export class Account {
   id: number = 0;
   name = '';
   tags: Set<string> = new Set();
   meta: Map<string, number> = new Map();
 }
-export const v = createValidate<Account>();
+export const v = createValidateFn<Account>();
 export const p = getRunTypeId<Promise<string>>();
-export const r = createValidate<RegExp>();
-export const d = createValidate<Date>();
+export const r = createValidateFn<RegExp>();
+export const d = createValidateFn<Date>();
 const acc = new Account();
 export const idReflect = getRunTypeId(acc);
 `,
@@ -119,11 +119,11 @@ export const idReflect = getRunTypeId(acc);
 		// diagnostics (VL010 / VE010 / json-family codes) — multiple
 		// families emit RT-render diagnostics for the same type, which
 		// pins the cross-family diagnostic merge order in parallel mode.
-		"i_dropped.ts": `import {createValidate, createGetValidationErrors, createJsonEncoder, getRunTypeId} from '@ts-runtypes/core';
+		"i_dropped.ts": `import {createValidateFn, createGetValidationErrorsFn, createJsonEncoderFn, getRunTypeId} from '@ts-runtypes/core';
 export interface WithFn { name: string; onClick: () => void; }
-export const v = createValidate<WithFn>();
-export const e = createGetValidationErrors<WithFn>();
-export const enc = createJsonEncoder<WithFn>();
+export const v = createValidateFn<WithFn>();
+export const e = createGetValidationErrorsFn<WithFn>();
+export const enc = createJsonEncoderFn<WithFn>();
 const w: WithFn = {name: 'x', onClick: () => {}};
 export const idReflect = getRunTypeId(w);
 `,

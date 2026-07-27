@@ -6,7 +6,7 @@
 // to rebuild). Supported cases keep values identical to the serialization
 // suite and double as mild perf smoke tests.
 
-import {createCloneExactShape} from '@ts-runtypes/core';
+import {createCloneExactShapeFn} from '@ts-runtypes/core';
 import type {CloningCase} from './types.ts';
 
 interface WideRecord {
@@ -164,7 +164,7 @@ export const LARGE_OBJECTS = {
     title: 'Wide Interface',
     description:
       'A single interface with 30+ properties spanning scalars, Date, bigint, and a nested meta object rebuilds field by field, exercising the per-property walk cost without any union dispatch.',
-    clone: () => createCloneExactShape<WideRecord>(),
+    clone: () => createCloneExactShapeFn<WideRecord>(),
     getTestData: () => {
       const seed = 1;
       const record: WideRecord = {
@@ -206,7 +206,7 @@ export const LARGE_OBJECTS = {
     title: 'Object Union',
     description:
       'Five-member discriminated union of large event shapes — object-bearing unions are unsupported for cloning, so the factory throws CES001 at creation.',
-    clone: () => createCloneExactShape<LargeObjectUnion>(),
+    clone: () => createCloneExactShapeFn<LargeObjectUnion>(),
     getTestData: () => ({
       values: [
         {
@@ -262,7 +262,7 @@ export const LARGE_OBJECTS = {
     title: 'Mixed Union',
     description:
       'A string | number | ProductEvent | UserEvent union mixes atomic members with two large object arms — still object-bearing, so the factory throws CES001 at creation.',
-    clone: () => createCloneExactShape<MixedLargeUnion>(),
+    clone: () => createCloneExactShapeFn<MixedLargeUnion>(),
     getTestData: () => ({
       values: [
         'just a string',
@@ -293,7 +293,7 @@ export const LARGE_OBJECTS = {
     title: 'Deep Nested',
     description:
       'Walks five levels of nested arrays of objects, rebuilding fresh objects and arrays at every level to amplify per-property overhead.',
-    clone: () => createCloneExactShape<DeepNestedLevel1>(),
+    clone: () => createCloneExactShapeFn<DeepNestedLevel1>(),
     getTestData: () => {
       const leaf: DeepNestedLeaf = {id: 1, value: 'leaf', when: new Date('2024-01-01T00:00:00.000Z')};
       const level5: DeepNestedLevel5 = {name: 'l5', leaves: [leaf, leaf, leaf]};
@@ -308,7 +308,7 @@ export const LARGE_OBJECTS = {
     title: 'Large Class Union',
     description:
       'Three-member union of large class instances — classes are object members too, so the clone factory throws CES001 at creation.',
-    clone: () => createCloneExactShape<LargeClassUnion>(),
+    clone: () => createCloneExactShapeFn<LargeClassUnion>(),
     getTestData: () => {
       const a = new LargeClassA();
       a.kind = 'classA';

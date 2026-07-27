@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import {createUnplugin} from 'unplugin';
 import {getExePath} from '@ts-runtypes/bin';
@@ -20,10 +21,46 @@ import {
 // so they win over tsconfig, tsc-style); reach for them only when one build
 // must differ. `binary` / `cwd` / `tsconfig` / `genDir` are genuinely
 // host-specific and have no tsconfig equivalent.
+// EnrichI18nSyncOptions is the plugin's i18n sync config. It intentionally
+// shares the SHAPE of the tsconfig `i18n` plugin entry (sourceLocale / locales /
+// strict), but drives a DIFFERENT lane: the CLI `i18n` entry configures
+// `enrich --i18n`, while this one drives the plugin's per-locale
+// translation-mirror auto-sync. `strict` is accepted for shape-parity; the
+// auto-sync never gates on it (it only scaffolds + reconciles).
+export interface EnrichI18nSyncOptions {
+  sourceLocale?: string;
+  locales?: string[];
+  strict?: boolean;
+}
+
+// EnrichSyncOptions is the opt-in enrichment auto-sync surface (default OFF).
+// When any family is enabled the plugin keeps the committed enrichment mirrors
+// under <genDir>/enriched/** in sync from dev/watch, running the SAME
+// value-preserving scaffold + reconcile the `ts-runtypes enrich --update` CLI
+// does — NEVER translated content, NEVER an LLM. A production `vite build` never
+// writes: it runs a read-only completeness gate (the plugin analog of `enrich
+// --require-complete`) that warns, and under failOnError fails the build, when a
+// mirror is stale/missing OR still carries an unfilled @todo / blank value.
+export interface EnrichSyncOptions {
+  // Auto gen + sync the FriendlyText mirrors under <genDir>/enriched/friendly/.
+  friendly?: boolean;
+  // Auto gen + sync the MockData mirrors under <genDir>/enriched/mock/.
+  mock?: boolean;
+  // Presence enables per-locale translation-mirror sync under
+  // <genDir>/enriched/i18n/<locale>/ — SCAFFOLD + SYNC only.
+  i18n?: EnrichI18nSyncOptions;
+  // HMR for <genDir>/enriched/** is AUTO-SUPPRESSED whenever any enrich family is
+  // enabled (the mirrors are write-only outputs). Set false to restore reloads
+  // for debugging; set true to suppress even when auto-gen is off (e.g. you edit
+  // the mirrors by hand or via the CLI while the dev server runs). Effective
+  // suppression = suppressHmr ?? (any enrich family enabled).
+  suppressHmr?: boolean;
+}
+
 export interface PluginOptions {
   // Absolute path to the compiled ts-runtypes binary. Optional: when omitted,
   // the plugin resolves the prebuilt binary for the host platform via the
-  // `ts-runtypes-bin` launcher (its `ts-runtypes-binary-<os>-<arch>` optional
+  // `@ts-runtypes/bin` launcher (its `@ts-runtypes/binary-<os>-<arch>` optional
   // dependency). Set this only to point at a custom or local build — e.g.
   // in-repo development passes `bin/ts-runtypes`.
   binary?: string;
@@ -54,7 +91,7 @@ export interface PluginOptions {
   emitMode?: 'code' | 'functions' | 'both';
   // Binary `dynamic` cold-start buffer-size estimate knobs. The compiler walks
   // each binary-encoder type at build time and bakes a buffer-size estimate
-  // into the entry; `createBinaryEncoder({sizeStrategy: 'dynamic'})` uses it as
+  // into the entry; `createBinaryEncoderFn({sizeStrategy: 'dynamic'})` uses it as
   // the initial buffer size (instead of a 16 MiB default) until per-key history
   // warms up. All are optional and fold into the disk cache fingerprint.
   //   - sizeBias (0..1, default 0.8): 0 = tightest (more grows), 1 = most generous.
@@ -65,6 +102,14 @@ export interface PluginOptions {
   //   All four ride the single `size` object (like the tsconfig `size` key):
   //   {bias, items, stringBytes, maxBytes}.
   size?: {bias?: number; items?: number; stringBytes?: number; maxBytes?: number};
+  // Project-wide defaults for the per-call-site ValidateOptions bag, grouped
+  // under one `validate` object (like `size`). Merged per field into every
+  // validate / validationErrors call site by the compiler (a per-call option
+  // wins over the default for that field).
+  //   - numberMode: the base `number` check every validator uses — 'isFinite'
+  //     (default; rejects NaN/Infinity), 'typeof' (accepts them), or 'notNaN'
+  //     (rejects NaN, accepts Infinity). Eases migration from a looser library.
+  validate?: {numberMode?: 'isFinite' | 'typeof' | 'notNaN'};
   // NB: there is deliberately NO cacheDir option. The on-disk RT artifact cache
   // (the incremental build cache under node_modules/.cache/ts-runtypes, separate
   // from `genDir`) follows TypeScript's own `incremental` / `composite` switch —
@@ -79,6 +124,16 @@ export interface PluginOptions {
   // either way — these exist for benchmarking baselines and debugging.
   parallelScan?: boolean;
   parallelRender?: boolean;
+  // Force single-checker, fully-serial scan/render. Output is equivalent; the
+  // child is lighter. The canonical home is the tsconfig `singleThreaded` knob —
+  // set it here to override one build in EITHER direction: `true` forces it on
+  // (--single-threaded), `false` forces it off (--no-single-threaded) over a
+  // tsconfig `singleThreaded: true`.
+  singleThreaded?: boolean;
+  // Length of the short structural-hash ids in generated names (--hash-length;
+  // undefined = the binary default, 7). The canonical home is the tsconfig
+  // `hashLength` knob; set it here to override one build.
+  hashLength?: number;
   // How cache entries group into modules:
   //   'default'    — runtype nodes ride ONE data bundle (+ per-root facade
   //                  modules); every fn-family / composite / pure-fn entry
@@ -168,6 +223,13 @@ export interface PluginOptions {
   // (phase 'update'). Fires whenever the report is on ('file' or 'callback');
   // setting it with `pureFnReport` unset implies 'callback' (data, no file).
   onPureFnReport?: (sites: PureFnSite[], phase: 'build' | 'update') => void;
+  // Enrichment auto-sync (opt-in, default OFF — omit for exactly today's
+  // behavior). Bundler-plugin-only (a host/dev-loop behavior, so it has no
+  // tsconfig counterpart). See EnrichSyncOptions: friendly/mock enable per-family
+  // gen+sync, an i18n object enables per-locale translation-mirror sync (scaffold
+  // + reconcile only, never translated content), and suppressHmr overrides the
+  // auto-suppression of HMR for <genDir>/enriched/**.
+  enrich?: EnrichSyncOptions;
 }
 
 // MARKER_MODULE backs the transform's textual FALLBACK pre-filter. The primary
@@ -195,8 +257,12 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // at the host boundary so a config typo fails loudly.
   const transformMode: 'go' | 'edits' = options.transformMode ?? 'edits';
   // Error-severity diagnostics fail the build/transform in every lane unless
-  // explicitly opted out (see PluginOptions.failOnError).
-  const failOnError: boolean = options.failOnError !== false;
+  // explicitly opted out (see PluginOptions.failOnError). Precedence is
+  // tsc-style: the explicit plugin option wins, else the tsconfig `failOnError`
+  // echoed on the generate response (adopted in buildStart below), else the
+  // built-in true. Seeded with the option-or-true default so the transform lane
+  // is safe even if buildStart never ran on this host.
+  let failOnError: boolean = options.failOnError ?? true;
   // Resolve the pure-fn report tri-state into the two low-level resolver flags.
   // An explicit `false` wins even when a handler is set; an unset value with a
   // handler defaults to 'callback' (data, no file). Validated at the host
@@ -216,7 +282,27 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       `[@ts-runtypes/devtools] unknown transformMode ${JSON.stringify(options.transformMode)} — expected 'go' | 'edits'`
     );
   }
+  // Enrichment auto-sync config (default OFF). friendly/mock enable per-family
+  // gen+sync; the i18n object's PRESENCE enables per-locale translation-mirror
+  // sync (scaffold + reconcile only, never translated content).
+  const enrichOptions = options.enrich;
+  const enrichFriendly = enrichOptions?.friendly === true;
+  const enrichMock = enrichOptions?.mock === true;
+  const enrichI18n = enrichOptions?.i18n;
+  const enrichI18nEnabled = enrichI18n !== undefined;
+  const enrichLocales = enrichI18n?.locales ?? [];
+  const enrichSourceLocale = enrichI18n?.sourceLocale;
+  const anyEnrichFamily = enrichFriendly || enrichMock || enrichI18nEnabled;
+  // HMR for <genDir>/enriched/** auto-suppresses whenever any enrich family is on
+  // (the mirrors are write-only outputs); suppressHmr overrides in EITHER
+  // direction — false restores reloads for debugging, true suppresses even with
+  // auto-gen off (hand / CLI edits while the dev server runs).
+  const suppressEnrichHmr = enrichOptions?.suppressHmr ?? anyEnrichFamily;
   let resolver: ResolverClient | null = null;
+  // Live buildStart/buildEnd pairs across this instance's plugin containers
+  // (vite spawns one per environment). The shared resolver closes only when
+  // the LAST container tears down — see the buildEnd hook.
+  let activeBuilds = 0;
   // The transform gate: cwd-relative paths (forward-slashed) of every source
   // file the resolver's scan found marker sites in. Rebuilt from generate()'s
   // siteFiles at buildStart, kept current per-file by handleHotUpdate.
@@ -229,6 +315,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // other bundler (no equivalent hook), where ensureResolver falls back to
   // options.cwd ?? process.cwd().
   let viteRoot = '';
+  // Vite's command ('serve' | 'build'), captured in configResolved. Empty under
+  // every other bundler. Gates enrichment auto-sync: 'serve' WRITES the mirrors
+  // (dev/watch), anything else runs the read-only drift gate (a production build
+  // must never mutate committed source).
+  let viteCommand = '';
 
   // ensureResolver spawns the resolver subprocess + wires the disk cache on
   // first use. Idempotent: under Vite the configResolved hook calls it early
@@ -266,22 +357,39 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // Explicit path wins; otherwise resolve the host-platform binary from the
     // ts-runtypes-bin launcher (throws with a clear message if none is installed).
     const binaryPath = options.binary ?? getExePath();
-    resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
+    // Forward ONLY an explicit options.tsconfig (strict: the Go side hard
+    // errors when it is missing or broken). When unset, the Go side resolves
+    // the config exactly as tsc does — searching upward from cwd — so the
+    // plugin carries no config logic of its own.
+    resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? '', {
       ...(options.emitMode ? {emitMode: options.emitMode} : {}),
       ...(options.size?.bias !== undefined ? {sizeBias: options.size.bias} : {}),
       ...(options.size?.items !== undefined ? {sizeItems: options.size.items} : {}),
       ...(options.size?.stringBytes !== undefined ? {sizeStringBytes: options.size.stringBytes} : {}),
       ...(options.size?.maxBytes !== undefined ? {sizeMaxBytes: options.size.maxBytes} : {}),
+      ...(options.validate?.numberMode ? {numberMode: options.validate.numberMode} : {}),
       ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
       ...(options.parallelRender !== undefined ? {parallelRender: options.parallelRender} : {}),
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
+      ...(options.singleThreaded !== undefined ? {singleThreaded: options.singleThreaded} : {}),
+      ...(options.hashLength !== undefined ? {hashLength: options.hashLength} : {}),
       ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
       // Tri-state → the two low-level resolver flags: report on the wire for
       // both 'file' and 'callback'; the JSON file written only for 'file' (at
       // the hardcoded genDir/types path).
       ...(reportEnabled ? {pureFnReportWire: true} : {}),
       ...(writeReportFile ? {pureFnReportFile: true} : {}),
+      // Enrichment session config (spawn-time — the enrich op's wire carries
+      // only files). An explicit genDir rides --gen-dir so OpEnrich roots the
+      // mirror tree identically; families + i18n select what the daemon syncs,
+      // with locales/sourceLocale defaulting from the tsconfig i18n block.
+      ...(genDirAbs ? {genDir: genDirAbs} : {}),
+      ...(enrichFriendly ? {enrichFriendly: true} : {}),
+      ...(enrichMock ? {enrichMock: true} : {}),
+      ...(enrichI18nEnabled ? {enrichI18n: true} : {}),
+      ...(enrichLocales.length > 0 ? {enrichLocales} : {}),
+      ...(enrichSourceLocale ? {enrichSourceLocale} : {}),
     });
   }
 
@@ -379,6 +487,118 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     }
   }
 
+  // writeMirrorFiles writes each computed enrichment mirror to disk
+  // write-only-on-change (skip when the bytes already match), so a converged
+  // mirror never churns the watcher. Best-effort per file: one write failure must
+  // not tear down the dev loop. Returns what it actually wrote — freshly
+  // scaffolded (added) vs reconciled — for the first-sync summary.
+  async function writeMirrorFiles(
+    files: {path: string; content: string; added?: boolean}[]
+  ): Promise<{created: number; updated: number}> {
+    let created = 0;
+    let updated = 0;
+    for (const file of files) {
+      try {
+        const existing = await fs.promises.readFile(file.path, 'utf8').catch(() => null);
+        if (existing === file.content) continue;
+        await fs.promises.mkdir(path.dirname(file.path), {recursive: true});
+        await fs.promises.writeFile(file.path, file.content);
+        if (file.added) created += 1;
+        else updated += 1;
+      } catch {
+        // best-effort; keep going with the remaining mirrors
+      }
+    }
+    return {created, updated};
+  }
+
+  // syncEnrich scaffolds + reconciles the demanded enrichment mirrors for `files`
+  // (the whole program when [] is passed) and writes them to disk. The wire
+  // carries only the files — which families / locales to sync and where the tree
+  // roots are the resolver session's spawn-time config. The daemon does the
+  // (type name → source file) mapping: for each file it enriches every EXPORTED
+  // type that file declares which is ALSO demanded by a marker call. Dev/watch
+  // only — a production build takes the read-only drift gate instead. Never
+  // throws: enrichment sync must not break the dev loop.
+  async function syncEnrich(files: string[]): Promise<void> {
+    if (!resolver || !anyEnrichFamily) return;
+    try {
+      const result = await resolver.enrich(files);
+      const written = await writeMirrorFiles(result.files);
+      // First-sync visibility: the whole-program pass says what it created, so a
+      // fresh opt-in is never a silent burst of new files. Per-file HMR syncs
+      // stay quiet (the diff in the editor is the feedback there).
+      if (files.length === 0 && written.created + written.updated > 0) {
+        console.log(
+          `[@ts-runtypes/devtools] enrich sync: scaffolded ${written.created} new mirror file(s), reconciled ${written.updated} — review & commit; fill the blanks before a production build (its completeness gate fails on unfilled scaffolds).`
+        );
+      }
+    } catch {
+      // A resolver hiccup mid-edit heals on the next pass — swallow it.
+    }
+  }
+
+  // enrichDriftGate is the production-build lane: it computes the desired mirrors
+  // (whole program) and enforces that the committed enrichment is both IN SYNC and
+  // COMPLETE, WITHOUT writing (mutating committed source mid-build would break
+  // reproducibility). This is the plugin analog of the CLI `enrich
+  // --require-complete`, so a release can never ship blank labels/mocks:
+  //
+  //   - DRIFT: an on-disk mirror missing or differing from the freshly computed
+  //     one (a source type moved and the mirror wasn't reconciled).
+  //   - INCOMPLETE: unfilled @todo scaffolds or blank values (empty label /
+  //     message / pool) over the computed mirrors — the daemon's hygiene findings.
+  //
+  // Both warn; under failOnError both fail the build. Dev/watch takes syncEnrich
+  // instead, which writes the scaffolds and tolerates the blanks (the developer is
+  // mid-authoring). Never mutates committed source.
+  async function enrichDriftGate(ctx: any): Promise<void> {
+    if (!resolver || !anyEnrichFamily) return;
+    let stale: string[];
+    let incomplete: Diagnostic[];
+    try {
+      const result = await resolver.enrich([]);
+      stale = [];
+      for (const file of result.files) {
+        const existing = await fs.promises.readFile(file.path, 'utf8').catch(() => null);
+        if (existing !== file.content) stale.push(file.path);
+      }
+      // Unfilled @todo scaffolds + blank values over the computed mirrors. These
+      // are Error-severity here (unlike dev): a production build must not ship an
+      // app with blank labels/translations.
+      incomplete = (result.diagnostics ?? []).filter((d) => d.severity === Severity.Error);
+    } catch {
+      return;
+    }
+    if (stale.length === 0 && incomplete.length === 0) return;
+    for (const stalePath of stale) {
+      ctx.warn?.(
+        `@ts-runtypes/devtools: enrichment mirror out of date or missing: ${stalePath} — run \`ts-runtypes enrich --update\` and commit it.`
+      );
+    }
+    for (const diagnostic of incomplete) ctx.warn?.(formatTscDiagnostic(diagnostic));
+    if (failOnError) {
+      const parts: string[] = [];
+      if (stale.length > 0) parts.push(`${stale.length} out of date or missing`);
+      if (incomplete.length > 0) parts.push(`${incomplete.length} incomplete (unfilled @todo / blank value)`);
+      ctx.error?.(
+        `@ts-runtypes/devtools: enrichment is not production-ready — ${parts.join(', ')}. ` +
+          `Run \`ts-runtypes enrich --update\`, fill the blanks, and commit. (mirrors are never written during a production build)`
+      );
+    }
+  }
+
+  // isUnderEnrichedDir reports whether an absolute file path lives under
+  // <genDirAbs>/enriched/ — the committed enrichment mirror tree the plugin writes
+  // (and the CLI / a developer may hand-edit). Its changes are write-only outputs,
+  // so handleHotUpdate suppresses HMR for them when suppression is effective.
+  function isUnderEnrichedDir(file: string): boolean {
+    if (!genDirAbs) return false;
+    const enrichedRoot = path.join(genDirAbs, 'enriched');
+    const rel = path.relative(enrichedRoot, path.resolve(file));
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  }
+
   return {
     name: '@ts-runtypes/devtools',
     // Must run BEFORE vite/esbuild's built-in TypeScript transform. The
@@ -394,14 +614,21 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // bundlers; under Vite, configResolved spawns the resolver earlier, so the
     // ensureResolver call here is then a no-op.
     async buildStart(this: any) {
+      // Counted BEFORE any await: a sibling container's buildEnd must never
+      // observe a zero count while this container's startup work is running.
+      activeBuilds += 1;
       ensureResolver();
       // generate writes the modules and, when genDirAbs is empty, returns the
       // resolver-inferred <srcDir>/__runtypes. Adopt that resolved path so
       // every later transform/HMR call reuses it. The VCS-hygiene files
       // (per-folder READMEs, the types/.gitignore) are written by the Go side
-      // inside generate, so the CLI --compile lane gets them too.
+      // inside generate, so the CLI compile lane gets them too.
       const gen = await resolver!.generate(genDirAbs || undefined);
       if (gen.outDir) genDirAbs = gen.outDir;
+      // Adopt the tsconfig-echoed failOnError as the halt default (the explicit
+      // plugin option still wins, then this echo, then the built-in true), so a
+      // tsconfig-only `failOnError: false` reaches the dependency-free host.
+      failOnError = options.failOnError ?? gen.failOnError ?? true;
       // Pure-fn build report — fire the in-process callback with the whole
       // program's report (phase 'build'). Universal hook, so every adapter
       // (vite/rollup/rolldown/esbuild/rspack/webpack) gets it; a watch-mode
@@ -419,9 +646,28 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // failOnError contract, so dev/test lanes fail as loudly as `vite build`.
       surfaceDiagnostics(this, gen.diagnostics ?? [], (d) => d.family === Family.PureFn, {halt: true});
       surfaceDiagnostics(this, gen.diagnostics ?? [], (d) => d.family !== Family.PureFn, {halt: failOnError});
+      // Enrichment auto-sync (opt-in). Dev/watch (vite serve) WRITES the demanded
+      // mirrors up front — a whole-program pass so they exist before the first
+      // edit; every other lane (a production build, a non-Vite bundler) runs the
+      // read-only drift gate instead, which never mutates committed source. Both
+      // no-op when no enrich family is enabled.
+      if (anyEnrichFamily) {
+        if (viteCommand === 'serve') await syncEnrich([]);
+        else await enrichDriftGate(this);
+      }
     },
 
+    // buildEnd fires once per plugin CONTAINER, and one plugin instance (one
+    // resolver child) serves several: vite runs a container per environment
+    // (client + ssr) over the same instance, and hosts like vitest close them
+    // at different times. Closing on the FIRST buildEnd killed the shared
+    // child under the other containers' in-flight requests ("generate:
+    // resolver exited"), so the close waits for the LAST paired buildEnd.
+    // The resolver is nulled so a later buildStart (watch rebuild, dev-server
+    // restart) respawns via ensureResolver.
     buildEnd() {
+      if (activeBuilds > 0) activeBuilds -= 1;
+      if (activeBuilds > 0) return;
       resolver?.close();
       resolver = null;
     },
@@ -476,8 +722,9 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // resolver eagerly. The marker package's vitest relies on the resolver
       // existing as soon as the workspace project initialises (before any
       // test transform), which is exactly when configResolved fires.
-      configResolved(cfg: {root: string}) {
+      configResolved(cfg: {root: string; command?: string}) {
         viteRoot = cfg.root;
+        if (cfg.command) viteCommand = cfg.command;
         ensureResolver();
       },
 
@@ -490,16 +737,30 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       async handleHotUpdate(this: any, ctx: any) {
         if (!resolver) return;
         const file: string = ctx.file;
-        if (!file || !/\.[mc]?[jt]sx?$/.test(file)) return;
+        if (!file) return;
+        // HMR suppression for write-only enrichment outputs: a change under
+        // <genDir>/enriched/** is the plugin's own mirror write (or a hand / CLI
+        // edit). Return [] so Vite reloads nothing when suppression is effective —
+        // this is what keeps the auto-sync writes from triggering reload loops.
+        if (suppressEnrichHmr && isUnderEnrichedDir(file)) return [];
+        if (!/\.[mc]?[jt]sx?$/.test(file)) return;
 
         const rel = path.relative(cwdAbs || process.cwd(), file);
         const content = typeof ctx.read === 'function' ? await ctx.read() : undefined;
         if (typeof content === 'string') {
           try {
             await resolver.setSources({[rel]: content});
-          } catch {
-            // setSources can fail if the changed file is outside the
-            // resolver's known set (e.g. a config file). Fall through to
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            // A CFG001-tagged failure is the project tsconfig refusing to
+            // load (strict like tsc) — say so loudly instead of silently
+            // skipping updates; the daemon re-parses on the next edit, so a
+            // fixed config heals without a dev-server restart.
+            if (message.includes('CFG001')) {
+              console.error(`[@ts-runtypes/devtools] HMR update skipped — ${message}`);
+            }
+            // Otherwise setSources failed because the changed file is outside
+            // the resolver's known set (e.g. a config file). Fall through to
             // default HMR — nothing for the resolver to do here.
             return;
           }
@@ -528,6 +789,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         } catch {
           // A regenerate failure shouldn't tear down the dev server mid-edit.
         }
+
+        // Sync this changed file's demanded enrichment mirrors (opt-in). Runs
+        // AFTER generate so the resolver's Program already reflects the edit; the
+        // resulting mirror writes are HMR-suppressed above, so this never loops.
+        if (anyEnrichFamily) await syncEnrich([rel]);
 
         // Re-emit diagnostics so the editor's problem panel updates as the user
         // types. `halt: false` because HMR shouldn't tear down the dev server on

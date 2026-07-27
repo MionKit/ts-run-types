@@ -18,9 +18,9 @@ import (
 // and returns the validate source + FMT002 diagnostics.
 func scanTemporalFormat(t *testing.T, typ, formatName, params string) (string, []diagnostics.Diagnostic) {
 	t.Helper()
-	code := `import {createValidate} from '@ts-runtypes/core';
+	code := `import {createValidateFn} from '@ts-runtypes/core';
 ` + typeFormatBrandDecl + `
-export const _ = createValidate<TypeFormat<Temporal.` + typ + `, '` + formatName + `', ` + params + `>>();
+export const _ = createValidateFn<TypeFormat<Temporal.` + typ + `, '` + formatName + `', ` + params + `>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{

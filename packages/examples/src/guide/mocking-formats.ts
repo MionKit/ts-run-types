@@ -1,5 +1,5 @@
 import type * as TF from '@ts-runtypes/core/formats';
-import {createMockData} from '@ts-runtypes/core';
+import {createMockDataFn} from '@ts-runtypes/core';
 
 // Type formats don't just validate — mocks respect them too.
 type Contact = {
@@ -9,7 +9,7 @@ type Contact = {
 };
 
 // start-formats
-const mockContact = createMockData<Contact>();
+const mockContact = createMockDataFn<Contact>();
 
 const fake = mockContact();
 // id is a real-looking UUID, email is a real-looking address —

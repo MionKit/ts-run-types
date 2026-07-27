@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
+import {createBinaryDecoderFn, createBinaryEncoderFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import type {SerializationCase} from './types.ts';
 
@@ -10,23 +10,27 @@ export const TUPLES = {
       'Fixed-length mixed tuple [Date, number, string, null, string[], bigint] where the Date slot encodes to an ISO string and the bigint slot to a decimal string, while number, string, null and the string[] slot pass through unchanged.',
     serializeNotes:
       'Per-slot wire transforms: Date↔ISO string and bigint↔decimal string; the decoder restores each slot from its scalar form.',
-    mutateEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(),
-    preserveDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<[Date, number, string, null, string[], bigint]>(),
-    binaryDecoder: () => createBinaryDecoder<[Date, number, string, null, string[], bigint]>(),
+    mutateEncoder: () => createJsonEncoderFn<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<[Date, number, string, null, string[], bigint]>(),
+    preserveDecoder: () => createJsonDecoderFn<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<[Date, number, string, null, string[], bigint]>(),
+    binaryDecoder: () => createBinaryDecoderFn<[Date, number, string, null, string[], bigint]>(),
     schemaEncoder: () =>
-      createJsonEncoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+      createJsonEncoderFn(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
     schemaDecoder: () =>
-      createJsonDecoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+      createJsonDecoderFn(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+      createBinaryEncoderFn(
+        RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])
+      ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+      createBinaryDecoderFn(
+        RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])
+      ),
     getTestData: () => ({
       values: [[new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
     }),
@@ -37,19 +41,19 @@ export const TUPLES = {
       'Tuple [number, bigint?, boolean?, number?] with one required leading slot and three trailing optional slots that may be absent and round-trip symmetrically across JSON and binary.',
     serializeNotes:
       'Samples cover the optional bigint slot both present (exercising the bigint-to-decimal-string transform in a tuple slot) and absent; all round-trip with no shape asymmetry.',
-    mutateEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(),
-    preserveDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<[number, bigint?, boolean?, number?]>(),
-    binaryDecoder: () => createBinaryDecoder<[number, bigint?, boolean?, number?]>(),
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    mutateEncoder: () => createJsonEncoderFn<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<[number, bigint?, boolean?, number?]>(),
+    preserveDecoder: () => createJsonDecoderFn<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<[number, bigint?, boolean?, number?]>(),
+    binaryDecoder: () => createBinaryDecoderFn<[number, bigint?, boolean?, number?]>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
     getTestData: () => ({
       values: [
         [3, undefined, true, 4],
@@ -64,41 +68,41 @@ export const TUPLES = {
       'Tuple [number, ...bigint[]] with one fixed number slot and a possibly-empty trailing bigint rest segment, where each rest bigint encodes to a decimal string and rebuilds with BigInt(...) on decode.',
     serializeNotes:
       'Rest bigint elements serialize to decimal strings on the JSON wire and rebuild to bigints on decode; samples cover the rest segment populated and empty.',
-    mutateEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<[number, ...bigint[]]>(),
-    preserveDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<[number, ...bigint[]]>(),
-    binaryDecoder: () => createBinaryDecoder<[number, ...bigint[]]>(),
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number()], TF.bigInt())),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number()], TF.bigInt())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number()], TF.bigInt())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number()], TF.bigInt())),
+    mutateEncoder: () => createJsonEncoderFn<[number, ...bigint[]]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<[number, ...bigint[]]>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<[number, ...bigint[]]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<[number, ...bigint[]]>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<[number, ...bigint[]]>(),
+    preserveDecoder: () => createJsonDecoderFn<[number, ...bigint[]]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<[number, ...bigint[]]>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<[number, ...bigint[]]>(),
+    binaryDecoder: () => createBinaryDecoderFn<[number, ...bigint[]]>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number()], TF.bigInt())),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number()], TF.bigInt())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number()], TF.bigInt())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number()], TF.bigInt())),
     getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
   },
   tuple_with_non_serializable: {
     title: 'tuple non-serializable slot',
     description:
       'Function-typed tuple slots are unsupported at every serialization family because tuple positions are structural, so rather than silently dropping to lossy null/undefined output the factory is rendered as alwaysThrow.',
-    mutateEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<[number, () => any]>(),
-    preserveDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<[number, () => any]>(),
-    binaryDecoder: () => createBinaryDecoder<[number, () => any]>(),
+    mutateEncoder: () => createJsonEncoderFn<[number, () => any]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<[number, () => any]>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<[number, () => any]>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<[number, () => any]>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<[number, () => any]>(),
+    preserveDecoder: () => createJsonDecoderFn<[number, () => any]>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<[number, () => any]>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<[number, () => any]>(),
+    binaryDecoder: () => createBinaryDecoderFn<[number, () => any]>(),
     // Expressible value-first (mirrors validation TUPLE.tuple_with_non_serializable),
     // but a function-typed tuple slot resolves the same alwaysThrow factory — each
     // thunk throws like the type-first form (factoryThrows below); adapter asserts it.
-    schemaEncoder: () => createJsonEncoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
-    schemaDecoder: () => createJsonDecoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
     factoryThrows: true,
     getTestData: () => ({values: []}),
   },
@@ -110,39 +114,39 @@ export const TUPLES = {
       'A root-level recursive tuple cannot be authored value-first, so all four schema variants are marked not-supported (the object-to-tuple cycle is covered value-first by interface_circular_tuple); the type-first path round-trips with Date-to-ISO-string and bigint-to-decimal-string per-slot transforms.',
     mutateEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonEncoder<TupleCircular>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<TupleCircular>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonEncoder<TupleCircular>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<TupleCircular>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonEncoder<TupleCircular>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<TupleCircular>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonEncoder<TupleCircular>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<TupleCircular>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonDecoder<TupleCircular>();
+      return createJsonDecoderFn<TupleCircular>();
     },
     preserveDecoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonDecoder<TupleCircular>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<TupleCircular>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonDecoder<TupleCircular>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<TupleCircular>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createBinaryEncoder<TupleCircular>();
+      return createBinaryEncoderFn<TupleCircular>();
     },
     binaryDecoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createBinaryDecoder<TupleCircular>();
+      return createBinaryDecoderFn<TupleCircular>();
     },
     // A ROOT-level recursive tuple can't be authored value-first — `circular(self =>
     // tuple([...], [self]))` hits TS2589 (TS can't build a recursive tuple type via
@@ -184,72 +188,72 @@ export const TUPLES = {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<ICircularTuple>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<ICircularTuple>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<ICircularTuple>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<ICircularTuple>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createJsonDecoder<ICircularTuple>();
+      return createJsonDecoderFn<ICircularTuple>();
     },
     preserveDecoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createJsonDecoder<ICircularTuple>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<ICircularTuple>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createJsonDecoder<ICircularTuple>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<ICircularTuple>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createBinaryEncoder<ICircularTuple>();
+      return createBinaryEncoderFn<ICircularTuple>();
     },
     binaryDecoder: () => {
       interface ICircularTuple {
         name: string;
         parent?: [string, ICircularTuple];
       }
-      return createBinaryDecoder<ICircularTuple>();
+      return createBinaryDecoderFn<ICircularTuple>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createJsonEncoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     schemaDecoder: () =>
-      createJsonDecoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createJsonDecoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createBinaryEncoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createBinaryDecoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
     getTestData: () => {
       interface ICircularTuple {
         name: string;

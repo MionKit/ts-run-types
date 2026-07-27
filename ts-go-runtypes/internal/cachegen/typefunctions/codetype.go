@@ -52,7 +52,7 @@ const (
 	//
 	// The renderer's contract: when a top-level Walker.Compile()
 	// returns isUnsupported=true, no factory is emitted for that
-	// RunType — the runtime cache miss is caught by createValidate's
+	// RunType — the runtime cache miss is caught by createValidateFn's
 	// hasRunType-but-no-rt fallback and degrades to `() => true`,
 	// which mirrors the "no validator available" stance.
 	CodeNS CodeType = "NS"

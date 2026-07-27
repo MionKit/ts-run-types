@@ -1,6 +1,6 @@
 // Family 12 — Standard Schema v1. Mirrors guide/standard-schema.ts. The
 // `~standard.validate` contract: good input → {value}, bad input → {issues}.
-import {createStandardSchema, runTypeErrorsToIssues, createGetValidationErrors} from '@ts-runtypes/core';
+import {createStandardSchema, runTypeErrorsToIssues, createGetValidationErrorsFn} from '@ts-runtypes/core';
 import {type CheckResult, ok} from './check';
 
 interface User {
@@ -10,7 +10,7 @@ interface User {
 }
 
 export const userSchema = createStandardSchema<User>();
-export const userErrors = createGetValidationErrors<User>();
+export const userErrors = createGetValidationErrorsFn<User>();
 
 // Our validators are synchronous, so the validate() result is never a Promise;
 // this structural view narrows away that branch for the assertions.

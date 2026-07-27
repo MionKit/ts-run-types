@@ -234,9 +234,14 @@ func (sess *Session) dispatchScanFilesSerial(files []string) ([]protocol.Site, [
 				diagnostics = append(diagnostics, diags...)
 			}
 			for _, pending := range pendings {
-				site := sess.commitPending(pending)
-				sites = append(sites, site)
-				sess.sites = append(sess.sites, site)
+				site, depthDiags, emitSite := sess.commitPending(pending)
+				if len(depthDiags) > 0 {
+					diagnostics = append(diagnostics, depthDiags...)
+				}
+				if emitSite {
+					sites = append(sites, site)
+					sess.sites = append(sess.sites, site)
+				}
 			}
 			return true
 		})
@@ -306,8 +311,12 @@ func (state scanState) detectMarker(paramType *checker.Type) (marker.Kind, *chec
 // the scan path) and mints the Site. The split exists so the analysis
 // can run on pool checkers concurrently while projection stays serial.
 type pendingCall struct {
-	file       string
-	pos        int
+	file string
+	pos  int
+	// site is the pre-built call-span diagnostics.Site, used only to anchor the
+	// depth-cap diagnostic (MKR008) when commitPending's projection reports the
+	// structural-id walk hit typeid.maxWalkDepth.
+	site       diagnostics.Site
 	paramIndex int
 	argsCount  int
 	fnId       string
@@ -318,7 +327,7 @@ type pendingCall struct {
 	fnIds  []string
 	demand []protocol.SiteDemand
 	// trailingComma is true when the call's own argument list already ends
-	// with a comma (e.g. a formatter-wrapped `createValidate(\n  schema,\n)`).
+	// with a comma (e.g. a formatter-wrapped `createValidateFn(\n  schema,\n)`).
 	// The TS-side injector reads it to splice the binding WITHOUT a leading
 	// comma — otherwise the pre-existing comma plus the injected `, …` yield
 	// an empty argument `f(a, , …)`, which is invalid JS.
@@ -335,8 +344,26 @@ type pendingCall struct {
 // concurrent use. Projection runs under the checker that materialized the
 // type (a fast no-swap path when that is the session checker, i.e. always
 // on the serial scan path).
-func (sess *Session) commitPending(pending pendingCall) protocol.Site {
+func (sess *Session) commitPending(pending pendingCall) (protocol.Site, []diagnostics.Diagnostic, bool) {
+	sess.cache.ResetDepthExceeded()
 	id := sess.cache.AssignIDUnder(pending.owner, pending.typeArgument)
+	if sess.cache.DepthExceeded() {
+		// The structural-id walk for this site's type hit typeid.maxWalkDepth — an
+		// unresolvable type (like a bare free param / missing args, this can only be
+		// classified once the deep walk runs, so it lands here rather than at
+		// analyzeCall). Raise the cause-classified diagnostic and emit NO site: a
+		// dominant named type on the overflowing stack means a SELF-INSTANTIATING
+		// GENERIC (MKR009, naming it); otherwise plain too-deep nesting (MKR008).
+		// Suppressing the site keeps every unresolvable-type case consistent — no
+		// placeholder id ever ships (parity with MKR003/MKR010/MKR011).
+		var diag diagnostics.Diagnostic
+		if culprit := sess.cache.DepthCulprit(); culprit != "" {
+			diag = diagnostics.New(diagnostics.CodeMarkerSelfInstantiatingGeneric, pending.site, culprit)
+		} else {
+			diag = diagnostics.New(diagnostics.CodeStructuralIdDepthExceeded, pending.site)
+		}
+		return protocol.Site{}, []diagnostics.Diagnostic{diag}, false
+	}
 	return protocol.Site{
 		File:          pending.file,
 		Pos:           pending.pos,
@@ -347,7 +374,7 @@ func (sess *Session) commitPending(pending pendingCall) protocol.Site {
 		FnIds:         pending.fnIds,
 		Demand:        pending.demand,
 		TrailingComma: pending.trailingComma,
-	}
+	}, nil, true
 }
 
 // analyzeCall inspects one call expression — the checker-bound analysis
@@ -529,6 +556,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 // options-carrying calls depend on. Byte-identical to the pre-multislot scanner.
 func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, callExpression *ast.CallExpression, slot injectMarker, lastIndex, argsCount int, trailingComma bool) (pendingCall, []diagnostics.Diagnostic, bool) {
 	var diags []diagnostics.Diagnostic
+	sourceFile := ast.GetSourceFileOfNode(call)
 	injectionTypeArgument := slot.typeArg
 	injectionFnKeys := slot.fnKeys
 	// Guard against a `Temporal.*` type that silently resolved to `any`
@@ -548,9 +576,8 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 		// wrapper's own free type parameter, so there is no concrete id to inject
 		// until the wrapper is itself instantiated. (A wrapper that forwards its
 		// handle returned above; this is the genuinely-unsupported case, e.g.
-		// `createValidate<T>()` in a generic body.) Emit MKR003 so the user gets a
+		// `createValidateFn<T>()` in a generic body.) Emit MKR003 so the user gets a
 		// build-time breadcrumb instead of only the runtime "no id injected" throw.
-		sourceFile := ast.GetSourceFileOfNode(call)
 		if sourceFile == nil {
 			return pendingCall{}, diags, false
 		}
@@ -559,6 +586,41 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 			textpos.NodeSite(file, sourceFile, call),
 		))
 		return pendingCall{}, diags, false
+	}
+	// CONTAINED free type parameter (`A<T>`, `T[]`, `{a: T}` in a generic body):
+	// same unsoundness as the bare-T MKR003 case one level down — the free param
+	// would silently collapse to `unknown` and every instantiation context would
+	// share one aliased id. Rejected as MKR010, naming the parameter, with
+	// Related sites pointing at the parameter's declaration and the generics
+	// chain the walk descended through; no site.
+	if finding, found := marker.FindFreeTypeParameter(state.scanChecker, typeArgument); found {
+		if sourceFile == nil {
+			return pendingCall{}, diags, false
+		}
+		diags = append(diags, diagnostics.NewWithRelated(
+			diagnostics.CodeMarkerUnresolvedTypeParameter,
+			textpos.NodeSite(file, sourceFile, call),
+			[]string{finding.ParamName},
+			finding.Related...,
+		))
+		return pendingCall{}, diags, false
+	}
+	// Written generic reference MISSING required type arguments (`getRunTypeId<A2>()`
+	// over `interface A2<S>` with no default): tsc rejects it (TS2314) but the
+	// no-typecheck dev lane doesn't, and the checker hands us the error type
+	// (plain `any`) — type-side indistinguishable from a legal `getRunTypeId<any>()`.
+	// A SYNTACTIC walk over the written type-argument nodes catches it; Related
+	// points at the first default-less parameter in the chain.
+	if callExpression != nil && sourceFile != nil {
+		if missing, found := findMissingTypeArgs(state.scanChecker, callExpression.TypeArguments); found {
+			diags = append(diags, diagnostics.NewWithRelated(
+				diagnostics.CodeMarkerUnresolvedGenericType,
+				textpos.NodeSite(file, sourceFile, call),
+				[]string{missing.TypeName, missing.ParamName},
+				missing.Related...,
+			))
+			return pendingCall{}, diags, false
+		}
 	}
 	// REFLECT-FORM CHECKS: only fire when T was inferred from a value
 	// argument (no explicit type-argument list) AND at least one value
@@ -570,7 +632,7 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	if inReflectForm {
 		argZero := callExpression.Arguments.Nodes[0]
 		// FUNCTION-CALL-ARGUMENT ANTI-PATTERN: passing a call expression
-		// as the reflect-form value (`createValidate(getX())`) invokes the
+		// as the reflect-form value (`createValidateFn(getX())`) invokes the
 		// function at runtime purely for type inference — side effects,
 		// exceptions, async work, all fire for nothing. The validator
 		// still works (T comes from the inferred return type), but the
@@ -595,12 +657,12 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 		// the apparent type at the call site is `typeof literal`, not the
 		// declared union/enum. Reading the annotation directly makes the
 		// reflect-form hash equal to the static-form hash for the natural
-		// `const v: T = literal; createValidate(v);` idiom. Non-identifier
+		// `const v: T = literal; createValidateFn(v);` idiom. Non-identifier
 		// reflect-form args (property access, function calls, element
 		// access) don't go through const-binding CFA and don't exhibit
 		// the trap, so they fall through to the apparent-type path.
 		// Skip annotation honoring for the SCHEMA overload: when argZero is a
-		// RunType-typed const (`createValidate(schemaConst)` where
+		// RunType-typed const (`createValidateFn(schemaConst)` where
 		// `const schemaConst: RunType<T> = …`), the declared type is `RunType<T>`,
 		// but the injection's typeArgument is already the UNWRAPPED `T` (inferred
 		// from the schema overload's `RunType<T>` param). Overriding it with
@@ -630,6 +692,20 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 			}
 		}
 	}
+	// Resolve numberMode per field: the site's own value wins; otherwise the
+	// project-wide default (validate.numberMode) fills in. Only this field is
+	// taken from the global defaults — a site that set noLiterals / noIsArrayCheck
+	// keeps them untouched (per-field merge, site-wins-per-field). isFinite —
+	// the default and any unrecognized value — adds no variant name, so plain
+	// keys stay stable. Done after the noop-diagnostic block above so a global
+	// default never makes options.Any() fire those warnings.
+	effectiveNumberMode := options.numberMode
+	if effectiveNumberMode == "" {
+		effectiveNumberMode = state.sess.opts.ValidateDefaults.NumberMode
+	}
+	if canonicalName := constants.NumberModeOptionName(effectiveNumberMode); canonicalName != "" {
+		options.enable(canonicalName)
+	}
 	// Structural id resolution happens in commitPending and is purely a
 	// function of the resolved TS type. `ValidateOptions` (`noLiterals` /
 	// `noIsArrayCheck`) does NOT fold into the id; instead, the option set
@@ -637,7 +713,7 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	// `valNA`) and the emitter renders one factory per (typeid, fnId) pair
 	// under the canonical variant cache key (e.g. `itNL_<id>`, `valNA_<id>`).
 	// Same invariant the encoder strategy / decoder strategy already honour.
-	// See createRTFunctions.ts's `createJsonEncoder` dispatch + the
+	// See createRTFunctions.ts's `createJsonEncoderFn` dispatch + the
 	// `ValidateVariantSuffix` helper in internal/constants. RegExp has no
 	// literal type in TS (`/abc/i` widens to `RegExp` even under `as const`),
 	// so `typeof /abc/i`, `typeof /xyz/`, and `RegExp` all resolve to the
@@ -688,6 +764,7 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	}
 	return pendingCall{
 		file: file,
+		site: textpos.NodeSite(file, sourceFile, call),
 		// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 		// the closing-paren offset where the TS-side patcher inserts.
 		pos:           call.End() - 1,
@@ -735,6 +812,21 @@ func (state scanState) analyzeMultiSlotInjection(file string, call *ast.Node, in
 			}
 			continue
 		}
+		// Contained free type parameter — the MKR010 sibling of the bare check
+		// above (same treatment as the trailing-injection path). No syntactic
+		// missing-args check here: multi-slot wrapper calls infer their type
+		// arguments from values, so there are no written type-argument nodes.
+		if finding, found := marker.FindFreeTypeParameter(state.scanChecker, m.typeArg); found {
+			if sourceFile != nil {
+				diags = append(diags, diagnostics.NewWithRelated(
+					diagnostics.CodeMarkerUnresolvedTypeParameter,
+					textpos.NodeSite(file, sourceFile, call),
+					[]string{finding.ParamName},
+					finding.Related...,
+				))
+			}
+			continue
+		}
 		fnKeys := m.fnKeys
 		if deduped, firstDup, hadDup := dedupeFnKeys(fnKeys); hadDup {
 			if sourceFile != nil {
@@ -763,6 +855,7 @@ func (state scanState) analyzeMultiSlotInjection(file string, call *ast.Node, in
 		}
 		pendings = append(pendings, pendingCall{
 			file:          file,
+			site:          textpos.NodeSite(file, sourceFile, call),
 			pos:           pos,
 			paramIndex:    m.paramIndex,
 			argsCount:     argsCount,
@@ -865,7 +958,7 @@ func computeSiteFn(typeChecker *checker.Checker, fnKey string, options validateO
 // optionsArgumentAt returns the AST node at the compile-time options slot —
 // the slot immediately before the trailing id slot — or nil when the call
 // doesn't fill it. Layout convention: options always lives at (lastIndex-1);
-// for `createValidate<T>(val?, options?, id?)` that's slot 1. Marker
+// for `createValidateFn<T>(val?, options?, id?)` that's slot 1. Marker
 // functions without an options param (`getRunTypeId<T>(_value?, id?)`) are
 // inherently safe — slot 0 holds a value, which may be an object literal
 // but won't carry known option keys.
@@ -1065,6 +1158,18 @@ func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 // rule in analyzeCall) need teaching.
 type validateOptions struct {
 	enabled map[string]bool
+	// numberMode holds the raw `numberMode` string literal read at the site
+	// ("" = unset). It's an enum, not a boolean, so it lives outside `enabled`
+	// until the project-default merge resolves it to a canonical variant name.
+	numberMode string
+}
+
+// enable marks a canonical option name present, allocating the set lazily.
+func (opts *validateOptions) enable(name string) {
+	if opts.enabled == nil {
+		opts.enabled = make(map[string]bool, len(constants.ValidateOptions))
+	}
+	opts.enabled[name] = true
 }
 
 // Any reports whether at least one option was set at the call site.
@@ -1094,6 +1199,19 @@ func (opts validateOptions) Names() []string {
 func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIndex, argsCount int) validateOptions {
 	var opts validateOptions
 	eachOptionProperty(typeChecker, call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		if initializer == nil {
+			return
+		}
+		// numberMode is a string-enum option, not a boolean. Read its literal
+		// value here (last-write-wins over spreads, like extractStrategyOption);
+		// the canonical variant name is materialized after the project-default
+		// merge in analyzeCall.
+		if name == constants.NumberModeOption {
+			if initializer.Kind == ast.KindStringLiteral || initializer.Kind == ast.KindNoSubstitutionTemplateLiteral {
+				opts.numberMode = initializer.Text()
+			}
+			return
+		}
 		known := false
 		for _, option := range constants.ValidateOptions {
 			if option.Name == name {
@@ -1106,10 +1224,7 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 		}
 		switch initializer.Kind {
 		case ast.KindTrueKeyword:
-			if opts.enabled == nil {
-				opts.enabled = make(map[string]bool, len(constants.ValidateOptions))
-			}
-			opts.enabled[name] = true
+			opts.enable(name)
 		case ast.KindFalseKeyword:
 			// Last-write-wins: an explicit `false` (an inline override of a
 			// spread-in `true`, or a later spread) disables the option. A
@@ -1122,7 +1237,7 @@ func extractValidateOptions(typeChecker *checker.Checker, call *ast.Node, lastIn
 }
 
 // hasUnknownKeysOptions mirrors validateOptions for the HasUnknownKeysOptions
-// bag (createHasUnknownKeys's compile-time options). Table-driven off
+// bag (createHasUnknownKeysFn's compile-time options). Table-driven off
 // constants.HasUnknownKeysOptions.
 type hasUnknownKeysOptions struct {
 	enabled map[string]bool
@@ -1264,7 +1379,7 @@ func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
 }
 
 // markerDiagFunctionCallArg builds an MKR001 diagnostic flagging a reflect-form
-// marker call that received a function-call argument (`createValidate(getX())`).
+// marker call that received a function-call argument (`createValidateFn(getX())`).
 // The function gets invoked at runtime purely so TypeScript can infer T from
 // its return type, which can produce side effects, exceptions, or async work
 // for no reason. The recommended replacement is the static form using

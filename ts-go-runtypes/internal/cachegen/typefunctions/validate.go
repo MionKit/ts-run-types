@@ -6,9 +6,27 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
+	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
+
+// numberBaseCheck returns the base `number` kind guard for the given numberMode
+// (validateOptions.numberMode): isFinite (default) keeps Number.isFinite;
+// typeof accepts NaN / Infinity; notNaN rejects NaN but keeps Infinity. The
+// notNaN form is parenthesized so it composes safely when AND/OR-chained into
+// object-property and union-member guards. Shared by every base-number emit
+// site across validate.go and validationerrors.go so the two stay in lockstep.
+func numberBaseCheck(numberMode, v string) string {
+	switch numberMode {
+	case constants.NumberModeTypeof:
+		return "typeof " + v + " === 'number'"
+	case constants.NumberModeNotNaN:
+		return "(typeof " + v + " === 'number' && !Number.isNaN(" + v + "))"
+	default:
+		return "Number.isFinite(" + v + ")"
+	}
+}
 
 // ValidateEmitter implements the `validate` rt function — produces a
 // boolean validator per RunType. The factory shape it emits:
@@ -215,10 +233,11 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		return RTCode{Code: "typeof " + v + " === 'string'", Type: CodeE}
 
 	case protocol.KindNumber:
-		// (ref: nodes/atomic/number.ts:14). `Number.isFinite` rejects
-		// Infinity / -Infinity / NaN and non-numbers without coercion —
-		// this encodes the bug-flavor case from number.spec.ts.
-		return RTCode{Code: "Number.isFinite(" + v + ")", Type: CodeE}
+		// (ref: nodes/atomic/number.ts:14). Default `Number.isFinite` rejects
+		// Infinity / -Infinity / NaN and non-numbers without coercion; the
+		// numberMode ValidateOption swaps in the looser typeof / notNaN checks
+		// to align with other libraries.
+		return RTCode{Code: numberBaseCheck(ctx.NumberMode(), v), Type: CodeE}
 
 	case protocol.KindBoolean:
 		// (ref: nodes/atomic/boolean.ts:14)
@@ -327,7 +346,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 			// We mirror via a throw-factory: the message lands on
 			// Walker.ThrowMessage, the module renderer emits a
 			// `createRTFn(utl){ throw new Error(<msg>) }` so the
-			// throw surfaces at createValidate()-call time (the
+			// throw surfaces at createValidateFn()-call time (the
 			// createRTFunction()-call equivalent).
 			return RTCode{Code: "", Type: CodeNS}
 		}
@@ -375,7 +394,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		// can validate a wider runtime shape without changing the
 		// type id — see `emitLiteralBaseKind`.
 		if ctx.HasVariantOption("noLiterals") {
-			return emitLiteralBaseKind(rt, v)
+			return emitLiteralBaseKind(rt, v, ctx.NumberMode())
 		}
 		return emitLiteral(rt, v)
 
@@ -770,20 +789,16 @@ func emitUnionValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode 
 	}
 	parts := simpleChecks
 	if len(objectChecks) > 0 {
-		// Strip the per-object `typeof === 'object' && !== null`
-		// guard from each child — we add one shared guard outside.
-		// Without this, each object member repeats the guard inside
-		// the OR-chain (slower but still correct). The reference strips them
-		// the same way; we do a textual strip because the object
-		// emit always starts with `(typeof <v> === 'object' && <v> !== null`.
+		// One shared object guard wraps the whole object OR-chain. The object
+		// arms come back WITHOUT their own leading `typeof === 'object' && !== null`
+		// term: emitObjectValidate drops it for direct object-literal / plain-class
+		// union members (it checks ctx.ParentIsUnion()), since this shared guard
+		// already establishes it and short-circuits null before any child runs.
+		// Array / tuple / index-sig / Date / Map / Set arms are opaque calls with
+		// no such prefix, so they are unaffected; the standalone (non-union) object
+		// entry keeps its own guard.
 		objGuard := "typeof " + v + " === 'object' && " + v + " !== null"
 		objChain := strings.Join(objectChecks, " || ")
-		// Keep the children's inner guards in place — pre-mature
-		// optimization to strip them is fragile against varying child
-		// shapes (interface vs index sig vs class). The actual
-		// shape ends up with redundant guards in some cases too. The
-		// shared outer guard short-circuits null input before any
-		// child runs.
 		parts = append(parts, "("+objGuard+" && ("+objChain+"))")
 	}
 	if len(parts) == 0 {
@@ -1234,6 +1249,16 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 		// short-circuit first.
 		parts = append(parts[:1], append([]string{guard}, parts[1:]...)...)
 	}
+	// Under a union, emitUnionValidate wraps every object arm in one shared
+	// `typeof v === 'object' && v !== null` guard; re-emitting it in the arm
+	// just bloats the OR-chain. Drop parts[0] (the typeof guard) — the
+	// [object Object] brand guard (now the leading term of parts[1:], when
+	// present) and every property check survive as the arm's own checks.
+	// callSigChild == nil keeps callable shapes intact (their parts[0] is the
+	// typeof-function guard); len(parts) > 1 is defensive against emitting "()".
+	if callSigChild == nil && len(parts) > 1 && ctx.ParentIsUnion() {
+		return RTCode{Code: "(" + joinAnd(parts[1:]) + ")", Type: CodeE}
+	}
 	return RTCode{Code: "(" + joinAnd(parts) + ")", Type: CodeE}
 }
 
@@ -1463,10 +1488,9 @@ func emitLiteral(rt *protocol.RunType, v string) RTCode {
 //
 // Base-kind picked from `rt.Flags` markers (`bigint`/`symbol`)
 // or — when no marker is set — from the Go-side type of `rt.Literal`.
-// Boolean → `typeof v === 'boolean'`; number → `Number.isFinite(v)`
-// (mirrors the KindNumber arm, NaN/Infinity rejected like atomic
-// number); string → `typeof v === 'string'`.
-func emitLiteralBaseKind(rt *protocol.RunType, v string) RTCode {
+// Boolean → `typeof v === 'boolean'`; number → the numberMode-selected base
+// check (mirrors the KindNumber arm); string → `typeof v === 'string'`.
+func emitLiteralBaseKind(rt *protocol.RunType, v, numberMode string) RTCode {
 	flagSet := make(map[string]bool, len(rt.Flags))
 	for _, flag := range rt.Flags {
 		flagSet[flag] = true
@@ -1485,7 +1509,7 @@ func emitLiteralBaseKind(rt *protocol.RunType, v string) RTCode {
 	case bool:
 		return RTCode{Code: "typeof " + v + " === 'boolean'", Type: CodeE}
 	case int64, float64:
-		return RTCode{Code: "Number.isFinite(" + v + ")", Type: CodeE}
+		return RTCode{Code: numberBaseCheck(numberMode, v), Type: CodeE}
 	case string:
 		return RTCode{Code: "typeof " + v + " === 'string'", Type: CodeE}
 	}

@@ -1,5 +1,5 @@
 // id-integrity / DataOnly — for EVERY validation + format-validation case,
-// assert the validator built from `createValidate<DataOnly<T>>()` (and the
+// assert the validator built from `createValidateFn<DataOnly<T>>()` (and the
 // getValidationErrors companion) produces the SAME verdicts on the case's samples as
 // the bare-`T` form. Reuses each case's existing validateDataOnly /
 // getValidationErrorsDataOnly thunks + samples + getExpectedErrors — no new per-case
@@ -22,7 +22,7 @@ function register(suiteName: string, suite: Record<string, Record<string, Valida
   }
 }
 
-describe('id-integrity / DataOnly — createValidate<DataOnly<T>>() validates the same samples as createValidate<T>()', () => {
+describe('id-integrity / DataOnly — createValidateFn<DataOnly<T>>() validates the same samples as createValidateFn<T>()', () => {
   register('validation', VALIDATION_SUITE);
   register('format-validation', FORMAT_VALIDATION_SUITE);
 });

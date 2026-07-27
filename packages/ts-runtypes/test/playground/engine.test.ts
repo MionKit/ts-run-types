@@ -35,21 +35,21 @@ const INVALID = {id: 'not-a-number', name: 'ada', tags: []};
 // (header import + footer call). Pure string helpers - no resolver needed.
 describe('surrounding-code templating', () => {
   it('factoryImport renders the ts-runtypes import line', () => {
-    expect(factoryImport('createValidate')).toBe("import { createValidate } from '@ts-runtypes/core';");
-    expect(factoryImport('createJsonEncoder')).toBe("import { createJsonEncoder } from '@ts-runtypes/core';");
+    expect(factoryImport('createValidateFn')).toBe("import { createValidateFn } from '@ts-runtypes/core';");
+    expect(factoryImport('createJsonEncoderFn')).toBe("import { createJsonEncoderFn } from '@ts-runtypes/core';");
   });
 
   it('factoryCall renders the type-first call, appending the injected arg when given', () => {
-    expect(factoryCall('createValidate', 'validate', 'type')).toBe('const validate = createValidate<MyType>();');
-    expect(factoryCall('createValidate', 'validate', 'type', '__rt_a1b_Xk7')).toBe(
-      'const validate = createValidate<MyType>(__rt_a1b_Xk7);'
+    expect(factoryCall('createValidateFn', 'validate', 'type')).toBe('const validate = createValidateFn<MyType>();');
+    expect(factoryCall('createValidateFn', 'validate', 'type', '__rt_a1b_Xk7')).toBe(
+      'const validate = createValidateFn<MyType>(__rt_a1b_Xk7);'
     );
   });
 
   it('factoryCall renders the value-first (schema) call, injecting after the schema', () => {
-    expect(factoryCall('createValidate', 'validate', 'schema')).toBe('const validate = createValidate(MyType);');
-    expect(factoryCall('createValidate', 'validate', 'schema', '__rt_a1b_Xk7')).toBe(
-      'const validate = createValidate(MyType, __rt_a1b_Xk7);'
+    expect(factoryCall('createValidateFn', 'validate', 'schema')).toBe('const validate = createValidateFn(MyType);');
+    expect(factoryCall('createValidateFn', 'validate', 'schema', '__rt_a1b_Xk7')).toBe(
+      'const validate = createValidateFn(MyType, __rt_a1b_Xk7);'
     );
   });
 });
@@ -74,12 +74,12 @@ describeIf('playground engine (WASM, live execution)', () => {
     expect(typeof v.tsgo).toBe('string');
   });
 
-  it('createValidate accepts a matching value and rejects a mismatch', async () => {
+  it('createValidateFn accepts a matching value and rejects a mismatch', async () => {
     expect(await run('validate', TYPE, VALID)).toMatchObject({kind: 'predicate', value: true});
     expect(await run('validate', TYPE, INVALID)).toMatchObject({kind: 'predicate', value: false});
   });
 
-  it('createGetValidationErrors reports errors only for a mismatch', async () => {
+  it('createGetValidationErrorsFn reports errors only for a mismatch', async () => {
     const good = await run('errors', TYPE, VALID);
     const bad = await run('errors', TYPE, INVALID);
     if (good.kind !== 'errors' || bad.kind !== 'errors') throw new Error('expected errors result');
@@ -87,7 +87,7 @@ describeIf('playground engine (WASM, live execution)', () => {
     expect(bad.value.length).toBeGreaterThan(0);
   });
 
-  it('createJsonEncoder/Decoder round-trips a value', async () => {
+  it('createJsonEncoderFn/Decoder round-trips a value', async () => {
     const res = await run('jsonDecoderStrip', TYPE, {...VALID});
     if (res.kind !== 'jsonRoundtrip') throw new Error('expected jsonRoundtrip result');
     expect(res.decoded).toMatchObject({id: 1, name: 'ada'});
@@ -132,7 +132,7 @@ describeIf('playground engine (WASM, live execution)', () => {
     expect(strip.decoded).toMatchObject({id: 1, name: 'ada'});
   });
 
-  it('createBinaryEncoder/Decoder round-trips a value', async () => {
+  it('createBinaryEncoderFn/Decoder round-trips a value', async () => {
     const res = await run('binaryDecoder', TYPE, VALID);
     if (res.kind !== 'binaryRoundtrip') throw new Error('expected binaryRoundtrip result');
     expect(res.byteLength).toBeGreaterThan(0);
@@ -154,7 +154,7 @@ describeIf('playground engine (WASM, live execution)', () => {
     expect(mods[0].code).toMatch(/export const __rt_/);
   });
 
-  it('createMockData generates a value that validates', async () => {
+  it('createMockDataFn generates a value that validates', async () => {
     const m = await mock(TYPE);
     expect(m.value).toBeTypeOf('object');
     const ok = await run('validate', TYPE, m.value);
@@ -204,7 +204,7 @@ const MyType = RT.object({
   });
 
   it('generated cache ships a live factory function (emit mode: functions), not a code string', async () => {
-    const mods = await generatedCache('createValidate', TYPE);
+    const mods = await generatedCache('createValidateFn', TYPE);
     // A single function type = one named cache module.
     expect(mods).toHaveLength(1);
     expect(mods[0].name).toMatch(/^rtmod:\/.+\.js$/);
@@ -220,7 +220,7 @@ const MyType = RT.object({
     // emits several sibling modules that import each other. The cache view keeps
     // them as separate named sections (each labeled with its `rtmod:/…` name)
     // rather than a single blob.
-    const mods = await generatedCache('createJsonDecoder', TYPE);
+    const mods = await generatedCache('createJsonDecoderFn', TYPE);
     expect(mods.length).toBeGreaterThan(1);
     for (const m of mods) {
       expect(m.name).toMatch(/^rtmod:\/.+\.js$/);
@@ -239,7 +239,7 @@ const MyType = RT.object({
     // the test would silently stop catching the regression.
     const named = `type Inner = { innerField: string; innerNum: number };
 type MyType = { outer: Inner };`;
-    const mods = await generatedCache('createValidate', named);
+    const mods = await generatedCache('createValidateFn', named);
     // validate is a single family, so one module carrying the whole inlined function.
     expect(mods).toHaveLength(1);
     const code = mods[0].code;
@@ -251,15 +251,15 @@ type MyType = { outer: Inner };`;
   });
 
   it('transformedSource is the real transform: injected import + a clean __rt_ arg (type mode)', async () => {
-    const code = await transformedSource('createValidate', 'validate', TYPE);
+    const code = await transformedSource('createValidateFn', 'validate', TYPE);
     // The injected virtual-module import the build plugin adds for the entry tuple.
     expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'rtmod:\/.+';/m);
     // The call carries the injected id as a clean trailing arg (slot-filling
     // `undefined` padding stripped) - no `(undefined, __rt_…)`.
-    expect(code).toMatch(/const validate = createValidate<MyType>\(__rt_[A-Za-z0-9_]+\);/);
+    expect(code).toMatch(/const validate = createValidateFn<MyType>\(__rt_[A-Za-z0-9_]+\);/);
     expect(code).not.toContain('undefined, __rt_');
     // The user's import + type body survive verbatim.
-    expect(code).toContain("import { createValidate } from '@ts-runtypes/core';");
+    expect(code).toContain("import { createValidateFn } from '@ts-runtypes/core';");
     expect(code).toContain('id: number;');
   });
 
@@ -268,20 +268,20 @@ type MyType = { outer: Inner };`;
     // cleanup targets - it must NOT be collapsed (regression guard for the fix
     // that scopes the cleanup to the factory call line only).
     const tricky = `type MyType = {value: number};\n// example: someHelper(undefined, __rt_fake123)`;
-    const code = await transformedSource('createValidate', 'validate', tricky);
+    const code = await transformedSource('createValidateFn', 'validate', tricky);
     // The user's line is preserved verbatim.
     expect(code).toContain('someHelper(undefined, __rt_fake123)');
     // The real factory call still gets the clean injected arg (no undefined padding).
-    expect(code).toMatch(/const validate = createValidate<MyType>\(__rt_[A-Za-z0-9_]+\);/);
+    expect(code).toMatch(/const validate = createValidateFn<MyType>\(__rt_[A-Za-z0-9_]+\);/);
   });
 
   it('transformedSource injects the id after the schema in the value-first form (mode: schema)', async () => {
     const schema = `import * as RT from '@ts-runtypes/core/schema';
 import * as TF from '@ts-runtypes/core/formats';
 const MyType = RT.object({id: TF.number(), name: TF.string()});`;
-    const code = await transformedSource('createJsonEncoder', 'toJson', schema, undefined, 'schema');
+    const code = await transformedSource('createJsonEncoderFn', 'toJson', schema, undefined, 'schema');
     expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'rtmod:\/.+';/m);
-    expect(code).toMatch(/const toJson = createJsonEncoder\(MyType, __rt_[A-Za-z0-9_]+\);/);
+    expect(code).toMatch(/const toJson = createJsonEncoderFn\(MyType, __rt_[A-Za-z0-9_]+\);/);
   });
 
   it('handles a circular (recursive) type in both type and schema forms', async () => {

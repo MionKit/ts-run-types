@@ -1,19 +1,19 @@
 // Size-estimate fuzz driver — for each (config, seed) it generates a random
 // SERIALISABLE type (the existing typeGen, DATA_GEN_OPTIONS), compiles it with
 // that estimator config (so the baked seed matches), then sources values from
-// the product `createMockData` with `respectBinarySize`:
+// the product `createMockDataFn` with `respectBinarySize`:
 //   - true  -> an in-bounds value: the cold buffer MUST NOT resize + round-trips
 //   - false -> an oversized value: the cold buffer MUST resize + round-trips
 //
 // The oracle is dumb (sizeOracle.ts) — all the "does it fit?" logic lives in
-// createMockData's bounds (applyInBoundsSizing) and the matching estimate
+// createMockDataFn's bounds (applyInBoundsSizing) and the matching estimate
 // (binary_size_estimate.go). Mirrors typeFuzzRunner.ts: deterministic
 // per-iteration seeds (mixSeed) and a duration-based soak variant. Bias stays 1
 // (in-bounds == within the capped max); items / stringBytes / maxBytes vary,
 // including adversarial small-stringBytes configs that stress the string / key
 // reserve floors.
 
-import {createMockData} from '@ts-runtypes/core';
+import {createMockDataFn} from '@ts-runtypes/core';
 import type {BinarySizingOptions} from '../../../src/mocking/mockTypes.ts';
 import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
 import {genType, isRecursive, DATA_GEN_OPTIONS, type GeneratedType} from '../core/typeGen.ts';
@@ -24,7 +24,7 @@ import {sizeLaneEligible} from './sizeEligible.ts';
 export {hasBinary, BIN};
 
 /** Bias-1 configs that vary the count / string / cap anchors (and one clamped
- *  cap). Bias 1 keeps createMockData's in-bounds bounding exact. The last two are
+ *  cap). Bias 1 keeps createMockDataFn's in-bounds bounding exact. The last two are
  *  ADVERSARIAL: tiny stringBytes with mismatched items stresses the string / regexp
  *  / index-sig-key reserve floors the audit surfaced (where comparably-sized
  *  configs mask the under-budget). **/
@@ -102,7 +102,7 @@ interface OneResult {
 }
 
 function makeMock(compiled: CompiledType, respectBinarySize: boolean, binarySizingOptions: BinarySizingOptions): () => unknown {
-  return createMockData(
+  return createMockDataFn(
     undefined,
     {mock: {respectBinarySize, binarySizingOptions}},
     compiled.reflectionTuple as never

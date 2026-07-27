@@ -5,7 +5,7 @@
 //
 // This pins mion's real route() shape: one marker carrying 'verr' +
 // 'jsonDecoder' + 'jsonEncoder' (validator + JSON codec pair) forwarded to
-// createGetValidationErrors / createJsonDecoder / createJsonEncoder. It also
+// createGetValidationErrorsFn / createJsonDecoderFn / createJsonEncoderFn. It also
 // re-exercises the zero-config gate — the CONSUMER file never names
 // '@ts-runtypes/core', so only the resolver's site-file set can bring it into
 // transform scope (docs/done/mion-adoption.md, Feature 2).
@@ -36,7 +36,7 @@ const TSCONFIG_SRC = JSON.stringify({
 // each injected element to its factory. Every forwarded createX call has its id
 // slot explicitly filled, so all three stay pass-throughs the build leaves
 // untouched.
-const WRAPPER_SRC = `import {createGetValidationErrors, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
+const WRAPPER_SRC = `import {createGetValidationErrorsFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 import type {InjectTypeFnArgs} from '@ts-runtypes/core';
 
 type AnyHandler = (ctx: unknown, ...rest: any[]) => unknown;
@@ -45,9 +45,9 @@ export function route<H extends AnyHandler>(
   handler: H,
   fns?: InjectTypeFnArgs<Parameters<H>, 'verr', 'jsonDecoder', 'jsonEncoder'>,
 ) {
-  const getErrors = createGetValidationErrors(undefined, undefined, fns?.[0] as never);
-  const decode = createJsonDecoder(undefined, undefined, fns?.[1] as never);
-  const encode = createJsonEncoder(undefined, undefined, fns?.[2] as never);
+  const getErrors = createGetValidationErrorsFn(undefined, undefined, fns?.[0] as never);
+  const decode = createJsonDecoderFn(undefined, undefined, fns?.[1] as never);
+  const encode = createJsonEncoderFn(undefined, undefined, fns?.[2] as never);
   return {handler, getErrors, decode, encode};
 }
 `;

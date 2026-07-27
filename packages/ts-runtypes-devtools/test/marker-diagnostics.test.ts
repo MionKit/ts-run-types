@@ -3,10 +3,10 @@
 //
 //   1. response.diagnostics surfaces an MKR001 warning when a marker
 //      call's reflect-form value argument is a function-call expression
-//      (`createValidate(getX())`).
+//      (`createValidateFn(getX())`).
 //   2. The diagnostic message names the called function and recommends
 //      the static `ReturnType<typeof fn>` idiom.
-//   3. Legitimate identifier-argument shapes (`createValidate(v)`) do NOT
+//   3. Legitimate identifier-argument shapes (`createValidateFn(v)`) do NOT
 //      trigger the warning.
 //   4. The diagnostic wire format renders via formatTscDiagnostic into
 //      VS Code's `$tsc` problem-matcher line shape.
@@ -26,13 +26,13 @@ function markerDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
 describe('@ts-runtypes/devtools / marker diagnostics', () => {
   const register = hasBinary() ? it : it.skip;
 
-  register('warns when reflect-form arg is a function call (createValidate)', async () => {
+  register('warns when reflect-form arg is a function call (createValidateFn)', async () => {
     const sources = {
-      'fn-call.ts': `import {createValidate} from '@ts-runtypes/core';
+      'fn-call.ts': `import {createValidateFn} from '@ts-runtypes/core';
 function makeUser(): {id: number; name: string} {
   return {id: 1, name: 'john'};
 }
-export const _ = createValidate(makeUser());
+export const _ = createValidateFn(makeUser());
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -66,11 +66,11 @@ export const _ = getRunTypeId(getValue());
 
   register('warns for method-call arg (PropertyAccess → CallExpression)', async () => {
     const sources = {
-      'method-call.ts': `import {createValidate} from '@ts-runtypes/core';
+      'method-call.ts': `import {createValidateFn} from '@ts-runtypes/core';
 const state = {
   makeUser(): {id: number} { return {id: 1}; },
 };
-export const _ = createValidate(state.makeUser());
+export const _ = createValidateFn(state.makeUser());
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -84,9 +84,9 @@ export const _ = createValidate(state.makeUser());
 
   register('no warning for identifier arg', async () => {
     const sources = {
-      'identifier.ts': `import {createValidate} from '@ts-runtypes/core';
+      'identifier.ts': `import {createValidateFn} from '@ts-runtypes/core';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
-export const _ = createValidate(user);
+export const _ = createValidateFn(user);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -97,9 +97,9 @@ export const _ = createValidate(user);
 
   register('no warning for property-access arg', async () => {
     const sources = {
-      'property.ts': `import {createValidate} from '@ts-runtypes/core';
+      'property.ts': `import {createValidateFn} from '@ts-runtypes/core';
 const outer: {user: {id: number}} = {user: {id: 1}};
-export const _ = createValidate(outer.user);
+export const _ = createValidateFn(outer.user);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -110,9 +110,9 @@ export const _ = createValidate(outer.user);
 
   register('no warning for static form even when paired with a call', async () => {
     const sources = {
-      'static-return.ts': `import {createValidate} from '@ts-runtypes/core';
+      'static-return.ts': `import {createValidateFn} from '@ts-runtypes/core';
 function makeUser(): {id: number} { return {id: 1}; }
-export const _ = createValidate<ReturnType<typeof makeUser>>();
+export const _ = createValidateFn<ReturnType<typeof makeUser>>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -225,9 +225,9 @@ export const r = route((ctx: unknown, name: string) => name.length);
 
   register('formatTscDiagnostic renders marker warnings in tsc line format', async () => {
     const sources = {
-      'fmt.ts': `import {createValidate} from '@ts-runtypes/core';
+      'fmt.ts': `import {createValidateFn} from '@ts-runtypes/core';
 function makeUser(): {id: number} { return {id: 1}; }
-export const _ = createValidate(makeUser());
+export const _ = createValidateFn(makeUser());
 `,
     };
     await withInlineSources(sources, async ({client}) => {

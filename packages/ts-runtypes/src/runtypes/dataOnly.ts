@@ -9,8 +9,8 @@
  *  validator / serialiser produces. Functions, methods, constructors, `Promise`s
  *  / thenables, symbols, and non-serialisable built-ins are stripped; primitives,
  *  `Date` / `RegExp` / `Map` / `Set` / Temporal are kept; arrays, tuples, objects,
- *  and Map/Set key/value types are recursed. It is the type `createValidate<T>()` /
- *  `createGetValidationErrors<T>()` validate, and the natural return shape for data-bound
+ *  and Map/Set key/value types are recursed. It is the type `createValidateFn<T>()` /
+ *  `createGetValidationErrorsFn<T>()` validate, and the natural return shape for data-bound
  *  APIs (JSON / binary decode).
  *
  *  **Non-enumerable / guarded properties — consistent by construction.**
@@ -114,8 +114,8 @@ type DataOnlyStripped =
  *  TS2589 depth cap. **/
 type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
-/** The data-only projection of `T` — the exact shape `createValidate<T>()` /
- *  `createGetValidationErrors<T>()` validate. It walks `T` and DROPS every member the
+/** The data-only projection of `T` — the exact shape `createValidateFn<T>()` /
+ *  `createGetValidationErrorsFn<T>()` validate. It walks `T` and DROPS every member the
  *  AOT emitter treats as non-data (see CLAUDE.md "validate contract — serializable
  *  data only" + docs/UNSUPPORTED-KINDS.md):
  *   - `DataOnlyStripped` kinds (symbol / function / constructor / promise /

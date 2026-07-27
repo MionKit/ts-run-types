@@ -65,6 +65,33 @@ func TestMergeBuildOptions_TsconfigFillsGaps(t *testing.T) {
 	}
 }
 
+// TestMergeBuildOptions_SingleThreadedOverride: an explicit --single-threaded /
+// --no-single-threaded (either direction) wins over the tsconfig entry, so a host
+// plugin's singleThreaded:false (→ --no-single-threaded) can force multi-threaded
+// over a tsconfig singleThreaded:true, and vice versa (flag > tsconfig).
+func TestMergeBuildOptions_SingleThreadedOverride(t *testing.T) {
+	// tsconfig singleThreaded:true alone → on.
+	if got := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{SingleThreaded: boolPtr(true)}, "/proj"); !got.singleThreaded {
+		t.Fatalf("tsconfig singleThreaded:true → want singleThreaded=true, got %+v", got)
+	}
+
+	// --no-single-threaded forces it back off despite the tsconfig.
+	off := baseFlags()
+	off.set["no-single-threaded"] = true
+	off.noSingleThreaded = true
+	if got := mergeBuildOptions(off, tsRuntypesPlugin{SingleThreaded: boolPtr(true)}, "/proj"); got.singleThreaded {
+		t.Errorf("--no-single-threaded should override tsconfig singleThreaded:true, got singleThreaded=true")
+	}
+
+	// --single-threaded forces it on over a tsconfig singleThreaded:false.
+	on := baseFlags()
+	on.set["single-threaded"] = true
+	on.singleThreaded = true
+	if got := mergeBuildOptions(on, tsRuntypesPlugin{SingleThreaded: boolPtr(false)}, "/proj"); !got.singleThreaded {
+		t.Errorf("--single-threaded should override tsconfig singleThreaded:false, got singleThreaded=false")
+	}
+}
+
 // TestResolveGenDir covers the three layers: flag > tsconfig > the
 // <cwd>/__runtypes default (there is no disable state — compile always emits).
 func TestResolveGenDir(t *testing.T) {
@@ -196,7 +223,7 @@ func TestResolveBuildPlugin(t *testing.T) {
   },
 }`)
 
-	plugin, ok := resolveBuildPlugin(dir, "")
+	plugin, ok := resolveBuildPlugin(dir, "tsconfig.json")
 	if !ok {
 		t.Fatal("resolveBuildPlugin ok=false, want true")
 	}
@@ -217,7 +244,7 @@ func TestResolveBuildPlugin(t *testing.T) {
 	}
 
 	// No tsconfig in the directory → ok=false, tolerant.
-	if _, ok := resolveBuildPlugin(t.TempDir(), ""); ok {
+	if _, ok := resolveBuildPlugin(t.TempDir(), "tsconfig.json"); ok {
 		t.Error("resolveBuildPlugin on an empty dir should return ok=false")
 	}
 }
@@ -234,7 +261,7 @@ func TestUnknownPluginKeys(t *testing.T) {
 	allKnown := withConfig(t, `{ "compilerOptions": { "plugins": [
     { "name": "ts-runtypes", "emitMode": "both", "hashLength": 7, "genDir": "gen" }
   ] } }`)
-	if got := unknownPluginKeys(allKnown, ""); len(got) != 0 {
+	if got := unknownPluginKeys(allKnown, "tsconfig.json"); len(got) != 0 {
 		t.Errorf("recognised keys should not warn, got %v", got)
 	}
 
@@ -244,24 +271,24 @@ func TestUnknownPluginKeys(t *testing.T) {
 	removedCacheDir := withConfig(t, `{ "compilerOptions": { "plugins": [
     { "name": "ts-runtypes", "cacheDir": ".cache/rt" }
   ] } }`)
-	if got := unknownPluginKeys(removedCacheDir, ""); len(got) != 1 || got[0] != "cacheDir" {
+	if got := unknownPluginKeys(removedCacheDir, "tsconfig.json"); len(got) != 1 || got[0] != "cacheDir" {
 		t.Errorf("removed cacheDir key should warn, got %v", got)
 	}
 
 	typos := withConfig(t, `{ "compilerOptions": { "plugins": [
     { "name": "ts-runtypes", "emitMdoe": "both", "zzz": 1, "moduleMode": "allSingle" }
   ] } }`)
-	got := unknownPluginKeys(typos, "")
+	got := unknownPluginKeys(typos, "tsconfig.json")
 	if want := []string{"emitMdoe", "zzz"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("unknownPluginKeys = %v, want %v (sorted)", got, want)
 	}
 
 	noEntry := withConfig(t, `{ "compilerOptions": { "plugins": [ { "name": "other", "x": 1 } ] } }`)
-	if got := unknownPluginKeys(noEntry, ""); len(got) != 0 {
+	if got := unknownPluginKeys(noEntry, "tsconfig.json"); len(got) != 0 {
 		t.Errorf("no ts-runtypes entry should not warn, got %v", got)
 	}
 
-	if got := unknownPluginKeys(t.TempDir(), ""); len(got) != 0 {
+	if got := unknownPluginKeys(t.TempDir(), "tsconfig.json"); len(got) != 0 {
 		t.Errorf("no tsconfig should not warn, got %v", got)
 	}
 }

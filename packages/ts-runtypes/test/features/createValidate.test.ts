@@ -1,8 +1,8 @@
-// End-to-end acceptance test for createValidate<T>. Drives the FULL
+// End-to-end acceptance test for createValidateFn<T>. Drives the FULL
 // vite-plugin pipeline via vitest's vite integration: the plugin
 // transforms this file at load time (injecting the runtype hash at
-// the createValidate call site), serves the `virtual:runtypes-validate`
-// module body from the Go-side typefns renderer, and `createValidate`
+// the createValidateFn call site), serves the `virtual:runtypes-validate`
+// module body from the Go-side typefns renderer, and `createValidateFn`
 // at runtime dispatches into the precompiled factory.
 //
 // Migrated from packages/ts-runtypes-devtools/test/rt-validate.test.ts,
@@ -21,19 +21,19 @@
 //   validate(undefined)  === false
 
 import {describe, test, expect} from 'vitest';
-import {createValidate} from '@ts-runtypes/core';
+import {createValidateFn} from '@ts-runtypes/core';
 
-describe('createValidate<T> — string', () => {
+describe('createValidateFn<T> — string', () => {
   test('validator returns true for strings, false for non-strings', () => {
-    const isString = createValidate<string>();
+    const isString = createValidateFn<string>();
     expect(isString('abc')).toBe(true);
     expect(isString(42)).toBe(false);
     expect(isString(undefined)).toBe(false);
   });
 
   test('repeated calls return the same cached validator instance', () => {
-    const a = createValidate<string>();
-    const b = createValidate<string>();
+    const a = createValidateFn<string>();
+    const b = createValidateFn<string>();
     expect(a).toBe(b);
   });
 });

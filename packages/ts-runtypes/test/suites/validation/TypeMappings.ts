@@ -1,6 +1,12 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {ValidationCase} from './types.ts';
-import {createValidate, createGetValidationErrors, createMockData, createStandardSchema, type DataOnly} from '@ts-runtypes/core';
+import {
+  createValidateFn,
+  createGetValidationErrorsFn,
+  createMockDataFn,
+  createStandardSchema,
+  type DataOnly,
+} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -17,7 +23,7 @@ export const TYPE_MAPPINGS = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      return createValidate<Prefixed<Source>>();
+      return createValidateFn<Prefixed<Source>>();
     },
     standardSchema: () => {
       interface Source {
@@ -49,9 +55,9 @@ export const TYPE_MAPPINGS = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      return createValidate<DataOnly<Prefixed<Source>>>();
+      return createValidateFn<DataOnly<Prefixed<Source>>>();
     },
-    validateSchema: () => createValidate(RT.object({user_id: TF.number(), user_name: TF.string()})),
+    validateSchema: () => createValidateFn(RT.object({user_id: TF.number(), user_name: TF.string()})),
     deserializeValidate: () => {
       interface Source {
         id: number;
@@ -67,7 +73,7 @@ export const TYPE_MAPPINGS = {
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface Source {
@@ -84,7 +90,7 @@ export const TYPE_MAPPINGS = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      return createGetValidationErrors<Prefixed<Source>>();
+      return createGetValidationErrorsFn<Prefixed<Source>>();
     },
     getValidationErrorsDataOnly: () => {
       interface Source {
@@ -92,9 +98,9 @@ export const TYPE_MAPPINGS = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      return createGetValidationErrors<DataOnly<Prefixed<Source>>>();
+      return createGetValidationErrorsFn<DataOnly<Prefixed<Source>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({user_id: TF.number(), user_name: TF.string()})),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.object({user_id: TF.number(), user_name: TF.string()})),
     deserializeGetValidationErrors: () => {
       interface Source {
         id: number;
@@ -110,7 +116,7 @@ export const TYPE_MAPPINGS = {
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface Source {
@@ -127,7 +133,7 @@ export const TYPE_MAPPINGS = {
         name: string;
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-      return createMockData<Prefixed<Source>>();
+      return createMockDataFn<Prefixed<Source>>();
     },
     mockTypeReflect: () => {
       interface Source {
@@ -136,7 +142,7 @@ export const TYPE_MAPPINGS = {
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [
@@ -176,7 +182,7 @@ export const TYPE_MAPPINGS = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      return createValidate<MongoForm<Source>>();
+      return createValidateFn<MongoForm<Source>>();
     },
     standardSchema: () => {
       interface Source {
@@ -194,9 +200,9 @@ export const TYPE_MAPPINGS = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      return createValidate<DataOnly<MongoForm<Source>>>();
+      return createValidateFn<DataOnly<MongoForm<Source>>>();
     },
-    validateSchema: () => createValidate(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
+    validateSchema: () => createValidateFn(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
     deserializeValidate: () => {
       interface Source {
         id: number;
@@ -214,7 +220,7 @@ export const TYPE_MAPPINGS = {
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface Source {
@@ -233,7 +239,7 @@ export const TYPE_MAPPINGS = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      return createGetValidationErrors<MongoForm<Source>>();
+      return createGetValidationErrorsFn<MongoForm<Source>>();
     },
     getValidationErrorsDataOnly: () => {
       interface Source {
@@ -242,10 +248,10 @@ export const TYPE_MAPPINGS = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      return createGetValidationErrors<DataOnly<MongoForm<Source>>>();
+      return createGetValidationErrorsFn<DataOnly<MongoForm<Source>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
+      createGetValidationErrorsFn(RT.object({_id: TF.number(), name: TF.string(), createdAt: TF.date()})),
     deserializeGetValidationErrors: () => {
       interface Source {
         id: number;
@@ -263,7 +269,7 @@ export const TYPE_MAPPINGS = {
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface Source {
@@ -282,7 +288,7 @@ export const TYPE_MAPPINGS = {
         createdAt: Date;
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-      return createMockData<MongoForm<Source>>();
+      return createMockDataFn<MongoForm<Source>>();
     },
     mockTypeReflect: () => {
       interface Source {
@@ -292,7 +298,7 @@ export const TYPE_MAPPINGS = {
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [{_id: 1, name: 'x', createdAt: new Date()}],
@@ -329,7 +335,7 @@ export const TYPE_MAPPINGS = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      return createValidate<Public<Source>>();
+      return createValidateFn<Public<Source>>();
     },
     standardSchema: () => {
       interface Source {
@@ -347,9 +353,9 @@ export const TYPE_MAPPINGS = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      return createValidate<DataOnly<Public<Source>>>();
+      return createValidateFn<DataOnly<Public<Source>>>();
     },
-    validateSchema: () => createValidate(RT.object({id: TF.number(), name: TF.string()})),
+    validateSchema: () => createValidateFn(RT.object({id: TF.number(), name: TF.string()})),
     deserializeValidate: () => {
       interface Source {
         id: number;
@@ -367,7 +373,7 @@ export const TYPE_MAPPINGS = {
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       const v: Public<Source> = {id: 1, name: 'x'};
-      return createValidate(v);
+      return createValidateFn(v);
     },
     deserializeValidateReflect: () => {
       interface Source {
@@ -386,7 +392,7 @@ export const TYPE_MAPPINGS = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      return createGetValidationErrors<Public<Source>>();
+      return createGetValidationErrorsFn<Public<Source>>();
     },
     getValidationErrorsDataOnly: () => {
       interface Source {
@@ -395,9 +401,9 @@ export const TYPE_MAPPINGS = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      return createGetValidationErrors<DataOnly<Public<Source>>>();
+      return createGetValidationErrorsFn<DataOnly<Public<Source>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({id: TF.number(), name: TF.string()})),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.object({id: TF.number(), name: TF.string()})),
     deserializeGetValidationErrors: () => {
       interface Source {
         id: number;
@@ -415,7 +421,7 @@ export const TYPE_MAPPINGS = {
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       const v: Public<Source> = {id: 1, name: 'x'};
-      return createGetValidationErrors(v);
+      return createGetValidationErrorsFn(v);
     },
     deserializeGetValidationErrorsReflect: () => {
       interface Source {
@@ -434,7 +440,7 @@ export const TYPE_MAPPINGS = {
         secret: string;
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-      return createMockData<Public<Source>>();
+      return createMockDataFn<Public<Source>>();
     },
     mockTypeReflect: () => {
       interface Source {
@@ -444,7 +450,7 @@ export const TYPE_MAPPINGS = {
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       const v: Public<Source> = {id: 1, name: 'x'};
-      return createMockData(v);
+      return createMockDataFn(v);
     },
     getSamples: () => ({
       valid: [

@@ -8,7 +8,7 @@
 // sibling ResolverClient.
 
 import fs from 'node:fs';
-import {afterAll, beforeAll, describe, expect, it} from 'vitest';
+import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest';
 import plugin, {meta, rules, sessionOptions} from '../../src/eslint/index.ts';
 import {ALL_RULE_NAMES, RULE_SPECS} from '../../src/eslint/diagnosticRouting.ts';
 import {resetSharedSession} from '../../src/eslint/session.ts';
@@ -31,21 +31,21 @@ function load(): {name: string} {
 export const id = getRunTypeId(load());
 `;
 
-const GENERIC_MARKER_TS = `import {createValidate} from '@ts-runtypes/core';
+const GENERIC_MARKER_TS = `import {createValidateFn} from '@ts-runtypes/core';
 
 export function makeValidator<T>() {
-  return createValidate<T>();
+  return createValidateFn<T>();
 }
 `;
 
-const WIDGET_TS = `import {createValidate} from '@ts-runtypes/core';
+const WIDGET_TS = `import {createValidateFn} from '@ts-runtypes/core';
 
 interface Widget {
   label: string;
   onClick: () => void;
 }
 
-export const isWidget = createValidate<Widget>();
+export const isWidget = createValidateFn<Widget>();
 `;
 
 const USER_TS = `export interface User {
@@ -102,23 +102,59 @@ export const answer = 42;
 // would fail closed with FMT004; the lint lane instead runs the real
 // RegExp.test and reports the failing sample as FMT001. The local TypeFormat
 // brand is recognised structurally, same as the Go resolver tests.
-const UNCHECKED_PATTERN_TS = `import {createValidate} from '@ts-runtypes/core';
+const UNCHECKED_PATTERN_TS = `import {createValidateFn} from '@ts-runtypes/core';
 
 type TypeFormat<Base, Name extends string, Params> = Base & {
   readonly __rtFormatName?: Name;
   readonly __rtFormatParams?: Params;
 };
 
-export const isCode = createValidate<TypeFormat<string, 'stringFormat', {pattern: {source: '(?<=x)y'; flags: ''; mockSamples: ['nope']}}>>();
+export const isCode = createValidateFn<TypeFormat<string, 'stringFormat', {pattern: {source: '(?<=x)y'; flags: ''; mockSamples: ['nope']}}>>();
 `;
 
-// Transparency: the plugin exposes exactly one knob. binary / cwd / socket
+// Transparency: the plugin reads timeoutMs and tsconfig. binary / cwd / socket
 // under settings.runtypes are NOT read — the resolver binary and working
 // directory are resolved automatically, like any other linter. Pure function,
 // so this runs without the resolver binary.
-describe('sessionOptions — only timeoutMs is configurable', () => {
-  it('reads timeoutMs and drops binary, cwd, and socket', () => {
-    expect(sessionOptions({runtypes: {binary: '/x', cwd: '/y', socket: '/z', timeoutMs: 5000}})).toEqual({timeoutMs: 5000});
+describe('sessionOptions — timeoutMs, tsconfig and binary are configurable', () => {
+  it('reads timeoutMs, tsconfig and binary, drops cwd and socket', () => {
+    expect(
+      sessionOptions({runtypes: {binary: '/x', cwd: '/y', socket: '/z', timeoutMs: 5000, tsconfig: './tsconfig.lint.json'}})
+    ).toEqual({binary: '/x', timeoutMs: 5000, tsconfig: './tsconfig.lint.json'});
+  });
+
+  // A dropped key used to be invisible, which is how the e2e fixture spent
+  // months believing it had redirected the binary. One warning per key per run:
+  // enough to notice, not enough to drown a lint of a thousand files.
+  it('warns once per unsupported key, naming it and the supported set', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // A key no other test uses: the warning is once per PROCESS, so a shared
+      // key would make this depend on which test ran first.
+      sessionOptions({runtypes: {bogusKnob: '/y', timeoutMs: 1}});
+      sessionOptions({runtypes: {bogusKnob: '/y'}});
+      sessionOptions({runtypes: {bogusKnob: '/y'}});
+      const messages = warn.mock.calls.map((call) => String(call[0]));
+      expect(messages.filter((message) => message.includes('settings.runtypes.bogusKnob'))).toHaveLength(1);
+      expect(messages[0]).toContain('tsconfig');
+      expect(messages[0]).toContain('binary');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('says nothing about supported keys', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      sessionOptions({runtypes: {timeoutMs: 1, tsconfig: 'tsconfig.json', binary: '/x'}});
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('reads tsconfig on its own', () => {
+    expect(sessionOptions({runtypes: {tsconfig: 'tsconfig.build.json'}})).toEqual({tsconfig: 'tsconfig.build.json'});
   });
 
   it('is empty when settings are absent or carry no runtypes bag', () => {
@@ -250,7 +286,7 @@ describe.runIf(hasBinary())(
         const reports = reportsFor('invalid-marker', 'generic-marker.ts');
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[MKR003]');
-        expect(reports[0]!.line).toBe(locate(GENERIC_MARKER_TS, 'createValidate<T>()').line);
+        expect(reports[0]!.line).toBe(locate(GENERIC_MARKER_TS, 'createValidateFn<T>()').line);
         expect(reportsFor('redundant-marker', 'generic-marker.ts')).toEqual([]);
       });
 
@@ -259,7 +295,7 @@ describe.runIf(hasBinary())(
         expect(reports).toHaveLength(1);
         expect(reports[0]!.message).toContain('[VL011]');
         expect(reports[0]!.message).toContain('onClick');
-        expect(reports[0]!.line).toBe(locate(WIDGET_TS, 'createValidate<Widget>()').line);
+        expect(reports[0]!.line).toBe(locate(WIDGET_TS, 'createValidateFn<Widget>()').line);
       });
 
       it('validates RE2-unchecked pattern samples in JS, reporting a failing sample as FMT001 under runtypes/format at the definition site', () => {
@@ -270,7 +306,7 @@ describe.runIf(hasBinary())(
         // lookbehind, so it (not an FMT004 "cannot verify") is reported.
         expect(reports[0]!.message).toContain('nope');
         expect(reports[0]!.message).not.toContain('[FMT004]');
-        expect(reports[0]!.line).toBe(locate(UNCHECKED_PATTERN_TS, 'createValidate<TypeFormat').line);
+        expect(reports[0]!.line).toBe(locate(UNCHECKED_PATTERN_TS, 'createValidateFn<TypeFormat').line);
       });
     });
 

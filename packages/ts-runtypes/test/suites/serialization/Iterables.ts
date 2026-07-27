@@ -1,5 +1,5 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@ts-runtypes/core';
+import {createBinaryDecoderFn, createBinaryEncoderFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
 import * as RT from '@ts-runtypes/core/schema';
 import type {SerializationCase} from './types.ts';
 
@@ -9,19 +9,19 @@ export const ITERABLES = {
     description:
       'Root `Set<string>` serializes to a JSON array via `Array.from(v)` and restores with `new Set(v)` (atomic string elements need no per-element transform), while binary writes a uint32 size prefix followed by the encoded elements then rebuilds the Set.',
     serializeNotes: 'Set round-trips as a JSON array (insertion order preserved), rehydrated to a Set on decode.',
-    mutateEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<Set<string>>(),
-    preserveDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<Set<string>>(),
-    binaryDecoder: () => createBinaryDecoder<Set<string>>(),
-    schemaEncoder: () => createJsonEncoder(RT.set(TF.string())),
-    schemaDecoder: () => createJsonDecoder(RT.set(TF.string())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.set(TF.string())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.set(TF.string())),
+    mutateEncoder: () => createJsonEncoderFn<Set<string>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<Set<string>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<Set<string>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<Set<string>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<Set<string>>(),
+    preserveDecoder: () => createJsonDecoderFn<Set<string>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<Set<string>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<Set<string>>(),
+    binaryDecoder: () => createBinaryDecoderFn<Set<string>>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.set(TF.string())),
+    schemaDecoder: () => createJsonDecoderFn(RT.set(TF.string())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.set(TF.string())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.set(TF.string())),
     getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
   },
   set_nullable: {
@@ -29,19 +29,19 @@ export const ITERABLES = {
     description: 'Root `Set<number | null>` keeps a `null` element across every strategy (serialized as the JSON null literal).',
     serializeNotes:
       'A Set builds its JSON array via `[...].join(",")` like a plain array, so a null / undefined element must emit the constant `"null"` rather than a bare value (which join would drop, shrinking the Set).',
-    mutateEncoder: () => createJsonEncoder<Set<number | null>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<Set<number | null>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<Set<number | null>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<Set<number | null>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<Set<number | null>>(),
-    preserveDecoder: () => createJsonDecoder<Set<number | null>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<Set<number | null>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<Set<number | null>>(),
-    binaryDecoder: () => createBinaryDecoder<Set<number | null>>(),
-    schemaEncoder: () => createJsonEncoder(RT.set(RT.union([TF.number(), RT.literal(null)]))),
-    schemaDecoder: () => createJsonDecoder(RT.set(RT.union([TF.number(), RT.literal(null)]))),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.set(RT.union([TF.number(), RT.literal(null)]))),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.set(RT.union([TF.number(), RT.literal(null)]))),
+    mutateEncoder: () => createJsonEncoderFn<Set<number | null>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<Set<number | null>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<Set<number | null>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<Set<number | null>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<Set<number | null>>(),
+    preserveDecoder: () => createJsonDecoderFn<Set<number | null>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<Set<number | null>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<Set<number | null>>(),
+    binaryDecoder: () => createBinaryDecoderFn<Set<number | null>>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.set(RT.union([TF.number(), RT.literal(null)]))),
+    schemaDecoder: () => createJsonDecoderFn(RT.set(RT.union([TF.number(), RT.literal(null)]))),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.set(RT.union([TF.number(), RT.literal(null)]))),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.set(RT.union([TF.number(), RT.literal(null)]))),
     getTestData: () => ({values: [new Set<number | null>([1, null, 2])]}),
   },
   set_void: {
@@ -49,19 +49,19 @@ export const ITERABLES = {
     description: 'Root `Set<void>` keeps its element across every strategy (serialized as the JSON null literal).',
     serializeNotes:
       'A Set builds its JSON array via `[...].join(",")`, so a void / undefined element must emit the constant "null" rather than a bare value that join would coerce to empty and drop.',
-    mutateEncoder: () => createJsonEncoder<Set<void>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<Set<void>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<Set<void>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<Set<void>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<Set<void>>(),
-    preserveDecoder: () => createJsonDecoder<Set<void>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<Set<void>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<Set<void>>(),
-    binaryDecoder: () => createBinaryDecoder<Set<void>>(),
-    schemaEncoder: () => createJsonEncoder(RT.set(RT.void())),
-    schemaDecoder: () => createJsonDecoder(RT.set(RT.void())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.set(RT.void())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.set(RT.void())),
+    mutateEncoder: () => createJsonEncoderFn<Set<void>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<Set<void>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<Set<void>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<Set<void>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<Set<void>>(),
+    preserveDecoder: () => createJsonDecoderFn<Set<void>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<Set<void>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<Set<void>>(),
+    binaryDecoder: () => createBinaryDecoderFn<Set<void>>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.set(RT.void())),
+    schemaDecoder: () => createJsonDecoderFn(RT.set(RT.void())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.set(RT.void())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.set(RT.void())),
     getTestData: () => ({values: [new Set<void>([undefined])]}),
   },
   set_small_object: {
@@ -80,7 +80,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Set<SmallObject>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface SmallObject {
@@ -90,7 +90,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Set<SmallObject>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface SmallObject {
@@ -100,7 +100,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Set<SmallObject>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface SmallObject {
@@ -110,7 +110,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Set<SmallObject>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface SmallObject {
@@ -120,7 +120,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Set<SmallObject>>();
+      return createJsonDecoderFn<Set<SmallObject>>();
     },
     preserveDecoder: () => {
       interface SmallObject {
@@ -130,7 +130,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Set<SmallObject>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Set<SmallObject>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface SmallObject {
@@ -140,7 +140,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Set<SmallObject>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Set<SmallObject>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface SmallObject {
@@ -150,7 +150,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createBinaryEncoder<Set<SmallObject>>();
+      return createBinaryEncoderFn<Set<SmallObject>>();
     },
     binaryDecoder: () => {
       interface SmallObject {
@@ -160,10 +160,10 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createBinaryDecoder<Set<SmallObject>>();
+      return createBinaryDecoderFn<Set<SmallObject>>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.set(
           RT.object({
             prop1: TF.string(),
@@ -175,7 +175,7 @@ export const ITERABLES = {
         )
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.set(
           RT.object({
             prop1: TF.string(),
@@ -187,7 +187,7 @@ export const ITERABLES = {
         )
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.set(
           RT.object({
             prop1: TF.string(),
@@ -199,7 +199,7 @@ export const ITERABLES = {
         )
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.set(
           RT.object({
             prop1: TF.string(),
@@ -241,7 +241,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<DeepWithSet>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -250,7 +250,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<DeepWithSet>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -259,7 +259,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<DeepWithSet>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -268,7 +268,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<DeepWithSet>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -277,7 +277,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonDecoder<DeepWithSet>();
+      return createJsonDecoderFn<DeepWithSet>();
     },
     preserveDecoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -286,7 +286,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonDecoder<DeepWithSet>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<DeepWithSet>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -295,7 +295,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonDecoder<DeepWithSet>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<DeepWithSet>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -304,7 +304,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createBinaryEncoder<DeepWithSet>();
+      return createBinaryEncoderFn<DeepWithSet>();
     },
     binaryDecoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -313,10 +313,10 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createBinaryDecoder<DeepWithSet>();
+      return createBinaryDecoderFn<DeepWithSet>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.object({
           a: TF.string(),
           b: RT.set(RT.object({s: TF.string(), arr: RT.array(TF.number())})),
@@ -324,7 +324,7 @@ export const ITERABLES = {
         })
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.object({
           a: TF.string(),
           b: RT.set(RT.object({s: TF.string(), arr: RT.array(TF.number())})),
@@ -332,7 +332,7 @@ export const ITERABLES = {
         })
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.object({
           a: TF.string(),
           b: RT.set(RT.object({s: TF.string(), arr: RT.array(TF.number())})),
@@ -340,7 +340,7 @@ export const ITERABLES = {
         })
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.object({
           a: TF.string(),
           b: RT.set(RT.object({s: TF.string(), arr: RT.array(TF.number())})),
@@ -365,19 +365,19 @@ export const ITERABLES = {
       'Root `Map<string, number>` serializes to a JSON array of `[key, value]` pairs via `Array.from(v)` and restores with `new Map(v)` (atomic string keys and number values need no per-entry transform), while binary writes a uint32 size prefix followed by encoded entries.',
     serializeNotes:
       'Map round-trips as a JSON array of [key, value] pairs (insertion order preserved), rehydrated to a Map on decode.',
-    mutateEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<Map<string, number>>(),
-    preserveDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<Map<string, number>>(),
-    binaryDecoder: () => createBinaryDecoder<Map<string, number>>(),
-    schemaEncoder: () => createJsonEncoder(RT.map(TF.string(), TF.number())),
-    schemaDecoder: () => createJsonDecoder(RT.map(TF.string(), TF.number())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.map(TF.string(), TF.number())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.map(TF.string(), TF.number())),
+    mutateEncoder: () => createJsonEncoderFn<Map<string, number>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<Map<string, number>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<Map<string, number>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<Map<string, number>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<Map<string, number>>(),
+    preserveDecoder: () => createJsonDecoderFn<Map<string, number>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<Map<string, number>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<Map<string, number>>(),
+    binaryDecoder: () => createBinaryDecoderFn<Map<string, number>>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.map(TF.string(), TF.number())),
+    schemaDecoder: () => createJsonDecoderFn(RT.map(TF.string(), TF.number())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.map(TF.string(), TF.number())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.map(TF.string(), TF.number())),
     getTestData: () => ({
       values: [
         new Map<string, number>([
@@ -404,7 +404,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Map<string, SmallObject>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface SmallObject {
@@ -414,7 +414,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Map<string, SmallObject>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface SmallObject {
@@ -424,7 +424,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Map<string, SmallObject>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface SmallObject {
@@ -434,7 +434,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Map<string, SmallObject>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface SmallObject {
@@ -444,7 +444,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<string, SmallObject>>();
+      return createJsonDecoderFn<Map<string, SmallObject>>();
     },
     preserveDecoder: () => {
       interface SmallObject {
@@ -454,7 +454,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<string, SmallObject>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Map<string, SmallObject>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface SmallObject {
@@ -464,7 +464,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<string, SmallObject>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Map<string, SmallObject>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface SmallObject {
@@ -474,7 +474,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createBinaryEncoder<Map<string, SmallObject>>();
+      return createBinaryEncoderFn<Map<string, SmallObject>>();
     },
     binaryDecoder: () => {
       interface SmallObject {
@@ -484,10 +484,10 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createBinaryDecoder<Map<string, SmallObject>>();
+      return createBinaryDecoderFn<Map<string, SmallObject>>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.map(
           TF.string(),
           RT.object({
@@ -500,7 +500,7 @@ export const ITERABLES = {
         )
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.map(
           TF.string(),
           RT.object({
@@ -513,7 +513,7 @@ export const ITERABLES = {
         )
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.map(
           TF.string(),
           RT.object({
@@ -526,7 +526,7 @@ export const ITERABLES = {
         )
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.map(
           TF.string(),
           RT.object({
@@ -573,7 +573,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<Map<SmallObject, number>>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface SmallObject {
@@ -583,7 +583,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<Map<SmallObject, number>>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface SmallObject {
@@ -593,7 +593,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<Map<SmallObject, number>>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface SmallObject {
@@ -603,7 +603,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<Map<SmallObject, number>>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface SmallObject {
@@ -613,7 +613,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<SmallObject, number>>();
+      return createJsonDecoderFn<Map<SmallObject, number>>();
     },
     preserveDecoder: () => {
       interface SmallObject {
@@ -623,7 +623,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<SmallObject, number>>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<Map<SmallObject, number>>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface SmallObject {
@@ -633,7 +633,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<SmallObject, number>>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<Map<SmallObject, number>>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface SmallObject {
@@ -643,7 +643,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createBinaryEncoder<Map<SmallObject, number>>();
+      return createBinaryEncoderFn<Map<SmallObject, number>>();
     },
     binaryDecoder: () => {
       interface SmallObject {
@@ -653,10 +653,10 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createBinaryDecoder<Map<SmallObject, number>>();
+      return createBinaryDecoderFn<Map<SmallObject, number>>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.map(
           RT.object({
             prop1: TF.string(),
@@ -669,7 +669,7 @@ export const ITERABLES = {
         )
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.map(
           RT.object({
             prop1: TF.string(),
@@ -682,7 +682,7 @@ export const ITERABLES = {
         )
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.map(
           RT.object({
             prop1: TF.string(),
@@ -695,7 +695,7 @@ export const ITERABLES = {
         )
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.map(
           RT.object({
             prop1: TF.string(),
@@ -736,87 +736,87 @@ export const ITERABLES = {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'mutate'});
+      return createJsonEncoderFn<DeepWithMap>(undefined, {strategy: 'mutate'});
     },
     cloneEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'clone'});
+      return createJsonEncoderFn<DeepWithMap>(undefined, {strategy: 'clone'});
     },
     directEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'direct'});
+      return createJsonEncoderFn<DeepWithMap>(undefined, {strategy: 'direct'});
     },
     compactEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'compact'});
+      return createJsonEncoderFn<DeepWithMap>(undefined, {strategy: 'compact'});
     },
     stripDecoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonDecoder<DeepWithMap>();
+      return createJsonDecoderFn<DeepWithMap>();
     },
     preserveDecoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonDecoder<DeepWithMap>(undefined, {strategy: 'preserve'});
+      return createJsonDecoderFn<DeepWithMap>(undefined, {strategy: 'preserve'});
     },
     compactDecoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonDecoder<DeepWithMap>(undefined, {strategy: 'compact'});
+      return createJsonDecoderFn<DeepWithMap>(undefined, {strategy: 'compact'});
     },
     binaryEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createBinaryEncoder<DeepWithMap>();
+      return createBinaryEncoderFn<DeepWithMap>();
     },
     binaryDecoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createBinaryDecoder<DeepWithMap>();
+      return createBinaryDecoderFn<DeepWithMap>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(
+      createJsonEncoderFn(
         RT.object({
           a: TF.string(),
           b: RT.map(TF.string(), RT.object({sm: RT.object({s: TF.string(), arr: RT.array(TF.number())})})),
         })
       ),
     schemaDecoder: () =>
-      createJsonDecoder(
+      createJsonDecoderFn(
         RT.object({
           a: TF.string(),
           b: RT.map(TF.string(), RT.object({sm: RT.object({s: TF.string(), arr: RT.array(TF.number())})})),
         })
       ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(
+      createBinaryEncoderFn(
         RT.object({
           a: TF.string(),
           b: RT.map(TF.string(), RT.object({sm: RT.object({s: TF.string(), arr: RT.array(TF.number())})})),
         })
       ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(
+      createBinaryDecoderFn(
         RT.object({
           a: TF.string(),
           b: RT.map(TF.string(), RT.object({sm: RT.object({s: TF.string(), arr: RT.array(TF.number())})})),
@@ -842,19 +842,19 @@ export const ITERABLES = {
       'Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
       'bigint keys serialize as decimal strings and restore via BigInt(...); JSON cannot encode bigint directly.',
     ],
-    mutateEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<Map<bigint, number>>(),
-    preserveDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<Map<bigint, number>>(),
-    binaryDecoder: () => createBinaryDecoder<Map<bigint, number>>(),
-    schemaEncoder: () => createJsonEncoder(RT.map(TF.bigInt(), TF.number())),
-    schemaDecoder: () => createJsonDecoder(RT.map(TF.bigInt(), TF.number())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.map(TF.bigInt(), TF.number())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.map(TF.bigInt(), TF.number())),
+    mutateEncoder: () => createJsonEncoderFn<Map<bigint, number>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<Map<bigint, number>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<Map<bigint, number>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<Map<bigint, number>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<Map<bigint, number>>(),
+    preserveDecoder: () => createJsonDecoderFn<Map<bigint, number>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<Map<bigint, number>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<Map<bigint, number>>(),
+    binaryDecoder: () => createBinaryDecoderFn<Map<bigint, number>>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.map(TF.bigInt(), TF.number())),
+    schemaDecoder: () => createJsonDecoderFn(RT.map(TF.bigInt(), TF.number())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.map(TF.bigInt(), TF.number())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.map(TF.bigInt(), TF.number())),
     getTestData: () => ({
       values: [
         new Map<bigint, number>([
@@ -873,19 +873,19 @@ export const ITERABLES = {
       'Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
       'Date values serialize via their ISO string and restore with new Date(...).',
     ],
-    mutateEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate'}),
-    cloneEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'clone'}),
-    directEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'direct'}),
-    compactEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'compact'}),
-    stripDecoder: () => createJsonDecoder<Map<string, Date>>(),
-    preserveDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'preserve'}),
-    compactDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'compact'}),
-    binaryEncoder: () => createBinaryEncoder<Map<string, Date>>(),
-    binaryDecoder: () => createBinaryDecoder<Map<string, Date>>(),
-    schemaEncoder: () => createJsonEncoder(RT.map(TF.string(), TF.date())),
-    schemaDecoder: () => createJsonDecoder(RT.map(TF.string(), TF.date())),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.map(TF.string(), TF.date())),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.map(TF.string(), TF.date())),
+    mutateEncoder: () => createJsonEncoderFn<Map<string, Date>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoderFn<Map<string, Date>>(undefined, {strategy: 'clone'}),
+    directEncoder: () => createJsonEncoderFn<Map<string, Date>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () => createJsonEncoderFn<Map<string, Date>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<Map<string, Date>>(),
+    preserveDecoder: () => createJsonDecoderFn<Map<string, Date>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () => createJsonDecoderFn<Map<string, Date>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<Map<string, Date>>(),
+    binaryDecoder: () => createBinaryDecoderFn<Map<string, Date>>(),
+    schemaEncoder: () => createJsonEncoderFn(RT.map(TF.string(), TF.date())),
+    schemaDecoder: () => createJsonDecoderFn(RT.map(TF.string(), TF.date())),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.map(TF.string(), TF.date())),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.map(TF.string(), TF.date())),
     getTestData: () => ({
       values: [
         new Map<string, Date>([

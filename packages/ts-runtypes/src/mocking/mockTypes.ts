@@ -1,8 +1,9 @@
 // Public types for the mock-value generator. Surface mirrors the
-// `MockOptions` shape. `createMockData<T>()` merges caller options over
+// `MockOptions` shape. `createMockDataFn<T>()` merges caller options over
 // `defaultMockOptions` before walking the runtype graph.
 
 import type {MockData} from '../enrich/mockData.ts';
+import type {MockRandom} from './mockRandom.ts';
 
 /** Per-call options steering atomic-value generation and optional/recursive
  *  shape handling. Ported field-for-field from the reference implementation. **/
@@ -77,7 +78,7 @@ export interface MockOptions {
    *  value. **/
   invalidLeafProbability?: number;
   /** Steer generation against the binary cold-start size estimate (see
-   *  `createBinaryEncoder`'s `dynamic` strategy):
+   *  `createBinaryEncoderFn`'s `dynamic` strategy):
    *    - `true`  — the value fits the COLD BUFFER, so encoding it never resizes.
    *      Bounds target the per-write reserve (a string reserves `5 + 3*length`),
    *      not the wire size: collections capped at `sizeItems`, strings short
@@ -92,6 +93,20 @@ export interface MockOptions {
    *  resolver's `--size-*` options / the Go `SizeEstimateConfig`. Omitted fields
    *  fall back to the binary defaults (bias 0.8, items 100, stringBytes 32). **/
   binarySizingOptions?: BinarySizingOptions;
+  /** Seed the value generator for repeatable output: the same seed always
+   *  produces the same value for a given type (snapshot tests, deterministic
+   *  fixtures, reproducible failures). Omitted (the default) keeps native
+   *  randomness, unchanged. Settable at the factory or per call like every other
+   *  option (a per-call seed overrides a factory seed). Time-based values
+   *  (Date / Temporal / uuid v7) are pinned to a fixed reference instant under a
+   *  seed so they don't drift. **/
+  seed?: number;
+  /** Internal: the `MockRandom` instance every random draw of a single
+   *  generation shares. Built by `createMockDataFn` from `seed` (native when no
+   *  seed) and carried here so it threads through the walker for free; not part
+   *  of the caller-facing surface. Absent ⇒ the mock path falls back to the
+   *  shared native instance. **/
+  random?: MockRandom;
 }
 
 /** Tuning knobs for the binary cold-start size estimate, mirrored from the
@@ -142,7 +157,7 @@ export interface RunTypeMockOptions<T = unknown> {
   dataNode?: MockDataNode;
 }
 
-/** Generator returned by `createMockData<T>()`. Call-time options may carry a
+/** Generator returned by `createMockDataFn<T>()`. Call-time options may carry a
  *  `data` enrichment map (typed loosely as `MockData<unknown>` here so the
  *  return type stays structurally stable across `T`; the precisely-typed
  *  `MockData<T>` surface is the factory's `options` param). **/

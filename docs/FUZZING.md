@@ -31,14 +31,14 @@ All under [`packages/ts-runtypes/test/fuzz/`](../packages/ts-runtypes/test/fuzz/
 | `*.unit.test.ts`               | Offline unit tests (no Go binary) over hand-built `RunType` graphs + the Phase-2 generator/value layers.                                                                                                                                        |
 | `fuzz.integration.test.ts`     | Phase-1 end-to-end sweep over REAL compiled functions (needs the plugin + binary).                                                                                                                                                              |
 | `binaryEncoderResize.test.ts`  | Pinned regression for the first finding.                                                                                                                                                                                                        |
-| `cloning/referenceClone.ts`    | The clone ORACLE MODEL — a naive reference interpreter of `createCloneExactShape<T>` over the reflected RunType graph; what the compiled clone is compared against (O15).                                                                       |
+| `cloning/referenceClone.ts`    | The clone ORACLE MODEL — a naive reference interpreter of `createCloneExactShapeFn<T>` over the reflected RunType graph; what the compiled clone is compared against (O15).                                                                       |
 | `cloning/extrasValue.ts`       | The extras mutator — injects undeclared `__fz_extra_<n>` keys at provably-sound plain-object positions (validate stays true, a correct clone must strip them). Same one-directional soundness contract as `invalidValue.ts`.                    |
 | `cloning/cloneOracle.ts`       | The cloning oracle layer: `CloneFuzzTarget` + the O15–O17 checks, a local Temporal-aware `deepEqual`, and the shared-mutable-reference walker (ported from `test/util/cloningAsserts.ts`).                                                     |
 | `cloning/cloneFuzzRunner.ts`   | The cloning driver: `runCloneFuzz` / `runCloneFuzzForDuration` — valid / extras / junk streams per seed.                                                                                                                                        |
-| `cloning/cloneFuzz.integration.test.ts` | The cloning end-to-end sweep over REAL compiled `createCloneExactShape` factories, plus the CES001 throw-corpus and the cyclic-value pin (needs the plugin + binary).                                                                  |
+| `cloning/cloneFuzz.integration.test.ts` | The cloning end-to-end sweep over REAL compiled `createCloneExactShapeFn` factories, plus the CES001 throw-corpus and the cyclic-value pin (needs the plugin + binary).                                                                  |
 | `typeGen.ts` _(Phase 2)_       | The THIRD giant switch — a seeded generator of random types across the WIDEST space (classes, functions, symbols, index sigs, native builtins, intersections, circular interfaces, any/unknown/never/void) + named decls + a renderer to `.ts`. |
 | `shapeValue.ts` _(Phase 2)_    | Type→value: a conforming value for the serialisable subset, a strict `valueOracleSafe` gate, and a sound one-position corruption (mirrors invalidValue.ts's contract).                                                                          |
-| `typeFuzzHarness.ts` _(Ph 2)_  | Drives generated source through the resolver (`--inline-server`) → entry modules → REAL runtime factories; records diagnostics + per-factory wire outcome.                                                                                      |
+| `typeFuzzHarness.ts` _(Ph 2)_  | Drives generated source through the resolver (`serve --sources ops`) → entry modules → REAL runtime factories; records diagnostics + per-factory wire outcome.                                                                                      |
 | `typeFuzzRunner.ts` _(Ph 2)_   | The Phase-2 driver: `runTypeFuzz` / `runTypeFuzzForDuration` — owns the resolver (restarts it on a hang), Tier-A (resolver/emit) on every type + Tier-B (value/robustness) per type.                                                            |
 | `typeFuzz.integration.test.ts` | Phase-2 end-to-end sweep over generated TYPES (needs the binary).                                                                                                                                                                               |
 
@@ -47,7 +47,7 @@ All under [`packages/ts-runtypes/test/fuzz/`](../packages/ts-runtypes/test/fuzz/
 Everything draws from a seeded `Math.random`, so each iteration is reproducible
 from its `seed`.
 
-1. **Valid** — `createMockData<T>()`. Valid by construction; the strong oracles
+1. **Valid** — `createMockDataFn<T>()`. Valid by construction; the strong oracles
    expect acceptance / round-trip equality.
 2. **Invalid** — `mutateToInvalid(schema, validMock)`. Takes a valid mock and
    corrupts exactly one position to a wrong type. Invalid by construction; the
@@ -102,7 +102,7 @@ validation functions disagreeing is almost always a bug.
 
 ### The cloning oracles — a reference interpreter as the model
 
-`createCloneExactShape<T>()` has no wire to round-trip, so its strong oracle
+`createCloneExactShapeFn<T>()` has no wire to round-trip, so its strong oracle
 is a **model**: [`cloning/referenceClone.ts`](../packages/ts-runtypes/test/fuzz/cloning/referenceClone.ts)
 is a naive, obviously-correct interpreter of the clone contract over the same
 reflected RunType graph the mock walker reads — declared members rebuild,
@@ -168,7 +168,7 @@ parameter passed through a helper (that injects the `unknown` runtype).
 
 ## Findings
 
-- **Binary encoder buffer overflow on valid data** (fixed). `createBinaryEncoder`
+- **Binary encoder buffer overflow on valid data** (fixed). `createBinaryEncoderFn`
   owns its serializer and sizes it from adaptive history (`predictBufferSize`).
   After many small encodes the prediction converged down toward the running
   mean, so an above-average string overflowed the buffer and threw
@@ -231,16 +231,16 @@ validator get the full strong oracles (reusing the Phase-1 `fuzzOracle.ts` check
 verbatim); everything else gets the robustness probe. The value streams come
 straight from the abstract type (`validValue` / `corruptValue` in
 [`shapeValue.ts`](../packages/ts-runtypes/test/fuzz/value/shapeValue.ts)), so no
-dependency on `createMockData`.
+dependency on `createMockDataFn`.
 
 The harness ([`typeFuzzHarness.ts`](../packages/ts-runtypes/test/fuzz/type/typeFuzzHarness.ts))
 reuses the vite-plugin test helpers
 ([`helpers/inline.ts`](../packages/ts-runtypes-devtools/test/helpers/inline.ts)):
-render the fixture → `--inline-server` `ResolverClient.setSources` (atop the
+render the fixture → `serve --sources ops` `ResolverClient.setSources` (atop the
 `RUNTYPES_DTS` ambient overlay — a tiny inferred Program, no node_modules) →
 `scanFiles` → `evalEntryModules` executes the emitted virtual modules into their
 tuples → each fn tuple is passed as the injected id to the REAL factory
-(`createValidate(undefined, undefined, tuple)` → `initFromTuple` links the whole
+(`createValidateFn(undefined, undefined, tuple)` → `initFromTuple` links the whole
 dependency closure into the live `rtUtils`, exactly as a rewritten call site
 would). Each iteration seeds the type AND its value stream from one number, so a
 reported violation replays exactly.
