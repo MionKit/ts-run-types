@@ -126,12 +126,10 @@ type it cannot see resolves to `any`
 ([convert-program-misses-ambient-declarations.md](convert-program-misses-ambient-declarations.md)).
 This bites Temporal specifically: a project whose Temporal declarations arrive
 through an unimported polyfill `.d.ts` trips CNV007 even though the project is
-correctly configured. It also amplifies badly — several declarations that all
-resolve to `any` are structurally identical, so the reference machinery collapses
-them onto a name reference to whichever one came first, and the output is
-silently nonsense. That is that todo's problem, not this one, but a Temporal
-fix landing here will look broken in exactly that setup, so check which one you
-are actually looking at.
+correctly configured. That is that todo's problem, not this one (it also
+documents how the failure compounds across declarations), but a Temporal fix
+landing here will look broken in exactly that setup, so check which one you are
+actually looking at before blaming your new `jsType` row.
 
 ## Done when
 
