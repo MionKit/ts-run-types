@@ -233,9 +233,11 @@ Rules:
 - Every value inside `params` MUST be JSON-representable. This is why the `bigint` format
   family is deliberately absent: its bounds are `bigint` values. Those brands use the
   carrier of §4.6.
-- The Temporal families are deliberately absent for a different reason: keeping them out
-  means a schema document never pulls the Temporal library into a consumer's type graph.
-  They use the carrier too.
+- The Temporal families are absent, and use the carrier instead. The reason on record is
+  that naming them here would pull the Temporal library into every consumer's type graph.
+  That reason does not survive inspection — `formats/temporal` already solves exactly this
+  with a guarded reference — so the absence is being revisited:
+  [prefer-dialect-keywords-over-embedtype.md](todos/prefer-dialect-keywords-over-embedtype.md).
 - Sibling keywords are inert, as with `jsType`.
 
 ```json
@@ -305,6 +307,12 @@ What it carries today, in the reference implementation:
 - objects with `readonly` members, symbol-keyed members, or a numeric or second index
   signature
 - brand-metadata intersections (`string & {readonly __brand: 'email'}`)
+
+Most of that list is **not** a statement about what the dialect can express — it is a
+statement about which keywords have been written. Only nominal identity (enums, classes)
+and values JSON cannot hold (bigint literals) genuinely belong here; the rest are open
+work, audited in
+[prefer-dialect-keywords-over-embedtype.md](todos/prefer-dialect-keywords-over-embedtype.md).
 
 Rules:
 
@@ -544,18 +552,24 @@ would change the spec, not just the code.
    `runtypes:jsType`). That reads well and matches how 2020-12 vocabularies name their
    own keywords, but it does risk colliding with a future standard keyword or another
    extension. Worth settling before the vocabulary is published anywhere.
-4. **`jsType` coverage.** `WeakMap`, `WeakSet`, typed arrays, `ArrayBuffer`, `Error` and
-   the Temporal types are not in the enum. Temporal is a deliberate exclusion (§4.4); the
-   rest are simply unreached. Each one is a keyword-value decision, not a mechanism
-   change.
-5. **`readonly` members.** Today they go through the carrier, which escapes the *whole*
-   object (§6.8). A `jsPropMods`-style keyword would keep such objects in pure data. The
-   cost is a keyword that every object translation has to consult, which is exactly the
-   tax §1.2 rule 2 was written to avoid.
+4. **The carrier is doing work the vocabulary should do.** This is the big one, and it has
+   its own todo:
+   [prefer-dialect-keywords-over-embedtype.md](todos/prefer-dialect-keywords-over-embedtype.md).
+   Several shapes reach §4.6 not because they cannot be written as data, but because no
+   keyword has been written for them yet — the Temporal types, `readonly` members (which
+   escape the *whole* enclosing object), brand metadata, a `not` over a format, numeric
+   index signatures, function and template literal types. The working rule should be that
+   anything RunTypes reflects natively can be spelled in the dialect, and the carrier is
+   reserved for nominal identity (enums, user classes) and values JSON cannot hold (bigint
+   literals). That todo carries the full audit.
+5. **`jsType` coverage of other natives.** `WeakMap`, `WeakSet`, typed arrays,
+   `ArrayBuffer` and `Error` are not in the enum. Each is a keyword-value decision, not a
+   mechanism change.
 6. **`jsFormat` and the standard keywords.** A `stringFormat` brand carrying only
    `minLength` and `maxLength` is expressible as standard `minLength` / `maxLength`, but
    is currently emitted as `jsFormat` regardless. Lowering the standard-expressible
-   subset would widen what `--portable` can carry.
+   subset would widen what `--portable` can carry — the one place where *less* dialect is
+   the improvement.
 7. **Extension keywords in `$defs` and behind `$ref`.** The interaction is well defined
    (an extension keyword is resolved at its own node, wherever that node sits), but there
    is no test pinning a `jsType` reached through a `$ref` chain.
