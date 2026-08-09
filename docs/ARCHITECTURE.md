@@ -336,6 +336,11 @@ a value-first + type-first spelling: they ride a single params bag on the collec
 builders — `RT.array(item, {uniqueItems, contains, …})` / `RT.object(config, {minProperties,
 patternProperties, propertyNames, …})` / `RT.record(…, {…})` — and the `FormattedArray<Base, P>`
 / `FormattedObject<Base, P>` wrapper types (formats/structural.ts), the door's exact twins.
+The conversion layer needs the schema form to say everything the other two forms can, so
+it extends draft 2020-12 with four keywords (`jsType`, `typeArguments`, `jsFormat`,
+`jsLabels`) plus the `embedType` carrier — the
+`json-schema-2020-12-javascript` dialect, specified in
+[json-schema-2020-12-javascript.md](./json-schema-2020-12-javascript.md).
 Every sentinel slot is a LIST with append semantics end to end: allOf-stacked
 `propertyNames` (or `unevaluated*`) arrive as one sentinel member per arm, the id fold
 appends them into a sorted tag and the serialize collapse appends the same children, so
