@@ -1,6 +1,12 @@
 import * as TF from '@ts-runtypes/core/formats';
-import {createBinaryDecoderFn, createBinaryEncoderFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import {
+  createBinaryDecoderFn,
+  createBinaryEncoderFn,
+  createJsonDecoderFn,
+  createJsonEncoderFn,
+  type AnyOf,
+} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/builders';
 import type {SerializationCase} from './types.ts';
 
 export const UNIONS = {
@@ -646,33 +652,33 @@ export const UNIONS = {
     schemaEncoder: () =>
       createJsonEncoderFn(
         RT.union([
-          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
-          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
-          RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
+          RT.object({name: TF.string(), getName: RT.func({ret: TF.string()})}),
+          RT.object({age: TF.number(), getAge: RT.func({ret: TF.number()})}),
+          RT.object({active: RT.boolean(), isActive: RT.func({ret: RT.boolean()})}),
         ])
       ),
     schemaDecoder: () =>
       createJsonDecoderFn(
         RT.union([
-          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
-          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
-          RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
+          RT.object({name: TF.string(), getName: RT.func({ret: TF.string()})}),
+          RT.object({age: TF.number(), getAge: RT.func({ret: TF.number()})}),
+          RT.object({active: RT.boolean(), isActive: RT.func({ret: RT.boolean()})}),
         ])
       ),
     schemaBinaryEncoder: () =>
       createBinaryEncoderFn(
         RT.union([
-          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
-          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
-          RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
+          RT.object({name: TF.string(), getName: RT.func({ret: TF.string()})}),
+          RT.object({age: TF.number(), getAge: RT.func({ret: TF.number()})}),
+          RT.object({active: RT.boolean(), isActive: RT.func({ret: RT.boolean()})}),
         ])
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoderFn(
         RT.union([
-          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
-          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
-          RT.object({active: RT.boolean(), isActive: RT.func([], RT.boolean())}),
+          RT.object({name: TF.string(), getName: RT.func({ret: TF.string()})}),
+          RT.object({age: TF.number(), getAge: RT.func({ret: TF.number()})}),
+          RT.object({active: RT.boolean(), isActive: RT.func({ret: RT.boolean()})}),
         ])
       ),
     getTestData: () => {
@@ -743,10 +749,10 @@ export const UNIONS = {
     binaryDecoder: () => createBinaryDecoderFn<Date | number | string | (() => any)>(),
     // The function arm is dropped the same way via the value-first path, so each
     // schema thunk resolves the same Date | number | string serializer.
-    schemaEncoder: () => createJsonEncoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
-    schemaDecoder: () => createJsonDecoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
-    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
-    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func([], RT.any())])),
+    schemaEncoder: () => createJsonEncoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func({ret: RT.any()})])),
+    schemaDecoder: () => createJsonDecoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func({ret: RT.any()})])),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func({ret: RT.any()})])),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.union([TF.date(), TF.number(), TF.string(), RT.func({ret: RT.any()})])),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello']}),
   },
 
@@ -1074,6 +1080,49 @@ export const UNIONS = {
       values: [
         {a: 'hello', b: 7},
         {a: true, c: new Date('2000-08-06T02:13:00.000Z')},
+      ],
+    }),
+  },
+  any_of_union: {
+    title: 'anyOf at-least-one union',
+    description:
+      'The AnyOf spelling IS the plain union: identical wire behavior, identical cached encoders, through every JSON strategy and binary.',
+    serializeNotes: ['AnyOf<[…]> and RT.anyOf both resolve the plain union encoder.'],
+    mutateEncoder: () =>
+      createJsonEncoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () =>
+      createJsonEncoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(undefined, {strategy: 'clone'}),
+    directEncoder: () =>
+      createJsonEncoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(undefined, {strategy: 'direct'}),
+    compactEncoder: () =>
+      createJsonEncoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(undefined, {strategy: 'compact'}),
+    stripDecoder: () => createJsonDecoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(),
+    preserveDecoder: () =>
+      createJsonDecoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(undefined, {strategy: 'preserve'}),
+    compactDecoder: () =>
+      createJsonDecoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(undefined, {strategy: 'compact'}),
+    binaryEncoder: () => createBinaryEncoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(),
+    binaryDecoder: () => createBinaryDecoderFn<AnyOf<[{kind: 'a'; n: number}, {kind: 'b'; s: string}]>>(),
+    schemaEncoder: () =>
+      createJsonEncoderFn(
+        RT.anyOf([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
+      ),
+    schemaDecoder: () =>
+      createJsonDecoderFn(
+        RT.anyOf([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoderFn(
+        RT.anyOf([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoderFn(
+        RT.anyOf([RT.object({kind: RT.literal('a'), n: TF.number()}), RT.object({kind: RT.literal('b'), s: TF.string()})])
+      ),
+    getTestData: () => ({
+      values: [
+        {kind: 'a', n: 1},
+        {kind: 'b', s: 'x'},
       ],
     }),
   },

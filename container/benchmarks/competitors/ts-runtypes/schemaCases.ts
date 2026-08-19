@@ -1,16 +1,16 @@
-// ts-runtypes validators keyed by suite case key ("GROUP.case"), SCHEMA form
-// (value-first). Each entry is the case's own `validateSchema` thunk copied
-// VERBATIM from the shared suites (container/benchmarks/src/suites/**) — a
-// `() => createValidateFn(RT.…)` arrow built from the `ts-runtypes/schema`
-// builders instead of a literal type argument. Consumed by typecost ONLY (it is
+// ts-runtypes validators keyed by suite case key ("GROUP.case"), BUILDER form.
+// Each entry is the case's own `validateSchema` thunk copied VERBATIM from the
+// shared suites (container/benchmarks/src/suites/**) — a
+// `() => createValidateFn(RT.…)` arrow built from the `ts-runtypes/builders`
+// surface instead of a literal type argument. Consumed by typecost ONLY (it is
 // NOT imported by main.ts). Cases whose value-first form can't be authored
 // (`validateSchema: 'not-supported'`) or that render an alwaysThrow factory
 // (`factoryThrows`) opt out with NOT_SUPPORTED. TOTAL over every key.
 
 import * as TF from '@ts-runtypes/core/formats';
 import * as TFT from '@ts-runtypes/core/formats/temporal';
-import {createValidateFn} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import {createValidateFn, createHasUnknownKeysFn} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/builders';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 
 export const schemaCases: CompetitorCases = {
@@ -64,7 +64,7 @@ export const schemaCases: CompetitorCases = {
   'ARRAY.string_array_noIsArrayCheck': () => createValidateFn(RT.array(TF.string()), {noIsArrayCheck: true}),
   'ARRAY.object_array': () => createValidateFn(RT.array(RT.object({a: TF.string()}))),
   'ARRAY.union_array': () => createValidateFn(RT.array(RT.union([TF.string(), TF.number()]))),
-  'ARRAY.tuple_array': () => createValidateFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
+  'ARRAY.tuple_array': () => createValidateFn(RT.array(RT.tuple({required: [TF.string(), TF.number()]}))),
   'ARRAY.circular_array': () => {
     const ca = RT.circular(RT.array(RT.self()));
     return createValidateFn(ca);
@@ -93,7 +93,7 @@ export const schemaCases: CompetitorCases = {
   'OBJECT.object_via_array_access': () => createValidateFn(RT.object({id: TF.number(), name: TF.string()})),
   'OBJECT.interface_with_optional': () => createValidateFn(RT.object({a: TF.string(), b: RT.optional(TF.number())})),
   'OBJECT.interface_with_date': () => createValidateFn(RT.object({date: TF.date(), name: TF.string()})),
-  'OBJECT.interface_with_method': () => createValidateFn(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
+  'OBJECT.interface_with_method': () => createValidateFn(RT.object({name: TF.string(), cb: RT.func({ret: RT.any()})})),
   'OBJECT.nested_object': () => createValidateFn(RT.object({a: TF.string(), deep: RT.object({b: TF.string(), c: TF.number()})})),
   'OBJECT.interface_string_array_prop': () => createValidateFn(RT.object({tags: RT.array(TF.string())})),
   'OBJECT.circular_interface': () => {
@@ -122,7 +122,7 @@ export const schemaCases: CompetitorCases = {
     createValidateFn(RT.object({b: TF.string(), c: RT.intersection(RT.record(TF.string()), RT.object({a: TF.string()}))})),
   'OBJECT.function_top_level': () => createValidateFn(RT.func()),
   'OBJECT.interface_callable': () =>
-    createValidateFn(RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}))),
+    createValidateFn(RT.callable(RT.func({params: [TF.number(), RT.boolean()], ret: TF.string()}), RT.object({extra: TF.string()}))),
   'OBJECT.interface_all_optional': () => createValidateFn(RT.object({a: RT.optional(TF.string()), b: RT.optional(TF.number())})),
   'OBJECT.class_simple': () => {
     class MySerializableClass {
@@ -152,11 +152,11 @@ export const schemaCases: CompetitorCases = {
     }
     return createValidateFn(RT.classType<RpcError<'test-error'>>(RpcError));
   },
-  'OBJECT.call_signature_params': () => createValidateFn(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
+  'OBJECT.call_signature_params': () => createValidateFn(RT.parameters(RT.func({params: [TF.number(), RT.boolean()], ret: TF.string()}))),
   'OBJECT.call_signature_params_with_optional': () =>
-    createValidateFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
+    createValidateFn(RT.parameters(RT.func({params: RT.tuple({required: [TF.number(), RT.boolean()], optional: [TF.string()]})}))),
   'OBJECT.call_signature_params_with_rest': () =>
-    createValidateFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
+    createValidateFn(RT.parameters(RT.func({params: RT.tuple({required: [TF.number(), RT.boolean()], rest: TF.date()})}))),
   'OBJECT.record_union_keys': () => createValidateFn(RT.object({a: TF.number(), b: TF.number()})),
   'OBJECT.union_value_index': () => createValidateFn(RT.record(RT.union([TF.string(), TF.number()]))),
   'OBJECT.object_with_union_prop': () =>
@@ -174,20 +174,20 @@ export const schemaCases: CompetitorCases = {
   'OBJECT.index_signature_number_key': () => createValidateFn(RT.record(TF.number(), TF.string())),
 
   // ── TUPLE ──
-  'TUPLE.string_number_pair': () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
+  'TUPLE.string_number_pair': () => createValidateFn(RT.tuple({required: [TF.string(), TF.number()]})),
   'TUPLE.full_mion_tuple': () =>
-    createValidateFn(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
-  'TUPLE.tuple_with_optional': () => createValidateFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-  'TUPLE.nested_tuple_in_array': () => createValidateFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
-  'TUPLE.tuple_rest': () => createValidateFn(RT.tuple([TF.number()], TF.string())),
+    createValidateFn(RT.tuple({required: [TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()]})),
+  'TUPLE.tuple_with_optional': () => createValidateFn(RT.tuple({required: [TF.number()], optional: [TF.bigInt(), RT.boolean(), TF.number()]})),
+  'TUPLE.nested_tuple_in_array': () => createValidateFn(RT.array(RT.tuple({required: [TF.string(), TF.number()]}))),
+  'TUPLE.tuple_rest': () => createValidateFn(RT.tuple({required: [TF.number()], rest: TF.string()})),
   'TUPLE.tuple_circular': NOT_SUPPORTED, // validateSchema not-supported
   'TUPLE.tuple_multiple_trailing_optionals': () =>
-    createValidateFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-  'TUPLE.tuple_named_labels': () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
-  'TUPLE.tuple_with_non_serializable': () => createValidateFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
-  'TUPLE.empty_tuple': () => createValidateFn(RT.tuple([])),
-  'TUPLE.single_element_tuple': () => createValidateFn(RT.tuple([TF.string()])),
-  'TUPLE.readonly_tuple': () => createValidateFn(RT.tuple([TF.string(), TF.number()])),
+    createValidateFn(RT.tuple({required: [TF.number()], optional: [TF.bigInt(), RT.boolean(), TF.number()]})),
+  'TUPLE.tuple_named_labels': () => createValidateFn(RT.tuple({required: [TF.string(), TF.number()]})),
+  'TUPLE.tuple_with_non_serializable': () => createValidateFn(RT.tuple({required: [TF.number(), RT.func({ret: RT.any()})]})),
+  'TUPLE.empty_tuple': () => createValidateFn(RT.tuple({})),
+  'TUPLE.single_element_tuple': () => createValidateFn(RT.tuple({required: [TF.string()]})),
+  'TUPLE.readonly_tuple': () => createValidateFn(RT.tuple({required: [TF.string(), TF.number()]})),
 
   // ── UNION ──
   'UNION.atomic_union': () => createValidateFn(RT.union([TF.date(), TF.number(), TF.string(), RT.literal(null), TF.bigInt()])),
@@ -232,8 +232,8 @@ export const schemaCases: CompetitorCases = {
   'UNION.union_with_methods': () =>
     createValidateFn(
       RT.union([
-        RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
-        RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
+        RT.object({name: TF.string(), getName: RT.func({ret: TF.string()})}),
+        RT.object({age: TF.number(), getAge: RT.func({ret: TF.number()})}),
       ])
     ),
   'UNION.intersection_to_object': () => createValidateFn(RT.intersection(RT.object({a: TF.string()}), RT.object({b: TF.number()}))),
@@ -328,7 +328,7 @@ export const schemaCases: CompetitorCases = {
     return createValidateFn(cu);
   },
   'CIRCULAR.object_with_tuple_prop': () => {
-    const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
+    const ct = RT.circular(RT.object({tuple: RT.tuple({required: [TF.bigInt()], optional: [RT.self()]})}));
     return createValidateFn(ct);
   },
   'CIRCULAR.object_with_index_prop': () => {
@@ -388,6 +388,22 @@ export const schemaCases: CompetitorCases = {
     return createValidateFn(root);
   },
 
+  // ── CIRCULAR_REFS ──
+  // The runtime cycle-rejection lane (`rejectCircularRefs`), value-first twins of
+  // the type-first entries in cases.ts.
+  'CIRCULAR_REFS.linked_list_cycle': () => {
+    const node = RT.circular(RT.object({value: TF.number(), next: RT.union([RT.self(), RT.literal(null)])}));
+    return createValidateFn(node, {rejectCircularRefs: true});
+  },
+  'CIRCULAR_REFS.tree_cycle': () => {
+    const node = RT.circular(RT.object({label: TF.string(), children: RT.array(RT.self())}));
+    return createValidateFn(node, {rejectCircularRefs: true});
+  },
+  'CIRCULAR_REFS.object_self_cycle': () => {
+    const node = RT.circular(RT.object({name: TF.string(), next: RT.optional(RT.self())}));
+    return createValidateFn(node, {rejectCircularRefs: true});
+  },
+
   // ── UTILITY ──
   'UTILITY.partial': () => createValidateFn(RT.partial(RT.object({name: TF.string(), age: TF.number(), createdAt: TF.date()}))),
   'UTILITY.required': () =>
@@ -419,7 +435,7 @@ export const schemaCases: CompetitorCases = {
     ),
   'UTILITY.non_nullable': () =>
     createValidateFn(RT.nonNullable(RT.union([TF.string(), TF.number(), RT.literal(null), RT.literal(undefined)]))),
-  'UTILITY.return_type': () => createValidateFn(RT.returnType(RT.func([TF.number(), RT.boolean()], TF.date()))),
+  'UTILITY.return_type': () => createValidateFn(RT.returnType(RT.func({params: [TF.number(), RT.boolean()], ret: TF.date()}))),
   'UTILITY.readonly': () => createValidateFn(RT.readonly(RT.object({name: TF.string(), age: TF.number()}))),
   'UTILITY.intersection_with_required_override': () =>
     createValidateFn(
@@ -703,4 +719,101 @@ export const schemaCases: CompetitorCases = {
         }),
       })
     ),
+  'REALWORLD.toBeChecked': () =>
+    createValidateFn(
+      RT.object({
+        number: TF.number(),
+        negNumber: TF.number(),
+        maxNumber: TF.number(),
+        string: TF.string(),
+        longString: TF.string(),
+        boolean: RT.boolean(),
+        deeplyNested: RT.object({
+          foo: TF.string(),
+          num: TF.number(),
+          bool: RT.boolean(),
+        }),
+      })
+    ),
+
+  // ── JSON_SCHEMA ──
+  // The same value-first authoring cases.ts uses for this group (there, unlike
+  // every other group, the two maps coincide: the structural keywords have no
+  // plain-type spelling, so cases.ts is already value-first). The structural
+  // keywords ride the trailing params bags on `RT.array` / `RT.record`; the
+  // value keywords are TF formats.
+  'JSON_SCHEMA.property_names': () =>
+    createValidateFn(RT.record(TF.number(), {propertyNames: TF.string({pattern: {source: '^[a-z]+$', flags: ''}})})),
+  'JSON_SCHEMA.contains_count': () => createValidateFn(RT.array(TF.number(), {contains: TF.number({min: 10}), minContains: 2})),
+  'JSON_SCHEMA.unique_items': () => createValidateFn(RT.array(TF.number(), {uniqueItems: true})),
+  'JSON_SCHEMA.object_size': () => createValidateFn(RT.record(TF.number(), {minProperties: 1, maxProperties: 3})),
+  'JSON_SCHEMA.string_email': () => createValidateFn(TF.email()),
+  'JSON_SCHEMA.int_bounded': () => createValidateFn(TF.number({integer: true, min: 0, max: 130})),
+  'JSON_SCHEMA.string_pattern': () => createValidateFn(TF.string({pattern: {source: '^[a-z][a-z0-9-]*$', flags: ''}})),
+  'JSON_SCHEMA.multiple_of': () => createValidateFn(TF.number({multipleOf: 5})),
+
+  // ── STRICT ──
+  // The builder door's strict pair. The run-type is built TWICE on purpose: each
+  // factory reads its own call site at build time, so a shared local would have
+  // nothing for the second one to read.
+  'STRICT.flat_required': () => {
+    const validate = createValidateFn(
+      RT.object({
+        id: TF.number(),
+        name: TF.string(),
+        active: RT.boolean(),
+      })
+    );
+    const hasUnknownKeys = createHasUnknownKeysFn(
+      RT.object({
+        id: TF.number(),
+        name: TF.string(),
+        active: RT.boolean(),
+      }),
+      {runsAfterValidation: true}
+    );
+    return (value: unknown) => validate(value) && !hasUnknownKeys(value);
+  },
+  'STRICT.nested_required': () => {
+    const validate = createValidateFn(
+      RT.object({
+        name: TF.string(),
+        inner: RT.object({x: TF.number(), y: TF.string()}),
+      })
+    );
+    const hasUnknownKeys = createHasUnknownKeysFn(
+      RT.object({
+        name: TF.string(),
+        inner: RT.object({x: TF.number(), y: TF.string()}),
+      }),
+      {runsAfterValidation: true}
+    );
+    return (value: unknown) => validate(value) && !hasUnknownKeys(value);
+  },
+  'STRICT.moltar_dto': () => {
+    const validate = createValidateFn(
+      RT.object({
+        number: TF.number(),
+        negNumber: TF.number(),
+        maxNumber: TF.number(),
+        string: TF.string(),
+        longString: TF.string(),
+        boolean: RT.boolean(),
+        deeplyNested: RT.object({foo: TF.string(), num: TF.number(), bool: RT.boolean()}),
+      })
+    );
+    const hasUnknownKeys = createHasUnknownKeysFn(
+      RT.object({
+        number: TF.number(),
+        negNumber: TF.number(),
+        maxNumber: TF.number(),
+        string: TF.string(),
+        longString: TF.string(),
+        boolean: RT.boolean(),
+        deeplyNested: RT.object({foo: TF.string(), num: TF.number(), bool: RT.boolean()}),
+      }),
+      {runsAfterValidation: true}
+    );
+    return (value: unknown) => validate(value) && !hasUnknownKeys(value);
+  },
 };

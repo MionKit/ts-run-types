@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const UTILITY = {
@@ -15,8 +15,9 @@ export const UTILITY = {
     title: 'Partial',
     description:
       'utility/partial.spec.ts makes all properties optional, resolving to {name?: string; age?: number; createdAt?: Date} and reusing the object emit with the allOptionalCode array-rejection guard.',
-    validateNotes:
+    validateNotes: [
       'Resolves to an all-optional object shape, so the `allOptionalCode` guard kicks in: arrays, Date, Map, Set, RegExp are rejected at the top level even though `{}` is valid. Present properties still run their atomic checks (Invalid Date in `createdAt` fails).',
+    ],
     validate: () => {
       interface Person {
         name: string;
@@ -184,8 +185,9 @@ export const UTILITY = {
     title: 'Required',
     description:
       'utility/required.spec.ts makes all properties required, resolving to a plain object literal and reusing the object emit.',
-    validateNotes:
+    validateNotes: [
       'Optional props become required, so a value missing any of them now FAILS — `{}` and `{name: "John"}` are rejected (they were valid under the original optional shape).',
+    ],
     validate: () => {
       interface MaybePerson {
         name?: string;
@@ -339,8 +341,9 @@ export const UTILITY = {
   pick: {
     title: 'Pick',
     description: 'utility/pick.spec.ts keeps only the named properties, resolving to {name: string; createdAt: Date}.',
-    validateNotes:
+    validateNotes: [
       'Resolves to a fixed-property object with only the picked keys. Extra properties on the input still pass (structural typing).',
+    ],
     validate: () => {
       interface Person {
         name: string;
@@ -484,8 +487,9 @@ export const UTILITY = {
   omit: {
     title: 'Omit',
     description: 'utility/omit.spec.ts drops the named properties, resolving to {name: string; createdAt: Date}.',
-    validateNotes:
+    validateNotes: [
       'Resolves to the original shape minus the omitted keys. The omitted property can still appear on the input — structural typing accepts extras.',
+    ],
     validate: () => {
       interface Person {
         name: string;
@@ -939,8 +943,9 @@ export const UTILITY = {
   return_type: {
     title: 'ReturnType',
     description: "utility/params-return.spec.ts extracts a function's return type, resolving to Date.",
-    validateNotes:
+    validateNotes: [
       "Resolves to the function's return type (`Date`), so the validator checks for a valid Date instance — NOT a function. Invalid Dates (`new Date(NaN)`) are rejected like any other Date case.",
+    ],
     validate: () => {
       type Fn = (a: number, b: boolean) => Date;
       return createValidateFn<ReturnType<Fn>>();
@@ -953,7 +958,7 @@ export const UTILITY = {
       type Fn = (a: number, b: boolean) => Date;
       return createValidateFn<DataOnly<ReturnType<Fn>>>();
     },
-    validateSchema: () => createValidateFn(RT.returnType(RT.func([TF.number(), RT.boolean()], TF.date()))),
+    validateSchema: () => createValidateFn(RT.returnType(RT.func({params: [TF.number(), RT.boolean()], ret: TF.date()}))),
     deserializeValidate: () => {
       type Fn = (a: number, b: boolean) => Date;
       return deserializeValidate<ReturnType<Fn>>();
@@ -976,7 +981,8 @@ export const UTILITY = {
       type Fn = (a: number, b: boolean) => Date;
       return createGetValidationErrorsFn<DataOnly<ReturnType<Fn>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.returnType(RT.func([TF.number(), RT.boolean()], TF.date()))),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrorsFn(RT.returnType(RT.func({params: [TF.number(), RT.boolean()], ret: TF.date()}))),
     deserializeGetValidationErrors: () => {
       type Fn = (a: number, b: boolean) => Date;
       return deserializeGetValidationErrors<ReturnType<Fn>>();
@@ -1150,8 +1156,9 @@ export const UTILITY = {
     title: 'Intersection override',
     description:
       'An intersection that flips a property\'s optionality — `Partial<Person>` makes all props optional, then `& Required<Pick<Person, "name">>` re-requires only `name`, so tsgo resolves the intersection to {name: string; age?: number; createdAt?: Date} and reuses the object emit.',
-    validateNotes:
+    validateNotes: [
       "Intersections of utility types resolve at the type-checker layer to a single flat object shape. Use this pattern to flip a specific property's optionality without re-declaring the whole type.",
+    ],
     validate: () => {
       interface Person {
         name: string;

@@ -36,6 +36,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
+	"github.com/mionkit/ts-runtypes/internal/jsengine"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -48,6 +49,7 @@ Commands:
     serve       serve the resolver protocol on stdio (the bundler-plugin path)
     compile     tsc-like batch compile: emit .js + generated cache modules to disk (--no-emit: diagnostics only)
     enrich      scaffold / reconcile / check the enrichment mirror files (--no-emit: diagnostics only)
+    convert     rewrite type declarations between the three authoring forms
 
 Run  ts-runtypes <command> -h  for a command's own options.
 
@@ -61,8 +63,10 @@ Shared options (same meaning under every command):
     --number-mode MODE  validate numberMode default: isFinite (default) | typeof | notNaN
     --single-threaded / --no-single-threaded
     --no-parallel-scan / --no-parallel-render
-    --size-bias / --size-items / --size-string-bytes / --size-max-bytes
-    --allow-unchecked-patterns
+    --binary-sizing-bias / --binary-sizing-items / --binary-sizing-string-bytes / --binary-sizing-max-bytes
+    --js-runtime PATH   JS runtime the pattern checks run on (default: RT_JS_RUNTIME, then node, then bun from PATH)
+    --pattern-sample-count N    generated mockSamples per sample-less pattern (default 100; 0 disables)
+    --pattern-sample-retries N  per-sample draw multiplier for pattern generation (default 10)
     --pure-fn-report-wire / --pure-fn-report-file
     --pprof-cpu PATH / --pprof-heap PATH
     -h, --help          show help
@@ -85,6 +89,7 @@ var commands = map[string]func(args []string){
 	"serve":   runServe,
 	"compile": runCompile,
 	"enrich":  runEnrich,
+	"convert": runConvert,
 }
 
 func main() {
@@ -114,26 +119,30 @@ func main() {
 // registered on each subcommand's own FlagSet by registerSharedFlags so a knob
 // spells and means the same thing wherever it appears.
 type sharedFlags struct {
-	tsconfig               string
-	cwd                    string
-	hashLength             int
-	singleThreaded         bool
-	noSingleThreaded       bool
-	noParallelScan         bool
-	noParallelRender       bool
-	emitMode               string
-	inlineMode             string
-	moduleMode             string
-	allowUncheckedPatterns bool
-	pureFnReportWire       bool
-	pureFnReportFile       bool
-	sizeBias               float64
-	sizeItems              int
-	sizeStringBytes        int
-	sizeMaxBytes           int
-	numberMode             string
-	pprofCPU               string
-	pprofHeap              string
+	tsconfig                string
+	cwd                     string
+	hashLength              int
+	singleThreaded          bool
+	noSingleThreaded        bool
+	noParallelScan          bool
+	noParallelRender        bool
+	emitMode                string
+	inlineMode              string
+	moduleMode              string
+	jsRuntime               string
+	pureFnReportWire        bool
+	pureFnReportFile        bool
+	binarySizingBias        float64
+	binarySizingItems       int
+	binarySizingStringBytes int
+	binarySizingMaxBytes    int
+	numberMode              string
+	patternSampleCount      int
+	patternSampleRetries    int
+	markerPackages          string
+	noMarkerPackageCheck    bool
+	pprofCPU                string
+	pprofHeap               string
 }
 
 func registerSharedFlags(fs *flag.FlagSet) *sharedFlags {
@@ -152,22 +161,30 @@ func registerSharedFlags(fs *flag.FlagSet) *sharedFlags {
 		"child-inlining policy: default (unnamed compounds inline, named external) | allInternal")
 	fs.StringVar(&s.moduleMode, "module-mode", constants.ModuleModeDefault,
 		"virtual-module grouping: default | allSingle | allModules")
-	fs.BoolVar(&s.allowUncheckedPatterns, "allow-unchecked-patterns", false,
-		"silence the fail-closed FMT004 build error for format patterns whose mockSamples RE2 can't verify")
+	fs.StringVar(&s.jsRuntime, "js-runtime", "",
+		"JS runtime path the format-pattern checks run on (default: RT_JS_RUNTIME, then node, then bun from PATH; any node-compatible runtime works)")
 	fs.BoolVar(&s.pureFnReportWire, "pure-fn-report-wire", false,
 		"emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan")
 	fs.BoolVar(&s.pureFnReportFile, "pure-fn-report-file", false,
 		"also write the whole-program pure-fn report as JSON to <genDir>/types/pure-fns-report.json")
-	fs.Float64Var(&s.sizeBias, "size-bias", constants.DefaultSizeBias,
+	fs.Float64Var(&s.binarySizingBias, "binary-sizing-bias", constants.DefaultSizeBias,
 		"binary `dynamic` cold-start size bias in [0,1]: 0 = tightest, 1 = most generous (default 0.8)")
-	fs.IntVar(&s.sizeItems, "size-items", constants.DefaultSizeItems,
+	fs.IntVar(&s.binarySizingItems, "binary-sizing-items", constants.DefaultSizeItems,
 		"assumed element count for an unbounded collection in the binary cold-start estimate (default 100)")
-	fs.IntVar(&s.sizeStringBytes, "size-string-bytes", constants.DefaultSizeStringBytes,
+	fs.IntVar(&s.binarySizingStringBytes, "binary-sizing-string-bytes", constants.DefaultSizeStringBytes,
 		"assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)")
-	fs.IntVar(&s.sizeMaxBytes, "size-max-bytes", constants.DefaultSizeMaxBytes,
+	fs.IntVar(&s.binarySizingMaxBytes, "binary-sizing-max-bytes", constants.DefaultSizeMaxBytes,
 		"per-type cap on the binary cold-start estimate (default 65536)")
 	fs.StringVar(&s.numberMode, "number-mode", "",
 		"project-wide default for the validate numberMode option: isFinite (default) | typeof | notNaN")
+	fs.IntVar(&s.patternSampleCount, "pattern-sample-count", constants.DefaultPatternSampleCount,
+		"generated mockSamples per sample-less format pattern (default 100; 0 disables generation)")
+	fs.IntVar(&s.patternSampleRetries, "pattern-sample-retries", constants.DefaultPatternSampleRetries,
+		"per-sample draw multiplier for pattern sample generation (whole budget = count × retries; default 10)")
+	fs.StringVar(&s.markerPackages, "marker-packages", "",
+		"comma-separated `packages` additionally allowed to declare the marker types (InjectRunTypeId, CompTimeArgs, …); @ts-runtypes/core is always accepted")
+	fs.BoolVar(&s.noMarkerPackageCheck, "no-marker-package-check", false,
+		"match markers by type NAME alone, whatever package declared them (escape hatch; a local same-named type then drives rewrites too)")
 	fs.StringVar(&s.pprofCPU, "pprof-cpu", "", "write a CPU profile to PATH (whole run)")
 	fs.StringVar(&s.pprofHeap, "pprof-heap", "", "write a heap profile to PATH at exit")
 	return s
@@ -260,24 +277,27 @@ func resolveSharedConfig(fs *flag.FlagSet, s *sharedFlags, genDirFlag string, re
 		}
 	}
 	merged := mergeBuildOptions(buildFlags{
-		set:                    setFlags,
-		hashLength:             s.hashLength,
-		singleThreaded:         s.singleThreaded,
-		noSingleThreaded:       s.noSingleThreaded,
-		noParallelScan:         s.noParallelScan,
-		noParallelRender:       s.noParallelRender,
-		genDir:                 genDirFlag,
-		emitMode:               s.emitMode,
-		inlineMode:             s.inlineMode,
-		moduleMode:             s.moduleMode,
-		allowUncheckedPatterns: s.allowUncheckedPatterns,
-		pureFnReportWire:       s.pureFnReportWire,
-		pureFnReportFile:       s.pureFnReportFile,
-		sizeBias:               s.sizeBias,
-		sizeItems:              s.sizeItems,
-		sizeStringBytes:        s.sizeStringBytes,
-		sizeMaxBytes:           s.sizeMaxBytes,
-		numberMode:             s.numberMode,
+		set:                     setFlags,
+		hashLength:              s.hashLength,
+		singleThreaded:          s.singleThreaded,
+		noSingleThreaded:        s.noSingleThreaded,
+		noParallelScan:          s.noParallelScan,
+		noParallelRender:        s.noParallelRender,
+		genDir:                  genDirFlag,
+		emitMode:                s.emitMode,
+		inlineMode:              s.inlineMode,
+		moduleMode:              s.moduleMode,
+		pureFnReportWire:        s.pureFnReportWire,
+		pureFnReportFile:        s.pureFnReportFile,
+		binarySizingBias:        s.binarySizingBias,
+		binarySizingItems:       s.binarySizingItems,
+		binarySizingStringBytes: s.binarySizingStringBytes,
+		binarySizingMaxBytes:    s.binarySizingMaxBytes,
+		numberMode:              s.numberMode,
+		patternSampleCount:      s.patternSampleCount,
+		patternSampleRetries:    s.patternSampleRetries,
+		markerPackages:          s.markerPackages,
+		noMarkerPackageCheck:    s.noMarkerPackageCheck,
 	}, plugin, absCwd)
 
 	// Validate the MERGED values: a bad mode can arrive from tsconfig as
@@ -302,6 +322,14 @@ func resolveSharedConfig(fs *flag.FlagSet, s *sharedFlags, genDirFlag string, re
 		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid number-mode %q (want isFinite | typeof | notNaN)\n", merged.numberMode)
 		os.Exit(2)
 	}
+	if merged.patternSampleCount < 0 {
+		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid pattern-sample-count %d (want >= 0; 0 disables generation)\n", merged.patternSampleCount)
+		os.Exit(2)
+	}
+	if merged.patternSampleRetries < 1 {
+		fmt.Fprintf(os.Stderr, "ts-runtypes: invalid pattern-sample-retries %d (want >= 1)\n", merged.patternSampleRetries)
+		os.Exit(2)
+	}
 
 	// RT disk cache: the internal RT_CACHE_DIR env var is the only control.
 	// Unset → the cache follows the project's incremental/composite setting; set
@@ -317,8 +345,11 @@ func resolveSharedConfig(fs *flag.FlagSet, s *sharedFlags, genDirFlag string, re
 	}
 
 	opts := resolver.Options{
-		HashLength:              merged.hashLength,
-		Marker:                  marker.Options{},
+		HashLength: merged.hashLength,
+		Marker: marker.Options{
+			Packages:         merged.markerPackages,
+			SkipPackageCheck: merged.skipMarkerPackageCheck,
+		},
 		Cwd:                     absCwd,
 		TsconfigPath:            tsconfigPath,
 		TsconfigGenDir:          tsconfigGenDir,
@@ -333,14 +364,19 @@ func resolveSharedConfig(fs *flag.FlagSet, s *sharedFlags, genDirFlag string, re
 		EmitMode:                constants.EmitMode(merged.emitMode),
 		InlineMode:              constants.InlineMode(merged.inlineMode),
 		ModuleMode:              merged.moduleMode,
-		AllowUncheckedPatterns:  merged.allowUncheckedPatterns,
-		PureFnReportWire:        merged.pureFnReportWire,
-		PureFnReportFile:        merged.pureFnReportFile,
-		SizeBias:                merged.sizeBias,
-		SizeItems:               merged.sizeItems,
-		SizeStringBytes:         merged.sizeStringBytes,
-		SizeMaxBytes:            merged.sizeMaxBytes,
-		ValidateDefaults:        resolver.ValidateDefaults{NumberMode: merged.numberMode},
+		// The JS engine pattern checks run on: --js-runtime, else
+		// RT_JS_RUNTIME, else node/bun from PATH — resolved lazily on first
+		// use, so pattern-free projects never need a runtime.
+		JSEngine:             jsengine.NewSidecar(s.jsRuntime),
+		PureFnReportWire:     merged.pureFnReportWire,
+		PureFnReportFile:     merged.pureFnReportFile,
+		SizeBias:             merged.binarySizingBias,
+		SizeItems:            merged.binarySizingItems,
+		SizeStringBytes:      merged.binarySizingStringBytes,
+		SizeMaxBytes:         merged.binarySizingMaxBytes,
+		ValidateDefaults:     resolver.ValidateDefaults{NumberMode: merged.numberMode},
+		PatternSampleCount:   merged.patternSampleCount,
+		PatternSampleRetries: merged.patternSampleRetries,
 	}
 	return sessionConfig{absCwd: absCwd, tsconfigPath: tsconfigPath, genDir: merged.genDir, opts: opts}
 }
@@ -408,6 +444,10 @@ func runServe(args []string) {
 	// per-locale translation-mirror sync whose locales/sourceLocale default from
 	// the tsconfig plugin i18n block (project mode) unless overridden here.
 	genDirFlag := fs.String("gen-dir", "", "RunTypes output root override (precedence: this flag > tsconfig genDir > inferred <srcDir>/__runtypes)")
+	transformRelative := fs.Bool("transform-relative", false,
+		"transform rewrites injected rtmod: specifiers to paths relative to the output root (files mode); off keeps the virtual specifiers")
+	omitSourcesContent := fs.Bool("omit-sources-content", false,
+		"drop the original source from each 'go'-mode transform source map (the host fills it from its own copy)")
 	enrichFriendly := fs.Bool("enrich-friendly", false, "OpEnrich maintains the FriendlyText mirrors (neither family flag = both)")
 	enrichMock := fs.Bool("enrich-mock", false, "OpEnrich maintains the MockData mirrors (neither family flag = both)")
 	enrichI18n := fs.Bool("enrich-i18n", false, "OpEnrich also syncs the per-locale translation mirrors (scaffold + sync only, never translated content)")
@@ -438,6 +478,8 @@ func runServe(args []string) {
 		}
 		cfg.opts.GenDir = genDir
 	}
+	cfg.opts.TransformRelative = *transformRelative
+	cfg.opts.OmitSourcesContent = *omitSourcesContent
 	cfg.opts.EnrichFriendly = *enrichFriendly
 	cfg.opts.EnrichMock = *enrichMock
 	cfg.opts.EnrichI18n = *enrichI18n
@@ -530,6 +572,10 @@ func newStdioSession(sources string, cfg sessionConfig, stdinDec *json.Decoder) 
 		if err != nil {
 			return nil, fmt.Errorf("tsconfig: %w", err)
 		}
+		// Root the config's declaration files too (same rule as the daemon's
+		// setSources): ambient `.d.ts` members of the include set are what tsc
+		// sees without an import and a handshake-rooted program would lose.
+		fileNames = program.UnionRoots(fileNames, inferredConfig.DeclarationFileNames())
 		p, err := program.NewInferred(program.Options{
 			Cwd:            cfg.absCwd,
 			SingleThreaded: cfg.opts.SingleThreaded,

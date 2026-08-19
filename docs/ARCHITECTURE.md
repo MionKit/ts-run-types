@@ -36,8 +36,12 @@ declaring one extra optional last parameter whose type is a special marker, for 
 `InjectRunTypeId<T>`. The build recognises that parameter, works out what `T` is at each
 call site, and fills the slot in. Because the marker travels on the function signature,
 your own wrapper functions opt in the same way with no extra configuration. A marker only
-counts if it is both named correctly and declared by the RunTypes package, so a
-same named type of your own is inert.
+counts if it is both named correctly and declared by a trusted package, so a
+same named type of your own is inert. The trusted set is `@ts-runtypes/core` plus anything
+the project adds through the tsconfig `markers` key, which lets a library declare the
+brands itself instead of depending on RunTypes for types alone; `markers.checkPackage:
+false` drops the package half of the check entirely (name only matching). The set is
+additive, so configuring it never stops the built in package from being trusted.
 
 **One type, one id.** Each type gets a short id derived from its shape, not its name.
 Two types with the same shape get the same id and share one generated entry, so a
@@ -76,18 +80,53 @@ the compiler would, which means what we resolve as `T` is what TypeScript resolv
 
 ### How it runs
 
-The program has three subcommands:
+The program has four subcommands:
 
 - **`serve`** is the daemon mode, and the one the bundler plugin drives. It starts once,
   keeps the parsed project and the type checker in memory, and speaks one JSON message
   per line over standard input and output. The build tool spawns it, asks about each
-  file, then shuts it down.
+  file, then shuts it down. Per-edit rebuilds (HMR, lint requests) re-root the program
+  at the pushed file PLUS the tsconfig's declaration files, so ambient `.d.ts`
+  declarations nothing imports resolve exactly as a build sees them; a written type
+  name that still cannot resolve is refused loudly (MKR013) instead of silently
+  checking as `any`. The config file list is read once per session, so a newly added
+  `.d.ts` needs a daemon restart to be seen.
 - **`compile`** is a one shot batch build for projects with no bundler plugin. It is the
   only mode that writes JavaScript, and it does so by handing the rewritten source back
   to TypeScript's own emitter and then stitching the source maps together.
 - **`enrich`** serves the enrichment workflow described below: it scaffolds the hand
   edited files, re-syncs them when a type changes, and checks them. One shot, and off the
   build path.
+- **`convert`** rewrites type declarations AND marker CALL SITES between the two
+  authoring forms — plain types and builders — over the same reflection
+  graph, so a conversion can
+  never change a type's id (pinned per leg by chain tests, a seeded fuzz sweep and a
+  canonical-graph no-info-loss oracle; `pnpm rtx core fuzz convert`). Files convert as
+  a SET: declarations that reference each other stay name references in both targets
+  (`getRunType<B>()`), cycles close at the root (`RT.circular` +
+  `RT.self()` / the type's own name), imports are added and pruned, and
+  a reference to a convertible declaration outside the run errors (CNV004) — though a
+  name this file simply cannot SPELL (an unexported alias, a type the graph reached
+  structurally, anything behind a package import) inlines instead of refusing, since
+  the id is identical either way. A call whose type is written INLINE
+  (`createValidateFn<{a: string}>()`) moves that type into the value slot the same
+  factory already declares (`internal/convert/callsites.go`); a call that already
+  names its type, and the reflection form over a runtime value, are left alone. Shapes
+  the builder form has no word for keep the `getRunType` escape, which carries the type
+  itself: enums, user
+  classes, cross-declaration references, method / call-signature members (method-ness is
+  syntax, and a rebuilt property-typed arrow is a different member kind and id),
+  functions with an optional or rest parameter, template literals and bigint
+  literals. Refusals are loud per-declaration
+  CNV diagnostics (unnamed cycles, a cycle closing on a tuple slot, symbol keys,
+  Temporal resolving to any, a written type name that fails to resolve — CNV008);
+  a generic declaration is a WARNING, not an error — a
+  type parameter has no runtime shape, so there is nothing to convert, and its
+  instantiations convert wherever they are reflected. The whole suite tree converts
+  and runs in both value forms on every release gate (`pnpm rtx core
+  converted-suites`);
+  the file stays untouched and the exit code is non-zero. One shot, and off the build
+  path.
 
 `compile` and `enrich` are both code generation from the same source of truth, the type the
 checker resolves. What separates them is who owns the result. `compile` emits the caches and
@@ -98,6 +137,42 @@ verbs a generator normally would not, re-syncing an edited file, deleting parked
 and checking that nothing was left blank. Both take `--no-emit`, which turns either into a
 report that writes nothing, the way `tsc --noEmit` does.
 
+One check the Go program does not run itself: regex format patterns. A pattern's samples
+exist to satisfy the JavaScript `RegExp` the emitted validator runs, and Go's RE2 engine
+only approximates JS semantics (no lookarounds or backreferences, and divergent behavior
+even on shared syntax), so the resolver drives a real JS engine instead. A small sidecar —
+authored as the private `@ts-runtypes/go-be-sidecar` workspace package, bundled by vite,
+committed at `internal/jsengine/sidecar.bundle.mjs`, and embedded into the binary via
+`go:embed` — is spawned once per session under a host JavaScript runtime (`node` and
+`bun` are found automatically; `--js-runtime` / `RT_JS_RUNTIME` pin any node-compatible
+runtime, and the bundler plugin passes its own runtime automatically) and
+answers pattern jobs over newline-delimited JSON with memoized verdicts. Two ops ride the
+protocol: `validate` (pattern compile + sample checks) and `generate` — for a pattern that
+declares no `mockSamples`, the sidecar draws `patternSampleCount` candidate values from
+the regex (randexp under a seeded PRNG), keeps the ones the real compiled pattern and any
+declared length bounds accept, and retries up to `patternSampleCount ×
+patternSampleRetries` draws before the resolver fails the build with FMT005 (declare
+mockSamples explicitly). The PRNG seed mixes the pattern content with a RUN KEY that
+decides reproducibility: by default the key is random per build session (pools re-roll
+every fresh build, stay stable across a session's rebuilds), and a literal
+`{mock: {seed}}` written at a `createMockDataFn` call site pins it — the scanner reads
+the seed through the lenient `CompTimeHints` marker on the options parameter (read when
+literal, never validated, so dynamic bags stay legal), and every pattern node that site's
+type graph reaches then generates the same pool on every machine and build. The resolver
+injects the survivors into the emitted formatAnnotation post-intern, so typeIDs never
+depend on any of this (the two count knobs are disk cache fingerprint inputs, since the
+emitted content does depend on them; annotations themselves are never disk-cached).
+
+The WASM build has no subprocess. When the host installs the synchronous
+`__tsRunTypesJsEngine` hook (the sidecar bundle's IIFE twin, `dist/sidecar-hook.js` —
+the website playground stages and loads it before instantiating the module), BOTH ops
+route through it: request-line JSON in, response-line JSON out, the exact stdio contract,
+so the playground generates the same deterministic samples a native build does. Without
+the hook, validation falls back to the host's own `RegExp` and generation degrades to
+FMT005 — never a crash. Projects with no patterns never need a JS runtime; with patterns
+and no runtime, the build fails closed (FMT004). Under WASM and native alike, the engine
+is the validation authority — there is no RE2 fallback.
+
 Settings come from your `tsconfig.json` (a `ts-runtypes` entry under `plugins`), with
 command line flags taking precedence, mirroring how `tsc` resolves its own options. The
 on disk cache follows the `incremental` setting rather than adding a switch of its own.
@@ -107,7 +182,12 @@ on disk cache follows the `incremental` setting rather than adding a switch of i
 - **`program`** boots the project: reads the `tsconfig.json`, builds the same view of your
   files TypeScript would, and can layer unsaved editor buffers on top.
 - **`marker`** decides whether a parameter is one of the recognised markers, checking both
-  the name and the package that declares it.
+  the name and the package that declares it. The accepted package set is session config
+  (`marker.Options.Packages` / `SkipPackageCheck`, fed by the tsconfig `markers` key, the
+  plugin option of the same name, and the `--marker-packages` /
+  `--no-marker-package-check` flags), and every gate side caller goes through the one
+  `Options.DeclaredInMarkerPackage` entry point so a configured package cannot reach some
+  checks and miss others.
 - **`builders`** recognises the value first builder calls (`RT.object({...})` and
   friends) by their return type, so they are never mistaken for something to rewrite.
 - **`comptimeargs`** enforces that options which must be known at build time really are
@@ -138,15 +218,36 @@ This is the largest part of the Go program.
 - **`typefunctions`** is the code generator. For each supported operation it walks the
   type description and produces the JavaScript body. Operations include validation,
   validation errors, several JSON strategies, binary encode and decode, unknown key
-  checks, exact shape cloning, and format transforms. Each operation is one plug in
-  module behind a shared interface, so adding one does not touch the walker.
+  checks, exact shape cloning, format transforms, and JSON Schema documents (the
+  `jsonSchema`/`jsc` family, whose entry returns the whole document rendered by
+  `internal/schemadoc`). The emitted documents use the RunTypes dialect specified in
+  full by [docs/json-schema-2020-12-javascript.md](json-schema-2020-12-javascript.md).
+  The dialect EXTENDS 2020-12 rather than replacing it: every extension keyword sits
+  BESIDE the standard keywords describing the same node's wire form, so deleting every
+  extension keyword changes no validation verdict (`CORE-INERT`). The keywords are
+  prefixed by who defines the thing they carry: `jsType` (a JavaScript value with a
+  wire form — Date/Map/Set/Promise/RegExp/bigint/object and the 8 Temporal builtins;
+  the Promise row carries the resolved value's schema in the companion keyword
+  `jsResolved`), `rtFormat` + `rtFormatParams` (a RunTypes format family; params with a
+  standard keyword mirror onto it and only the remainder rides `rtFormatParams`), and
+  the TypeScript-only facts `tsLabels`, `tsReadonly`, `tsIndexes`, `tsTemplate`,
+  `tsFunction` and `tsMeta`; the generator's `portable` option strips them all.
+  Each operation is one plug in module behind a shared
+  interface, so adding one does not touch the walker.
 - **`typefunctions/formats/`** holds the string, number, and date and time format checks
   (email, uuid, url, patterns, Temporal types) that get spliced into the generated bodies.
 - **`purefunctions`** handles small self contained helper functions, both yours and the
   package's own. Their bodies are extracted at build time, hashed, and shipped as their
   own modules so shared logic is not duplicated into every generated body. A purity check
   rejects anything that reaches outside itself, because these bodies are rebuilt from
-  source text at run time.
+  source text at run time. A helper can be written as a factory, which runs once when the
+  helper is first materialised and returns the function that actually gets called. That
+  one time slot is where a helper does its setup, and it is also where it may pick a
+  different implementation for the engine it finds itself in: the key counter behind the
+  strict unknown keys check uses a `for-in` loop on V8 and `Object.keys` on
+  JavaScriptCore, because the two engines invert on which is faster. Any such variants
+  have to return identical answers for every input, so the choice can never change what a
+  program validates, only how fast it does it.
 - **`operations`** is the single registry of every operation the build can be asked for,
   and the one place their short hashes are computed. Both the call site scanner and the
   code generator read it, which is what guarantees they agree on names.
@@ -158,6 +259,22 @@ This is the largest part of the Go program.
   stale entry is a miss rather than a wrong answer.
 - **`hashid`** is the shared short hash used for ids, tuned so the result is always a
   valid JavaScript identifier.
+
+`internal/schemadoc` sits beside `cachegen` as the shared JSON-Schema vocabulary: the
+format-family roster and every pure keyword-rendering helper, plus the runtime document
+renderer. Two consumers read it — the convert printer's schema target and the `jsc`
+cache family's emitter — so the mapping between a type and its schema spelling has one
+home. Where the printer refuses (conversion must round-trip a declaration's identity),
+the renderer degrades: cycles close with `$defs`/`{$ref: '#'}`, classes render their
+structural wire shape, and anything unspellable widens to `{}` with a warning, so a
+document under-constrains but never lies. Unions describe the SERIALIZED wire: the
+`jsc` emitter projects the real flat-union layout (`buildFlatLayout`) into the
+renderer, so a wrapped union's document is the `[index, value]` envelope the JSON
+encoder writes (object members merged under index `-1`, `jsType: 'union'`), and a
+raw union keeps the natural spelling — document, encoder and decoder share one wire
+by construction. Printer/renderer parity is pinned by a corpus test and a seeded
+fuzz leg (`SchemaParityProbe` in `internal/convert`; wrapped unions are renderer-only
+and are pinned instead by the emission tests and the runtime agreement suite).
 
 ### `internal/enrichment/`: the files humans edit
 
@@ -254,15 +371,39 @@ small, because the specialised code is generated. What ships here is:
   type, `registerClassSerializer` to rebuild real class instances, plus hooks for custom
   formats, mock functions, and helper functions.
 
-There are two ways to describe a type, and they meet in the same place. Type first uses
-plain TypeScript (`createValidateFn<User>()`). Value first uses builders from the
-`/schema` subpath (`RT.object({...})`) with `InferType` to get the type back out. The
-`/formats` subpath adds string, number, and date formats such as email and uuid, and
-`/formats/temporal` adds Temporal support as an opt in so nobody pays for it unintentionally.
+There are two ways to describe a type, and they both meet in the same place. Type first
+uses plain TypeScript (`createValidateFn<User>()`). Type builders come from the
+`/builders` subpath (`RT.object({...})`, aliased as `/schema` until 1.0) and return a
+run-type, with `InferType` to get the type back out.
+Both converge on the same structural id, so equivalent shapes resolve to the same
+cached factory whichever way they were written. The `/formats` subpath adds string,
+number, and date formats such as email and uuid, and `/formats/temporal` adds Temporal
+support as an opt in so nobody pays for it unintentionally.
+
+Constraints a plain type cannot spell directly ride sentinel-encoded
+slots the intersection collapse lifts off the base — `__rtContains`
+(occurrence counting), `__rtPatternProps` / `__rtPropNames` (key-scoped children),
+`__rtLabels` (tuple slot labels) — plus the format brands and
+the structural format families (formattedArray / formattedObject) for length, uniqueness,
+key-count and closedness checks, so the generated validator is exact even where the
+visible type is the closest expressible supertype. Every one of these has
+a value-first + type-first spelling: a single params bag on the collection
+builders — `RT.array(item, {uniqueItems, contains, …})` / `RT.object(config, {minProperties,
+patternProperties, propertyNames, …})` / `RT.record(…, {…})` — and the `FormattedArray<Base, P>`
+/ `FormattedObject<Base, P>` wrapper types (formats/structural.ts).
+Every sentinel slot is a LIST with append semantics end to end: stacked
+entries arrive as one sentinel member each, the id fold
+appends them into a sorted tag and the serialize collapse appends the same children, so
+every entry is enforced and the id is order-free — id = behavior, never last-wins.
 
 `DataOnly<T>` lives here too. It is the type level statement of the data only contract: it
 projects a type down to what can actually survive a JSON round trip, which is why decoders
-return it. The return type cannot claim a method survived when it did not.
+return it. The return type cannot claim a method survived when it did not. Its
+annotation-grade twin is `StripRunTypeMeta<T>`: every sentinel stripped, format brands
+collapsed to their base —
+and NEVER reflected, because the stripped metadata IS the validation contract; a factory
+built from the clean type would enforce nothing. DataOnly keeps the sentinels for exactly
+that reason and stays the reflection-safe projection.
 
 One quirk worth knowing: the package's own tests import it by its public name, so its
 `package.json` declares a `source` export condition to make that resolve to `src/` rather

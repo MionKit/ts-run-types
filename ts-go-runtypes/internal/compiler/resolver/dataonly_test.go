@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // TestDataOnly_TypeName_NamedInterfaceArg — the headline behavior. When the
@@ -22,7 +23,7 @@ interface RootCircular {
 getRunTypeId<DataOnly<RootCircular>>();
 `
 	_, tn := resolveInline(t, code)
-	if tn.Kind != protocol.KindObjectLiteral {
+	if tn.Kind != reflection.KindObjectLiteral {
 		t.Fatalf("expected KindObjectLiteral, got %d", tn.Kind)
 	}
 	want := "DataOnly<RootCircular>"
@@ -40,7 +41,7 @@ type User = {id: number; name: string};
 getRunTypeId<DataOnly<User>>();
 `
 	_, tn := resolveInline(t, code)
-	if tn.Kind != protocol.KindObjectLiteral {
+	if tn.Kind != reflection.KindObjectLiteral {
 		t.Fatalf("expected KindObjectLiteral, got %d", tn.Kind)
 	}
 	want := "DataOnly<User>"
@@ -59,7 +60,7 @@ func TestDataOnly_TypeName_AnonymousArg(t *testing.T) {
 getRunTypeId<DataOnly<{a: number; b: number}>>();
 `
 	_, tn := resolveInline(t, code)
-	if tn.Kind != protocol.KindObjectLiteral {
+	if tn.Kind != reflection.KindObjectLiteral {
 		t.Fatalf("expected KindObjectLiteral, got %d", tn.Kind)
 	}
 	if tn.TypeName != "" {
@@ -80,12 +81,79 @@ interface User {id: number; name: string}
 getRunTypeId<StripSymbols<User>>();
 `
 	_, tn := resolveInline(t, code)
-	if tn.Kind != protocol.KindObjectLiteral {
+	if tn.Kind != reflection.KindObjectLiteral {
 		t.Fatalf("expected KindObjectLiteral, got %d", tn.Kind)
 	}
 	// A user-defined StripSymbols mapped type follows the existing rule: no
 	// alias, no interface symbol, no special treatment → TypeName empty.
 	if tn.TypeName != "" {
 		t.Fatalf("expected TypeName=\"\" for user-defined mapped result, got %q", tn.TypeName)
+	}
+}
+
+// The two tests below pin the NO-Temporal posture: setupInline normally
+// injects the temporal.d.ts ambient, but a real consumer without the Temporal
+// lib has no such ambient — and the DataOnlyNativeExtra augmentation (always
+// loaded through the marker package's root declaration graph) used to fall
+// back to `unknown` there, absorbing DataOnly's keep union and collapsing the
+// projection to the identity (no mapped type, so the label degraded to the
+// inner interface's own name). The `never`-falling guard in
+// formats/datetime/temporalFormats.ts keeps the ladder intact, so the label
+// must compose WITHOUT any Temporal ambient. Paired static + reflect forms
+// per the marker test coverage rule, converging on one id.
+
+func TestDataOnly_TypeName_NoTemporalAmbient_Static(t *testing.T) {
+	const code = `import {getRunTypeId, type DataOnly} from '@ts-runtypes/core';
+type User = {id: number; name: string};
+getRunTypeId<DataOnly<User>>();
+`
+	// An empty "temporal.d.ts" suppresses setupInline's ambient injection —
+	// the program has NO Temporal types anywhere, the consumer-default posture.
+	r := setupInline(t, map[string]string{"temporal.d.ts": "", "call.ts": code})
+	tn := resolveFile(t, r, "call.ts")
+	if tn.Kind != reflection.KindObjectLiteral {
+		t.Fatalf("expected KindObjectLiteral (the projected mapped object, not the identity), got %d", tn.Kind)
+	}
+	if tn.TypeName != "DataOnly<User>" {
+		t.Fatalf("expected TypeName=%q without a Temporal ambient, got %q", "DataOnly<User>", tn.TypeName)
+	}
+}
+
+func TestDataOnly_TypeName_NoTemporalAmbient_Reflect(t *testing.T) {
+	const code = `import {getRunTypeId, type DataOnly} from '@ts-runtypes/core';
+type User = {id: number; name: string};
+declare const u: DataOnly<User>;
+getRunTypeId(u);
+`
+	r := setupInline(t, map[string]string{"temporal.d.ts": "", "call.ts": code})
+	tn := resolveFile(t, r, "call.ts")
+	if tn.Kind != reflection.KindObjectLiteral {
+		t.Fatalf("expected KindObjectLiteral (the projected mapped object, not the identity), got %d", tn.Kind)
+	}
+	if tn.TypeName != "DataOnly<User>" {
+		t.Fatalf("expected TypeName=%q without a Temporal ambient, got %q", "DataOnly<User>", tn.TypeName)
+	}
+}
+
+// TestDataOnly_NoTemporalAmbient_FormEquivalence — the paired shapes above
+// must also converge on ONE reflection id (the hash-equivalence half of the
+// marker coverage rule).
+func TestDataOnly_NoTemporalAmbient_FormEquivalence(t *testing.T) {
+	const code = `import {getRunTypeId, type DataOnly} from '@ts-runtypes/core';
+type User = {id: number; name: string};
+getRunTypeId<DataOnly<User>>();
+declare const u: DataOnly<User>;
+getRunTypeId(u);
+`
+	r := setupInline(t, map[string]string{"temporal.d.ts": "", "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.Sites) != 2 {
+		t.Fatalf("expected 2 getRunTypeId sites, got %d", len(resp.Sites))
+	}
+	if resp.Sites[0].ID != resp.Sites[1].ID {
+		t.Fatalf("static and reflect forms must converge without a Temporal ambient: %q vs %q", resp.Sites[0].ID, resp.Sites[1].ID)
 	}
 }

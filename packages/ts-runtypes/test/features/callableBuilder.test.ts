@@ -4,11 +4,10 @@
 // `{(a: number, b: boolean): string; extra: string}`. The mix is an intersection
 // (TS can't express a single object literal with a call signature + mapped props),
 // but the Go scanner projects it as an object literal carrying the call signature
-// + members. See src/schema/compose.ts.
+// + members. See src/builders/compose.ts.
 //
 // Signature param NAMES are id-relevant (`parameters[].name` must be per-site
-// reliable — see docs/done/tuple-labels-unreliable-on-canonical-nodes.md), and
-// TS call-signature syntax REQUIRES param names while `RT.func` brands an
+// reliable), and TS call-signature syntax REQUIRES param names while `RT.func` brands an
 // unnamed positional expansion — so the two forms are informationally different
 // types now: distinct cache entries with IDENTICAL validator behavior. Both
 // facts are pinned below.
@@ -19,12 +18,12 @@
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, expect, it} from 'vitest';
 import {createValidateFn, type InferType} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 
 type CallableIface = {(a: number, b: boolean): string; extra: string};
 
 describe('value-first callable builder', () => {
-  const schema = RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}));
+  const schema = RT.callable(RT.func({params: [TF.number(), RT.boolean()], ret: TF.string()}), RT.object({extra: TF.string()}));
 
   it('is a DISTINCT cache entry from the named type-first callable interface, with identical behavior', () => {
     const fromSchema = createValidateFn(schema);

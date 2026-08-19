@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const NATIVE = {
@@ -102,8 +102,9 @@ export const NATIVE = {
   set_string: {
     title: 'Set',
     description: 'A Set of strings validates via `v instanceof Set` plus iteration over `v.values()`.',
-    validateNotes:
+    validateNotes: [
       'Must be an actual `Set` instance — a plain object, array, or `Map` is rejected; each element is checked against the element type (set path is `{key, failed: "setKey"}`, where `key` is the iteration index).',
+    ],
     validate: () => createValidateFn<Set<string>>(),
     standardSchema: () => createStandardSchema<Set<string>>(),
     validateDataOnly: () => createValidateFn<DataOnly<Set<string>>>(),
@@ -233,8 +234,9 @@ export const NATIVE = {
     title: 'Awaited',
     description:
       "TypeScript's built-in `Awaited<P>` utility resolves to the wrapped type, unwrapping the promise to its resolved type; tsgo resolves it at compile time, so this case lands as plain `string` in our cache and reuses the atomic string emit.",
-    validateNotes:
+    validateNotes: [
       '`Awaited<P>` is resolved at the type-checker layer to the resolved value type — `Awaited<Promise<string>>` becomes plain `string`. The validator is identical to the atomic-string emit; a real Promise does NOT satisfy it.',
+    ],
     validate: () => createValidateFn<Awaited<Promise<string>>>(),
     standardSchema: () => createStandardSchema<Awaited<Promise<string>>>(),
     validateDataOnly: () => createValidateFn<DataOnly<Awaited<Promise<string>>>>(),

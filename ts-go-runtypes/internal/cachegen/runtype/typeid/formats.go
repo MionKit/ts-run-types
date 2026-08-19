@@ -3,6 +3,8 @@ package typeid
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,7 +12,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/comptimeargs"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // Sentinel property names that mark a brand-shaped object literal as a
@@ -28,7 +30,77 @@ const (
 	// sentinels above for the FormatAnnotation and ignores the brand — so a
 	// branded format and its unbranded twin must resolve ONE structural id.
 	formatBrandProp = "__rtFormatBrand"
+	// containsChildProp marks a contains sentinel member
+	// (`Base & {readonly __rtContains?: {rt$child: C; rt$min: N; rt$max?: M}}`)
+	// — the internal encoding of JSON Schema contains / minContains /
+	// maxContains. The spec object pairs the TRANSLATED child type with its
+	// literal occurrence bounds; both collapse passes lift it (serialize →
+	// node.Contains entries, id → a `c{…}` fold).
+	containsChildProp = "__rtContains"
+	containsChildKey  = "rt$child"
+	containsMinKey    = "rt$min"
+	containsMaxKey    = "rt$max"
+	// patternPropsProp marks a patternProperties sentinel member: the spec
+	// object's PROP NAMES are the key regex sources and each prop type is a
+	// {rt$key: KeyBrand; rt$value: Value} pair. propNamesProp marks a
+	// propertyNames sentinel carrying the key-validating child directly.
+	patternPropsProp = "__rtPatternProps"
+	patternKeyKey    = "rt$key"
+	patternValueKey  = "rt$value"
+	propNamesProp    = "__rtPropNames"
+	// tupleLabelsProp marks the labeled-tuple sentinel member
+	// (`[number, number] & {readonly __rtLabels?: readonly ['x', 'y']}`) —
+	// how the value-first object forms (`tuple({x: …})` / `func({event: …})`)
+	// carry slot labels / parameter names, which TS cannot construct on a
+	// tuple type directly. Both collapse passes lift it (serialize → the
+	// projected member/parameter names, id → the per-element label fold the
+	// type-first labeled tuple already gets) and the property walks skip it.
+	// The labels tuple covers EVERY element (TS labels all slots or none) —
+	// a length mismatch means a hand-rolled sentinel and is ignored whole.
+	tupleLabelsProp = "__rtLabels"
 )
+
+// lateBoundNamePrefix is how tsgo spells a property whose key is a `unique
+// symbol` instead of a string: InternalSymbolNamePrefix, '@', the symbol
+// DECLARATION's name, '@', then a per-program symbol id (see
+// checker.getESSymbolLikeTypeForNode). The trailing id is NOT stable across
+// programs, so the match runs to the second '@' and no further.
+//
+// The prefix is taken from the upstream constant rather than spelled out, so a
+// change to it arrives as a compile-time change here instead of a silent
+// mismatch. The '@' separators are still upstream's own convention, which is
+// why TestSymbolKeyedSentinel_MatchesStringKeyed resolves a symbol-keyed brand
+// through the REAL checker: if upstream ever renames the scheme, that test goes
+// red instead of every branded type quietly degrading to its base.
+var lateBoundNamePrefix = ast.InternalSymbolNamePrefix + "@"
+
+// isSentinelProp reports whether a property name is the sentinel `base`,
+// spelled either way:
+//
+//   - as a `unique symbol` key whose declaration is named `base` — what the
+//     SHIPPED types use, so the sentinels stay out of a branded type's string
+//     keys (`Extract<keyof T, string>`, object spread, string-constrained
+//     mapped types all come back clean for the user's own shape);
+//   - as a plain string property named `base` — still recognised, which is
+//     what lets a hand-written .d.ts fixture and the fuzz's INDEPENDENT
+//     type-first oracle spell the sentinel literally without importing the
+//     symbol. Both spellings fold to the same id: the property name never
+//     reaches the hash (memberIDs skips it, the annotation supplies the id).
+//
+// LateBoundNamePrefixForTest exposes the prefix to the package's external test
+// so its failure message can name the exact scheme that stopped matching.
+func LateBoundNamePrefixForTest() string { return lateBoundNamePrefix }
+
+func isSentinelProp(name, base string) bool {
+	if name == base {
+		return true
+	}
+	if !strings.HasPrefix(name, lateBoundNamePrefix) {
+		return false
+	}
+	rest := name[len(lateBoundNamePrefix):]
+	return len(rest) > len(base) && strings.HasPrefix(rest, base) && rest[len(base)] == '@'
+}
 
 // IsFormatBrandMember reports whether tsType is a pure TypeFormat nominal-brand
 // member — an object whose ONLY property is `__rtFormatBrand`. tsgo keeps the
@@ -48,7 +120,7 @@ func IsFormatBrandMember(typeChecker *checker.Checker, tsType *checker.Type) boo
 	if len(properties) != 1 {
 		return false
 	}
-	return properties[0].Name == formatBrandProp
+	return isSentinelProp(properties[0].Name, formatBrandProp)
 }
 
 // FormatAnnotationFromType inspects an object-literal *checker.Type for the
@@ -56,17 +128,17 @@ func IsFormatBrandMember(typeChecker *checker.Checker, tsType *checker.Type) boo
 // the canonical FormatAnnotation if both are present and well-formed.
 // Returns nil when the input is not a format brand — callers route those
 // through the normal TypeMeta path.
-func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type) *protocol.FormatAnnotation {
+func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type) *reflection.FormatAnnotation {
 	if tsType == nil || typeChecker == nil {
 		return nil
 	}
 	properties := typeChecker.GetPropertiesOfType(tsType)
 	var nameSymbol, paramsSymbol *ast.Symbol
 	for _, symbol := range properties {
-		switch symbol.Name {
-		case formatNameProp:
+		switch {
+		case isSentinelProp(symbol.Name, formatNameProp):
 			nameSymbol = symbol
-		case formatParamsProp:
+		case isSentinelProp(symbol.Name, formatParamsProp):
 			paramsSymbol = symbol
 		}
 	}
@@ -90,7 +162,345 @@ func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type
 	}
 	paramsType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(paramsSymbol))
 	params := literalParamsFromType(typeChecker, paramsType)
-	return &protocol.FormatAnnotation{Name: name, Params: params}
+	canonicalizeBoundAliases(params)
+	return &reflection.FormatAnnotation{Name: name, Params: params}
+}
+
+// boundAliasCanonical maps the JSON Schema bound keyword spellings to the
+// engine's canonical short param keys.
+var boundAliasCanonical = map[string]string{
+	"minimum":          "min",
+	"maximum":          "max",
+	"exclusiveMinimum": "gt",
+	"exclusiveMaximum": "lt",
+}
+
+// canonicalizeBoundAliases renames any JSON Schema bound-keyword spelling
+// (minimum/maximum/exclusiveMinimum/exclusiveMaximum) a numeric/date/temporal
+// format carries to the engine's canonical short key (min/max/gt/lt), so a
+// format written with EITHER spelling folds to one structural id and the
+// emitters — which read only the short keys — work unchanged. A canonical key
+// already present wins (the explicit short spelling is authoritative), so a
+// redundant double-spelling never overwrites it. No-op for formats that carry
+// none of the alias keys (strings, structural, …).
+func canonicalizeBoundAliases(params map[string]any) {
+	for alias, canonical := range boundAliasCanonical {
+		value, hasAlias := params[alias]
+		if !hasAlias {
+			continue
+		}
+		delete(params, alias)
+		if _, hasCanonical := params[canonical]; !hasCanonical {
+			params[canonical] = value
+		}
+	}
+}
+
+// MergeFormatAnnotations merges the format annotations of one collapsed
+// intersection. Same-name annotations merge their param maps (the sibling
+// conjunction case: a `$ref` to a branded number ∧ a local `maximum`);
+// ok=false when the names differ (cross-family stacking needs sub-format
+// nesting that does not exist yet) or when one param key carries two values
+// that cannot be conjoined (a genuine contradiction the caller must surface
+// LOUDLY — the historical behavior silently kept the LAST annotation, dropping
+// a constraint the schema declared).
+func MergeFormatAnnotations(annotations []*reflection.FormatAnnotation) (*reflection.FormatAnnotation, bool) {
+	if len(annotations) == 0 {
+		return nil, true
+	}
+	merged := &reflection.FormatAnnotation{Name: annotations[0].Name, Params: map[string]any{}}
+	for key, value := range annotations[0].Params {
+		merged.Params[key] = value
+	}
+	for _, annotation := range annotations[1:] {
+		if annotation.Name != merged.Name {
+			return nil, false
+		}
+		for key, value := range annotation.Params {
+			existing, exists := merged.Params[key]
+			if !exists || reflect.DeepEqual(existing, value) {
+				merged.Params[key] = value
+				continue
+			}
+			tightened, ok := mergeParamValue(key, existing, value)
+			if !ok {
+				return nil, false
+			}
+			merged.Params[key] = tightened
+		}
+	}
+	return merged, true
+}
+
+// mergeParamValue resolves ONE param key two same-family annotations disagree
+// on. A conjunction of constraints is the TIGHTER of the two — `min: 20 ∧ min:
+// 30` is `min: 30` — so the bound keys fold by max (lower bounds) or min (upper
+// bounds), and `multipleOf` folds by least common multiple. Every other key must
+// agree exactly; ok=false hands the clash back to the caller to report. The
+// shape reaching here is ordinary schema authoring:
+// `allOf: [{minimum: 20}, {minimum: 30}]` lowers to two number brands.
+func mergeParamValue(key string, existing, incoming any) (any, bool) {
+	left, leftOK := existing.(float64)
+	right, rightOK := incoming.(float64)
+	if !leftOK || !rightOK {
+		return nil, false
+	}
+	switch key {
+	case "min", "gt", "minLength", "minItems", "minProperties", "minContains":
+		return math.Max(left, right), true
+	case "max", "lt", "maxLength", "maxItems", "maxProperties", "maxContains":
+		return math.Min(left, right), true
+	case "multipleOf":
+		return leastCommonMultiple(left, right)
+	}
+	return nil, false
+}
+
+// leastCommonMultiple folds two `multipleOf` constraints into the one that
+// means the same thing: a value divisible by BOTH is exactly a value divisible
+// by their least common multiple. Defined here for positive integers only —
+// a fractional multipleOf would need exact rational arithmetic, and a product
+// past the exact-integer range would silently lose precision, so both stay
+// clashes the caller reports.
+func leastCommonMultiple(left, right float64) (any, bool) {
+	if left <= 0 || right <= 0 || left != math.Trunc(left) || right != math.Trunc(right) {
+		return nil, false
+	}
+	if left > float64(maxExactInteger) || right > float64(maxExactInteger) {
+		return nil, false
+	}
+	leftInt, rightInt := int64(left), int64(right)
+	reduced := leftInt / greatestCommonDivisor(leftInt, rightInt)
+	if reduced > maxExactInteger/rightInt {
+		return nil, false
+	}
+	return float64(reduced * rightInt), true
+}
+
+// The largest integer a float64 represents exactly (JS Number.MAX_SAFE_INTEGER
+// + 1) — past it, a folded multiple would not round-trip through the wire.
+const maxExactInteger = int64(1) << 53
+
+func greatestCommonDivisor(left, right int64) int64 {
+	for right != 0 {
+		left, right = right, left%right
+	}
+	return left
+}
+
+// IsFormatSentinelPropName is the TypeFormat twin of IsNotSentinelPropName:
+// once the collapse lifts a structural brand (`unknown[] & {__rtFormatName?:
+// …}`) onto node.FormatAnnotation / the id's format key, the merged property
+// walks must not surface the brand sentinels as real members.
+func IsFormatSentinelPropName(name string) bool {
+	return isSentinelProp(name, formatNameProp) || isSentinelProp(name, formatParamsProp) || isSentinelProp(name, formatBrandProp)
+}
+
+// IsContainsSentinelPropName is the contains twin for the property walks.
+// The patternProperties / propertyNames sentinels ride the
+// same skip: merged property walks over a sentinel'd intersection
+// (GetPropertiesOfType on the whole type) surface the sentinel as a prop,
+// and it must never become a real member or an id contribution.
+func IsContainsSentinelPropName(name string) bool {
+	return isSentinelProp(name, containsChildProp) || isSentinelProp(name, patternPropsProp) ||
+		isSentinelProp(name, propNamesProp)
+}
+
+// PatternPropSpec is one decoded patternProperties entry (see
+// PatternPropsFromMember).
+type PatternPropSpec struct {
+	Source string
+	Key    *checker.Type
+	Value  *checker.Type
+}
+
+// PatternPropsFromMember inspects an object-literal *checker.Type for the
+// patternProperties sentinel and returns the decoded entries sorted by
+// source. ok=false when the member is not a patternProperties sentinel.
+func PatternPropsFromMember(typeChecker *checker.Checker, tsType *checker.Type) ([]PatternPropSpec, bool) {
+	if tsType == nil || typeChecker == nil {
+		return nil, false
+	}
+	properties := typeChecker.GetPropertiesOfType(tsType)
+	if len(properties) != 1 || !isSentinelProp(properties[0].Name, patternPropsProp) {
+		return nil, false
+	}
+	specType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(properties[0]))
+	if specType == nil || specType.Flags()&checker.TypeFlagsUndefined != 0 {
+		return nil, false
+	}
+	var specs []PatternPropSpec
+	for _, entryProp := range typeChecker.GetPropertiesOfType(specType) {
+		entryType := typeChecker.GetTypeOfSymbol(entryProp)
+		spec := PatternPropSpec{Source: entryProp.Name}
+		for _, pairProp := range typeChecker.GetPropertiesOfType(entryType) {
+			switch pairProp.Name {
+			case patternKeyKey:
+				spec.Key = typeChecker.GetTypeOfSymbol(pairProp)
+			case patternValueKey:
+				spec.Value = typeChecker.GetTypeOfSymbol(pairProp)
+			}
+		}
+		if spec.Value == nil {
+			continue
+		}
+		specs = append(specs, spec)
+	}
+	sort.Slice(specs, func(i, j int) bool { return specs[i].Source < specs[j].Source })
+	return specs, true
+}
+
+// PropNamesChildFromMember inspects an object-literal *checker.Type for the
+// propertyNames sentinel and returns the key-validating child, nil when the
+// member is something else. Same optional-sentinel discipline as the other slots.
+func PropNamesChildFromMember(typeChecker *checker.Checker, tsType *checker.Type) *checker.Type {
+	if tsType == nil || typeChecker == nil {
+		return nil
+	}
+	properties := typeChecker.GetPropertiesOfType(tsType)
+	if len(properties) != 1 || !isSentinelProp(properties[0].Name, propNamesProp) {
+		return nil
+	}
+	childType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(properties[0]))
+	if childType == nil || childType.Flags()&checker.TypeFlagsUndefined != 0 {
+		return nil
+	}
+	return childType
+}
+
+// TupleLabelsFromMember inspects one intersection CONSTITUENT for the
+// labeled-tuple sentinel shape — an object whose ONLY prop is the optional
+// `__rtLabels` holding a tuple of string literals — and returns the label
+// strings in slot order. ok=false when the member is something else. Same
+// optional-sentinel discipline as __rtPropNames.
+func TupleLabelsFromMember(typeChecker *checker.Checker, tsType *checker.Type) ([]string, bool) {
+	if tsType == nil || typeChecker == nil {
+		return nil, false
+	}
+	properties := typeChecker.GetPropertiesOfType(tsType)
+	if len(properties) != 1 || !isSentinelProp(properties[0].Name, tupleLabelsProp) {
+		return nil, false
+	}
+	labelsType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(properties[0]))
+	if labelsType == nil || !checker.IsTupleType(labelsType) {
+		return nil, false
+	}
+	typeArguments := typeChecker.GetTypeArguments(labelsType)
+	labels := make([]string, 0, len(typeArguments))
+	for _, typeArgument := range typeArguments {
+		if typeArgument.Flags()&checker.TypeFlagsStringLiteral == 0 {
+			return nil, false
+		}
+		label, isString := typeArgument.AsLiteralType().Value().(string)
+		if !isString {
+			return nil, false
+		}
+		labels = append(labels, label)
+	}
+	return labels, true
+}
+
+// IsLabelsSentinelPropName is the labeled-tuple twin for the property walks:
+// once the collapse lifts the labels onto the tuple members / the id's
+// per-element label fold, the merged property walks must not surface the
+// sentinel as a real member.
+func IsLabelsSentinelPropName(name string) bool {
+	return isSentinelProp(name, tupleLabelsProp)
+}
+
+// SplitLabeledTupleIntersection detects the labeled-tuple carrier on a
+// PARAMETER type — an intersection of exactly one tuple member and one
+// `__rtLabels` sentinel member (any/unknown identities tolerated) — and
+// returns the tuple plus the lifted labels. The labels must cover every
+// element (TS labels all slots or none); a mismatch returns ok=false and the
+// caller treats the type as an ordinary intersection.
+func SplitLabeledTupleIntersection(typeChecker *checker.Checker, tsType *checker.Type) (*checker.Type, []string, bool) {
+	if tsType == nil || typeChecker == nil || tsType.Flags()&checker.TypeFlagsIntersection == 0 {
+		return nil, nil, false
+	}
+	var tupleType *checker.Type
+	var labels []string
+	var haveLabels bool
+	for _, member := range tsType.AsUnionOrIntersectionType().Types() {
+		memberFlags := member.Flags()
+		switch {
+		case memberFlags&checker.TypeFlagsAny != 0, memberFlags&checker.TypeFlagsUnknown != 0:
+			// identity under &
+		case checker.IsTupleType(member):
+			if tupleType != nil {
+				return nil, nil, false
+			}
+			tupleType = member
+		default:
+			memberLabels, isLabels := TupleLabelsFromMember(typeChecker, member)
+			if !isLabels || haveLabels {
+				return nil, nil, false
+			}
+			labels, haveLabels = memberLabels, true
+		}
+	}
+	if tupleType == nil || !haveLabels {
+		return nil, nil, false
+	}
+	if len(labels) != len(typeChecker.GetTypeArguments(tupleType)) {
+		return nil, nil, false
+	}
+	return tupleType, labels, true
+}
+
+// ContainsSpecFromMember inspects an object-literal *checker.Type for the
+// contains sentinel and returns the CHILD type plus the literal occurrence
+// bounds (min defaults to 1 — the bare `contains` keyword; max -1 means
+// unbounded). ok=false when the member is not a contains sentinel.
+func ContainsSpecFromMember(typeChecker *checker.Checker, tsType *checker.Type) (child *checker.Type, minCount, maxCount float64, ok bool) {
+	if tsType == nil || typeChecker == nil {
+		return nil, 0, 0, false
+	}
+	properties := typeChecker.GetPropertiesOfType(tsType)
+	if len(properties) != 1 || !isSentinelProp(properties[0].Name, containsChildProp) {
+		return nil, 0, 0, false
+	}
+	specType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(properties[0]))
+	if specType == nil || specType.Flags()&checker.TypeFlagsUndefined != 0 {
+		return nil, 0, 0, false
+	}
+	minCount, maxCount = 1, -1
+	for _, specProp := range typeChecker.GetPropertiesOfType(specType) {
+		switch specProp.Name {
+		case containsChildKey:
+			// rt$child is REQUIRED inside the spec object — read it raw.
+			// GetNonNullableType would degrade an `unknown` child
+			// (`contains: true`) to `{}`, deleting the accept-everything
+			// semantics.
+			child = typeChecker.GetTypeOfSymbol(specProp)
+		case containsMinKey:
+			if value, isNumber := literalNumberOf(typeChecker, specProp); isNumber {
+				minCount = value
+			}
+		case containsMaxKey:
+			if value, isNumber := literalNumberOf(typeChecker, specProp); isNumber {
+				maxCount = value
+			}
+		}
+	}
+	if child == nil {
+		return nil, 0, 0, false
+	}
+	return child, minCount, maxCount, true
+}
+
+// literalNumberOf reads a number-literal property's value via the canonical
+// type string (the same robust route projectPrimitiveInto takes).
+func literalNumberOf(typeChecker *checker.Checker, symbol *ast.Symbol) (float64, bool) {
+	numberType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(symbol))
+	if numberType == nil || numberType.Flags()&checker.TypeFlagsNumberLiteral == 0 {
+		return 0, false
+	}
+	value, err := strconv.ParseFloat(typeChecker.TypeToString(numberType), 64)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
 }
 
 // literalParamsFromType walks an object-literal type into the
@@ -374,8 +784,8 @@ func formatPatternFromObjectLiteral(typeChecker *checker.Checker, argument *ast.
 // string representation of a FormatAnnotation for inclusion in a parent
 // type's structural id. Sorting keys at every nesting level guarantees
 // `{a:1, b:2}` and `{b:2, a:1}` produce the same key — the idempotency
-// contract documented in the FormatAnnotation field on protocol.RunType.
-func FormatAnnotationStructuralKey(annotation *protocol.FormatAnnotation) string {
+// contract documented in the FormatAnnotation field on reflection.RunType.
+func FormatAnnotationStructuralKey(annotation *reflection.FormatAnnotation) string {
 	if annotation == nil {
 		return ""
 	}
@@ -389,23 +799,30 @@ func FormatAnnotationStructuralKey(annotation *protocol.FormatAnnotation) string
 	return builder.String()
 }
 
-// EVERY format param is id-relevant, `mockSamples` and `message` included.
-// They used to be excluded as "mock/diagnostic metadata, not validation
-// behaviour" — but cache entries are shared singletons and for
-// `createMockDataFn` the samples ARE behaviour: two same-shape formats
-// differing only in samples collapsed onto one entry, and whichever call
-// site interned first supplied the mock samples for BOTH (first-intern
-// nondeterminism — the same failure mode as tuple labels; see
-// docs/done/format-pattern-samples-dedup-and-length-soundness.md). Folding
-// them in also lets emitters surface a pattern's custom `message` as the
-// error val without cache-identity risk. Formats sharing every param still
-// dedup exactly as before.
+// `mockSamples` is NOT id-relevant; every OTHER format param is (`message`
+// included). Samples are generation metadata read only by createMockDataFn,
+// not validation behaviour, so two formats identical but for their sample
+// pools describe the SAME validator and MUST dedup onto one cache entry —
+// folding samples in fragments the cache instead. `message` stays folded in
+// because it changes the emitted validator's error `val` (real behaviour of
+// the same function), and a pattern's `source`/`flags` stay because they ARE
+// the check. When two sites that dedup onto one entry declare DIFFERENT
+// sample pools, the shared entry mocks from whichever interned first; that
+// residual ambiguity is surfaced by a build diagnostic rather than hidden in
+// the id (see docs/todos for the cross-site sample-conflict diagnostic).
+const mockSamplesKey = "mockSamples"
 
 // canonicalLiteralMap serialises a literal-value map with sorted keys at
-// every nesting depth so equivalent maps hash to the same string.
+// every nesting depth so equivalent maps hash to the same string. The
+// `mockSamples` key is skipped at every depth (top-level params, a nested
+// `pattern`, or a `disallowed*`/`allowed*` op object) so samples never enter
+// the id.
 func canonicalLiteralMap(values map[string]any) string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
+		if key == mockSamplesKey {
+			continue
+		}
 		keys = append(keys, key)
 	}
 	if len(keys) == 0 {

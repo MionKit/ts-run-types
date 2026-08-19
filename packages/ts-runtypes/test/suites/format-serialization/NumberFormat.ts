@@ -162,8 +162,9 @@ export const NUMBER_FORMAT = {
     title: 'Float',
     description:
       'JSON + binary (de)serialization of TF.Float (number branded {float:true}); floats encode as a full float64 (8 bytes) in binary and as the plain number in JSON, with samples including a negative and an exponent literal (1.23e10).',
-    serializeNotes:
+    serializeNotes: [
       'Float values always take 8 bytes in binary (getBinaryByteSizes [8,8,8]) — no integer-width narrowing applies; both formats round-trip losslessly.',
+    ],
     mutateEncoder: () => createJsonEncoderFn<TF.Float>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoderFn<TF.Float>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoderFn<TF.Float>(undefined, {strategy: 'direct'}),

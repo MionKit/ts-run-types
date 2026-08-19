@@ -6,7 +6,7 @@ import {
   createJsonEncoderFn,
   registerClassSerializer,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import type {SerializationCase} from './types.ts';
 
 export const OBJECTS = {
@@ -2196,10 +2196,10 @@ export const OBJECTS = {
       }
       return createBinaryDecoderFn<ObjectWithMethods>();
     },
-    schemaEncoder: () => createJsonEncoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
-    schemaDecoder: () => createJsonDecoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
-    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
-    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.object({name: TF.string(), methodProp: RT.func([], RT.any())})),
+    schemaEncoder: () => createJsonEncoderFn(RT.object({name: TF.string(), methodProp: RT.func({ret: RT.any()})})),
+    schemaDecoder: () => createJsonDecoderFn(RT.object({name: TF.string(), methodProp: RT.func({ret: RT.any()})})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.object({name: TF.string(), methodProp: RT.func({ret: RT.any()})})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.object({name: TF.string(), methodProp: RT.func({ret: RT.any()})})),
     getTestData: () => {
       interface ObjectWithMethods {
         name: string;

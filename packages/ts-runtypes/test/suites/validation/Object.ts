@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const OBJECT = {
@@ -103,8 +103,9 @@ export const OBJECT = {
     title: 'As const literals',
     description:
       'Object pinned with `as const` so every property becomes a readonly literal type, verifying the static and reflect forms agree.',
-    validateNotes:
+    validateNotes: [
       '`readonly` is erased at runtime. Every property must strictly === its literal value (name === "john", age === 30) — no looser matches.',
+    ],
     validate: () => createValidateFn<{readonly name: 'john'; readonly age: 30}>(),
     standardSchema: () => createStandardSchema<{readonly name: 'john'; readonly age: 30}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{readonly name: 'john'; readonly age: 30}>>(),
@@ -410,7 +411,7 @@ export const OBJECT = {
   interface_with_date: {
     title: 'Date property',
     description: 'Interface whose Date child validates via instanceof inside the AND chain.',
-    validateNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
+    validateNotes: ['Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.'],
     validate: () => createValidateFn<{date: Date; name: string}>(),
     standardSchema: () => createStandardSchema<{date: Date; name: string}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{date: Date; name: string}>>(),
@@ -477,7 +478,7 @@ export const OBJECT = {
     validate: () => createValidateFn<{name: string; cb: () => any}>(),
     standardSchema: () => createStandardSchema<{name: string; cb: () => any}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{name: string; cb: () => any}>>(),
-    validateSchema: () => createValidateFn(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
+    validateSchema: () => createValidateFn(RT.object({name: TF.string(), cb: RT.func({ret: RT.any()})})),
     deserializeValidate: () => deserializeValidate<{name: string; cb: () => any}>(),
     validateReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
@@ -489,7 +490,7 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrorsFn<{name: string; cb: () => any}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<{name: string; cb: () => any}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.object({name: TF.string(), cb: RT.func([], RT.any())})),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.object({name: TF.string(), cb: RT.func({ret: RT.any()})})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{name: string; cb: () => any}>(),
     getValidationErrorsReflect: () => {
       const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
@@ -939,9 +940,8 @@ export const OBJECT = {
       valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
       // The trailing four are non-plain objects. A `for...in` enumerates no own
       // string keys on them, so without the brand guard `getValidationErrors`
-      // reported zero errors while `validate` returned false (O4 disagreement,
-      // docs/done/verr-record-array-disagreement.md). `[]` is the documented
-      // minimal repro; Date / Map / Set mirror the fuzz discovery seeds.
+      // reported zero errors while `validate` returned false (O4 disagreement).
+      // `[]` is the documented minimal repro; Date / Map / Set mirror the fuzz discovery seeds.
       invalid: [
         {a: 1},
         {a: 'x', b: 2},
@@ -1096,8 +1096,9 @@ export const OBJECT = {
   index_signature_date_value: {
     title: 'Index signature with Date leaves',
     description: 'Nested index signatures using Date as the leaf value type.',
-    validateNotes:
+    validateNotes: [
       "Each leaf value runs the atomic `Date` check — an Invalid Date (`new Date('invalid')`) at a leaf is rejected as `expected: 'date'` despite being a `Date` instance.",
+    ],
     validate: () => createValidateFn<{[key: string]: {[key: string]: Date}}>(),
     standardSchema: () => createStandardSchema<{[key: string]: {[key: string]: Date}}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{[key: string]: {[key: string]: Date}}>>(),
@@ -1385,15 +1386,15 @@ export const OBJECT = {
     title: 'Callable interface',
     description:
       'Interface with a call signature plus data properties, switching the typeof guard from `object` to `function` and AND-chaining the remaining properties.',
-    validateNotes:
+    validateNotes: [
       'Callable interfaces require a function value (`typeof === "function"`) PLUS the declared data properties. JS functions can carry properties; this case validates both halves.',
+    ],
     // Callable interface: it has a call signature, so DataOnly<T> matches the
     // `(...args) => any` branch and collapses to `never`, whereas the emitter
     // validates it as a function-with-data-props. Ids cannot converge.
     dataOnlyDivergent: true,
     // Signature param names are id-relevant (parameters[].name must be
-    // per-site reliable — see docs/done/tuple-labels-unreliable-on-canonical-nodes.md),
-    // and TS call-signature syntax REQUIRES names, while the value-first
+    // per-site reliable), and TS call-signature syntax REQUIRES names, while the value-first
     // RT.func builder brands an unnamed positional expansion — the two forms
     // are informationally different types now. Behavior stays identical (the
     // schema thunks still run in the behavior suites).
@@ -1404,7 +1405,9 @@ export const OBJECT = {
     // (dataOnlyDivergent), the thunk is declared to satisfy the contract.
     validateDataOnly: () => createValidateFn<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
     validateSchema: () =>
-      createValidateFn(RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}))),
+      createValidateFn(
+        RT.callable(RT.func({params: [TF.number(), RT.boolean()], ret: TF.string()}), RT.object({extra: TF.string()}))
+      ),
     deserializeValidate: () => deserializeValidate<{(a: number, b: boolean): string; extra: string}>(),
     validateReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
@@ -1428,7 +1431,7 @@ export const OBJECT = {
     getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrorsFn(
-        RT.callable(RT.func([TF.number(), RT.boolean()], TF.string()), RT.object({extra: TF.string()}))
+        RT.callable(RT.func({params: [TF.number(), RT.boolean()], ret: TF.string()}), RT.object({extra: TF.string()}))
       ),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),
     getValidationErrorsReflect: () => {
@@ -2149,7 +2152,7 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean) => string;
       return createValidateFn<DataOnly<Parameters<CallSig>>>();
     },
-    validateSchema: () => createValidateFn(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
+    validateSchema: () => createValidateFn(RT.parameters(RT.func({params: [TF.number(), RT.boolean()], ret: TF.string()}))),
     deserializeValidate: () => {
       type CallSig = (a: number, b: boolean) => string;
       return deserializeValidate<Parameters<CallSig>>();
@@ -2173,7 +2176,7 @@ export const OBJECT = {
       return createGetValidationErrorsFn<DataOnly<Parameters<CallSig>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrorsFn(RT.parameters(RT.func([TF.number(), RT.boolean()], TF.string()))),
+      createGetValidationErrorsFn(RT.parameters(RT.func({params: [TF.number(), RT.boolean()], ret: TF.string()}))),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean) => string;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
@@ -2238,8 +2241,9 @@ export const OBJECT = {
     title: 'Parameters tuple with optional',
     description:
       '`Parameters<F>` tuple with a trailing optional resolving to `[number, boolean, string?]`, where the optional slot accepts undefined or a string.',
-    validateNotes:
+    validateNotes: [
       "The trailing optional slot may be omitted (`[3, false]` passes), but if present it must satisfy its type; excess args beyond the optional are still rejected as `expected: 'tuple'`.",
+    ],
     // `Parameters<F>` labels are id-relevant; the unlabeled RT.tuple schema
     // cannot converge (see call_signature_params above).
     idDivergent: true,
@@ -2255,7 +2259,10 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createValidateFn<DataOnly<Parameters<CallSig>>>();
     },
-    validateSchema: () => createValidateFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
+    validateSchema: () =>
+      createValidateFn(
+        RT.parameters(RT.func({params: RT.tuple({required: [TF.number(), RT.boolean()], optional: [TF.string()]})}))
+      ),
     deserializeValidate: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return deserializeValidate<Parameters<CallSig>>();
@@ -2279,7 +2286,9 @@ export const OBJECT = {
       return createGetValidationErrorsFn<DataOnly<Parameters<CallSig>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrorsFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], [TF.string()])))),
+      createGetValidationErrorsFn(
+        RT.parameters(RT.func({params: RT.tuple({required: [TF.number(), RT.boolean()], optional: [TF.string()]})}))
+      ),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
@@ -2343,8 +2352,9 @@ export const OBJECT = {
     idDivergent: true,
     description:
       '`Parameters<F>` tuple ending in a rest segment resolving to `[number, boolean, ...Date[]]`, where all trailing slots must satisfy Date.',
-    validateNotes:
+    validateNotes: [
       "Every trailing rest slot runs the rest element check (here `Date`); each failing rest entry is reported at its own index, and an Invalid Date in a rest slot is rejected as `expected: 'date'`.",
+    ],
     validate: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createValidateFn<Parameters<CallSig>>();
@@ -2357,7 +2367,8 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createValidateFn<DataOnly<Parameters<CallSig>>>();
     },
-    validateSchema: () => createValidateFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
+    validateSchema: () =>
+      createValidateFn(RT.parameters(RT.func({params: RT.tuple({required: [TF.number(), RT.boolean()], rest: TF.date()})}))),
     deserializeValidate: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return deserializeValidate<Parameters<CallSig>>();
@@ -2381,7 +2392,9 @@ export const OBJECT = {
       return createGetValidationErrorsFn<DataOnly<Parameters<CallSig>>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrorsFn(RT.parameters(RT.func(RT.tuple([TF.number(), RT.boolean()], TF.date())))),
+      createGetValidationErrorsFn(
+        RT.parameters(RT.func({params: RT.tuple({required: [TF.number(), RT.boolean()], rest: TF.date()})}))
+      ),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
@@ -2783,8 +2796,9 @@ export const OBJECT = {
     dataOnlyDivergent: true,
     description:
       "Class that extends a parent class, where inherited data members appear in the child's children alongside its own on the class branch.",
-    validateNotes:
+    validateNotes: [
       'Validated structurally — a plain object `{a: "x", b: 1}` PASSES (no `instanceof` check); inherited props are checked directly alongside the child\'s own, so a missing parent prop fails just like a missing own prop.',
+    ],
     validate: () => {
       class Base {
         a: string = '';
@@ -2951,8 +2965,9 @@ export const OBJECT = {
     title: 'Number-key index signature',
     description:
       '`{[k: number]: T}` normalises to the same shape as a string-key index signature, since JS object keys are always strings at runtime.',
-    validateNotes:
+    validateNotes: [
       'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
+    ],
     validate: () => createValidateFn<{[k: number]: string}>(),
     standardSchema: () => createStandardSchema<{[k: number]: string}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{[k: number]: string}>>(),

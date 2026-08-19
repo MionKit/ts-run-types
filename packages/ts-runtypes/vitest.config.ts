@@ -70,13 +70,24 @@ export default defineConfig({
     // test/playground/** is the relocated playground engine suite — it runs as
     // its own project (no ts-runtypes-devtools transform, no marker setup files),
     // so keep it out of this one to avoid a double-run.
-    exclude: [...configDefaults.exclude, 'test/playground/**'],
+    // test/mock-format-isolation/** is the mock-format-registry regression: it
+    // must run in a process whose ONLY formats import is type-only, and inside
+    // this project any sibling test file's formats value import would mask it.
+    // test/converted-*/** are the generated converted-suite trees — gitignored,
+    // present only while `pnpm rtx core converted-suites` runs, and driven by
+    // vitest.converted.config.ts. Excluding them keeps `pnpm test` from picking
+    // up a half-generated tree if the lane is interrupted.
+    exclude: [...configDefaults.exclude, 'test/playground/**', 'test/mock-format-isolation/**', 'test/converted-*/**'],
     // Generating + validating the deepest mock cases (e.g. a 3-D string array,
     // MOCK_ITERATIONS times) takes a few seconds; under the full suite's
     // parallel CPU contention that occasionally crossed vitest's tight 5 s
     // default and timed out. Give every case comfortable headroom (mirrors the
     // playground project's timeout). Real hangs still fail, just later.
     testTimeout: 30000,
+    // Same contention headroom for hooks: enrichCheck's beforeAll does ~10s+
+    // of real work per category and crossed the 10s default under full-suite
+    // parallel load (docs/done/enrichcheck-beforeall-hook-timeout-under-load.md).
+    hookTimeout: 30000,
     setupFiles: ['./test/support/setup.ts'],
     // Removes the generated <PACKAGE_ROOT>/__runtypes output tree after the
     // whole suite (teardown only — see the file's note on globalSetup timing).

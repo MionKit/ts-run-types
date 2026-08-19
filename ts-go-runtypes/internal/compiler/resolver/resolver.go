@@ -29,7 +29,9 @@ package resolver
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -40,6 +42,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
+	"github.com/mionkit/ts-runtypes/internal/jsengine"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -72,10 +75,33 @@ type Options struct {
 	TsconfigGenDir string
 	// GenDir is the EXPLICIT output-root override (the serve --gen-dir flag —
 	// the host plugin's own genDir option, forwarded at spawn). resolveOutDir
-	// prefers it over TsconfigGenDir; a per-request outDir (generate/transform)
-	// still wins. Session config, not wire config: OpEnrich reads only this
-	// (via resolveOutDir), never a request field.
+	// prefers it over TsconfigGenDir. Session config, not wire config: EVERY op
+	// that needs the output root reads it through resolveOutDir, never a
+	// request field.
 	GenDir string
+	// TransformRelative makes OpTransform rewrite the injected import block's
+	// `rtmod:` specifiers to paths relative to the resolved output root (the
+	// files-mode lane: the generated modules exist on disk under
+	// <outDir>/types). False leaves the virtual `rtmod:` specifiers intact for
+	// a host that resolves them itself.
+	//
+	// A SESSION knob, not a per-request one: every consumer is
+	// session-homogeneous. The bundler plugin always relativizes; batchcompile's
+	// pass-1 transform, the transform-wire bench and the inline test lane always
+	// want the virtual form. It cannot be inferred from GenDir resolving
+	// non-empty (resolveOutDir always resolves to something), nor from "this
+	// session ran OpGenerate" — batchcompile generates AND virtual-transforms in
+	// the same session.
+	TransformRelative bool
+	// OmitSourcesContent drops the ORIGINAL source out of each 'go'-mode
+	// TransformResult.Map.sourcesContent (the heaviest single wire item — the
+	// whole source a second time). The bundler composes chained maps and fills
+	// original content downstream, so it rarely needs our copy. Off by default;
+	// mirrors the immutable plugin option `sourcesContent: false`, which is why
+	// it is spawn config rather than a request field. A pure WIRE trim — it
+	// changes no artifact, and transforms are never disk-cached, so it is not a
+	// fingerprint input.
+	OmitSourcesContent bool
 	// TsconfigFailOnError is the tsconfig plugin's failOnError (nil when unset);
 	// OpGenerate echoes it on Response.FailOnError so the dependency-free host
 	// can honor a tsconfig-only setting. The resolver never acts on it.
@@ -151,13 +177,23 @@ type Options struct {
 	SizeItems       int
 	SizeStringBytes int
 	SizeMaxBytes    int
-	// AllowUncheckedPatterns silences the fail-closed FMT004 build error
-	// for format patterns whose mockSamples RE2 can't verify (JS-only regex
-	// features). Setting it asserts that the ts-runtypes JS linter — which
-	// evaluates the real RegExp — owns that check. Build-lane only: the lint
-	// lane always validates regardless. Not a disk-fingerprint input (it
-	// changes only which diagnostics surface, never the emitted artifacts).
-	AllowUncheckedPatterns bool
+	// JSEngine is the JS engine format-pattern checks run on (the sidecar
+	// under node/bun natively, the host itself under WASM) — the validation
+	// authority for pattern mockSamples. Nil or failing means patterns are
+	// unverifiable and fail closed with the FMT004 missing-runtime error.
+	// Not a disk-fingerprint input (it changes only which diagnostics
+	// surface, never the emitted artifacts).
+	JSEngine jsengine.Engine
+	// PatternSampleCount / PatternSampleRetries drive mockSample
+	// auto-generation for format patterns that declare none: the enrichment
+	// pass asks JSEngine for PatternSampleCount deterministic samples per
+	// sample-less pattern (0 disables generation — such patterns then fail
+	// with FMT005), retrying each draw up to PatternSampleRetries times
+	// (whole budget = count × retries). Generation is post-intern, so
+	// typeIDs never depend on either knob; the emitted annotation content
+	// does, so BOTH are disk-fingerprint inputs.
+	PatternSampleCount   int
+	PatternSampleRetries int
 	// PureFnReportWire enables the structured pure-fn build report: OpGenerate and
 	// OpScanFiles populate Response.PureFnSites (whole program on generate, the
 	// rescanned files' delta on scan). Off by default, so the normal rewrite
@@ -227,6 +263,12 @@ type Session struct {
 	// Session-lifetime, not reset on a Program swap.
 	inferredConfig     *program.InferredConfig
 	inferredConfigDone bool
+	// configDeclarationRoots is the config's declaration-file (`.d.ts`) subset,
+	// computed once beside inferredConfig. Every setSources-built Program unions
+	// it into its roots so ambient declarations the project includes — which
+	// nothing imports, so module resolution never reaches them — resolve exactly
+	// as they do in the build lane instead of silently checking as `any`.
+	configDeclarationRoots []string
 	// pureFnHashes is the session-wide index of every pure-fn entry
 	// the resolver has observed so far, keyed by "<ns>::<fnName>" with
 	// the entry's bodyHash as the value. Used by dispatchScanFiles to
@@ -261,6 +303,23 @@ type Session struct {
 	// treats nil as "no cache wired", so test paths that build a
 	// resolver without a CacheDir keep the original semantics.
 	rtStore *diskcache.Store
+	// patternSeedBasis tracks, per (nodeID, pattern source), the mock.seed
+	// basis under which the enrichment pass generated that pattern's
+	// mockSamples pool — so a basis change mid-session (a seeded mock site
+	// scanned later) regenerates OUR pool without ever touching declared
+	// samples. Lazily built by enrichPatternSamples.
+	patternSeedBasis map[string]string
+
+	// sampleOrigins maps a cache id to the FIRST call site that resolved it —
+	// the site whose declared mockSamples pool the shared entry kept. Read only
+	// when a later site declares a DIFFERENT pool, to name both ends of the
+	// conflict in FMT006.
+	sampleOrigins map[string]string
+	// patternGenFailures records, per (pattern source \x00 flags), why the
+	// enrichment pass could not generate a pool — read at emit time by the
+	// pattern emitter's FMT005 lane (threaded via RenderOpts), which has
+	// the demanding call sites for anchoring. Lazily built alongside.
+	patternGenFailures map[string]string
 	// overridesBuilt guards the one-time, whole-program `overrideX<T>(pureFn)`
 	// collection pass (ensureOverrides) for the current Program. The pass must
 	// run before any AssignID so every id folds the override suffix; reset on
@@ -347,15 +406,37 @@ func newRTStore(opts Options, incremental bool) *diskcache.Store {
 		return nil
 	}
 	fp := diskcache.Fingerprint(diskcache.FingerprintInputs{
-		HashLength:      opts.HashLength,
-		EmitMode:        string(opts.EmitMode),
-		InlineMode:      string(opts.InlineMode),
-		SizeBias:        opts.SizeBias,
-		SizeItems:       opts.SizeItems,
-		SizeStringBytes: opts.SizeStringBytes,
-		SizeMaxBytes:    opts.SizeMaxBytes,
+		BinaryVersion:        constants.Version,
+		BinaryStamp:          binaryStamp(),
+		HashLength:           opts.HashLength,
+		EmitMode:             string(opts.EmitMode),
+		InlineMode:           string(opts.InlineMode),
+		SizeBias:             opts.SizeBias,
+		SizeItems:            opts.SizeItems,
+		SizeStringBytes:      opts.SizeStringBytes,
+		SizeMaxBytes:         opts.SizeMaxBytes,
+		PatternSampleCount:   opts.PatternSampleCount,
+		PatternSampleRetries: opts.PatternSampleRetries,
 	})
 	return diskcache.New(baseDir, fp)
+}
+
+// binaryStamp identifies THIS build of the resolver executable (mtime +
+// size), so a rebuilt dev binary — same constants.Version, different
+// emitters — moves the disk-cache fingerprint instead of serving the
+// previous build's cached function bodies. `go build` leaves an unchanged
+// binary untouched, so no-op rebuilds keep the cache. Empty when the
+// executable cannot be resolved (the WASM twin — no disk cache there).
+func binaryStamp() string {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	info, err := os.Stat(executablePath)
+	if err != nil {
+		return ""
+	}
+	return strconv.FormatInt(info.ModTime().UnixNano(), 10) + "-" + strconv.FormatInt(info.Size(), 10)
 }
 
 // New builds a Session against prog. Defaults to hashid's default length when
@@ -376,7 +457,7 @@ func New(prog *program.Program, opts Options) (*Session, error) {
 	cache := runtype.NewCache(typeChecker, runtype.Options{
 		HashLength: opts.HashLength,
 	})
-	cache.SetFS(prog.FS)
+	cache.SetMarkerOptions(markerOpts)
 	return &Session{
 		Program:           prog,
 		cache:             cache,
@@ -435,7 +516,7 @@ func (sess *Session) SetProgram(prog *program.Program) error {
 	sess.checker = typeChecker
 	sess.releaseLease = releaseLease
 	sess.cache.Rebind(typeChecker)
-	sess.cache.SetFS(prog.FS)
+	sess.cache.SetMarkerOptions(sess.marker)
 	sess.sites = sess.sites[:0]
 	sess.scannedFiles = map[string]struct{}{}
 	sess.pureFnFileCache = purefunctions.NewFileCache()
@@ -497,20 +578,15 @@ func (sess *Session) Cache() *runtype.Cache { return sess.cache }
 // path keeps using the unexported field directly.
 func (sess *Session) Checker() *checker.Checker { return sess.checker }
 
+// MarkerOptions returns the session's marker detection options — the accepted
+// marker package set (tsconfig `markers` / --marker-packages /
+// --no-marker-package-check) plus the program's filesystem. Exposed so the
+// out-of-band CLI verbs (convert, enrich --check) gate on the SAME configured
+// packages the in-session scan does, instead of re-deriving the default.
+func (sess *Session) MarkerOptions() marker.Options { return sess.marker }
+
 // Sites returns the running list of resolved call-site ids. Callers (CLI,
 // plugin) read this at end-of-build to write out the manifest.
 func (sess *Session) Sites() []protocol.Site {
 	return append([]protocol.Site(nil), sess.sites...)
-}
-
-// markerModule returns the package the marker brands are declared in (the
-// first configured spec's Module, defaulting to marker.DefaultModule). Passed
-// to builders.IsSchemaLeafCall as the module gate.
-func (sess *Session) markerModule() string {
-	for _, spec := range sess.marker.Specs {
-		if spec.Module != "" {
-			return spec.Module
-		}
-	}
-	return marker.DefaultModule
 }

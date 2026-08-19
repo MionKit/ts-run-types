@@ -3,19 +3,19 @@
 //     helps, fields use type formats via a namespace import from
 //     `ts-runtypes/formats` (TF.Email, TF.UUIDv4, TF.Positive, …) so typing `TF.`
 //     autocompletes every format; it drives format-aware validate / mock / codegen.
-//   - `schema`: the value-first ts-runtypes/schema + ts-runtypes/formats builder
-//     form (resolved via `createX(MyType)`), with its RT / TF imports written out
-//     just like the type form, so both read like real code. Each closes with
+//   - `builder`: the ts-runtypes/builders + ts-runtypes/formats form (resolved
+//     via `createX(MyType)`), with its RT / TF imports written out just like the
+//     type form, so both read like real code. Each closes with
 //     `type <Name> = InferType<typeof MyType>` to show recovering the plain TS type
-//     from the schema (the value-first counterpart to the `ts` form's `MyType`).
-// The TS/Schema switch toggles which form the editor shows. The shapes mirror the
+//     from the run-type (the builder counterpart to the `ts` form's `MyType`).
+// The mode switch toggles which form the editor shows. The shapes mirror the
 // real-world DTO scenarios in the validation suite
 // (packages/ts-runtypes/test/suites/validation/Realworld.ts).
 
 export interface Preset {
   name: string;
   ts: string;
-  schema: string;
+  builder: string;
   // A matching sample value (JSON) for the input pane.
   input: string;
 }
@@ -29,7 +29,7 @@ export const PRESETS: readonly Preset[] = [
   tags: string[];
   active?: boolean;
 };`,
-    schema: `import * as RT from '@ts-runtypes/core/schema';
+    builder: `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 import { InferType } from '@ts-runtypes/core';
 
@@ -61,7 +61,7 @@ type MyType = {
   active: boolean;
   createdAt: string;
 };`,
-    schema: `import * as RT from '@ts-runtypes/core/schema';
+    builder: `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 import { InferType } from '@ts-runtypes/core';
 
@@ -98,7 +98,7 @@ type MyType = {
   total: TF.Positive;
   note?: string;
 };`,
-    schema: `import * as RT from '@ts-runtypes/core/schema';
+    builder: `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 import { InferType } from '@ts-runtypes/core';
 
@@ -141,7 +141,7 @@ type MyType = {
   published: boolean;
   meta: { views: TF.Integer; likes: TF.Integer };
 };`,
-    schema: `import * as RT from '@ts-runtypes/core/schema';
+    builder: `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 import { InferType } from '@ts-runtypes/core';
 
@@ -179,7 +179,7 @@ type MyType = {
   inStock: boolean;
   categories: string[];
 };`,
-    schema: `import * as RT from '@ts-runtypes/core/schema';
+    builder: `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 import { InferType } from '@ts-runtypes/core';
 
@@ -213,7 +213,7 @@ type Product = InferType<typeof MyType>;`,
 };`,
     // Value-first recursion: \`circular(…)\` with the \`self()\` marker marking the
     // back-edge (a const can't reference itself in its own initializer).
-    schema: `import * as RT from '@ts-runtypes/core/schema';
+    builder: `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 import { InferType } from '@ts-runtypes/core';
 

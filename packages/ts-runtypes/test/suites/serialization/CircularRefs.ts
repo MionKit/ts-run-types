@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import {createBinaryDecoderFn, createBinaryEncoderFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import type {SerializationCase} from './types.ts';
 
 export const CIRCULAR_REFS = {
@@ -169,10 +169,14 @@ export const CIRCULAR_REFS = {
       }
       return createBinaryDecoderFn<CircularTuple>();
     },
-    schemaEncoder: () => createJsonEncoderFn(RT.circular(RT.object({list: RT.tuple([TF.bigInt()], [RT.self()])}))),
-    schemaDecoder: () => createJsonDecoderFn(RT.circular(RT.object({list: RT.tuple([TF.bigInt()], [RT.self()])}))),
-    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.circular(RT.object({list: RT.tuple([TF.bigInt()], [RT.self()])}))),
-    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.circular(RT.object({list: RT.tuple([TF.bigInt()], [RT.self()])}))),
+    schemaEncoder: () =>
+      createJsonEncoderFn(RT.circular(RT.object({list: RT.tuple({required: [TF.bigInt()], optional: [RT.self()]})}))),
+    schemaDecoder: () =>
+      createJsonDecoderFn(RT.circular(RT.object({list: RT.tuple({required: [TF.bigInt()], optional: [RT.self()]})}))),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoderFn(RT.circular(RT.object({list: RT.tuple({required: [TF.bigInt()], optional: [RT.self()]})}))),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoderFn(RT.circular(RT.object({list: RT.tuple({required: [TF.bigInt()], optional: [RT.self()]})}))),
     getTestData: () => ({
       values: [{list: [1n, {list: [2n, {list: [3n, {list: [4n]}]}]}]}, {list: [1n, {list: [2n]}]}, {list: [1n]}],
     }),
@@ -364,7 +368,7 @@ export const CIRCULAR_REFS = {
       return createBinaryDecoderFn<CircularTupleComplex>();
     },
     // A ROOT-level recursive tuple can't be authored value-first — `circular(self =>
-    // tuple([bigint()], [self]))` hits TS2589 (TS can't build a recursive tuple type
+    // tuple({required: [bigint()], optional: [self]}))` hits TS2589 (TS can't build a recursive tuple type
     // via the mapping). Covered type-first here; the object→tuple cycle is covered
     // value-first by circular_tuple. Mirrors validation TUPLE.tuple_circular.
     schemaEncoder: 'not-supported',

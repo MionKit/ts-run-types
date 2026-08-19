@@ -16,6 +16,7 @@
 import {createMockDataFn} from '@ts-runtypes/core';
 import type {BinarySizingOptions} from '../../../src/mocking/mockTypes.ts';
 import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
+import {startSoakBudget} from '../core/soakBudget.ts';
 import {genType, isRecursive, DATA_GEN_OPTIONS, type GeneratedType} from '../core/typeGen.ts';
 import {openClient, compileType, hasBinary, BIN, type CompiledType} from '../type/typeFuzzHarness.ts';
 import {checkInBounds, checkOversized, type SizeViolation} from './sizeOracle.ts';
@@ -44,8 +45,7 @@ export const SIZE_CONFIGS: ReadonlyArray<Required<BinarySizingOptions>> = [
  *  regardless of what the random fuzz happens to produce. The lane guards would
  *  otherwise go vacuous when every fuzz iteration skips — which is what a
  *  resolver dying under full-suite load does (one crash closes the client, so
- *  every later request on it throws and cascades to `skipped`). See
- *  docs/done/flaky-binary-size-estimate-fuzz.md. **/
+ *  every later request on it throws and cascades to `skipped`). **/
 const FLOOR_TYPE: GeneratedType = {
   decls: [],
   root: {
@@ -86,6 +86,10 @@ export interface SizeFuzzReport {
   seed: number;
   violations: SizeViolation[];
   stats: SizeFuzzStats;
+  /** Duration runs only: the slowest single iteration and its zero-based round,
+   *  for the soak pathology tripwire (SOAK_ITERATION_CEILING_MS). **/
+  slowestIterationMs?: number;
+  slowestIterationRound?: number;
 }
 
 const DEFAULT_SEED = 0xc0ffee;
@@ -318,31 +322,42 @@ export async function runSizeFuzzForDuration(
   const seed = options.seed ?? DEFAULT_SEED;
   const violations: SizeViolation[] = [];
   const stats = emptyStats();
-  const start = now();
+  const budget = startSoakBudget(durationMs, now);
   let runs = 0;
   let round = 0;
 
   // Same deterministic floor as runSizeFuzz — keeps the lanes non-vacuous and
-  // proves the resolver is reachable before the soak commits to a long run.
+  // proves the resolver is reachable before the soak commits to a long run. Its
+  // cost counts against the budget (as it always has) but is not marked as an
+  // iteration: it is fixed setup, not a sample of per-type cost.
   const floor = await runFloor(seed);
   accumulate(stats, violations, floor);
   for (const v of floor.violations) onViolation?.(v);
 
-  while (now() - start < durationMs) {
+  while (budget.canStart()) {
     const cfg = SIZE_CONFIGS[round % SIZE_CONFIGS.length];
     let client = openClient(cfg);
     try {
-      for (let i = 0; i < 25 && now() - start < durationMs; i++) {
+      for (let i = 0; i < 25 && budget.canStart(); i++) {
         const step = await runOneWithRespawn(client, cfg, mixSeed(seed, `soak${round}`, i));
         client = step.client;
         for (const v of step.result.violations) onViolation?.(v);
         accumulate(stats, violations, step.result);
         runs++;
+        budget.mark();
       }
     } finally {
       client.close();
     }
     round++;
   }
-  return {runs, iterations: runs, seed, violations, stats};
+  return {
+    runs,
+    iterations: runs,
+    seed,
+    violations,
+    stats,
+    slowestIterationMs: budget.slowestIterationMs(),
+    slowestIterationRound: budget.slowestIterationRound(),
+  };
 }

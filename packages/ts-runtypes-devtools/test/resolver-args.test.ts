@@ -25,6 +25,39 @@ describe('buildResolverArgs — bundler-lane project knobs', () => {
     expect(buildResolverArgs('/proj', 'tsconfig.json', {})).not.toContain('--hash-length');
   });
 
+  it('forwards patternSampleCount as `--pattern-sample-count <n>` (0 included — it disables generation)', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {patternSampleCount: 0});
+    const idx = args.indexOf('--pattern-sample-count');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(args[idx + 1]).toBe('0');
+  });
+
+  it('forwards patternSampleRetries as `--pattern-sample-retries <n>`', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {patternSampleRetries: 25});
+    const idx = args.indexOf('--pattern-sample-retries');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(args[idx + 1]).toBe('25');
+  });
+
+  it('omits both pattern-sample flags when unset (tsconfig / binary defaults apply)', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {});
+    expect(args).not.toContain('--pattern-sample-count');
+    expect(args).not.toContain('--pattern-sample-retries');
+  });
+
+  it('always passes --js-runtime, defaulting to this process execPath', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {});
+    const idx = args.indexOf('--js-runtime');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(args[idx + 1]).toBe(process.execPath);
+  });
+
+  it('forwards an explicit jsRuntime over the execPath default', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {jsRuntime: '/opt/bun'});
+    const idx = args.indexOf('--js-runtime');
+    expect(args[idx + 1]).toBe('/opt/bun');
+  });
+
   it('forwards singleThreaded:true as --single-threaded (not the opt-out)', () => {
     const args = buildResolverArgs('/proj', 'tsconfig.json', {singleThreaded: true});
     expect(args).toContain('--single-threaded');
@@ -55,12 +88,20 @@ describe('buildResolverArgs — bundler-lane project knobs', () => {
   });
 });
 
-describe('buildResolverArgs — session config the wire does not carry (enrich + gen-dir)', () => {
+describe('buildResolverArgs — session config the wire does not carry (enrich + output/transform)', () => {
   it('forwards genDir as `--gen-dir <abs>`', () => {
     const args = buildResolverArgs('/proj', 'tsconfig.json', {genDir: '/proj/generated'});
     const idx = args.indexOf('--gen-dir');
     expect(idx).toBeGreaterThanOrEqual(0);
     expect(args[idx + 1]).toBe('/proj/generated');
+  });
+
+  it('forwards transformRelative as `--transform-relative`', () => {
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {transformRelative: true})).toContain('--transform-relative');
+  });
+
+  it('forwards omitSourcesContent as `--omit-sources-content`', () => {
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {omitSourcesContent: true})).toContain('--omit-sources-content');
   });
 
   it('forwards the enrich family + i18n selection as boolean flags', () => {
@@ -84,6 +125,8 @@ describe('buildResolverArgs — session config the wire does not carry (enrich +
     const args = buildResolverArgs('/proj', 'tsconfig.json', {});
     for (const flag of [
       '--gen-dir',
+      '--transform-relative',
+      '--omit-sources-content',
       '--enrich-friendly',
       '--enrich-mock',
       '--enrich-i18n',
@@ -125,5 +168,30 @@ describe('buildResolverArgs — serve subcommand + --sources', () => {
 
   it('omits --sources for the default project mode', () => {
     expect(buildResolverArgs('/proj', 'tsconfig.json', {})).not.toContain('--sources');
+  });
+});
+
+// The marker package gate is SESSION config, not a per-request wire field (the
+// resolver folds it into its marker options once, when the Program is built),
+// so it has to ride the argv the client replays on respawn. These pin that.
+describe('buildResolverArgs — marker package gate', () => {
+  it('forwards markerPackages as one comma-separated `--marker-packages`', () => {
+    const args = buildResolverArgs('/proj', 'tsconfig.json', {markerPackages: ['@a/one', '@b/two']});
+    const idx = args.indexOf('--marker-packages');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(args[idx + 1]).toBe('@a/one,@b/two');
+  });
+
+  it('omits --marker-packages when unset or empty (the binary keeps its default gate)', () => {
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {})).not.toContain('--marker-packages');
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {markerPackages: []})).not.toContain('--marker-packages');
+  });
+
+  it('forwards --no-marker-package-check only for an explicit false', () => {
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {markerPackageCheck: false})).toContain('--no-marker-package-check');
+    // true and undefined both mean "leave the gate on", which is the binary
+    // default — sending a flag for either would be noise.
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {markerPackageCheck: true})).not.toContain('--no-marker-package-check');
+    expect(buildResolverArgs('/proj', 'tsconfig.json', {})).not.toContain('--no-marker-package-check');
   });
 });

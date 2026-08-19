@@ -6,7 +6,7 @@
 
 import {describe, it, expect} from 'vitest';
 import {createMockDataFn, createValidateFn} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 
 const utf8 = (s: string): number => Buffer.byteLength(s, 'utf8');
@@ -59,7 +59,7 @@ describe('respectBinarySize: true — values fit the estimate', () => {
   it('works for nested collections / tuples / records', () => {
     const schema = RT.object({
       grid: RT.array(RT.array(TF.number())),
-      tup: RT.tuple([TF.string(), TF.number()]),
+      tup: RT.tuple({required: [TF.string(), TF.number()]}),
       rec: RT.record(TF.string(), TF.number()),
     });
     const validate = createValidateFn(schema);

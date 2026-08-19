@@ -7,7 +7,7 @@
 
 import {describe, it, expect} from 'vitest';
 import {getRunType, getRunTypeId, getRTUtils, RunTypeKind, type InjectRunTypeId, type RunType} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 
 describe('getRunType — reflected RunType node accessor', () => {
@@ -60,6 +60,45 @@ describe('getRunType — reflected RunType node accessor', () => {
     expect(reflectNode.id).toBe(expected);
   });
 
+  // The reflected node is a KNOTTED OBJECT GRAPH, not a flat table of
+  // `{id, kind: -1}` ref sentinels. Those sentinels exist only in the resolver's
+  // JSON wire dump (protocol.RunType / KindRef) because JSON can't carry live
+  // references; the generated cache module re-knots them into real object
+  // references (entryTuple's `rels` pass). Pinned here because the playground
+  // used to display the wire dump and made the runtime look ref-based.
+  it('(static) children/child slots hold the ACTUAL nodes, never ref sentinels', () => {
+    const runType = getRunType<{id: number; name: string; tags: string[]}>();
+    const cache = getRTUtils();
+    for (const member of runType.children ?? []) {
+      // A member node is the live registered singleton, not a `{id, kind: -1}` stub.
+      expect(member).toBe(cache.getRunType(member.id as string));
+      expect(member.kind).not.toBe(-1);
+      const child = member.child as RunType;
+      expect(child).toBeTypeOf('object');
+      expect(child).toBe(cache.getRunType(child.id as string));
+      expect(child.kind).not.toBe(-1);
+    }
+    // Two hops down: `tags: string[]` reaches its element node by reference.
+    const tags = (runType.children ?? []).find((member) => member.name === 'tags') as RunType;
+    const element = (tags.child as RunType).child as RunType;
+    expect(element.kind).toBe(RunTypeKind.string);
+    // Structural sharing is by IDENTITY — `name` and `tags[number]` are the same
+    // `string` node object, which is what makes the graph a graph.
+    const name = (runType.children ?? []).find((member) => member.name === 'name') as RunType;
+    expect(name.child).toBe(element);
+  });
+
+  it('(reflect) a recursive type closes the cycle by reference (self-referential graph)', () => {
+    type Node = {id: number; children: Node[]};
+    const value: Node = {id: 1, children: []};
+    const runType = getRunType(value);
+    const children = (runType.children ?? []).find((member) => member.name === 'children') as RunType;
+    // `children: Node[]` → array → element, and the element IS the root node again.
+    const element = (children.child as RunType).child as RunType;
+    expect(element.id).toBe(runType.id);
+    expect(element).toBe(runType); // the cycle is a real JS reference cycle
+  });
+
   it('throws when the transformer is inactive (no id injected)', () => {
     const erased = getRunType as (...args: unknown[]) => unknown;
     expect(() => erased()).toThrow(/no id injected/);
@@ -71,7 +110,7 @@ describe('getRunType — reflected RunType node accessor', () => {
   });
 });
 
-// Regression for docs/done/inject-runtypeid-helper-getruntype-undefined.md: the
+// Regression for the InjectRunTypeId helper fix: the
 // documented wrapper pattern. A helper declares a trailing
 // `id?: InjectRunTypeId<T>`; the build injects an opaque handle at each concrete
 // call site; the body resolves it by FORWARDING it to a public resolver as the

@@ -94,16 +94,16 @@ export interface PluginOptions {
   // into the entry; `createBinaryEncoderFn({sizeStrategy: 'dynamic'})` uses it as
   // the initial buffer size (instead of a 16 MiB default) until per-key history
   // warms up. All are optional and fold into the disk cache fingerprint.
-  //   - sizeBias (0..1, default 0.8): 0 = tightest (more grows), 1 = most generous.
-  //   - sizeItems (default 100): assumed element count for an unbounded collection.
-  //   - sizeStringBytes (default 32): assumed byte length of an unbounded string.
-  //   - sizeMaxBytes (default 65536): per-type cap so a huge declared bound
+  //   - bias (0..1, default 0.8): 0 = tightest (more grows), 1 = most generous.
+  //   - items (default 100): assumed element count for an unbounded collection.
+  //   - stringBytes (default 32): assumed byte length of an unbounded string.
+  //   - maxBytes (default 65536): per-type cap so a huge declared bound
   //     never seeds a multi-MB cold buffer.
-  //   All four ride the single `size` object (like the tsconfig `size` key):
-  //   {bias, items, stringBytes, maxBytes}.
-  size?: {bias?: number; items?: number; stringBytes?: number; maxBytes?: number};
+  //   All four ride the single `binarySizing` object (same shape and name as the
+  //   tsconfig `binarySizing` key): {bias, items, stringBytes, maxBytes}.
+  binarySizing?: {bias?: number; items?: number; stringBytes?: number; maxBytes?: number};
   // Project-wide defaults for the per-call-site ValidateOptions bag, grouped
-  // under one `validate` object (like `size`). Merged per field into every
+  // under one `validate` object (like `binarySizing`). Merged per field into every
   // validate / validationErrors call site by the compiler (a per-call option
   // wins over the default for that field).
   //   - numberMode: the base `number` check every validator uses — 'isFinite'
@@ -134,6 +134,31 @@ export interface PluginOptions {
   // undefined = the binary default, 7). The canonical home is the tsconfig
   // `hashLength` knob; set it here to override one build.
   hashLength?: number;
+  // How many mockSamples the build auto-generates for a format pattern that
+  // declares none (--pattern-sample-count; undefined = the binary default,
+  // 100; 0 disables generation, making sample-less patterns a build error).
+  // Deterministic per pattern. The canonical home is the tsconfig
+  // `patternSampleCount` knob; set it here to override one build.
+  patternSampleCount?: number;
+  // Per-sample draw multiplier for pattern sample generation
+  // (--pattern-sample-retries; undefined = the binary default, 10): the
+  // whole budget is patternSampleCount × patternSampleRetries draws before
+  // a pattern is declared ungeneratable. Raise it for heavily constrained
+  // patterns whose candidates often miss the declared length bounds. The
+  // canonical home is the tsconfig `patternSampleRetries` knob.
+  patternSampleRetries?: number;
+  // Which packages are allowed to declare the marker types (InjectRunTypeId,
+  // InjectTypeFnArgs, CompTimeArgs, PureFunction, …). Lets a library ship the
+  // brands itself instead of depending on ts-runtypes just for types.
+  //   packages     — extra package names to accept. Additive: '@ts-runtypes/core'
+  //                  stays accepted, and this list is UNIONED with the tsconfig
+  //                  `markers.packages` entry rather than replacing it.
+  //   checkPackage — false drops the package check entirely, matching a marker
+  //                  on its type NAME alone. Escape hatch: a local
+  //                  `type InjectRunTypeId<T> = …` then drives rewrites too.
+  // The canonical home is the tsconfig `markers` key; set it here to override
+  // or extend it for one build.
+  markers?: {packages?: string[]; checkPackage?: boolean};
   // How cache entries group into modules:
   //   'default'    — runtype nodes ride ONE data bundle (+ per-root facade
   //                  modules); every fn-family / composite / pure-fn entry
@@ -190,14 +215,11 @@ export interface PluginOptions {
   // proceeding would break the build anyway. HMR updates never hard-fail
   // mid-edit either way; the halt re-applies on the next build/test run.
   failOnError?: boolean;
-  // Silence the fail-closed FMT004 build error for format patterns whose
-  // mockSamples RE2 can't verify at build time (JS-only regex features:
-  // lookarounds, backreferences). Default false — the build refuses what it
-  // can't verify. Setting it asserts that the ts-runtypes lint plugin (which
-  // evaluates the real RegExp) owns the check for those patterns, so wire the
-  // linter into your editor + CI when you enable it. Build-lane only: the lint
-  // plugin validates those samples regardless of this option.
-  allowUncheckedPatterns?: boolean;
+  // JS runtime (node/bun path) the resolver runs format-pattern checks on
+  // (--js-runtime). Host-specific like `binary` — no tsconfig key. Default:
+  // this plugin's own process.execPath, so the serve lane always has a
+  // runtime with zero configuration; set it only to pin a different one.
+  jsRuntime?: string;
   // Pure-fn build report — the structured, layout-independent record of every
   // pure fn this build generated (call-site span, callee attribution, registry
   // key, and the self-contained entry payload). For host tooling that relocates
@@ -243,6 +265,16 @@ export interface PluginOptions {
 // before their first HMR scan lands them in the set).
 const MARKER_MODULE = '@ts-runtypes/core';
 
+// markerImportProbes builds the quoted-specifier probes the fallback pre-filter
+// matches on: the default marker package plus whatever the project configured
+// (`markers.packages`). Returns null when the package gate is disabled — a
+// marker can then be declared anywhere, so no import-specifier probe is sound
+// and the fallback has to let every file through.
+function markerImportProbes(markers: PluginOptions['markers']): string[] | null {
+  if (markers?.checkPackage === false) return null;
+  return [MARKER_MODULE, ...(markers?.packages ?? [])].flatMap((mod) => [`'${mod}`, `"${mod}`]);
+}
+
 // @ts-runtypes/devtools is built on unplugin: ONE factory, many bundler entry
 // points (@ts-runtypes/devtools/vite, /rollup, /webpack, /rspack, /esbuild are
 // `unplugin.<bundler>` from this instance). Files-mode: the resolver writes
@@ -256,6 +288,9 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // wins the bundler dev loop); 'go' is the full-transform fallback. Validated
   // at the host boundary so a config typo fails loudly.
   const transformMode: 'go' | 'edits' = options.transformMode ?? 'edits';
+  // Computed once per plugin instance: the fallback pre-filter's import probes
+  // for the project's marker packages (null = package gate disabled).
+  const markerProbes = markerImportProbes(options.markers);
   // Error-severity diagnostics fail the build/transform in every lane unless
   // explicitly opted out (see PluginOptions.failOnError). Precedence is
   // tsc-style: the explicit plugin option wins, else the tsconfig `failOnError`
@@ -363,10 +398,10 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
     // plugin carries no config logic of its own.
     resolver = new ResolverClient(binaryPath, cwdAbs, options.tsconfig ?? '', {
       ...(options.emitMode ? {emitMode: options.emitMode} : {}),
-      ...(options.size?.bias !== undefined ? {sizeBias: options.size.bias} : {}),
-      ...(options.size?.items !== undefined ? {sizeItems: options.size.items} : {}),
-      ...(options.size?.stringBytes !== undefined ? {sizeStringBytes: options.size.stringBytes} : {}),
-      ...(options.size?.maxBytes !== undefined ? {sizeMaxBytes: options.size.maxBytes} : {}),
+      ...(options.binarySizing?.bias !== undefined ? {binarySizingBias: options.binarySizing.bias} : {}),
+      ...(options.binarySizing?.items !== undefined ? {binarySizingItems: options.binarySizing.items} : {}),
+      ...(options.binarySizing?.stringBytes !== undefined ? {binarySizingStringBytes: options.binarySizing.stringBytes} : {}),
+      ...(options.binarySizing?.maxBytes !== undefined ? {binarySizingMaxBytes: options.binarySizing.maxBytes} : {}),
       ...(options.validate?.numberMode ? {numberMode: options.validate.numberMode} : {}),
       ...(options.inlineMode ? {inlineMode: options.inlineMode} : {}),
       ...(options.parallelScan !== undefined ? {parallelScan: options.parallelScan} : {}),
@@ -374,17 +409,25 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       ...(options.moduleMode ? {moduleMode: options.moduleMode} : {}),
       ...(options.singleThreaded !== undefined ? {singleThreaded: options.singleThreaded} : {}),
       ...(options.hashLength !== undefined ? {hashLength: options.hashLength} : {}),
-      ...(options.allowUncheckedPatterns ? {allowUncheckedPatterns: true} : {}),
+      ...(options.patternSampleCount !== undefined ? {patternSampleCount: options.patternSampleCount} : {}),
+      ...(options.patternSampleRetries !== undefined ? {patternSampleRetries: options.patternSampleRetries} : {}),
+      ...(options.markers?.packages?.length ? {markerPackages: options.markers.packages} : {}),
+      ...(options.markers?.checkPackage === false ? {markerPackageCheck: false} : {}),
+      ...(options.jsRuntime ? {jsRuntime: options.jsRuntime} : {}),
       // Tri-state → the two low-level resolver flags: report on the wire for
       // both 'file' and 'callback'; the JSON file written only for 'file' (at
       // the hardcoded genDir/types path).
       ...(reportEnabled ? {pureFnReportWire: true} : {}),
       ...(writeReportFile ? {pureFnReportFile: true} : {}),
-      // Enrichment session config (spawn-time — the enrich op's wire carries
-      // only files). An explicit genDir rides --gen-dir so OpEnrich roots the
-      // mirror tree identically; families + i18n select what the daemon syncs,
-      // with locales/sourceLocale defaulting from the tsconfig i18n block.
+      // Session config the wire deliberately does not carry. An explicit genDir
+      // rides --gen-dir so EVERY op (generate, transform, enrich) roots
+      // identically; the plugin lane always relativizes transform imports (the
+      // generated modules are real files on disk); sourcesContent:false becomes
+      // the map trim. Families + i18n select what the enrich daemon syncs, with
+      // locales/sourceLocale defaulting from the tsconfig i18n block.
       ...(genDirAbs ? {genDir: genDirAbs} : {}),
+      transformRelative: true,
+      ...(options.sourcesContent === false ? {omitSourcesContent: true} : {}),
       ...(enrichFriendly ? {enrichFriendly: true} : {}),
       ...(enrichMock ? {enrichMock: true} : {}),
       ...(enrichI18nEnabled ? {enrichI18n: true} : {}),
@@ -413,14 +456,11 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // edit, but the returned sourceHash lets us at least DETECT and warn. It is
   // omitted on the 'edits'-mode fallback path (the drift is already known there).
   async function transformViaGo(ctx: any, rel: string, driftCheck?: {code: string}) {
-    // Default keeps self-contained maps; an explicit `sourcesContent: false`
-    // trims the embedded original source from the map.
-    const goOpts = options.sourcesContent === false ? {omitSourcesContent: true} : undefined;
-    const result = await resolver!.transform([rel], genDirAbs, goOpts);
+    const result = await resolver!.transform([rel]);
     // A file outside the buildStart Program may surface new types / pure fns;
     // regenerate so the modules its injected imports point at exist on disk
     // before the bundler resolves them. (write-only-on-change keeps it cheap.)
-    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(genDirAbs);
+    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate();
     // A file the buildStart scan couldn't have seen can introduce NEW
     // Error-severity diagnostics — surface them here so the transform fails
     // per the failOnError contract (warnings already surfaced program-wide).
@@ -448,8 +488,8 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
   // we fall back to 'go' mode so a build is never broken by this optimization.
   async function transformViaEdits(ctx: any, rel: string, code: string) {
     const incomingHash = sourceHash(code);
-    let result = await resolver!.transform([rel], genDirAbs, {emitEdits: true});
-    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(genDirAbs);
+    let result = await resolver!.transform([rel], {emitEdits: true});
+    if (result.addedRunTypes || result.addedPureFns) await resolver!.generate();
     // New Error-severity diagnostics from a file the buildStart scan couldn't
     // have seen — fail the transform per the failOnError contract.
     surfaceDiagnostics(ctx, result.diagnostics ?? [], (d) => d.severity === Severity.Error, {halt: failOnError});
@@ -464,8 +504,8 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       );
       try {
         await resolver!.setSources({[rel]: code});
-        result = await resolver!.transform([rel], genDirAbs, {emitEdits: true});
-        if (result.addedRunTypes || result.addedPureFns) await resolver!.generate(genDirAbs);
+        result = await resolver!.transform([rel], {emitEdits: true});
+        if (result.addedRunTypes || result.addedPureFns) await resolver!.generate();
         if (result.sites.length === 0 && (result.replacements?.length ?? 0) === 0) return null;
         fileResult = result.transformed[rel];
       } catch {
@@ -618,12 +658,14 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // observe a zero count while this container's startup work is running.
       activeBuilds += 1;
       ensureResolver();
-      // generate writes the modules and, when genDirAbs is empty, returns the
-      // resolver-inferred <srcDir>/__runtypes. Adopt that resolved path so
-      // every later transform/HMR call reuses it. The VCS-hygiene files
-      // (per-folder READMEs, the types/.gitignore) are written by the Go side
-      // inside generate, so the CLI compile lane gets them too.
-      const gen = await resolver!.generate(genDirAbs || undefined);
+      // generate writes the modules and echoes the SESSION-resolved root back.
+      // When no explicit genDir was set that is the resolver's inferred
+      // <srcDir>/__runtypes, which this dependency-free plugin cannot compute
+      // for itself — adopt it so the enriched-dir HMR suppression knows where
+      // the tree lives. The VCS-hygiene files (per-folder READMEs, the
+      // types/.gitignore) are written by the Go side inside generate, so the
+      // CLI compile lane gets them too.
+      const gen = await resolver!.generate();
       if (gen.outDir) genDirAbs = gen.outDir;
       // Adopt the tsconfig-echoed failOnError as the halt default (the explicit
       // plugin option still wins, then this echo, then the built-in true), so a
@@ -696,7 +738,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
       // (before its first HMR scan lands it in siteFiles) needs this textual catch.
       const inSiteSet = siteFiles.has(siteKey(rel));
       if (!inSiteSet) {
-        const importsMarkerModule = code.includes(`'${MARKER_MODULE}`) || code.includes(`"${MARKER_MODULE}`);
+        const importsMarkerModule = markerProbes === null || markerProbes.some((probe) => code.includes(probe));
         const callsPureFnRegistrar = code.includes('registerPureFn') || code.includes('registerAnonymousPureFn');
         if (!importsMarkerModule && !callsPureFnRegistrar) return null;
       }
@@ -785,7 +827,7 @@ export const unplugin = createUnplugin<PluginOptions | undefined>((rawOptions) =
         // Regenerate so any new/changed modules hit disk; the watcher reloads
         // them (the folder lives in the project root, which Vite watches).
         try {
-          await resolver.generate(genDirAbs);
+          await resolver.generate();
         } catch {
           // A regenerate failure shouldn't tear down the dev server mid-edit.
         }

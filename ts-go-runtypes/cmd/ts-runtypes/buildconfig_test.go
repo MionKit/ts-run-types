@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -15,11 +16,13 @@ func strPtr(v string) *string { return &v }
 // the flag defaults that double as the binary defaults.
 func baseFlags() buildFlags {
 	return buildFlags{
-		set:        map[string]bool{},
-		hashLength: 0,
-		emitMode:   "code",
-		inlineMode: "default",
-		moduleMode: "default",
+		set:                  map[string]bool{},
+		hashLength:           0,
+		emitMode:             "code",
+		inlineMode:           "default",
+		moduleMode:           "default",
+		patternSampleCount:   100,
+		patternSampleRetries: 10,
 	}
 }
 
@@ -30,9 +33,10 @@ func TestMergeBuildOptions_DefaultsWhenEmpty(t *testing.T) {
 	got := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{}, "/proj")
 	want := buildOptions{
 		hashLength: 0, emitMode: "code", inlineMode: "default", moduleMode: "default",
-		genDir: filepath.Join("/proj", "__runtypes"),
+		genDir:             filepath.Join("/proj", "__runtypes"),
+		patternSampleCount: 100, patternSampleRetries: 10,
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("merge defaults = %+v, want %+v", got, want)
 	}
 }
@@ -41,13 +45,15 @@ func TestMergeBuildOptions_DefaultsWhenEmpty(t *testing.T) {
 // value flows through.
 func TestMergeBuildOptions_TsconfigFillsGaps(t *testing.T) {
 	plugin := tsRuntypesPlugin{
-		EmitMode:       "both",
-		InlineMode:     "allInternal",
-		ModuleMode:     "allSingle",
-		HashLength:     intPtr(9),
-		SingleThreaded: boolPtr(true),
-		ParallelScan:   boolPtr(false),
-		ParallelRender: boolPtr(false),
+		EmitMode:             "both",
+		InlineMode:           "allInternal",
+		ModuleMode:           "allSingle",
+		HashLength:           intPtr(9),
+		SingleThreaded:       boolPtr(true),
+		ParallelScan:         boolPtr(false),
+		ParallelRender:       boolPtr(false),
+		PatternSampleCount:   intPtr(25),
+		PatternSampleRetries: intPtr(4),
 	}
 	got := mergeBuildOptions(baseFlags(), plugin, "/proj")
 	want := buildOptions{
@@ -59,8 +65,10 @@ func TestMergeBuildOptions_TsconfigFillsGaps(t *testing.T) {
 		emitMode:              "both",
 		inlineMode:            "allInternal",
 		moduleMode:            "allSingle",
+		patternSampleCount:    25,
+		patternSampleRetries:  4,
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("merge from tsconfig = %+v, want %+v", got, want)
 	}
 }
@@ -153,6 +161,32 @@ func TestMergeBuildOptions_FlagOverridesTsconfig(t *testing.T) {
 	}
 	if got.moduleMode != "allSingle" {
 		t.Errorf("moduleMode = %q, want tsconfig value allSingle", got.moduleMode)
+	}
+}
+
+// TestMergeBuildOptions_PatternSampleKnobs: pointer keys, so an explicit
+// tsconfig 0 (disable generation) is honored, and an explicitly-set flag
+// still wins over the tsconfig value.
+func TestMergeBuildOptions_PatternSampleKnobs(t *testing.T) {
+	// Explicit tsconfig 0 disables — distinct from an absent key.
+	got := mergeBuildOptions(baseFlags(), tsRuntypesPlugin{PatternSampleCount: intPtr(0)}, "/proj")
+	if got.patternSampleCount != 0 {
+		t.Errorf("patternSampleCount = %d, want tsconfig's explicit 0", got.patternSampleCount)
+	}
+	if got.patternSampleRetries != 10 {
+		t.Errorf("patternSampleRetries = %d, want the binary default 10", got.patternSampleRetries)
+	}
+
+	// An explicitly-set flag shadows the tsconfig value.
+	flags := baseFlags()
+	flags.set["pattern-sample-count"] = true
+	flags.patternSampleCount = 12
+	flags.set["pattern-sample-retries"] = true
+	flags.patternSampleRetries = 3
+	plugin := tsRuntypesPlugin{PatternSampleCount: intPtr(50), PatternSampleRetries: intPtr(20)}
+	got = mergeBuildOptions(flags, plugin, "/proj")
+	if got.patternSampleCount != 12 || got.patternSampleRetries != 3 {
+		t.Errorf("flags should win: got (%d, %d), want (12, 3)", got.patternSampleCount, got.patternSampleRetries)
 	}
 }
 
@@ -290,5 +324,62 @@ func TestUnknownPluginKeys(t *testing.T) {
 
 	if got := unknownPluginKeys(t.TempDir(), "tsconfig.json"); len(got) != 0 {
 		t.Errorf("no tsconfig should not warn, got %v", got)
+	}
+}
+
+// --- marker package gate ----------------------------------------------------
+
+// The flag and the tsconfig entry are UNIONED rather than one shadowing the
+// other: a host plugin naming its own marker package and a project naming
+// another are both true at once, so dropping either would break call sites the
+// other owns. This is the one merge in the file that is deliberately additive.
+func TestMergeBuildOptions_MarkerPackagesUnionFlagAndTsconfig(t *testing.T) {
+	flags := baseFlags()
+	flags.set["marker-packages"] = true
+	flags.markerPackages = "@from/flag"
+	plugin := tsRuntypesPlugin{Markers: &markersPluginConfig{Packages: []string{"@from/tsconfig"}}}
+
+	got := mergeBuildOptions(flags, plugin, "/proj").markerPackages
+	want := []string{"@from/flag", "@from/tsconfig"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("markerPackages = %v, want %v", got, want)
+	}
+}
+
+func TestMergeBuildOptions_MarkerPackagesSplitTrimAndDedupe(t *testing.T) {
+	flags := baseFlags()
+	flags.markerPackages = " @a/one , @b/two ,, @a/one "
+	plugin := tsRuntypesPlugin{Markers: &markersPluginConfig{Packages: []string{"@b/two", "  ", "@c/three"}}}
+
+	got := mergeBuildOptions(flags, plugin, "/proj").markerPackages
+	want := []string{"@a/one", "@b/two", "@c/three"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("markerPackages = %v, want %v", got, want)
+	}
+}
+
+func TestMergeBuildOptions_MarkerPackageCheckDefaultsOn(t *testing.T) {
+	if mergeBuildOptions(baseFlags(), tsRuntypesPlugin{}, "/proj").skipMarkerPackageCheck {
+		t.Error("expected the package gate to be ON with nothing configured")
+	}
+}
+
+// checkPackage is a plain override (not additive): the tsconfig turns the gate
+// off, and an explicit flag wins over the tsconfig either way.
+func TestMergeBuildOptions_MarkerPackageCheckFromTsconfig(t *testing.T) {
+	plugin := tsRuntypesPlugin{Markers: &markersPluginConfig{CheckPackage: boolPtr(false)}}
+	if !mergeBuildOptions(baseFlags(), plugin, "/proj").skipMarkerPackageCheck {
+		t.Error("expected checkPackage:false to disable the package gate")
+	}
+}
+
+func TestMergeBuildOptions_MarkerPackageCheckFlagWinsOverTsconfig(t *testing.T) {
+	flags := baseFlags()
+	flags.set["no-marker-package-check"] = true
+	flags.noMarkerPackageCheck = true
+	// tsconfig says "keep the gate on"; the explicit flag says otherwise.
+	plugin := tsRuntypesPlugin{Markers: &markersPluginConfig{CheckPackage: boolPtr(true)}}
+	if !mergeBuildOptions(flags, plugin, "/proj").skipMarkerPackageCheck {
+		t.Error("expected --no-marker-package-check to win over the tsconfig entry")
 	}
 }

@@ -12,6 +12,7 @@
 // number, so a reported violation replays exactly.
 
 import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
+import {startSoakBudget} from '../core/soakBudget.ts';
 import {genType, describeType, isRecursive, DATA_GEN_OPTIONS, type GeneratedType, type GenOptions} from '../core/typeGen.ts';
 import {genValidValue, valueOracleSafe} from '../value/shapeValue.ts';
 import {isValidTypeScript} from '../type/tsValidate.ts';
@@ -38,6 +39,10 @@ export interface RoundtripFuzzReport {
   /** Violations dropped because the generated type isn't valid TypeScript
    *  (tsgo is lenient; a violation there is a false positive). **/
   skippedInvalidTypes: number;
+  /** Duration runs only: the slowest single iteration and its zero-based round,
+   *  for the soak pathology tripwire (SOAK_ITERATION_CEILING_MS). **/
+  slowestIterationMs?: number;
+  slowestIterationRound?: number;
 }
 
 interface FuzzStats {
@@ -107,19 +112,28 @@ export async function runRoundtripFuzzForDuration(
   const holder = new ClientHolder();
   let runs = 0;
   let round = 0;
-  const deadline = Date.now() + durationMs;
+  const budget = startSoakBudget(durationMs);
   try {
-    while (Date.now() < deadline) {
+    while (budget.canStart()) {
       runs++;
       const before = violations.length;
       await fuzzOne(holder, mixSeed(seed, 'roundtrip', round), gen, violations, stats);
       if (onViolation) for (let k = before; k < violations.length; k++) onViolation(violations[k]);
       round++;
+      budget.mark();
     }
   } finally {
     holder.close();
   }
-  return {runs, iterations: round, seed, violations, ...stats};
+  return {
+    runs,
+    iterations: round,
+    seed,
+    violations,
+    ...stats,
+    slowestIterationMs: budget.slowestIterationMs(),
+    slowestIterationRound: budget.slowestIterationRound(),
+  };
 }
 
 async function fuzzOne(

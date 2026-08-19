@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
+	"github.com/mionkit/ts-runtypes/internal/jsengine"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // StackItem mirrors the reference StackItem (rtFnCompiler.ts:33). One frame
@@ -37,7 +39,7 @@ import (
 // frame's `getStaticPathLiteral()` or `getChildLiteral()` contributes.
 type StackItem struct {
 	Vλl              string
-	RT               *protocol.RunType
+	RT               *reflection.RunType
 	ChildAccessor    string
 	ChildPathLiteral string
 	PathLiteral      string
@@ -94,7 +96,7 @@ func (o *orderedItems) ordered() []string {
 // new Emitter implementation; the Walker stays untouched.
 type Walker struct {
 	// RootType is the entry-point RunType for this rt function.
-	RootType *protocol.RunType
+	RootType *reflection.RunType
 	// FnName is the inner function name (e.g. "validate_<hash>") that
 	// lands in the emitted `function <FnName>(<args>){…}`.
 	FnName string
@@ -121,7 +123,7 @@ type Walker struct {
 	// hand-constructed unit-test walkers.
 	OverrideOpKey string
 	// RefTable resolves KindRef sentinels to their real RunType.
-	// Per `internal/protocol/protocol.go`, all Child / Children /
+	// Per `internal/reflection/runtype.go`, all Child / Children /
 	// Parameters slots in the JSON wire form carry refs
 	// (`{kind: -1, id: "<hash>"}`); the consumer side re-knots by
 	// indexing into the cache. The walker uses this map at descent
@@ -129,7 +131,7 @@ type Walker struct {
 	// May be nil when the input graph is fully knotted (e.g. unit
 	// tests that hand-construct RunType structs with child Kinds
 	// already inlined).
-	RefTable map[string]*protocol.RunType
+	RefTable map[string]*reflection.RunType
 	// Emitter supplies the per-fn args, dispatch, and finalize logic.
 	Emitter Emitter
 	// VariantOptions carries the `ValidateOptions` set (e.g. {"noLiterals":
@@ -196,20 +198,16 @@ type Walker struct {
 	// JS wire shape is unchanged.
 	RTDependencies     []string
 	PureFnDependencies []protocol.PureFnDep
-	// AllowUncheckedPatterns mirrors RenderOpts.AllowUncheckedPatterns
-	// (the build-lane allowUncheckedPatterns option): when set, a
-	// pattern RE2 can't verify is silently skipped instead of failing the
-	// build with FMT004.
-	AllowUncheckedPatterns bool
-	// RecordUncheckedPatterns is set on the lint lane (RenderOpts.
-	// UncheckedPatternSink present): RecordUncheckedPattern then buffers
-	// RE2-incompatible patterns into UncheckedPatterns for the JS linter
-	// to verify, and the FMT004 build error is suppressed.
-	RecordUncheckedPatterns bool
-	// UncheckedPatterns buffers patterns RE2 couldn't compile that carry
-	// mockSamples, drained by the renderer into RenderOpts.
-	// UncheckedPatternSink paired with this walk's call sites.
-	UncheckedPatterns []protocol.UncheckedPattern
+	// JSEngine mirrors RenderOpts.JSEngine — the JS engine the format
+	// emitters run pattern checks on (exposed to them via
+	// EmitContext.JSEngine). Nil fails pattern checks closed with the
+	// FMT004 missing-runtime diagnostic.
+	JSEngine jsengine.Engine
+	// PatternSampleCount / PatternGenFailures mirror the RenderOpts fields
+	// of the same names (exposed via EmitContext) — the pattern emitter's
+	// FMT005 lane reads them at emit time.
+	PatternSampleCount int
+	PatternGenFailures map[string]string
 	// CrossFamilyDeps records the cross-family RT lookups this function
 	// reaches via registerRTLookup — childIDs whose family-tag prefix
 	// differs from this walker's own InnerPrefix (e.g. a prepareForJson /
@@ -218,7 +216,7 @@ type Walker struct {
 	// RTDependencies and are NOT duplicated here. Unlike RTDependencies
 	// this list is NOT consumed by emission/topo decisions today — it is
 	// captured so a later demand-scoping step can follow the edges to the
-	// referenced family. See docs/CROSS-FAMILY-RT-DEPS.md.
+	// referenced family.
 	CrossFamilyDeps []string
 	// IsUnsupported flips to true the first time compileNode sees a
 	// CodeNS sentinel anywhere in the traversal. Once set it stays
@@ -234,8 +232,8 @@ type Walker struct {
 	// DiagCodeForLeaf to derive the per-family code that goes into the
 	// alwaysThrow init() call. First-encounter wins; AbsorbUnsupported
 	// clears this slot so a sibling property's own CodeNS can be tracked
-	// independently. See docs/UNSUPPORTED-KINDS.md.
-	UnsupportedLeaf *protocol.RunType
+	// independently.
+	UnsupportedLeaf *reflection.RunType
 
 	// DiagSink is the destination for compile-time diagnostics this
 	// walker emits via EmitDiagnostic. Nil when the caller doesn't want
@@ -371,7 +369,7 @@ func (w *Walker) putEmitContext(ctx *EmitContext) {
 // shaped RunType (Property / Method / PropertySignature / …). Falls
 // back to "<anonymous>" when the runtime carries no Name — defensive
 // for the rare anonymous-callable case.
-func memberLabel(rt *protocol.RunType) string {
+func memberLabel(rt *reflection.RunType) string {
 	if rt == nil || rt.Name == "" {
 		return "<anonymous>"
 	}
@@ -383,8 +381,7 @@ func memberLabel(rt *protocol.RunType) string {
 // PropertySignature emits when they choose to drop an unsupported
 // child rather than propagate the CodeNS up. After absorption, the
 // parent returns plain empty code (CodeS or CodeE) so its own parent's
-// chain treats the slot as a no-op. See docs/UNSUPPORTED-KINDS.md
-// for the two-rule model.
+// chain treats the slot as a no-op (the two-rule model).
 func (w *Walker) AbsorbUnsupported() {
 	w.IsUnsupported = false
 	w.UnsupportedLeaf = nil
@@ -418,24 +415,10 @@ func (w *Walker) EmitDiagnostic(code string, args ...string) {
 	}
 }
 
-// RecordUncheckedPattern buffers an RE2-incompatible pattern (carrying
-// mockSamples) for the lint lane, returning whether it was recorded. On
-// the build lane (RecordUncheckedPatterns unset) it returns false so the
-// caller falls back to the fail-closed FMT004 diagnostic. The site is
-// attached at drain time from rootProvenance (renderEntryWithDeps),
-// mirroring the PureFnDependencies fan-out.
-func (w *Walker) RecordUncheckedPattern(source, flags string, samples []string) bool {
-	if !w.RecordUncheckedPatterns {
-		return false
-	}
-	w.UncheckedPatterns = append(w.UncheckedPatterns, protocol.UncheckedPattern{Source: source, Flags: flags, Samples: samples})
-	return true
-}
-
 // NewWalker primes a Walker for the given RunType + Emitter pair.
 // The Vλl starts at the first arg's Name (the base value accessor);
 // pushStack will refresh it on every descent.
-func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
+func NewWalker(rt *reflection.RunType, fnName string, emitter Emitter) *Walker {
 	args := emitter.Args()
 	if len(args) == 0 {
 		panic("typefns: emitter returned empty Args()")
@@ -570,7 +553,7 @@ func (w *Walker) UpdateDependencies(childHash string, childIsNoop bool) {
 // land here. The InnerPrefix=="" case (hand-constructed walkers in unit
 // tests that never set a prefix) records nothing. Dedup mirrors
 // UpdateDependencies. Additive capture only: nothing in the renderer's
-// emission/topo path reads this list today. See docs/CROSS-FAMILY-RT-DEPS.md.
+// emission/topo path reads this list today.
 func (w *Walker) recordCrossFamilyDep(childID string) {
 	if w.InnerPrefix == "" || strings.HasPrefix(childID, w.InnerPrefix) {
 		return
@@ -674,7 +657,7 @@ func (w *Walker) ContextLines() string {
 // emitting its own code. This is the "don't traverse children of
 // an unsupported node" optimization — once one descendant fails,
 // no further work happens in the subtree.
-func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) RTCode {
+func (w *Walker) compileNode(rt *reflection.RunType, expectedCType CodeType) RTCode {
 	if w.IsUnsupported {
 		return RTCode{Code: "", Type: CodeNS}
 	}
@@ -712,8 +695,8 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) RTCod
 // scenario indicates a dangling cache reference and is treated as a
 // noop here (the caller is responsible for surfacing that as an error
 // at a higher level if needed).
-func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
-	if rt == nil || rt.Kind != protocol.KindRef {
+func (w *Walker) resolveRef(rt *reflection.RunType) *reflection.RunType {
+	if rt == nil || rt.Kind != reflection.KindRef {
 		return rt
 	}
 	if w.RefTable == nil {
@@ -748,7 +731,7 @@ func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
 // dangling-dep cascade in module.go drops any parent whose
 // recorded deps don't have a matching emitted factory, so this
 // over-recording can't cause runtime breakage.
-func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
+func (w *Walker) dispatch(rt *reflection.RunType, expectedCType CodeType) RTCode {
 	w.inlineCtx.RT = rt
 	// inlineWouldCycle is the walker's own cycle breaker: a node whose id is
 	// ALREADY on the walk stack must go external no matter what the
@@ -853,7 +836,7 @@ func (w *Walker) inlineWouldCycle(id string) bool {
 // getStackVλl computes the descendant accessor from the (pre-push)
 // stack; for atomic-root that's just the function's first argument.
 // Mirrors rtFnCompiler.ts:148.
-func (w *Walker) pushStack(newChild *protocol.RunType) {
+func (w *Walker) pushStack(newChild *reflection.RunType) {
 	if len(w.Stack) == 0 && newChild != w.RootType {
 		panic("typefns: rootType must be the first item pushed onto the stack")
 	}

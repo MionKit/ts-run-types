@@ -18,7 +18,7 @@
 //     constructed from a plain literal, so the value is cast — discarded at
 //     runtime, only its static type drives `T` inference).
 //
-// The bare `import '@ts-runtypes/core/schema'` is type-only here; the
+// The bare `import '@ts-runtypes/core/builders'` is type-only here; the
 // `import '@ts-runtypes/core/formats'` side-effect import is load-bearing
 // (registers the format mock fns + pure-fns the emitted validators reach).
 
@@ -31,7 +31,7 @@ import {
   type InferType,
   type GetValidationErrorsFn,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate} from '../../util/deserializeRTFunctions.ts';
 import '@ts-runtypes/core/formats';
 
@@ -136,6 +136,16 @@ const NOW = Date.now();
 // type parameter, so the model type must be concrete at the literal call site.
 // The value is cast (the format brand isn't constructible from a plain
 // literal) and discarded at runtime — only its declared type drives `T`.
+
+// Structural formats + child-schema slots — the value-first spellings of the
+// JSON Schema array/object keywords (M9-P6). Each model is the schema door's
+// exact twin (three-mode id convergence pinned in
+// json-schema-define/structuralKeywords.test.ts).
+const UniqueList = RT.array(TF.number(), {uniqueItems: true, maxItems: 3});
+const CountedRecord = RT.record(RT.unknown(), {minProperties: 1, maxProperties: 2});
+const ContainsNumbers = RT.array(RT.unknown(), {contains: TF.number(), minContains: 2});
+const PatternKeyed = RT.record(RT.unknown(), {patternProperties: {'^a': TF.number()}});
+const ShortKeys = RT.record(RT.unknown(), {propertyNames: TF.string({maxLength: 3})});
 
 export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
   flat_mixed: {
@@ -491,6 +501,104 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         {profile: {name: 'toolong'}, settings: {theme: 'dark'}}, // profile.name > 5
         {profile: {name: 'abc'}, settings: {theme: 'blue'}}, // settings.theme not allowed
       ],
+    }),
+  },
+
+  structural_array_format: {
+    title: 'formattedArray — uniqueItems + maxItems on a typed array',
+    validate: () => createValidateFn<InferType<typeof UniqueList>>(),
+    validateReflect: () => {
+      const v = [1, 2] as unknown as InferType<typeof UniqueList>;
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<InferType<typeof UniqueList>>(),
+    deserializeValidateReflect: () => {
+      const v = [1, 2] as unknown as InferType<typeof UniqueList>;
+      return deserializeValidate(v);
+    },
+    getValidationErrors: () => createGetValidationErrorsFn<InferType<typeof UniqueList>>(),
+    getSamples: () => ({
+      valid: [[], [1, 2, 3]],
+      invalid: [[1, 1], [1, 2, 3, 4], ['x'], 5],
+    }),
+  },
+
+  structural_object_format: {
+    title: 'formattedObject — key-count bounds on a record',
+    validate: () => createValidateFn<InferType<typeof CountedRecord>>(),
+    validateReflect: () => {
+      const v = {a: 1} as unknown as InferType<typeof CountedRecord>;
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<InferType<typeof CountedRecord>>(),
+    deserializeValidateReflect: () => {
+      const v = {a: 1} as unknown as InferType<typeof CountedRecord>;
+      return deserializeValidate(v);
+    },
+    getValidationErrors: () => createGetValidationErrorsFn<InferType<typeof CountedRecord>>(),
+    getSamples: () => ({
+      valid: [{a: 1}, {a: 1, b: 2}],
+      invalid: [{}, {a: 1, b: 2, c: 3}, 'x'],
+    }),
+  },
+
+  structural_contains: {
+    title: 'contains — at least two numbers among the items',
+    validate: () => createValidateFn<InferType<typeof ContainsNumbers>>(),
+    validateReflect: () => {
+      const v = [1, 2] as unknown as InferType<typeof ContainsNumbers>;
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<InferType<typeof ContainsNumbers>>(),
+    deserializeValidateReflect: () => {
+      const v = [1, 2] as unknown as InferType<typeof ContainsNumbers>;
+      return deserializeValidate(v);
+    },
+    getValidationErrors: () => createGetValidationErrorsFn<InferType<typeof ContainsNumbers>>(),
+    getSamples: () => ({
+      valid: [
+        [1, 2],
+        ['a', 1, 2, 'b'],
+      ],
+      invalid: [[1], ['a'], [], 7],
+    }),
+  },
+
+  structural_pattern_properties: {
+    title: 'patternProperties — ^a keys must map to numbers',
+    validate: () => createValidateFn<InferType<typeof PatternKeyed>>(),
+    validateReflect: () => {
+      const v = {a1: 5} as unknown as InferType<typeof PatternKeyed>;
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<InferType<typeof PatternKeyed>>(),
+    deserializeValidateReflect: () => {
+      const v = {a1: 5} as unknown as InferType<typeof PatternKeyed>;
+      return deserializeValidate(v);
+    },
+    getValidationErrors: () => createGetValidationErrorsFn<InferType<typeof PatternKeyed>>(),
+    getSamples: () => ({
+      valid: [{a1: 5}, {other: 'x'}, {}],
+      invalid: [{a1: 'x'}, 'nope'],
+    }),
+  },
+
+  structural_property_names: {
+    title: 'propertyNames — every key at most three characters',
+    validate: () => createValidateFn<InferType<typeof ShortKeys>>(),
+    validateReflect: () => {
+      const v = {ab: 1} as unknown as InferType<typeof ShortKeys>;
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<InferType<typeof ShortKeys>>(),
+    deserializeValidateReflect: () => {
+      const v = {ab: 1} as unknown as InferType<typeof ShortKeys>;
+      return deserializeValidate(v);
+    },
+    getValidationErrors: () => createGetValidationErrorsFn<InferType<typeof ShortKeys>>(),
+    getSamples: () => ({
+      valid: [{ab: 1}, {}],
+      invalid: [{abcd: 1}, 3],
     }),
   },
 };

@@ -46,9 +46,10 @@ export type RuleName =
 // RuleSpec is the single source of truth for a rule: its default level (mirrors
 // the Go catalog severity of the codes it carries), which cheap text pre-filter
 // admits a file to the resolver pass (`compiler` scans any marker/RT file,
-// `enrichment` only generated mirror files), and the one-line description lint
-// hosts show. index.ts builds its `rules` record and `recommended` config from
-// this table; nothing hand-lists the rules twice.
+// `enrichment` only generated mirror files), and
+// the one-line description lint hosts show. index.ts builds its `rules`
+// record and `recommended` config from this table; nothing hand-lists the
+// rules twice.
 export interface RuleSpec {
   readonly name: RuleName;
   readonly default: 'error' | 'warn';
@@ -153,7 +154,7 @@ export const RULE_SPECS: readonly RuleSpec[] = [
     default: 'error',
     gate: 'compiler',
     description:
-      'A custom string format with a broken definition: a mock sample that does not match its own pattern, a sample that violates a sibling constraint like maxLength, or invalid format params. Also fires when the linter re-checks samples the build could not verify (allowUncheckedPatterns)',
+      'A custom string format with a broken definition: a mock sample that does not match its own pattern, a sample that violates a sibling constraint like maxLength, invalid format params (including a pattern that does not compile as a JS RegExp), or pattern checks that could not run because no JS runtime was found',
   },
   {
     name: 'invalid-override',

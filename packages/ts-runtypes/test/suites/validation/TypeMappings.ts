@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const TYPE_MAPPINGS = {
@@ -173,8 +173,9 @@ export const TYPE_MAPPINGS = {
     title: 'Conditional key rename',
     description:
       '`{[K in keyof T as K extends "id" ? "_id" : K]: T[K]}` swaps a single specific key (`id` to `_id`, Mongo-style) while the rest pass through unchanged.',
-    validateNotes:
+    validateNotes: [
       'Only `id` is renamed; the resolved shape requires `_id` and ignores the original `id`, so a value with `id` (and no `_id`) fails while the pass-through keys (`name`, `createdAt`) are still required.',
+    ],
     validate: () => {
       interface Source {
         id: number;

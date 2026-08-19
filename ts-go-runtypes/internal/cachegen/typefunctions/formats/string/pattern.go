@@ -1,14 +1,13 @@
 package string
 
 import (
-	"regexp"
 	"strings"
-	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/jsquote"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // recoverPattern extracts a regex source+flags from a format's `pattern`
@@ -67,12 +66,12 @@ func samplesFromValue(raw any) []string {
 // namedPatternValidate is the validate body for a pattern format (domain /
 // email / url): the AND of any length bounds and the regex test, plus
 // build-time mockSample validation. Empty when neither is present.
-func namedPatternValidate(ctx formats.EmitContext, annotation *protocol.FormatAnnotation, vλl string) string {
+func namedPatternValidate(ctx formats.EmitContext, annotation *reflection.FormatAnnotation, vλl string) string {
 	if annotation == nil {
 		return ""
 	}
 	validateSampleBounds(ctx, annotation.Params)
-	conditions := lengthConditions(annotation.Params, vλl)
+	conditions := lengthConditions(annotation.Params, vλl, ctx)
 	if source, flags, ok := recoverPattern(annotation.Params); ok {
 		validateSamples(ctx, source, flags, recoverSamples(annotation.Params))
 		conditions = append(conditions, emitPatternTest(ctx, source, flags, vλl))
@@ -83,7 +82,7 @@ func namedPatternValidate(ctx formats.EmitContext, annotation *protocol.FormatAn
 // namedPatternErrors is the validationErrors body for a pattern format. One
 // push per failing length bound, plus one for the pattern, each tagged
 // with the format name.
-func namedPatternErrors(ctx formats.EmitContext, annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr, name string) string {
+func namedPatternErrors(ctx formats.EmitContext, annotation *reflection.FormatAnnotation, vλl, pathExpr, errorsArr, name string) string {
 	if annotation == nil {
 		return ""
 	}
@@ -109,33 +108,55 @@ func emitPatternTest(ctx formats.EmitContext, source, flags, vλl string) string
 	return reVar + ".test(" + vλl + ")"
 }
 
-// validateSamples compiles the pattern with Go's RE2 engine and checks
-// every mockSample against it, emitting CodeFMTSampleMismatch naming every
-// sample that fails. When the pattern uses JS-only regex features RE2 can't
-// compile (lookarounds, backreferences) it can't run: Part 2 records the
-// pattern for the JS linter to verify (lint lane) or emits
-// CodeFMTUncheckedPattern to fail the build closed (build lane) —
-// RE2 is a best-effort build-time oracle, not the runtime engine.
+// validateSamples runs the pattern through the JS engine — the real
+// `new RegExp` the emitted validator uses at runtime — compiling the
+// source (a syntax error is CodeFMTInvalidParams: the emitted validator
+// would throw at factory load) and checking every mockSample against it
+// (mismatches are CodeFMTSampleMismatch, naming every offender). Runs
+// even with zero samples: the compile check stands on its own. When the
+// engine itself cannot run (no node/bun found, sidecar died) the pattern
+// is unverifiable and CodeFMTMissingJsRuntime fails the build closed.
+//
+// A pattern that compiles clean but still has NO samples at emit time is
+// one the resolver's enrichment pass could not fill: generation is
+// disabled (patternSampleCount 0) or it failed. Both are
+// CodeFMTSampleGenFailed here — the walk has the demanding call sites, so
+// the squiggle lands on the user's createX<T>() call; the failure reason
+// comes from the record the enrichment pass left (EmitContext.PatternGenFailure).
 func validateSamples(ctx formats.EmitContext, source, flags string, samples []string) {
-	if len(samples) == 0 {
+	engine := ctx.JSEngine()
+	if engine == nil {
+		ctx.EmitDiagnostic(diagnostics.CodeFMTMissingJsRuntime, source, "no JS engine configured")
 		return
 	}
-	compiled, err := regexp.Compile(re2Pattern(source, flags))
+	verdict, err := engine.TestPattern(source, flags, samples)
 	if err != nil {
-		reportUncheckedPattern(ctx, source, flags, samples, err)
+		ctx.EmitDiagnostic(diagnostics.CodeFMTMissingJsRuntime, source, err.Error())
 		return
 	}
-	var offenders []string
-	for _, sample := range samples {
-		if !compiled.MatchString(sample) {
-			offenders = append(offenders, sample)
-		}
+	if verdict.CompileError != "" {
+		ctx.EmitDiagnostic(diagnostics.CodeFMTInvalidParams, "pattern /"+source+"/"+flags+" does not compile as a JS RegExp: "+verdict.CompileError)
+		return
 	}
 	// One diagnostic naming every mismatching sample: the walker dedups
 	// per code per walk, so per-sample diagnostics would collapse to the
 	// first offender anyway.
-	if len(offenders) > 0 {
-		ctx.EmitDiagnostic(diagnostics.CodeFMTSampleMismatch, strings.Join(offenders, ", "), source)
+	if len(verdict.Offenders) > 0 {
+		ctx.EmitDiagnostic(diagnostics.CodeFMTSampleMismatch, strings.Join(verdict.Offenders, ", "), source)
+	}
+	if len(samples) == 0 {
+		if ctx.PatternSampleCount() <= 0 {
+			ctx.EmitDiagnostic(diagnostics.CodeFMTSampleGenFailed, source, "sample generation is disabled (patternSampleCount 0)")
+			return
+		}
+		// The resolver's enrichment pass already tried to generate for this
+		// pattern and recorded why it could not — surface that reason here,
+		// where the walk has the demanding call sites to anchor it.
+		if reason := ctx.PatternGenFailure(source, flags); reason != "" {
+			ctx.EmitDiagnostic(diagnostics.CodeFMTSampleGenFailed, source, reason)
+			return
+		}
+		ctx.EmitDiagnostic(diagnostics.CodeFMTSampleGenFailed, source, "sample generation produced no values")
 	}
 }
 
@@ -189,7 +210,7 @@ func lengthSurvivors(params map[string]any, pool []string) []string {
 		return pool
 	}
 	return filterSamples(pool, func(sample string) bool {
-		size := utf16Len(sample)
+		size := codePointLen(sample)
 		if hasLength && size != int(length) {
 			return false
 		}
@@ -238,19 +259,19 @@ func lengthBoundViolations(params map[string]any, pool []string) []string {
 	var messages []string
 	if value, ok := formats.ReadNumberParam(params, "length"); ok {
 		want := int(value)
-		if offenders := filterSamples(pool, func(sample string) bool { return utf16Len(sample) != want }); len(offenders) > 0 {
+		if offenders := filterSamples(pool, func(sample string) bool { return codePointLen(sample) != want }); len(offenders) > 0 {
 			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" are not exactly length "+formats.FormatNumber(value))
 		}
 	}
 	if value, ok := formats.ReadNumberParam(params, "minLength"); ok {
 		min := int(value)
-		if offenders := filterSamples(pool, func(sample string) bool { return utf16Len(sample) < min }); len(offenders) > 0 {
+		if offenders := filterSamples(pool, func(sample string) bool { return codePointLen(sample) < min }); len(offenders) > 0 {
 			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" are shorter than minLength "+formats.FormatNumber(value))
 		}
 	}
 	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok {
 		max := int(value)
-		if offenders := filterSamples(pool, func(sample string) bool { return utf16Len(sample) > max }); len(offenders) > 0 {
+		if offenders := filterSamples(pool, func(sample string) bool { return codePointLen(sample) > max }); len(offenders) > 0 {
 			messages = append(messages, "sample(s) "+quoteJoin(offenders)+" are longer than maxLength "+formats.FormatNumber(value))
 		}
 	}
@@ -298,12 +319,14 @@ func filterSamples(pool []string, predicate func(string) bool) []string {
 	return out
 }
 
-// utf16Len counts the UTF-16 code units in s — what JS `String.length`
-// reports (an astral character is two units). Go's len() counts bytes and
-// utf8.RuneCountInString counts code points; neither matches the emitted
-// validator, so samples with astral characters would mis-validate.
-func utf16Len(s string) int {
-	return len(utf16.Encode([]rune(s)))
+// codePointLen counts the code points in s — what the emitted length check
+// counts (see lengthConditions in stringformat.go: the bounds follow JSON
+// Schema and measure code points, so '💩💩' is 2). Go's len() counts bytes and
+// UTF-16 units are JS `String.length`, one unit per surrogate half; neither
+// matches the validator, so samples with astral characters would be reported
+// as out of bounds here while validating fine at run time.
+func codePointLen(s string) int {
+	return utf8.RuneCountInString(s)
 }
 
 // quoteJoin renders a sample list as a comma-separated run of
@@ -344,38 +367,4 @@ func inValueSet(sample string, vals []string, ignoreCase bool) bool {
 		}
 	}
 	return false
-}
-
-// reportUncheckedPattern handles a pattern that carries mockSamples
-// but uses JS-only regex features RE2 can't compile. Lint lane (a sink is
-// present): record {source, flags, samples} so the JS linter runs the
-// real RegExp.test and reports mismatches as FMT001 — no build error.
-// Build lane: fail closed with FMT004, unless the project set
-// allowUncheckedPatterns to assert the linter owns the check.
-func reportUncheckedPattern(ctx formats.EmitContext, source, flags string, samples []string, compileErr error) {
-	if ctx.RecordUncheckedPattern(source, flags, samples) {
-		return
-	}
-	if ctx.AllowUncheckedPatterns() {
-		return
-	}
-	ctx.EmitDiagnostic(diagnostics.CodeFMTUncheckedPattern, source, compileErr.Error())
-}
-
-// re2Pattern translates a JS regex source+flags into an RE2 pattern
-// string. JS `i`/`m`/`s` map to RE2 inline flags; `u`/`g`/`y`/`d` are
-// irrelevant to a match test (RE2 is UTF-8 by default and `\p{…}` works
-// without `u`).
-func re2Pattern(source, flags string) string {
-	var inline strings.Builder
-	for _, flag := range flags {
-		switch flag {
-		case 'i', 'm', 's':
-			inline.WriteRune(flag)
-		}
-	}
-	if inline.Len() == 0 {
-		return source
-	}
-	return "(?" + inline.String() + ")" + source
 }

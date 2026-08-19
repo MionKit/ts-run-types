@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const TEMPLATE_LITERAL = {
@@ -99,8 +99,9 @@ export const TEMPLATE_LITERAL = {
   multi_segment_url: {
     title: 'Multiple placeholders',
     description: "templateLiteral.spec.ts 'multi-segment URL' combines multiple placeholders with literal segments.",
-    validateNotes:
+    validateNotes: [
       'Every literal segment and placeholder is matched positionally in one regex — the `${number}` spans require digit-strings while the `${string}` span accepts any characters; a single mismatched segment fails the whole match.',
+    ],
     validate: () => createValidateFn<`/api/v${number}/user/${string}/posts/${number}`>(),
     standardSchema: () => createStandardSchema<`/api/v${number}/user/${string}/posts/${number}`>(),
     validateDataOnly: () => createValidateFn<DataOnly<`/api/v${number}/user/${string}/posts/${number}`>>(),
@@ -152,8 +153,9 @@ export const TEMPLATE_LITERAL = {
     title: 'Leading string placeholder',
     description:
       "templateLiteral.spec.ts 'leading ${string} placeholder' accepts an empty-string prefix because the string span uses `[\\s\\S]*`, not `+`.",
-    validateNotes:
+    validateNotes: [
       'A leading `${string}` placeholder matches the empty string too — `"/42"` is valid (no characters before the slash).',
+    ],
     validate: () => createValidateFn<`${string}/${number}`>(),
     standardSchema: () => createStandardSchema<`${string}/${number}`>(),
     validateDataOnly: () => createValidateFn<DataOnly<`${string}/${number}`>>(),
@@ -203,8 +205,9 @@ export const TEMPLATE_LITERAL = {
     title: 'Regex metacharacters',
     description:
       "templateLiteral.spec.ts 'regex special chars in literal' requires that parens and other regex metacharacters in the literal segments be escaped in the compiled regex.",
-    validateNotes:
+    validateNotes: [
       'Regex metacharacters in literal segments are escaped, so the parens are matched literally — `(42)` passes but `42` (no parens) fails.',
+    ],
     validate: () => createValidateFn<`(${number})`>(),
     standardSchema: () => createStandardSchema<`(${number})`>(),
     validateDataOnly: () => createValidateFn<DataOnly<`(${number})`>>(),
@@ -256,8 +259,9 @@ export const TEMPLATE_LITERAL = {
     title: 'Nested in object',
     description:
       "templateLiteral.spec.ts 'nested in object' uses a template literal as a property value, and the parent object's AND chain composes the typeof+regex check against `v.url`.",
-    validateNotes:
+    validateNotes: [
       'The `url` property is checked with the same typeof+regex as a standalone template literal, so a numeric `url: 42` fails (`expected: "templateLiteral"`) even though it would pass a plain `string` property.',
+    ],
     validate: () => createValidateFn<{url: `api/user/${number}`; method: string}>(),
     standardSchema: () => createStandardSchema<{url: `api/user/${number}`; method: string}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{url: `api/user/${number}`; method: string}>>(),
@@ -316,8 +320,9 @@ export const TEMPLATE_LITERAL = {
     title: 'Index signature key',
     description:
       "templateLiteral.spec.ts 'as index signature key' uses a template literal pattern as the index signature's key type; the IndexSignature emit compiles the key pattern to a regex (same path as standalone template literals) and adds a per-key `regex.test(k)` check to the for-in loop, mirroring the getKeyPatternVar.",
-    validateNotes:
+    validateNotes: [
       'Index-signature keys constrained by a template literal pattern: every own key on the object must match the compiled regex AND its value must satisfy the value type.',
+    ],
     validate: () => createValidateFn<{[key: `api/${string}`]: number}>(),
     standardSchema: () => createStandardSchema<{[key: `api/${string}`]: number}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{[key: `api/${string}`]: number}>>(),
@@ -375,8 +380,9 @@ export const TEMPLATE_LITERAL = {
     title: 'Union placeholder',
     description:
       'A template literal with a union placeholder, where tsgo distributes the union internally so the type-checker hands the projector either a union span or a pre-distributed set of template literals; either way the compiled regex must constrain the placeholder to {a, b} and reject anything outside the union.',
-    validateNotes:
+    validateNotes: [
       'Union placeholders inside a template literal compile to a character-class / alternation in the regex — only the listed literal values pass.',
+    ],
     validate: () => createValidateFn<`${'a' | 'b'}-${number}`>(),
     standardSchema: () => createStandardSchema<`${'a' | 'b'}-${number}`>(),
     validateDataOnly: () => createValidateFn<DataOnly<`${'a' | 'b'}-${number}`>>(),

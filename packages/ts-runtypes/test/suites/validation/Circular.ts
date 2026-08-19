@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const CIRCULAR = {
@@ -15,8 +15,9 @@ export const CIRCULAR = {
     title: 'Self-referential object',
     description:
       "Full fixture (number + string + optional self-ref + Date) exercising the same self-recursive dependency call as OBJECT.circular_interface but pinning the exact 'Circular object' shape.",
-    validateNotes:
+    validateNotes: [
       'Self-referential shapes are validated recursively. Atomic rules apply at every level (NaN at `n`, Invalid Date at `d`, etc.).',
+    ],
     validate: () => {
       interface Circular {
         n: number;
@@ -216,8 +217,9 @@ export const CIRCULAR = {
     title: 'Self-referential array union',
     description:
       "Self-recursive array whose union element type includes the array itself, closing the cycle via Array to Union to Array ('Circular array + union').",
-    validateNotes:
+    validateNotes: [
       'The union check is a boolean delegation that does NOT recurse into per-arm error paths: when a nested-array element fails, getValidationErrors reports a single `expected: "union"` at the outer index, not the deep path of the inner failure.',
+    ],
     validateSchema: () => {
       const cu = RT.circular(RT.array(RT.union([RT.self(), TF.date(), TF.number(), TF.string()])));
       return createValidateFn(cu);
@@ -342,7 +344,7 @@ export const CIRCULAR = {
       return createValidateFn<DataOnly<CircularTuple>>();
     },
     validateSchema: () => {
-      const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
+      const ct = RT.circular(RT.object({tuple: RT.tuple({required: [TF.bigInt()], optional: [RT.self()]})}));
       return createValidateFn(ct);
     },
     deserializeValidate: () => {
@@ -378,7 +380,7 @@ export const CIRCULAR = {
       return createGetValidationErrorsFn<DataOnly<CircularTuple>>();
     },
     getValidationErrorsSchema: () => {
-      const ct = RT.circular(RT.object({tuple: RT.tuple([TF.bigInt()], [RT.self()])}));
+      const ct = RT.circular(RT.object({tuple: RT.tuple({required: [TF.bigInt()], optional: [RT.self()]})}));
       return createGetValidationErrorsFn(ct);
     },
     deserializeGetValidationErrors: () => {
@@ -721,8 +723,9 @@ export const CIRCULAR = {
     title: 'Circular child under flat root',
     description:
       "RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep, pinning the case where the dependency-call layer kicks in below the root rather than at it ('Interface with nested circular type where root is not the circular ref').",
-    validateNotes:
+    validateNotes: [
       'The root is a flat (non-recursive) shape; recursion lives only in the `ciChild` subtree, so the dependency-call layer is exercised below the root rather than at it.',
+    ],
     validate: () => {
       interface ICircularDeep {
         name: string;

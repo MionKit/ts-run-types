@@ -1,12 +1,12 @@
 // The ts-runtypes source overlay the WASM resolver type-checks user snippets
-// against — an INJECTED input, not a self-resolving `import.meta.glob`.
+// against: an INJECTED input, not a self-resolving `import.meta.glob`.
 //
 // The overlay is a `{ virtualPath -> content }` map that stages the REAL
 // ts-runtypes package sources onto the resolver's virtual disk as a
 // `node_modules/ts-runtypes/` tree, so a snippet resolves against the ACTUAL
-// public API (the markers, every `createX` overload, the value-first schema
+// public API (the markers, every `createX` overload, the builder
 // machinery) instead of a hand-maintained approximation. Feeding the real types
-// is what makes a value-first schema snippet resolve to the SAME structural id
+// is what makes a builder snippet resolve to the SAME structural id
 // as its type-first equivalent (e.g. `optional(boolean())` projects an OPTIONAL
 // property, not a required `boolean | undefined`).
 //
@@ -31,7 +31,7 @@ export function setRuntypesPackageSources(next: PackageSourcesOverlay): void {
 }
 
 // runtypesPackageSources returns the installed overlay. Throws if the host never
-// injected it — a loud failure beats silently type-checking against nothing (an
+// injected it: a loud failure beats silently type-checking against nothing (an
 // empty overlay makes every snippet fail with unresolved `ts-runtypes` imports).
 export function runtypesPackageSources(): PackageSourcesOverlay {
   if (!overlay) {

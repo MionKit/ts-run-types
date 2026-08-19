@@ -23,6 +23,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // familyAddedFlag wires one family's per-scan added-flag: the pre-flight
@@ -30,7 +31,7 @@ import (
 // their flags come from the extractor / cache delta directly.
 type familyAddedFlag struct {
 	key          string
-	anySupported func(runTypes []*protocol.RunType) bool
+	anySupported func(runTypes []*reflection.RunType) bool
 	setAdded     func(response *protocol.Response, added bool)
 }
 
@@ -235,7 +236,6 @@ func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.Re
 	results := make([]familyResult, len(families))
 	familyDiagnostics := make([][]diagnostics.Diagnostic, len(families))
 	familyPureFnDeps := make([][]typefunctions.PureFnDepUse, len(families))
-	familyUncheckedPatterns := make([][]typefunctions.UncheckedPatternUse, len(families))
 	factShards := make([]*typefunctions.FactsTable, len(families))
 	var waitGroup sync.WaitGroup
 	for familyIndex, spec := range families {
@@ -258,10 +258,6 @@ func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.Re
 			if rtOpts.PureFnDepSink != nil {
 				shardOpts.PureFnDepSink = &familyPureFnDeps[familyIndex]
 			}
-			// Shard the unchecked-pattern sink the same way (lint lane only).
-			if rtOpts.UncheckedPatternSink != nil {
-				shardOpts.UncheckedPatternSink = &familyUncheckedPatterns[familyIndex]
-			}
 			shardOpts.Facts = factShards[familyIndex]
 			collectStart := time.Now()
 			graphs[familyIndex] = spec.Collect(dump, shardOpts, nil)
@@ -282,9 +278,6 @@ func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.Re
 		if rtOpts.PureFnDepSink != nil && len(familyPureFnDeps[familyIndex]) > 0 {
 			*rtOpts.PureFnDepSink = append(*rtOpts.PureFnDepSink, familyPureFnDeps[familyIndex]...)
 		}
-		if rtOpts.UncheckedPatternSink != nil && len(familyUncheckedPatterns[familyIndex]) > 0 {
-			*rtOpts.UncheckedPatternSink = append(*rtOpts.UncheckedPatternSink, familyUncheckedPatterns[familyIndex]...)
-		}
 		rtOpts.Facts.Merge(factShards[familyIndex])
 	}
 	return graphs, nil
@@ -295,26 +288,6 @@ func (sess *Session) collectFamilies(dump protocol.Dump, rtOpts typefunctions.Re
 // covering collects too even though they never touch a checker.
 func (sess *Session) parallelRenderEnabled() bool {
 	return !sess.opts.DisableParallelRender && !sess.opts.SingleThreaded
-}
-
-// expandUncheckedPatterns fans each RE2-unchecked pattern out into one
-// protocol.UncheckedPattern per marker call site, so the JS linter reports
-// any mismatch at every definition site referencing the type. A pattern
-// with no provenance sites contributes nothing — a file-less lint
-// diagnostic would be useless (mirrors EmitDiagnostic's no-site skip).
-func expandUncheckedPatterns(uses []typefunctions.UncheckedPatternUse) []protocol.UncheckedPattern {
-	var out []protocol.UncheckedPattern
-	for _, use := range uses {
-		for _, site := range use.Sites {
-			out = append(out, protocol.UncheckedPattern{
-				Source:  use.Source,
-				Flags:   use.Flags,
-				Samples: use.Samples,
-				Site:    site,
-			})
-		}
-	}
-	return out
 }
 
 // familyByPlainHash maps each type-walking family's PLAIN fnHash to its spec —
@@ -814,24 +787,11 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		// collection finishes. Only wired when entries actually render, so a
 		// plain rewrite scan collects nothing and the validation short-circuits.
 		var rtPureFnDeps []typefunctions.PureFnDepUse
-		// rtUncheckedPatterns accumulates the RE2-unchecked patterns the
-		// walkers reach on the LINT lane (IncludeRtDiagnostics): its sink
-		// presence flips the walker into record mode (suppressing the
-		// fail-closed FMT004) and its contents ship on response.UncheckedPatterns
-		// for the JS linter to validate. The build lane renders through
-		// OpGenerate instead, where the sink stays nil and FMT004 fails closed.
-		var rtUncheckedPatterns []typefunctions.UncheckedPatternUse
 		var rtOpts typefunctions.RenderOpts
 		if renderEntries {
 			rtOptsStart := time.Now()
 			rtOpts = sess.rtRenderOpts(&rtDiagnostics, sess.buildProvenanceSites())
 			rtOpts.PureFnDepSink = &rtPureFnDeps
-			// Lint lane only: the sink's presence flips the walker into
-			// record-mode (patterns shipped for the JS linter, FMT004 suppressed).
-			// AllowUncheckedPatterns is already set by rtRenderOpts.
-			if request.IncludeRtDiagnostics {
-				rtOpts.UncheckedPatternSink = &rtUncheckedPatterns
-			}
 			if metrics != nil {
 				metrics.PrepMs += elapsedMs(rtOptsStart)
 			}
@@ -867,10 +827,6 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		// is absent from the program is an Error the lint surface / build must
 		// see. No-op when nothing rendered (deps empty).
 		response.Diagnostics = append(response.Diagnostics, sess.validateProgramPureFnDeps(rtPureFnDeps)...)
-		// Fan out the lint lane's RE2-unchecked patterns — one wire entry per
-		// (pattern, call site) — so the JS linter validates each at its own
-		// definition site. Empty on the build lane (sink stayed nil).
-		response.UncheckedPatterns = expandUncheckedPatterns(rtUncheckedPatterns)
 		return response
 	case protocol.OpDump:
 		// Ensure every source file in the Program has been scanned for
@@ -920,13 +876,14 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		return response
 	case protocol.OpGenerate:
 		// Filesystem-output sibling of OpDump: the same full-program entry
-		// collection, but the modules are WRITTEN under <OutDir>/types/ (real
+		// collection, but the modules are WRITTEN under <outDir>/types/ (real
 		// files the bundler resolves natively) instead of returned on the wire.
-		// An empty OutDir infers <srcDir>/__runtypes from the tsconfig and echoes
-		// the resolved path back so the plugin can adopt it.
-		outDir := sess.resolveOutDir(request.OutDir)
+		// The root is session config (--gen-dir > tsconfig genDir > inferred
+		// <srcDir>/__runtypes); the resolved path is echoed back so the
+		// dependency-free plugin can adopt an inference it cannot compute.
+		outDir := sess.resolveOutDir()
 		if outDir == "" {
-			return protocol.Response{Error: "generate: could not resolve an output dir (no OutDir, no tsconfig srcDir)"}
+			return protocol.Response{Error: "generate: could not resolve an output dir (no --gen-dir, no tsconfig genDir, no inferable srcDir)"}
 		}
 		if sess.Program != nil {
 			sess.scanAllProgramFiles()
@@ -985,12 +942,6 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 	case protocol.OpReset:
 		sess.Reset()
 		return protocol.Response{OK: true}
-	case protocol.OpResolveID:
-		runType := sess.ResolveID(request.ID)
-		if runType == nil {
-			return protocol.Response{}
-		}
-		return protocol.Response{RunTypes: []*protocol.RunType{runType}}
 	case protocol.OpEnrich:
 		return sess.dispatchEnrich(request)
 	case protocol.OpTsCompile:
@@ -1035,6 +986,12 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 		// all requested files, so partition them by File. Source text is read
 		// from the Program (the authoritative bytes Site.Pos byte-offsets index).
 		transformed := make(map[string]protocol.TransformResult, len(request.Files))
+		// Files-mode relativization is a session posture (Options.TransformRelative),
+		// so the output root resolves ONCE for the whole request instead of per file.
+		transformOutDir := ""
+		if sess.opts.TransformRelative {
+			transformOutDir = sess.resolveOutDir()
+		}
 		for _, file := range request.Files {
 			sourceFile, sourceErr := sess.sourceFile(file)
 			if sourceErr != nil {
@@ -1061,11 +1018,11 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 				// SourceHash lets the FE detect an upstream pre-plugin that
 				// edited the source out from under the resolver's byte offsets.
 				importBlock, edits := sourcerewrite.ComputeEdits(source, fileSites, fileReplacements)
-				if importBlock != "" && request.OutDir != "" {
+				if importBlock != "" && transformOutDir != "" {
 					// Files-mode: relativize the injected block's rtmod:
 					// specifiers exactly as 'go' mode does to the whole file —
 					// the block is the only place those specifiers appear.
-					importBlock = relativizeUserImports(sess.absPath(file), sess.absPath(request.OutDir), importBlock)
+					importBlock = relativizeUserImports(sess.absPath(file), transformOutDir, importBlock)
 				}
 				transformed[file] = protocol.TransformResult{
 					ImportBlock: importBlock,
@@ -1075,16 +1032,15 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 				continue
 			}
 			code, sourceMap := sourcerewrite.Apply(file, source, fileSites, fileReplacements)
-			if request.OutDir != "" {
+			if transformOutDir != "" {
 				// Files-mode: rewrite the injected import block's rtmod:
 				// specifiers to paths relative to this file (the generated
-				// modules live on disk under OutDir/types). Both bases are
-				// absolutized against the resolver cwd so filepath.Rel always
-				// relates them. The block is one physical line, so this leaves
-				// the source map valid.
-				code = relativizeUserImports(sess.absPath(file), sess.absPath(request.OutDir), code)
+				// modules live on disk under <outDir>/types). Both bases are
+				// absolute so filepath.Rel always relates them. The block is one
+				// physical line, so this leaves the source map valid.
+				code = relativizeUserImports(sess.absPath(file), transformOutDir, code)
 			}
-			if request.OmitSourcesContent && sourceMap != nil {
+			if sess.opts.OmitSourcesContent && sourceMap != nil {
 				// Drop the embedded original source — the bundler fills it from
 				// its own copy when composing the chained map. One nil slot per
 				// source keeps the array length aligned with Sources.
@@ -1115,16 +1071,6 @@ func (sess *Session) dispatch(request protocol.Request, metrics *protocol.Metric
 	}
 }
 
-// ResolveID returns the canonical full Type for id, or nil if no such id
-// has been interned. Child slots inside the returned Type remain KindRef
-// sentinels — callers re-issue ResolveID per id to drill in.
-func (sess *Session) ResolveID(id string) *protocol.RunType {
-	if id == "" {
-		return nil
-	}
-	return sess.cache.NodeByID(id)
-}
-
 // dispatchSetSources builds an inferred Program from the supplied overlay
 // and swaps it into the resolver. Relative file names are resolved against
 // the working directory the resolver's previous Program had (or, on first
@@ -1151,13 +1097,8 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 	// flag stays unset, so the next setSources re-parses and a fixed config heals
 	// without a respawn. (nil, nil) means no config was named: the fixed inferred
 	// defaults apply.
-	if !sess.inferredConfigDone {
-		inferredConfig, err := program.ParseInferredConfig(cwd, sess.opts.TsconfigPath)
-		if err != nil {
-			return fmt.Errorf("setSources: %s %v", diagnostics.CodeTsconfigLoadFailed, err)
-		}
-		sess.inferredConfig = inferredConfig
-		sess.inferredConfigDone = true
+	if _, err := sess.ensureInferredConfig(cwd); err != nil {
+		return fmt.Errorf("setSources: %s %v", diagnostics.CodeTsconfigLoadFailed, err)
 	}
 
 	overlay := make(map[string]string, len(sources))
@@ -1165,8 +1106,23 @@ func (sess *Session) dispatchSetSources(sources map[string]string) error {
 	for relativePath, content := range sources {
 		absolutePath := tspath.ResolvePath(cwd, relativePath)
 		overlay[absolutePath] = content
-		fileNames = append(fileNames, absolutePath)
+		// A source under node_modules/ is a virtual PACKAGE file (an in-memory
+		// dependency the overlay serves to module resolution) — never a program
+		// root. tsc does not root node_modules either, and rooting a package's
+		// whole declaration tree changes the checker's instantiation order
+		// against the build lane (observed: the DataOnly<T> alias-recovery
+		// path stops matching when the marker package's dist rides the roots).
+		if !strings.Contains(relativePath, "node_modules/") {
+			fileNames = append(fileNames, absolutePath)
+		}
 	}
+	// Root the config's declaration files alongside the request's sources: a
+	// `.d.ts` in the include set is exactly what tsc sees without an import and
+	// a source-rooted program loses (globals silently check as `any`). Only the
+	// `.d.ts` subset — full-project rooting would widen the whole-program ops
+	// (OpDump / OpGenerate / OpEnrich walk non-declaration program files) and
+	// pay a per-request parse of every project file on the lint lane.
+	fileNames = program.UnionRoots(fileNames, sess.configDeclarationRoots)
 	prog, err := program.NewInferred(program.Options{
 		Cwd:            cwd,
 		SingleThreaded: sess.opts.SingleThreaded,

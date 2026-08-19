@@ -4,7 +4,8 @@ import (
 	"strconv"
 
 	"github.com/mionkit/ts-runtypes/internal/constants"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/jsengine"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // ArgSpec describes one parameter of the emitted rt function. Mirrors
@@ -39,7 +40,7 @@ type Emitter interface {
 	// of letting Emit panic. Recursive calls from inside Emit are
 	// NOT gated by Supports — child kinds the dispatch doesn't
 	// handle should panic loudly so the bug surfaces at compile time.
-	Supports(rt *protocol.RunType) bool
+	Supports(rt *reflection.RunType) bool
 
 	// IsRTInlined reports whether the walker should inline rt's
 	// emitted code at the call site (true) or emit a dependency call
@@ -64,7 +65,7 @@ type Emitter interface {
 	// (recursion into children, context-item registration).
 	// expectedCType is the parent frame's required CodeType — most
 	// emitters can ignore it; reconciliation happens in the Walker.
-	Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode
+	Emit(rt *reflection.RunType, ctx *EmitContext, expectedCType CodeType) RTCode
 
 	// EmitDependencyCall returns the JS expression that invokes a
 	// pre-rendered child RT entry. Used by the Walker when the
@@ -78,7 +79,7 @@ type Emitter interface {
 	// Self-recursive calls (childID == own hash) emit `<hash>(args)`;
 	// cross-function calls emit `<hash>.fn(args)` — same split as
 	// the `isSelf` branch.
-	EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string
+	EmitDependencyCall(rt *reflection.RunType, childID string, ctx *EmitContext) string
 
 	// Finalize normalises the raw concatenated body produced by the
 	// walk, detects noop bodies (empty / tautology / "just return
@@ -117,8 +118,21 @@ type EmitContext struct {
 // to compose child code into their own snippet. v1's atomic-only
 // scope never reaches this path; the method is here so the first
 // collection emitter that lands can call into it without restructuring.
-func (ctx *EmitContext) CompileChild(rt *protocol.RunType, expectedCType CodeType) RTCode {
+func (ctx *EmitContext) CompileChild(rt *reflection.RunType, expectedCType CodeType) RTCode {
 	return ctx.walker.compileNode(rt, expectedCType)
+}
+
+// AsExpression converts a statement / return-block RTCode into a call
+// expression by hoisting the body into a factory-local context function
+// (tier 3 of the dispatch ladder — see wrapAsCtxFn). Pass-through for
+// CodeE and empty bodies. Used by emitters that must AND-chain onto a
+// base whose kind emits a statement body, e.g. negations over array /
+// tuple / object bases.
+func (ctx *EmitContext) AsExpression(code RTCode) RTCode {
+	if code.Type == CodeE || code.Code == "" {
+		return code
+	}
+	return ctx.walker.wrapAsCtxFn(code)
 }
 
 // IsRoot reports whether the current Emit call is at the RT
@@ -143,7 +157,7 @@ func (ctx *EmitContext) ParentIsUnion() bool {
 		return false
 	}
 	parent := ctx.walker.Stack[len(ctx.walker.Stack)-2].RT
-	return parent != nil && parent.Kind == protocol.KindUnion
+	return parent != nil && parent.Kind == reflection.KindUnion
 }
 
 // HasVariantOption reports whether the current walker is rendering
@@ -173,7 +187,7 @@ func (ctx *EmitContext) NumberMode() string {
 // need to peek at the resolved kind (e.g. PropertySignature checking
 // whether its wrapped child is a function — which would skip the
 // property from the parent's AND chain).
-func (ctx *EmitContext) ResolveRef(rt *protocol.RunType) *protocol.RunType {
+func (ctx *EmitContext) ResolveRef(rt *reflection.RunType) *reflection.RunType {
 	return ctx.walker.resolveRef(rt)
 }
 
@@ -292,7 +306,7 @@ func (ctx *EmitContext) registerRTLookup(childID string) {
 	// gate, so same-family lookups (also funnelled through here by
 	// emitDepCall) stay in RTDependencies and only genuine cross-family
 	// references are captured. Additive: nothing consumes CrossFamilyDeps
-	// in emission today. See docs/CROSS-FAMILY-RT-DEPS.md.
+	// in emission today.
 	if ctx.walker != nil {
 		ctx.walker.recordCrossFamilyDep(childID)
 	}
@@ -443,9 +457,9 @@ type DiagCodeProvider interface {
 // per-family code (PJ001 for Never under prepareForJson, etc.).
 // Returning "" preserves the silent-skip path (no factory emitted) —
 // used as a safety net for unknown future kinds without a registered
-// code. See docs/UNSUPPORTED-KINDS.md for the unified throw model.
+// code (the unified throw model).
 type LeafDiagCodeProvider interface {
-	DiagCodeForLeaf(leaf *protocol.RunType) string
+	DiagCodeForLeaf(leaf *reflection.RunType) string
 }
 
 // DiagCodeFor returns the per-family diag code the current emitter
@@ -460,7 +474,7 @@ func (ctx *EmitContext) DiagCodeFor(slot DiagSlot) string {
 // DiagCodeForLeaf returns the per-family code the current emitter
 // associates with the given unsupported leaf kind, or "" when the
 // emitter doesn't register one.
-func (ctx *EmitContext) DiagCodeForLeaf(leaf *protocol.RunType) string {
+func (ctx *EmitContext) DiagCodeForLeaf(leaf *reflection.RunType) string {
 	if provider, ok := ctx.walker.Emitter.(LeafDiagCodeProvider); ok {
 		return provider.DiagCodeForLeaf(leaf)
 	}
@@ -515,20 +529,30 @@ func (ctx *EmitContext) EmitDiagnostic(code string, args ...string) {
 	ctx.walker.EmitDiagnostic(code, args...)
 }
 
-// AllowUncheckedPatterns reports the project's allowUncheckedPatterns
-// setting (build lane only) — see formats.EmitContext.
-func (ctx *EmitContext) AllowUncheckedPatterns() bool {
-	return ctx.walker != nil && ctx.walker.AllowUncheckedPatterns
+// JSEngine returns the JS engine format-pattern checks run on — see
+// formats.EmitContext. Nil when no engine is configured (the format
+// emitters then fail pattern checks closed with FMT004).
+func (ctx *EmitContext) JSEngine() jsengine.Engine {
+	if ctx.walker == nil {
+		return nil
+	}
+	return ctx.walker.JSEngine
 }
 
-// RecordUncheckedPattern records an RE2-incompatible pattern for the
-// lint lane's sink, returning whether it was recorded (lint lane) — see
-// formats.EmitContext.
-func (ctx *EmitContext) RecordUncheckedPattern(source, flags string, samples []string) bool {
+// PatternSampleCount / PatternGenFailure mirror the resolver's pattern
+// mockSample auto-generation state — see formats.EmitContext.
+func (ctx *EmitContext) PatternSampleCount() int {
 	if ctx.walker == nil {
-		return false
+		return 0
 	}
-	return ctx.walker.RecordUncheckedPattern(source, flags, samples)
+	return ctx.walker.PatternSampleCount
+}
+
+func (ctx *EmitContext) PatternGenFailure(source, flags string) string {
+	if ctx.walker == nil || ctx.walker.PatternGenFailures == nil {
+		return ""
+	}
+	return ctx.walker.PatternGenFailures[source+"\x00"+flags]
 }
 
 // ArgName looks up the JS identifier the inner function uses for a

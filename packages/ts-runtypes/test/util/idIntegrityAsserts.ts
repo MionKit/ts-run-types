@@ -149,34 +149,42 @@ export function assertSerializerIdIntegrity(c: SerializationCase): void {
   // value-first builder can't reconstruct the nominal type, so wire output may
   // differ. Skip, same as the validator suite skips idDivergent.
   if (c.idDivergent) return;
+  runSerializerIdIntegrity(c, c.schemaEncoder, c.schemaBinaryEncoder, 'value-first schema');
+}
 
-  const schemaEncoder = resolveThunk(c.schemaEncoder);
-  if (schemaEncoder && !c.factoryThrows) {
-    const schemaEncode = schemaEncoder();
+/** Shared byte-identity core for the two authoring-form serializer drivers:
+ *  compares one alternate-form json encoder against `cloneEncoder` (`.toBe` on
+ *  the JSON string) and one alternate-form binary encoder against
+ *  `binaryEncoder` (`.toEqual` on the buffer), on the case's own samples. **/
+function runSerializerIdIntegrity(
+  c: SerializationCase,
+  altJsonEncoder: SerializationCase['schemaEncoder'] | undefined,
+  altBinaryEncoder: SerializationCase['schemaBinaryEncoder'] | undefined,
+  formLabel: string
+): void {
+  const altEncoder = resolveThunk(altJsonEncoder);
+  if (altEncoder && !c.factoryThrows) {
+    const altEncode = altEncoder();
     const typeEncode = c.cloneEncoder();
     const {values} = (c.getTestDataForStringify ?? c.getTestData)();
     values.forEach((reference, i) => {
-      const fromSchema = schemaEncode(deepCloneForRoundTrip(reference));
+      const fromAlt = altEncode(deepCloneForRoundTrip(reference));
       const fromType = typeEncode(deepCloneForRoundTrip(reference));
-      expect(fromSchema, `${c.title}: json — value-first schema encoder output must equal type-first [values[${i}]]`).toBe(
-        fromType
-      );
+      expect(fromAlt, `${c.title}: json — ${formLabel} encoder output must equal type-first [values[${i}]]`).toBe(fromType);
     });
   }
 
-  const schemaBinaryEncoder = resolveThunk(c.schemaBinaryEncoder);
+  const altBinary = resolveThunk(altBinaryEncoder);
   const typeBinaryEncoder = resolveThunk(c.binaryEncoder);
   const binaryFactoryThrows = c.binaryFactoryThrows ?? c.factoryThrows ?? false;
-  if (schemaBinaryEncoder && typeBinaryEncoder && !binaryFactoryThrows) {
-    const schemaEncode = schemaBinaryEncoder();
+  if (altBinary && typeBinaryEncoder && !binaryFactoryThrows) {
+    const altEncode = altBinary();
     const typeEncode = typeBinaryEncoder();
     const {values} = (c.getBinaryTestData ?? c.getTestDataForStringify ?? c.getTestData)();
     values.forEach((reference, i) => {
-      const fromSchema = schemaEncode(deepCloneForRoundTrip(reference));
+      const fromAlt = altEncode(deepCloneForRoundTrip(reference));
       const fromType = typeEncode(deepCloneForRoundTrip(reference));
-      expect(fromSchema, `${c.title}: binary — value-first schema encoder bytes must equal type-first [values[${i}]]`).toEqual(
-        fromType
-      );
+      expect(fromAlt, `${c.title}: binary — ${formLabel} encoder bytes must equal type-first [values[${i}]]`).toEqual(fromType);
     });
   }
 }

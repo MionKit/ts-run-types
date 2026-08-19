@@ -1,21 +1,12 @@
-// Package protocol defines the wire types exchanged between the ts-runtypes
-// resolver and its callers. The shape is the canonical runtypes reflection
-// `RunType` discriminated union so the user's runtypes RT — which already
-// understands this runtime shape — can consume our cache directly.
+// Package protocol defines the wire envelope exchanged between the
+// ts-runtypes resolver and its callers: the op constants, the
+// Request/Response pair, scan Sites and their demand, transform results, and
+// the build-end Dump manifest.
 //
-// Because JSON cannot carry cycles or live references, child RunType slots in
-// the JSON wire format are ref sentinels: `{kind: -1, id: "<hash>"}`. Two
-// consumption paths exist:
-//
-//  1. The generated `.ts` runtime artifact resolves cycles via direct const
-//     assignment — consumers `import { __runtypes }` and call `Map.get(hash)` to
-//     obtain a fully-knotted reflection RunType object.
-//  2. JSON-only consumers walk `Dump.RunTypes` themselves to re-knot.
-//
-// IDs are short alphanumeric hash strings (default 7 chars, configurable). The
-// hash is derived from the type's structural id (mirroring the
-// `_createTypeId` algorithm) — two structurally-equal types share the same
-// hash regardless of declaration order or alias name.
+// The payload these envelopes carry is the canonical reflection model — see
+// internal/reflection (RunType and friends). Child RunType slots in the JSON
+// wire format are ref sentinels (`{kind: -1, id: "<hash>"}`); see
+// reflection.KindRef / reflection.NewRef.
 package protocol
 
 import (
@@ -23,316 +14,10 @@ import (
 	"io"
 
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 func jsonMarshal(v any) ([]byte, error) { return json.Marshal(v) }
-
-// ReflectionKind enumerates the discriminator values for every reflection
-// `RunType` variant. New values must be appended in declaration order so the
-// integer values stay stable across releases.
-type ReflectionKind int
-
-const (
-	KindNever ReflectionKind = iota
-	KindAny
-	KindUnknown
-	KindVoid
-	KindObject
-	KindString
-	KindNumber
-	KindBoolean
-	KindSymbol
-	KindBigInt
-	KindNull
-	KindUndefined
-	KindRegexp
-	KindLiteral
-	KindTemplateLiteral
-	KindProperty
-	KindMethod
-	KindFunction
-	KindParameter
-	KindPromise
-	KindClass
-	KindTypeParameter
-	KindEnum
-	KindUnion
-	KindIntersection
-	KindArray
-	KindTuple
-	KindTupleMember
-	KindEnumMember
-	KindRest
-	KindObjectLiteral
-	KindIndexSignature
-	KindPropertySignature
-	KindMethodSignature
-	KindInfer
-	KindCallSignature
-)
-
-// KindRef is our sentinel for "this slot points at type id <hash>, look it up
-// in the table". Not a reflection kind — the value -1 is reserved for refs.
-const KindRef ReflectionKind = -1
-
-// RunType is a JSON-friendly union of every reflection RunType variant. Optional
-// fields are gated by `omitempty`. A given RunType uses only the fields relevant
-// to its Kind; the rest stay zero/nil.
-//
-// Child RunType slots (e.g. TypePropertySignature.child) are *RunType so we can
-// emit sentinels (`{kind: -1, id: "<hash>"}`) without inlining the referenced
-// node.
-type RunType struct {
-	// TypeAnnotations.
-	// ID is always emitted (even empty) because the renderer needs an
-	// unambiguous handle for every type.
-	ID   string         `json:"id"`
-	Kind ReflectionKind `json:"kind"`
-	// SubKind disambiguates kinds that map to more than one runtime shape —
-	// `Date` / `Map` / `Set` / non-serialisable classes share KindClass but
-	// each carry their own SubKind, and Map/Set parameter slots carry the
-	// mapKey/mapValue/setItem subkinds. See internal/protocol/subkind.go.
-	// Zero (SubKindNone) is "not applicable"; only set on nodes that need it.
-	SubKind ReflectionSubKind `json:"subKind,omitempty"`
-	// Family classifies the runtype into Atomic/Collection/Member/Function
-	// per the RunTypeFamily (ref: packages/run-types/src/types.ts:41). Derived from
-	// Kind via FamilyOf in family.go; populated by PopulateFamily at
-	// cache-exit time (Cache.Dump / Cache.Added / Cache.NodesForIDs).
-	// Refs (Kind=KindRef) and reserved kinds get FamilyUnknown (the empty
-	// string), which omitempty strips. The RT compiler uses this to
-	// decide whether to inline a node or emit a dependency call.
-	Family        Family     `json:"family,omitempty"`
-	TypeName      string     `json:"typeName,omitempty"`
-	TypeArguments []*RunType `json:"typeArguments,omitempty"`
-	// IsCircular flags a RunType that appears inside its own subtree
-	// (e.g. `type CA = CA[]`). Mirrors the `isCircular` flag on
-	// BaseRunType (ref: packages/run-types/src/lib/baseRunTypes.ts) — the RT compiler
-	// uses it to force a self-recursive dependency call instead of
-	// inlining the body. Auto-set by the serializer's projection pass
-	// (runtype/serialize.go assignID: a back-edge to an in-progress id
-	// marks the node circular) and rendered into the cache at the
-	// `isCircular` slot so consumers can read it directly. Note:
-	// composite kinds (Array/Object/Class/Tuple/Union) are still
-	// non-inlined unconditionally in typefns/inlining.go — flipping them
-	// to "inline unless circular or named" additionally needs TypeName
-	// population on anonymous declarations (deferred).
-	IsCircular bool `json:"isCircular,omitempty"`
-
-	// NotSupported flags a "non-data" node — the kinds the type-function
-	// emitters ignore (function / method / methodSignature / callSignature /
-	// symbol / never / non-serialisable class). These nodes are KEPT in the
-	// reflected tree so reflection stays complete, but the validators and
-	// serializers drop them at property positions and throw at propagating
-	// ones (unchanged — see docs/UNSUPPORTED-KINDS.md). Set on the node
-	// itself only (never its children) by PopulateFamily at cache-exit,
-	// using the same Kind classification the emitters apply. Reflection
-	// consumers read it to know which members the type functions skip.
-	NotSupported bool `json:"notSupported,omitempty"`
-
-	// TypeLiteral
-	Literal any `json:"literal,omitempty"`
-
-	// TypeProperty / TypePropertySignature / TypeMethod / TypeMethodSignature
-	// / TypeParameter / TypeEnumMember — name is `string | number | symbol` in
-	// the reflection model; we only emit string. Symbol-named props get a
-	// synthetic "@@<name>" string and Flags=["symbol"].
-	Name string `json:"name,omitempty"`
-
-	// TypeProperty / TypePropertySignature / TypeParameter etc.
-	Optional bool `json:"optional,omitempty"`
-	Readonly bool `json:"readonly,omitempty"`
-
-	// NonEnumerable marks a declared property whose by-name write must be
-	// gated by a runtime own-enumerability check
-	// (`Object.prototype.propertyIsEnumerable.call(v, 'k')`, i.e.
-	// `JSON.stringify` semantics) in the serializer families that build output
-	// by name (prepareForJsonSafe / stringifyJson / the JSON composites / tb).
-	// Set for two id-relevant cases (typeid.IsNonEnumerable, shared by the
-	// projection and the structural id so they can't drift): (1) a property
-	// inherited from a default-lib GLOBAL interface/class (Error's
-	// name/message/stack, …) whose runtime descriptor is non-enumerable, and
-	// (2) a user property tagged `@nonEnumerable` in JSDoc — the type-aware
-	// bridge for a descriptor TS can't express (it models only readonly/`?`).
-	// A guarded property is also marked Optional (the wire shape is
-	// enumerability-driven, so validators and the presence path must treat it
-	// as possibly-absent); NonEnumerable additionally tells the emitters to
-	// gate the write on enumerability rather than `!== undefined`.
-	NonEnumerable bool `json:"nonEnumerable,omitempty"`
-
-	// TypeProperty / TypeMethod. Both flags use `is`-prefixed names so the
-	// emitted JS mirror lands on plain identifiers (not reserved words),
-	// which lets the cache-module factory bind them without aliasing.
-	Visibility *int `json:"visibility,omitempty"`
-	IsAbstract bool `json:"isAbstract,omitempty"`
-	IsStatic   bool `json:"isStatic,omitempty"`
-
-	// IsSafeName — true when Name is a valid JS identifier and the
-	// consumer can emit `obj.<name>` dot access; false (omitted) means
-	// bracket notation is required. Mirrors the isSafeName helper
-	// at runtype level so downstream codegen need not re-run the regex.
-	// Populated only on TypeProperty / TypePropertySignature / TypeMethod /
-	// TypeMethodSignature.
-	IsSafeName bool `json:"isSafeName,omitempty"`
-
-	// Position — 0-based slot index in the parent (function parameter list
-	// or tuple). Pointer so position 0 ships explicitly (`position: 0` is
-	// not stripped by omitempty). Nil for kinds that aren't positional.
-	// Populated only on TypeParameter and TypeTupleMember.
-	Position *int `json:"position,omitempty"`
-
-	// DefaultVal — literal-only; non-literal defaults are omitted with a
-	// Flags marker. Function/expression defaults are recorded in Flags as
-	// "nonLiteralDefault". Named with the `Val` suffix so the JS mirror
-	// (`defaultVal`) avoids the `default` reserved word.
-	DefaultVal any `json:"defaultVal,omitempty"`
-
-	// TypeFunction / TypeMethod / TypeMethodSignature / TypeCallSignature
-	Parameters []*RunType `json:"parameters,omitempty"`
-	Return     *RunType   `json:"return,omitempty"`
-
-	// TypeArray / TypePromise / TypeRest / TypeIndexSignature.child
-	// / TypeTupleMember.child / TypePropertySignature.child / TypeProperty.child
-	// / TypeParameter.child
-	Child *RunType `json:"child,omitempty"`
-
-	// TypeIndexSignature
-	Index *RunType `json:"index,omitempty"`
-
-	// TypeUnion / TypeIntersection / TypeTuple / TypeObjectLiteral / TypeClass
-	// — all use `children: []` of whichever child variants are legal.
-	Children []*RunType `json:"children,omitempty"`
-
-	// TypeUnion only — safe order computed at serialize time. Each entry
-	// is a ref pointing at the same canonical child as Children, but
-	// reordered so more-specific (superset) members precede their subset
-	// equivalents. Prevents unreachable union members at validate time.
-	// Empty for unions that don't need reordering (≤1 object member).
-	SafeUnionChildren []*RunType `json:"safeUnionChildren,omitempty"`
-
-	// TypeUnion only — set by the serialize-time discriminator detection
-	// pass. Parallel to SafeUnionChildren: entry i is a ref to the
-	// discriminator property within SafeUnionChildren[i]. Consumer reads
-	// entry.Name for the property key and entry.Child for the expected
-	// type. Slots for non-object members (simple / any) are nil. When
-	// detection finds no usable discriminator, the field is empty.
-	//
-	// Lives on the union itself so the relationship is correctly scoped —
-	// the same canonical property node may be a discriminator in one
-	// parent union but not in another.
-	//
-	// Wire-format equivalent of the FlattenedProp[] output
-	// (ref: packages/run-types/src/nodes/collection/unionDiscriminator.ts).
-	// We carry only the strictly-new field (a ref to the property);
-	// the other FlattenedProp fields are reconstructible from the
-	// surrounding context. JS-side consumers use
-	// `flattenUnionDiscriminators` from ts-runtypes to
-	// materialise the full per-member struct.
-	UnionDiscriminators []*RunType `json:"unionDiscriminators,omitempty"`
-
-	// TypeMeta — opaque type-level metadata: the object-literal members
-	// that survive a collapsed intersection of a primitive with one or
-	// more metadata objects (e.g. `string & {__brand: "Email"}` or
-	// `number & {currency: "USD"}`). Any `atomic & { obj }` qualifies —
-	// no brand marker is required. Each entry is a ref to an objectLiteral
-	// RunType, passed through untouched for consumers to read. This is the
-	// generic form of deepkit's "type decorators" (TypeAnnotations.decorators),
-	// renamed from `decorators` to avoid confusion with JS `@decorator`s and
-	// to subsume the former number `brand` field. Order is the declaration
-	// order of the members in the original intersection. FormatAnnotation
-	// (below) is the validating specialisation, lifted out of TypeMeta.
-	TypeMeta []*RunType `json:"typeMeta,omitempty"`
-
-	// FormatAnnotation — populated when a primitive is branded with a
-	// TypeFormat<Base, Name, Params, ...> marker from
-	// `ts-runtypes/formats`. Mirrors the FormatAnnotation
-	// (ref: packages/run-types/src/lib/formats.ts) — the name + params pair
-	// that drives format-aware emit for validate / validationErrors. The
-	// structural id folds Name + canonicalised Params into the hash so
-	// two distinct param sets produce two distinct cache entries;
-	// equivalent param sets (regardless of key order) collapse to one.
-	// Lifted into a dedicated field rather than living in TypeMeta
-	// so the emit hook is a single pointer check, not a per-emit
-	// decorator-array scan.
-	FormatAnnotation *FormatAnnotation `json:"formatAnnotation,omitempty"`
-
-	// Overrides — populated when a user registers a custom function for this
-	// type via `overrideX<T>(pureFn)`. Maps a public family op key ("val",
-	// "verr", "jsonEncoder", …) to the cfn body hash of the override pure fn
-	// (`cfn::<hash>`). The structural id folds each (family, hash) pair in via
-	// OverrideStructuralKey so an overridden type gets a distinct id from its
-	// un-overridden twin AND the override propagates to every containing type
-	// (a parent's id composes its children's folded ids). The type-fn emitter
-	// reads this to substitute a cfn redirect for the structural body of the
-	// matching family — every other family re-emits its structural body under
-	// the new id. Keyed by family op key (operations.Operation.FnKey), NOT the
-	// emitted family tag, so a JSON override (one op, several strategy tags)
-	// matches with a single entry.
-	Overrides map[string]string `json:"overrides,omitempty"`
-
-	// TypeEnum. `EnumVal` uses the `Val` suffix so the JS mirror lands as
-	// `enumVal`, sidestepping the `enum` reserved word.
-	EnumVal map[string]any `json:"enumVal,omitempty"`
-	Values  []any          `json:"values,omitempty"`
-	IndexT  *RunType       `json:"indexType,omitempty"`
-
-	// TypeClass
-	ExtendsArguments []*RunType `json:"extendsArguments,omitempty"`
-	Implements       []*RunType `json:"implements,omitempty"`
-	Arguments        []*RunType `json:"arguments,omitempty"`
-	// Extends — TypeObjectLiteral (interface form) only — the direct
-	// parent interface types this declaration extends. Each entry is a
-	// ref to the parent's RunType. Properties inherited from these
-	// parents are ALSO included in Children (the TS checker merges them
-	// via GetPropertiesOfType), so the runtime path stays simple while
-	// codegen can walk the inheritance tree explicitly via Extends.
-	// Empty for anonymous object literals and `type` aliases.
-	Extends []*RunType `json:"extends,omitempty"`
-	// classType is a runtime constructor reference — see workaround docs.
-	// We emit the class's exported name + module path so a v2 footer can wire
-	// up an `import { Class } from "..."`.
-	ClassRef *ClassRef `json:"classRef,omitempty"`
-
-	// TypeTemplateLiteral, TypeRegexp, TypeInfer — placeholder for v2.
-
-	// Flags carries free-form markers for things we couldn't bridge cleanly
-	// (e.g. "symbol" for symbol-keyed names, "nonLiteralDefault", "bigint").
-	Flags []string `json:"flags,omitempty"`
-
-	// Description — JSDoc-style per-member comment. v2.
-	Description string `json:"description,omitempty"`
-}
-
-// ClassRef captures enough provenance for a v2 footer to wire up
-// `t.classType = ImportedConstructor` in the generated `.ts` artifact.
-//
-// For recognised built-in classes (Date, Map, Set, RegExp), Builtin
-// is set to the constructor name and the footer emits
-// `t.classType = globalThis.<Name>`. For user classes, Module is the
-// originating module path and Name the exported symbol.
-type ClassRef struct {
-	Builtin string `json:"builtin,omitempty"` // "Date" | "Map" | "Set" | "RegExp"
-	Name    string `json:"name,omitempty"`    // user-class export name
-	Module  string `json:"module,omitempty"`  // originating module path
-}
-
-// FormatAnnotation carries the (name, params) pair extracted from a
-// TypeFormat<Base, Name, Params, ...> brand. Name identifies the
-// format family ("uuid", "email", "stringFormat", …) — both the
-// JS-side format registry and the Go-side format-emitter registry
-// key on this. Params is the JSON-serialisable literal payload (e.g.
-// `{"version": "4"}` for FormatUUIDv4, `{"maxLength": 10}` for a
-// FormatString). The map is canonicalised (sorted keys, recursed
-// into nested objects) before participating in the structural id.
-type FormatAnnotation struct {
-	Name   string         `json:"name"`
-	Params map[string]any `json:"params,omitempty"`
-}
-
-// NewRef returns a sentinel RunType pointing at id. The TS artifact emitter
-// resolves these into direct const references.
-func NewRef(id string) *RunType {
-	return &RunType{Kind: KindRef, ID: id}
-}
 
 // Op constants for the wire protocol. Stable string values — the TS side
 // references the same names.
@@ -359,11 +44,6 @@ const (
 	// and replacing it with a fresh one — the connection stays open. A
 	// subsequent setSources is required before scanFiles will work.
 	OpReset = "reset"
-	// OpResolveID returns the canonical full RunType for a given hash id.
-	// Child slots inside the returned RunType stay as KindRef sentinels — the
-	// caller re-issues OpResolveID per id to drill in. Lets consumers walk
-	// member-type child refs without dumping the whole cache.
-	OpResolveID = "resolveId"
 	// OpTsCompile runs the embedded tsgo through bind + typecheck + emit
 	// on the resolver's current source overlay, returns the wall time in
 	// the response's TsCompileMs field, and discards the emit output.
@@ -385,11 +65,14 @@ const (
 	OpTransform = "transform"
 	// OpGenerate runs the full-program entry-module collection (the same
 	// machinery as OpDump) then WRITES each module to
-	// <Request.OutDir>/types/<basename>.js on disk — write-only-on-change,
-	// pruning stale generated files — instead of returning the sources on the
-	// wire. Response.Generated is the manifest of live module basenames. This
-	// is the filesystem-output path that replaces virtual modules; the
-	// transform op injects relative imports to these real files.
+	// <outDir>/types/<basename>.js on disk — write-only-on-change, pruning
+	// stale generated files — instead of returning the sources on the wire.
+	// The root is session config (resolver.Options.GenDir > tsconfig genDir >
+	// inferred <srcDir>/__runtypes) and comes back on Response.OutDir.
+	// Response.Generated is the manifest of live module basenames. This is the
+	// filesystem-output path that replaces virtual modules; the transform op
+	// injects relative imports to these real files when the session sets
+	// Options.TransformRelative.
 	OpGenerate = "generate"
 	// OpEnrich scaffolds / reconciles the enrichment mirror files — the daemon face
 	// of the CLI `enrich` verb, so a bundler plugin can drive the scaffold + sync
@@ -402,16 +85,33 @@ const (
 
 // Request is the union of all query operations (see resolver/dispatch).
 //
-// Files carries the scanFiles op's input — every file the caller wants
-// scanned in this request. The response's Sites carries entries for
-// every listed file (each tagged with .File), and IncludeRunTypes /
-// IncludeEntryModules scope their payload to **this request's Files
-// only**, not to any session-wide accumulation. Callers that want the
-// whole in-memory cache call OpDump.
+// THE WIRE CARRIES EVENTS; THE SESSION CARRIES CONFIG. Every field below is
+// one of exactly three kinds, and a new field must justify itself as one of
+// them — anything session-constant belongs in resolver.Options, loaded once
+// from a `serve` flag at spawn (respawn-safe for free, since the client
+// replays the same argv):
+//
+//   - EVENTS — what happened / what is being asked: Op, Files, Sources.
+//   - PAYLOAD SELECTORS — how much of THIS request's answer to ship back:
+//     IncludeRunTypes, IncludeEntryModules, IncludeMetrics.
+//   - LANE SELECTORS — which walker/emit mode THIS request runs:
+//     CheckEnrich, IncludeRtDiagnostics, EmitEdits.
+//
+// Config that used to ride here and now lives in resolver.Options: the
+// output root (Options.GenDir, via resolveOutDir), files-mode import
+// relativization (Options.TransformRelative), the source-map trim
+// (Options.OmitSourcesContent), and the whole OpEnrich block (families,
+// locales, update/no-emit).
+//
+// Files carries the op's file input — every file the caller wants scanned
+// (scanFiles), rewritten (transform), or enrichment-checked (enrich). The
+// response's Sites carries entries for every listed file (each tagged with
+// .File), and IncludeRunTypes / IncludeEntryModules scope their payload to
+// **this request's Files only**, not to any session-wide accumulation.
+// Callers that want the whole in-memory cache call OpDump.
 type Request struct {
 	Op              string            `json:"op"`
 	Files           []string          `json:"files,omitempty"`
-	ID              string            `json:"id,omitempty"`
 	Sources         map[string]string `json:"sources,omitempty"`
 	IncludeRunTypes bool              `json:"includeRunTypes,omitempty"`
 	// IncludeEntryModules opts a scanFiles response into the per-entry
@@ -423,10 +123,6 @@ type Request struct {
 	// and Go memory deltas. Zero measurement cost when unset — the
 	// dispatcher skips every ReadMemStats / stopwatch entirely.
 	IncludeMetrics bool `json:"includeMetrics,omitempty"`
-	// OutDir is the resolved RunTypes output root (e.g. <srcDir>/__runtypes) for
-	// OpGenerate. Modules are written under <OutDir>/types/. Required by
-	// OpGenerate; ignored by other ops.
-	OutDir string `json:"outDir,omitempty"`
 	// CheckEnrich opts a scanFiles response into the enrichment-health pass
 	// over this request's Files: tag hygiene (@todo scaffolds, @rtOrphan /
 	// @rtOrphanChild carcasses), FriendlyText/MockData content validity, and
@@ -448,13 +144,6 @@ type Request struct {
 	// wire shape, never the artifacts, so it must never fold into any disk-cache
 	// fingerprint. Ignored by every op other than OpTransform.
 	EmitEdits bool `json:"emitEdits,omitempty"`
-	// OmitSourcesContent drops the ORIGINAL source out of each 'go'-mode
-	// TransformResult.Map.sourcesContent (the heaviest single wire item — the
-	// whole source a second time). The bundler composes chained maps and fills
-	// original content downstream, so it rarely needs our copy. Off by default
-	// (self-contained maps stay the norm); the transform-mode benchmark sweeps
-	// it. No effect in 'edits' mode (the FE generates its own map).
-	OmitSourcesContent bool `json:"omitSourcesContent,omitempty"`
 	// OpEnrich carries NO fields of its own beyond Files: the wire carries the
 	// EVENT (which files changed; empty = whole program) and the session carries
 	// the CONFIG — families, i18n locales, and the output root all ride
@@ -507,10 +196,10 @@ type Metrics struct {
 // OK is a simple acknowledgement for ops that don't return data
 // (setSources / resetCache). Emitted only when set so other ops stay tidy.
 type Response struct {
-	ID    string     `json:"-"`
-	HasID bool       `json:"-"`
-	OK    bool       `json:"-"`
-	Added []*RunType `json:"added,omitempty"`
+	ID    string                `json:"-"`
+	HasID bool                  `json:"-"`
+	OK    bool                  `json:"-"`
+	Added []*reflection.RunType `json:"added,omitempty"`
 	// AddedRunTypes is true when this scanFiles call interned at least one
 	// new RunType into the cache. The Vite plugin reads it from
 	// handleHotUpdate to decide whether the runTypes cache module needs
@@ -572,8 +261,8 @@ type Response struct {
 	// generated pure-fn entry — populated on OpGenerate (whole program) and
 	// OpScanFiles (the rescanned files' delta) when the resolver's pure-fn
 	// report is enabled. Empty otherwise. See PureFnSite.
-	PureFnSites []PureFnSite `json:"pureFnSites,omitempty"`
-	RunTypes    []*RunType   `json:"runTypes,omitempty"`
+	PureFnSites []PureFnSite          `json:"pureFnSites,omitempty"`
+	RunTypes    []*reflection.RunType `json:"runTypes,omitempty"`
 	// EntryModules carries one rendered ES-module source per cache entry,
 	// keyed by module BASENAME (the `<basename>` of `rtmod:/<basename>.js`
 	// — the cache key for runtype / type-fn entries, the `pf/<ns>/<fn>`
@@ -598,11 +287,15 @@ type Response struct {
 	// plugin) writes them under its own HMR-suppression window. Emitted via the
 	// hand-rolled MarshalJSON below (the struct tag alone doesn't put it on the wire).
 	EnrichFiles []EnrichFile `json:"enrichFiles,omitempty"`
-	// OutDir is the RunTypes output root OpGenerate actually wrote to. When the
-	// request left OutDir empty the resolver infers <srcDir>/__runtypes from the
-	// tsconfig (rootDir → common-ancestor of the program's files → baseUrl →
-	// cwd) and echoes the resolved absolute path here, so the dependency-free
-	// plugin can adopt it (write .gitignore/.gitkeep, reuse it for transform).
+	// OutDir is the SESSION-RESOLVED RunTypes output root OpGenerate wrote to
+	// (Options.GenDir > tsconfig genDir > inferred). This echo stays even though
+	// the root is no longer a request field: when neither override is set the
+	// resolver infers <srcDir>/__runtypes from the tsconfig (rootDir →
+	// common-ancestor of the program's files → baseUrl → cwd), which the
+	// dependency-free plugin cannot compute for itself but still needs — to
+	// write .gitignore/.gitkeep and to suppress HMR under the enriched dir.
+	// Together with FailOnError this is the sanctioned resolved-config
+	// server→client echo channel.
 	OutDir string `json:"outDir,omitempty"`
 	// FailOnError echoes the tsconfig plugin's failOnError on OpGenerate (nil
 	// when the tsconfig sets none) so the dependency-free host can honor a
@@ -623,11 +316,6 @@ type Response struct {
 	// `this.warn(diagnostics.FormatTsc(d))` so VS Code's $tsc problem matcher
 	// picks them up. Schema mirrors the LSP Diagnostic shape.
 	Diagnostics []diagnostics.Diagnostic `json:"diagnostics,omitempty"`
-	// UncheckedPatterns carries the format patterns whose mockSamples RE2
-	// couldn't verify at build time, for the JS lint plugin to validate with
-	// the real regex engine. Populated only when the request opts into
-	// RunType diagnostics (the lint lane); empty otherwise.
-	UncheckedPatterns []UncheckedPattern `json:"uncheckedPatterns,omitempty"`
 	// TsCompileMs is populated by OpTsCompile only. Wall time of the
 	// tsgo bind + typecheck + Emit() pass on the resolver's current
 	// source overlay, in milliseconds. Zero for every other op.
@@ -685,6 +373,13 @@ type Site struct {
 	// it is present on every scanFiles response — including the plain
 	// transform path that skips entry-module collection.
 	Module string `json:"module,omitempty"`
+	// MockSeed is the literal `mock.seed` hint read from a CompTimeHints
+	// options slot (createMockDataFn), as canonical decimal text; "" when the
+	// site carries none (no options, dynamic bag, or non-numeric seed). It
+	// seeds the generated pattern mockSample pools for the types this site
+	// demands. Resolver-internal — never serialized: the JS host has no use
+	// for it and the wire stays byte-stable.
+	MockSeed string `json:"-"`
 }
 
 // SiteDemand is one cache entry a createX site requires: the family + variant to
@@ -701,21 +396,6 @@ type SiteDemand struct {
 	// jsonEncoder). The emitter renders the inline circular-reference guard for
 	// exactly these entries; it never rides a JSON primitive demand.
 	RejectCircular bool `json:"rejectCircular,omitempty"`
-}
-
-// UncheckedPattern is one format `pattern` whose mockSamples the build-time
-// RE2 oracle can't verify (the pattern uses JS-only features like
-// lookarounds or backreferences), shipped on the lint-lane scan response so
-// the JS lint plugin can run the real `new RegExp(Source, Flags).test(...)`
-// over each sample and report mismatches (as FMT001) at Site. One entry per
-// (pattern, call site). Populated only when the request opts into RunType
-// diagnostics; empty on the build lane, which fails closed with FMT004
-// instead (unless allowUncheckedPatterns is set).
-type UncheckedPattern struct {
-	Source  string           `json:"source"`
-	Flags   string           `json:"flags,omitempty"`
-	Samples []string         `json:"samples"`
-	Site    diagnostics.Site `json:"site"`
 }
 
 // EnrichFile is one computed enrichment mirror file returned by OpEnrich: its
@@ -854,8 +534,8 @@ type SourceMap struct {
 
 // Dump is the build-end manifest written to runtypes-cache.json.
 type Dump struct {
-	RunTypes []*RunType `json:"runTypes"`
-	Sites    []Site     `json:"sites"`
+	RunTypes []*reflection.RunType `json:"runTypes"`
+	Sites    []Site                `json:"sites"`
 }
 
 // WriteJSON writes the dump as pretty-printed JSON. Refs in child slots
@@ -947,9 +627,6 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.Diagnostics) > 0 {
 		out["diagnostics"] = response.Diagnostics
-	}
-	if len(response.UncheckedPatterns) > 0 {
-		out["uncheckedPatterns"] = response.UncheckedPatterns
 	}
 	if response.TsCompileMs > 0 {
 		out["tsCompileMs"] = response.TsCompileMs

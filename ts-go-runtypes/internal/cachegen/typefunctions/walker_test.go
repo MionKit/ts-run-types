@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 func newTestWalker() *Walker {
-	rt := &protocol.RunType{Kind: protocol.KindString, ID: "root"}
+	rt := &reflection.RunType{Kind: reflection.KindString, ID: "root"}
 	return NewWalker(rt, "val_root", ValidateEmitter{})
 }
 
@@ -65,8 +65,7 @@ func TestUpdateDependencies_SkipsNoopChildren(t *testing.T) {
 // AddPureFnDependency is record-only: it appends the triple and
 // dedupes. Build-time validation against the actual
 // `registerPureFnFactory` registrations is the (unwired) purefunctions
-// dep-validation API — see docs/todos/pfe9012-orphaned-diagnostic.md;
-// until wired, an unregistered dep surfaces at runtime when
+// dep-validation API; until wired, an unregistered dep surfaces at runtime when
 // `utl.getPureFn` throws.
 
 func TestAddPureFnDependency_RecordsTriple(t *testing.T) {

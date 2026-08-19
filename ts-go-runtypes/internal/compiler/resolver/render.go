@@ -12,6 +12,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
@@ -28,6 +29,10 @@ func (sess *Session) rtRenderOpts(sink *[]diagnostics.Diagnostic, provenance map
 	if sess == nil {
 		return typefunctions.RenderOpts{}
 	}
+	// Fill generated mockSamples into sample-less pattern annotations
+	// BEFORE the collects fan out — single-threaded here, idempotent, and
+	// memoized in the engine, so repeat dispatches re-ask nothing.
+	sess.enrichPatternSamples()
 	return typefunctions.RenderOpts{
 		Store:           sess.rtStore,
 		Lookup:          sess.cache,
@@ -35,12 +40,13 @@ func (sess *Session) rtRenderOpts(sink *[]diagnostics.Diagnostic, provenance map
 		ProvenanceSites: provenance,
 		EmitMode:        sess.opts.EmitMode,
 		InlineMode:      sess.opts.InlineMode,
-		// Build-lane fail-closed switch for RE2-unchecked format patterns
-		// (FMT004). The OpScanFiles lint lane additionally sets
-		// UncheckedPatternSink, which suppresses FMT004 in favour of shipping
-		// the patterns for the JS linter to check.
-		AllowUncheckedPatterns: sess.opts.AllowUncheckedPatterns,
-		RefTable:               sess.fullRefTable(),
+		// The JS engine format-pattern checks run on — the validation
+		// authority for mockSamples (FMT001/FMT002), fail-closed with
+		// FMT004 when it cannot run.
+		JSEngine:           sess.opts.JSEngine,
+		PatternSampleCount: sess.opts.PatternSampleCount,
+		PatternGenFailures: sess.patternGenFailures,
+		RefTable:           sess.fullRefTable(),
 		SizeEstimate: typefunctions.SizeEstimateConfig{
 			Bias:        sess.opts.SizeBias,
 			Items:       sess.opts.SizeItems,
@@ -59,7 +65,7 @@ func (sess *Session) rtRenderOpts(sink *[]diagnostics.Diagnostic, provenance map
 // reference children interned while scanning a different file. This is the
 // cache's own live table (read-only contract — see Cache.NodesView), so no
 // per-dispatch rebuild/sort/re-stamp happens anymore.
-func (sess *Session) fullRefTable() map[string]*protocol.RunType {
+func (sess *Session) fullRefTable() map[string]*reflection.RunType {
 	if sess == nil || sess.cache == nil {
 		return nil
 	}
@@ -240,8 +246,7 @@ func (sess *Session) pureFnReportForEntries(entries []purefunctions.Entry) []pro
 // runtime for every consumer shape. This replaced the old
 // `len(entries) == 0 → skip` guard, which a consumer's own registerPureFnFactory
 // defeated (entries became non-zero, so every built-in dep was then flagged
-// missing — the PFE9012 wall this fixes). See
-// docs/done/pfe9012-consumer-registerpurefn-false-positive.md.
+// missing — the PFE9012 wall this fixes).
 func (sess *Session) validateProgramPureFnDeps(uses []typefunctions.PureFnDepUse) []diagnostics.Diagnostic {
 	if len(uses) == 0 || sess.Program == nil {
 		return nil

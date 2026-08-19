@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // recordFileIDs walks every RunType transitively reachable from `sites` and
@@ -30,7 +31,7 @@ func (sess *Session) recordFileIDs(file string, sites []protocol.Site) {
 		// Walk every ref-carrying slot (see protocol.EachRefSlot for the
 		// slot rationale). Inline scalar RunTypes (no .ID) don't reach
 		// further nodes — walk("") returns immediately.
-		node.EachRefSlot(func(ref *protocol.RunType) { walk(ref.ID) })
+		node.EachRefSlot(func(ref *reflection.RunType) { walk(ref.ID) })
 	}
 	for _, site := range sites {
 		walk(site.ID)
@@ -43,6 +44,12 @@ func (sess *Session) recordFileIDs(file string, sites []protocol.Site) {
 // the same file allowlist. Callers wanting the full in-memory cache use
 // dispatchDump instead.
 func (sess *Session) scopedDump(files []string) protocol.Dump {
+	// The projected nodes are the interned nodes (pointers), so enrich
+	// sample-less pattern annotations before they go on the wire — the
+	// IncludeRunTypes-without-render lane's counterpart to the
+	// rtRenderOpts call (idempotent + memoized, so double-running in one
+	// dispatch costs a map pass).
+	sess.enrichPatternSamples()
 	ids := sess.cache.IDsForUnion(files)
 	allowed := make(map[string]struct{}, len(files))
 	for _, file := range files {

@@ -11,9 +11,9 @@ import (
 //
 // CompTimeArgs is the zero-cost identity `type CompTimeArgs<T> = T` (markers.ts):
 // the old `T & {__rtCompTimeArgsBrand?: never}` cost ~700 TS instantiations when
-// T was a tuple — the `tuple` / `union` / `func` member lists (see
-// docs/value-first-typecheck-cost.md). Identity removes the cost, but its
-// instantiation drops the alias from the RESOLVED parameter type, so
+// T was a tuple — the `tuple` / `union` / `func` member lists. Identity
+// removes the cost, but its instantiation drops the alias from the RESOLVED
+// parameter type, so
 // marker.DetectAny (resolved-type alias name / brand-property matching) can no
 // longer see it. The written `CompTimeArgs<…>` annotation does survive in the
 // .d.ts, so detect it here off the parameter's type node — resolving the reference
@@ -21,10 +21,26 @@ import (
 // declaring module, the same rigor DetectAny applies. Shared by the resolver scan
 // and the pure-fn extractor, the two places that recognise CompTimeArgs params.
 func IsCompTimeArgsParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symbol, opts marker.Options) bool {
+	return isMarkerAliasParamNode(typeChecker, paramSymbol, opts, marker.KindCompTimeArgs)
+}
+
+// IsCompTimeHintsParamNode is the CompTimeHints twin — the LENIENT
+// read-only marker (build reads literal values best-effort, never
+// validates; createMockDataFn's options bag today). Same identity-alias
+// story as CompTimeArgs (no brand survives resolution), so the written
+// annotation is the only signal.
+func IsCompTimeHintsParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symbol, opts marker.Options) bool {
+	return isMarkerAliasParamNode(typeChecker, paramSymbol, opts, marker.KindCompTimeHints)
+}
+
+// isMarkerAliasParamNode is the shared syntactic check: does paramSymbol's
+// written type annotation reference the given marker kind's alias, resolved
+// through import aliases and gated on the marker package's declaring module?
+func isMarkerAliasParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symbol, opts marker.Options, kind marker.Kind) bool {
 	if typeChecker == nil || paramSymbol == nil {
 		return false
 	}
-	spec, ok := marker.SpecForKind(opts, marker.KindCompTimeArgs)
+	spec, ok := marker.SpecForKind(opts, kind)
 	if !ok {
 		return false
 	}
@@ -47,7 +63,7 @@ func IsCompTimeArgsParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symb
 		if symbol == nil || symbol.Name != spec.Name {
 			continue
 		}
-		if marker.DeclaredInModule(symbol, spec.Module, opts.FS) {
+		if opts.DeclaredInMarkerPackage(symbol) {
 			return true
 		}
 	}
@@ -71,8 +87,7 @@ func IsCompTimeArgsParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symb
 // syntactic annotation (`expected: U`, not `expected: InjectRunTypeId<…>`)
 // tells them apart. enclosedByInjectionMarker gates on this so it never
 // mistakes such a passer-through for an enclosing marker (which would wrongly
-// drop the argument's OWN injection). See
-// docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md.
+// drop the argument's OWN injection).
 func IsInjectionMarkerParamNode(typeChecker *checker.Checker, paramSymbol *ast.Symbol, opts marker.Options) bool {
 	if typeChecker == nil || paramSymbol == nil {
 		return false
@@ -103,7 +118,7 @@ func IsInjectionMarkerParamNode(typeChecker *checker.Checker, paramSymbol *ast.S
 			if !ok || symbol.Name != spec.Name {
 				continue
 			}
-			if marker.DeclaredInModule(symbol, spec.Module, opts.FS) {
+			if opts.DeclaredInMarkerPackage(symbol) {
 				return true
 			}
 		}

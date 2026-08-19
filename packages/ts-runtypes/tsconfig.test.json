@@ -41,5 +41,13 @@
   // engine cross-tree from container/website (its own tsconfig) and a .mjs helper,
   // so it is NOT part of the marker package's type-check. It runs as its own vitest
   // project (see test/playground/vitest.config.ts).
-  "exclude": ["node_modules", "dist", "test/playground"]
+  // test/converted-* are the generated converted-suite trees (gitignored, built
+  // and removed by `pnpm rtx core converted-suites`). They type-check under
+  // tsconfig.converted.json instead, so the ordinary lanes never walk them.
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test/playground",
+    "test/converted-builders"
+  ]
 }

@@ -29,6 +29,8 @@
 // units only; PlainDate/PlainYearMonth → date units; PlainDateTime/
 // ZonedDateTime → both) and emits `Temporal.X.compare(value, bound) >= 0/<= 0`.
 
+import type {__rtFormatName, __rtFormatParams} from '../../runtypes/sentinelKeys.ts';
+
 import {builderResult} from '../../runtypes/builderCore.ts';
 import type {MinMax} from './dateTimeParams.ts';
 import type {RunType} from '../../runtypes/types.ts';
@@ -43,18 +45,33 @@ import type {
 // PlainMonthDay (no static compare) and Duration (a length, not an instant)
 // are intentionally absent — they have no min/max ordering semantics.
 
-// Guarded references to the global `Temporal.*` instance types. Each resolves to
-// the REAL type when the consumer's `lib` provides the Temporal namespace, and
-// falls back to `unknown` when it does NOT — so the published `.d.ts` never
+// Guarded references to the global `Temporal.*` instance types. Each resolves
+// to the REAL type when the consumer's `lib` provides the Temporal namespace,
+// and degrades gracefully when it does NOT — so the published `.d.ts` never
 // forces the Temporal lib on a consumer who doesn't use these formats, even
 // though the root marker surface (`builderTypes` imports the branded aliases
-// below) transitively loads this file. `unknown` (deliberately NOT `any`) keeps
-// the `& {brand}` intersection intact, so the Go scanner still detects the
-// format brand structurally and a real Temporal consumer still gets the precise
-// type. Reading `{prototype: infer I}` off the constructor value works whether
-// `Temporal.X` is declared as a class or an interface + constructor const (the
-// value always carries a `prototype` typed as the instance).
+// below) transitively loads this file. Reading `{prototype: infer I}` off the
+// constructor value works whether `Temporal.X` is declared as a class or an
+// interface + constructor const (the value always carries a `prototype` typed
+// as the instance).
+//
+// TWO fallbacks, chosen by the POSITION the reference sits in:
+//   • `unknown` (TemporalInstanceOf) for the brand aliases and the base map
+//     below — INTERSECTION positions, where `unknown & {brand}` keeps the
+//     intersection intact so the Go scanner still detects the format brand
+//     structurally. Deliberately not `any` (any & X collapses to any).
+//   • `never` (TemporalInstanceOrNever) for the DataOnlyNativeExtra
+//     augmentation — a UNION-KEEP position. `unknown` there is poison: it
+//     absorbs `DataOnlyNative = Date | RegExp | Extra[keyof Extra]` to
+//     `unknown`, which turns DataOnly's keep arm into `T extends unknown`
+//     (always true) and silently collapses `DataOnly<T>` to the IDENTITY for
+//     every consumer without the Temporal lib. `never` vanishes from the
+//     union instead, restoring the documented no-augmentation tail
+//     (`Date | RegExp`).
 type TemporalInstanceOf<K extends string> = typeof globalThis extends {Temporal: Record<K, {prototype: infer I}>} ? I : unknown;
+type TemporalInstanceOrNever<K extends string> = typeof globalThis extends {Temporal: Record<K, {prototype: infer I}>}
+  ? I
+  : never;
 
 type TInstant = TemporalInstanceOf<'Instant'>;
 type TZonedDateTime = TemporalInstanceOf<'ZonedDateTime'>;
@@ -66,33 +83,33 @@ type TPlainMonthDay = TemporalInstanceOf<'PlainMonthDay'>;
 type TDuration = TemporalInstanceOf<'Duration'>;
 
 export type Instant<P extends MinMax = MinMax> = TInstant & {
-  readonly __rtFormatName?: 'temporalInstant';
-  readonly __rtFormatParams?: P;
+  readonly [__rtFormatName]?: 'temporalInstant';
+  readonly [__rtFormatParams]?: P;
 };
 
 export type ZonedDateTime<P extends MinMax = MinMax> = TZonedDateTime & {
-  readonly __rtFormatName?: 'temporalZonedDateTime';
-  readonly __rtFormatParams?: P;
+  readonly [__rtFormatName]?: 'temporalZonedDateTime';
+  readonly [__rtFormatParams]?: P;
 };
 
 export type PlainDate<P extends MinMax = MinMax> = TPlainDate & {
-  readonly __rtFormatName?: 'temporalPlainDate';
-  readonly __rtFormatParams?: P;
+  readonly [__rtFormatName]?: 'temporalPlainDate';
+  readonly [__rtFormatParams]?: P;
 };
 
 export type PlainTime<P extends MinMax = MinMax> = TPlainTime & {
-  readonly __rtFormatName?: 'temporalPlainTime';
-  readonly __rtFormatParams?: P;
+  readonly [__rtFormatName]?: 'temporalPlainTime';
+  readonly [__rtFormatParams]?: P;
 };
 
 export type PlainDateTime<P extends MinMax = MinMax> = TPlainDateTime & {
-  readonly __rtFormatName?: 'temporalPlainDateTime';
-  readonly __rtFormatParams?: P;
+  readonly [__rtFormatName]?: 'temporalPlainDateTime';
+  readonly [__rtFormatParams]?: P;
 };
 
 export type PlainYearMonth<P extends MinMax = MinMax> = TPlainYearMonth & {
-  readonly __rtFormatName?: 'temporalPlainYearMonth';
-  readonly __rtFormatParams?: P;
+  readonly [__rtFormatName]?: 'temporalPlainYearMonth';
+  readonly [__rtFormatParams]?: P;
 };
 
 // Unbranded base instance type per temporal format — the type a no-params
@@ -116,6 +133,17 @@ export interface TemporalBaseByFormatName {
   temporalDuration: TDuration;
 }
 
+// The orderable subset, as a map so `keyof` drives the door's accepted
+// `rtFormat` names rather than a restated union.
+export interface TemporalFormatParamsByName {
+  temporalInstant: MinMax;
+  temporalZonedDateTime: MinMax;
+  temporalPlainDate: MinMax;
+  temporalPlainTime: MinMax;
+  temporalPlainDateTime: MinMax;
+  temporalPlainYearMonth: MinMax;
+}
+
 // ─────────────────────── DataOnly augmentation ──────────────────────
 // Opt the 8 TC39 Temporal types into `DataOnly`'s KEEP set so
 // `DataOnly<Temporal.Instant>` stays `Temporal.Instant` — the RT validates
@@ -125,16 +153,22 @@ export interface TemporalBaseByFormatName {
 // core `runtypes/dataOnly.ts` never forces the Temporal lib on non-Temporal
 // consumers. Only the VALUE union `DataOnlyNativeExtra[keyof …]` is read by
 // `DataOnly`; the keys are arbitrary labels.
+//
+// ⚠️ These members MUST use the `never`-falling guard, not the `unknown` one:
+// they land in DataOnly's union keep-list, where an `unknown` member absorbs
+// the whole union and collapses `DataOnly<T>` to the identity for every
+// consumer without the Temporal lib (see the guard comment above). Pinned by
+// test/types/dataonlyTemporalPosture.test.ts in both postures.
 declare module '../../runtypes/dataOnly.ts' {
   interface DataOnlyNativeExtra {
-    temporalInstant: TInstant;
-    temporalZonedDateTime: TZonedDateTime;
-    temporalPlainDate: TPlainDate;
-    temporalPlainTime: TPlainTime;
-    temporalPlainDateTime: TPlainDateTime;
-    temporalPlainYearMonth: TPlainYearMonth;
-    temporalPlainMonthDay: TPlainMonthDay;
-    temporalDuration: TDuration;
+    temporalInstant: TemporalInstanceOrNever<'Instant'>;
+    temporalZonedDateTime: TemporalInstanceOrNever<'ZonedDateTime'>;
+    temporalPlainDate: TemporalInstanceOrNever<'PlainDate'>;
+    temporalPlainTime: TemporalInstanceOrNever<'PlainTime'>;
+    temporalPlainDateTime: TemporalInstanceOrNever<'PlainDateTime'>;
+    temporalPlainYearMonth: TemporalInstanceOrNever<'PlainYearMonth'>;
+    temporalPlainMonthDay: TemporalInstanceOrNever<'PlainMonthDay'>;
+    temporalDuration: TemporalInstanceOrNever<'Duration'>;
   }
 }
 

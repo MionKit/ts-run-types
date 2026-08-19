@@ -10,7 +10,7 @@
 //
 // Both arguments are JSON strings using the exact same protocol.Request /
 // protocol.Response wire shapes the native binary speaks — so a caller can
-// drive setSources / scanFiles / dump / resolveId identically to the
+// drive setSources / scanFiles / dump identically to the
 // `--inline-server` CLI mode, no Unix socket and no child process.
 //
 // The resolver runs single-threaded with the parallel scan + render disabled
@@ -33,6 +33,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/constants"
+	"github.com/mionkit/ts-runtypes/internal/jsengine"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
 )
 
@@ -49,6 +50,9 @@ func main() {
 		SingleThreaded:        true,
 		DisableParallelScan:   true,
 		DisableParallelRender: true,
+		// Pattern checks run directly on the host's own RegExp — the WASM
+		// module already lives inside a JS engine, so no sidecar is spawned.
+		JSEngine: jsengine.NewHostEngine(),
 		// EmitFunctions ships each cache entry's factory as a LIVE `function
 		// g_<hash>(utl){…}` (code slot undefined) instead of a body string the
 		// runtime rebuilds via `new Function`. The playground's "Generated Cache"
@@ -60,6 +64,11 @@ func main() {
 		// linked-in-browser run path has one module to materialize.
 		InlineMode: constants.InlineModeAllInternal,
 		ModuleMode: constants.ModuleModeAllSingle,
+		// Pattern mockSample generation runs at the native defaults; it
+		// works when the host installed the sidecar hook (the playground
+		// loads it before this module) and degrades to FMT005 without it.
+		PatternSampleCount:   constants.DefaultPatternSampleCount,
+		PatternSampleRetries: constants.DefaultPatternSampleRetries,
 	})
 
 	dispatch := js.FuncOf(func(this js.Value, args []js.Value) (result any) {

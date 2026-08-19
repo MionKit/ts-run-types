@@ -443,7 +443,7 @@ export const cases: CompetitorCases = {
   // interface_all_optional: {a?:string, b?:number} — declared as the same interface as ts-runtypes.
   // NB zod's z.object accepts Date/Map/Set instances (its isObject only excludes arrays/null), so this
   // accepts those where ts-runtypes rejects them; that pass/reject discrepancy is the correctness
-  // benchmark's job to surface (see docs/todos/correctness-zod-object-guard-cases.md), not a hand guard's.
+  // benchmark's job to surface, not a hand guard's.
   'OBJECT.interface_all_optional': {
     buildErrors: () => {
       const schema = z.object({a: z.string().optional(), b: z.number().optional()});
@@ -1905,6 +1905,81 @@ export const cases: CompetitorCases = {
         acceptedTerms: z.literal(true),
         profile: z.object({firstName: z.string(), lastName: z.string(), age: z.number().optional()}),
       });
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+  'REALWORLD.toBeChecked': {
+    buildErrors: () => {
+      const schema = z.object({
+        number: z.number(),
+        negNumber: z.number(),
+        maxNumber: z.number(),
+        string: z.string(),
+        longString: z.string(),
+        boolean: z.boolean(),
+        deeplyNested: z.object({foo: z.string(), num: z.number(), bool: z.boolean()}),
+      });
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+
+  // ── JSON_SCHEMA ──
+  // zod has no JSON Schema INPUT door (it emits with z.toJSONSchema but cannot
+  // build a validator from one), so these entries state the same CONSTRAINT in
+  // zod's own dialect, exactly like every other group here. Only the keywords
+  // zod genuinely cannot express opt out.
+  'JSON_SCHEMA.property_names': {
+    buildErrors: () => {
+      const schema = z.record(z.string().regex(/^[a-z]+$/), z.number());
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+  'JSON_SCHEMA.contains_count': NOT_SUPPORTED, // no array `contains` / count-of-matching-items check
+  'JSON_SCHEMA.unique_items': NOT_SUPPORTED, // no array uniqueness check
+  'JSON_SCHEMA.object_size': NOT_SUPPORTED, // no key-count bounds on objects
+  'JSON_SCHEMA.string_email': {
+    buildErrors: () => {
+      const schema = z.email();
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+  'JSON_SCHEMA.int_bounded': {
+    buildErrors: () => {
+      const schema = z.int().min(0).max(130);
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+  'JSON_SCHEMA.string_pattern': {
+    buildErrors: () => {
+      const schema = z.string().regex(/^[a-z][a-z0-9-]*$/);
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+  'JSON_SCHEMA.multiple_of': {
+    buildErrors: () => {
+      const schema = z.number().multipleOf(5);
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+
+  // ── STRICT ──
+  // z.strictObject is zod's closedness; nested objects are strict too. zod has no
+  // cheap boolean validator, so (as everywhere here) only buildErrors is supplied.
+  'STRICT.flat_required': {
+    buildErrors: () => {
+      const schema = z.strictObject({id: z.number(), name: z.string(), active: z.boolean()});
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+  'STRICT.nested_required': {
+    buildErrors: () => {
+      const schema = z.strictObject({name: z.string(), inner: z.strictObject({x: z.number(), y: z.string()})});
+      return (value: unknown) => schema.safeParse(value).success;
+    },
+  },
+  'STRICT.moltar_dto': {
+    buildErrors: () => {
+      const schema = z.strictObject({number: z.number(), negNumber: z.number(), maxNumber: z.number(), string: z.string(), longString: z.string(), boolean: z.boolean(), deeplyNested: z.strictObject({foo: z.string(), num: z.number(), bool: z.boolean()})});
       return (value: unknown) => schema.safeParse(value).success;
     },
   },

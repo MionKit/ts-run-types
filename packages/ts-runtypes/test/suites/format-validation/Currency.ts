@@ -22,8 +22,9 @@ export const CURRENCY = {
   currency_plain: {
     title: 'Unconstrained currency amount',
     description: 'A bare Currency mark: validates as a plain number (isCurrency is presentation metadata, not a constraint).',
-    validateNotes:
+    validateNotes: [
       'Any finite number passes — the isCurrency param adds no numeric constraint of its own. A non-number ("5") fails the number typeof gate.',
+    ],
     validate: () => createValidateFn<TF.Currency>(),
     standardSchema: () => createStandardSchema<TF.Currency>(),
     validateReflect: () => {
@@ -60,8 +61,9 @@ export const CURRENCY = {
   currency_max: {
     title: 'Currency with inclusive max',
     description: 'Currency with an upper bound; the format error echoes isCurrency (the friendly-renderer discriminator).',
-    validateNotes:
+    validateNotes: [
       'Boundary value 100 passes (inclusive); 101 fails on `max` with an isCurrency-flagged format error. A non-number ("5") fails the number typeof gate before any format check.',
+    ],
     validate: () => createValidateFn<TF.Currency<{max: 100}>>(),
     standardSchema: () => createStandardSchema<TF.Currency<{max: 100}>>(),
     // One hand-authored Standard Schema expectation per file (see
@@ -114,8 +116,9 @@ export const CURRENCY = {
     title: 'Currency in integer minor units',
     description:
       'Currency stored as integer minor units (cents) with a uint16 range; validation mirrors the equivalent Number brand.',
-    validateNotes:
+    validateNotes: [
       'Non-integers fail on `integer`; values above 65535 fail on `max`; negatives fail on `min`. The [0, 65535] bounds also drive the 2-byte binary packing (see the format-serialization suite).',
+    ],
     validate: () => createValidateFn<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     standardSchema: () => createStandardSchema<TF.Currency<{integer: true; min: 0; max: 65535}>>(),
     validateReflect: () => {

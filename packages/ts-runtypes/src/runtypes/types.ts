@@ -60,6 +60,31 @@ export interface CompiledPureFunction extends PureFunctionData {
 
 // ########################################### Run types ##############################################
 
+/** The sentinel-lifted structural constraint checks a RunType can carry —
+ *  the runtime mirror of the Go-side SchemaChecks group
+ *  (internal/reflection/runtype.go). Every
+ *  member comes from a `__rt…` sentinel (`__rtContains` /
+ *  `__rtPatternProps` / `__rtPropNames`),
+ *  folds into the structural id, and drives validate/validationErrors only;
+ *  the runtime cache additionally reads them for mocking, as each doc below
+ *  describes. Declaration-level grouping only: RunType extends this, so the
+ *  runtime objects stay flat and every existing reader is untouched. */
+export interface SchemaChecks {
+  /** Contains assertions (the `__rtContains` sentinel on the wire —
+   *  contains / minContains / maxContains): at least `min` (and at
+   *  most `max`, when `max` ≥ 0) of the array's items validate against
+   *  `child`. Mocking splices `min` child mocks among definitively
+   *  non-matching fillers. */
+  contains?: {child: RunType; min: number; max: number}[];
+  /** patternProperties entries: keys matching `source` must have values
+   *  valid against `value`; `key` is the pattern-branded string child whose
+   *  build-time sample pool powers key mocking. */
+  patternProps?: {source: string; key?: RunType; value: RunType}[];
+  /** propertyNames children: every key validates (as a string) against EVERY
+   *  entry (allOf-stacked propertyNames conjoin, matching the id fold). */
+  propNames?: RunType[];
+}
+
 /** Runtime representation of a reflected type. Identification fields are
  *  set by the `rt(...)` factory; ref slots (`child`, `parameters`, …) start
  *  as `undefined` and are patched post-construction by the emitter's footer
@@ -72,7 +97,7 @@ export interface CompiledPureFunction extends PureFunctionData {
  *  and `InferType<…>` can recover the original type. Defaults to `unknown`
  *  so every existing `RunType` reference (the cache, the mock walker, the
  *  self-referential ref slots) is unaffected — `RunType` ≡ `RunType<unknown>`. */
-export interface RunType<T = unknown> {
+export interface RunType<T = unknown> extends SchemaChecks {
   id: string;
   kind: unknown;
   subKind?: unknown;
@@ -111,10 +136,21 @@ export interface RunType<T = unknown> {
   children?: RunType[];
   safeUnionChildren?: RunType[];
   unionDiscriminators?: unknown;
+  /** The OPEN metadata extension point: user-space annotation objects from an
+   *  `atomic & { obj }` intersection (e.g. `number & {dbIndex: true}`), carried
+   *  through reflection untouched so consumers can read their own metadata
+   *  back at runtime. The engine NEVER acts on its contents — engine-recognised
+   *  behavior lives only behind the symbol-keyed sentinels (`formatAnnotation`
+   *  below, the SchemaChecks members above). */
   typeMeta?: unknown;
-  // Populated for a TypeFormat-branded primitive. Drives mock
-  // generation (mockSamples) + format-formatter lookup at runtime.
+  /** Populated for a TypeFormat-branded primitive. Drives mock generation
+   *  (mockSamples) + format-formatter lookup at runtime. The CLOSED
+   *  counterpart of `typeMeta`: only a real TypeFormat brand (the
+   *  `__rtFormatName` / `__rtFormatParams` unique-symbol sentinels) produces
+   *  it, and the engine acts on it. */
   formatAnnotation?: FormatAnnotation;
+  // The schema-check members (contains / patternProps / propNames) are
+  // inherited from SchemaChecks above.
   typeArguments?: RunType[];
   arguments?: RunType[];
   extendsArguments?: RunType[];
@@ -140,10 +176,23 @@ export type RunTypesCache = Record<string, RunType>;
 
 export type AnyFn = (...args: any[]) => any;
 
+/** One emitted-function parameter table, keyed by CONCEPTUAL SLOT (`vλl`,
+ *  `pλth`, `εrr`, `θpts`, `sεr`, `dεs`) — the Go-side mirror of
+ *  `typefunctions.ArgSpec` (`args[key] = name`, `defaultParamValues[key] =
+ *  default`).
+ *
+ *  ⚠️ Every value is a JS-SOURCE FRAGMENT, never a runtime value. `args` holds
+ *  identifiers (`'v'`, `'pth'`); `defaultParamValues` holds default
+ *  EXPRESSIONS (`'[]'`, `'{}'`, `''` for no default). Both get spliced back
+ *  into a signature when a consumer rebuilds the function via
+ *  `new Function(...)`, which is why they are text and not values — and it is
+ *  what keeps `CompiledFnData` JSON-serializable with NO conversion step. Put a
+ *  real `undefined` / `[]` / `{}` in here and `JSON.stringify` emits invalid
+ *  JSON (`"vλl":undefined`) for a required slot. **/
 export type CompiledFnArgs = {
-  /** The name of the value of to be */
+  /** The value parameter — present in every family. */
   vλl: string;
-  /** Other argument names */
+  /** The remaining slots, family-dependent. */
   [key: string]: string;
 };
 
@@ -156,7 +205,13 @@ export interface CompiledFnData {
    *  emitting family, so consumers can tell a primitive from a composite. */
   readonly familyTag?: string;
   readonly rtFnHash: string;
+  /** Slot → the JS IDENTIFIER that slot takes in the emitted signature
+   *  (`{vλl: 'v', pλth: 'pth', εrr: 'er'}` → `function verr_x(v, pth, er)`). */
   readonly args: CompiledFnArgs;
+  /** Slot → that parameter's DEFAULT EXPRESSION as JS source, `''` when the
+   *  parameter has no default. `{vλl: '', pλth: '[]', εrr: '[]'}` is what makes
+   *  the emitted `function verr_x(v, pth=[], er=[])`. Text, not values — see
+   *  the CompiledFnArgs contract above. */
   readonly defaultParamValues: CompiledFnArgs;
   /** True for collapsed-to-identity compilations. */
   readonly isNoop?: boolean;

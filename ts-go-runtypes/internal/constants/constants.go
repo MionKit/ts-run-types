@@ -107,6 +107,11 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_fmt_",
 		Tag:       "fmt",
 	},
+	"jsonSchema": {
+		Name:      "jsonSchemaModule",
+		VarPrefix: "g_jsc_",
+		Tag:       "jsc",
+	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",
@@ -515,6 +520,20 @@ const (
 	// DefaultSizeMaxBytes caps any single type's estimate so a huge declared
 	// bound (e.g. maxLength<10_000_000>) never seeds a multi-MB cold buffer.
 	DefaultSizeMaxBytes = 64 * 1024
+)
+
+// Pattern mockSample auto-generation defaults. A format pattern with no
+// declared mockSamples gets them generated at build time by the JS engine
+// (deterministic per pattern); both knobs are overridable via a CLI flag /
+// plugin option and fold into the disk fingerprint.
+const (
+	// DefaultPatternSampleCount is how many samples generation aims for per
+	// pattern (0 disables generation entirely).
+	DefaultPatternSampleCount = 100
+	// DefaultPatternSampleRetries is the per-sample draw multiplier: the
+	// whole generation budget is count × retries draws, and only a budget
+	// that yields zero surviving values fails the build.
+	DefaultPatternSampleRetries = 10
 )
 
 // Tuple slot-0 kind discriminators for entry-module tuples. Type-fn entries

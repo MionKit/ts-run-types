@@ -12,6 +12,7 @@
 // Vitest and as a standalone long-running soak (see runCloneFuzzForDuration).
 
 import {mixSeed, withSeededRandom} from '../core/seededRng.ts';
+import {startSoakBudget} from '../core/soakBudget.ts';
 import {randomJunk} from '../value/fuzzRunner.ts';
 import {deepCopyValue, mutateWithExtras} from './extrasValue.ts';
 import {
@@ -36,6 +37,10 @@ export interface CloneFuzzReport {
   iterations: number;
   seed: number;
   violations: CloneViolation[];
+  /** Duration runs only: the slowest single iteration and its zero-based round,
+   *  for the soak pathology tripwire (SOAK_ITERATION_CEILING_MS). **/
+  slowestIterationMs?: number;
+  slowestIterationRound?: number;
 }
 
 const DEFAULT_ITERATIONS = 200;
@@ -71,9 +76,10 @@ export function runCloneFuzzForDuration(
   const violations: CloneViolation[] = [];
   let runs = 0;
   let round = 0;
-  const deadline = Date.now() + durationMs;
+  // One "iteration" is a full round over every target (see runFuzzForDuration).
+  const budget = startSoakBudget(durationMs);
 
-  while (Date.now() < deadline) {
+  while (budget.canStart()) {
     for (const target of targets) {
       const iterSeed = mixSeed(seed, target.title, round);
       withSeededRandom(iterSeed, () => {
@@ -84,8 +90,16 @@ export function runCloneFuzzForDuration(
       });
     }
     round++;
+    budget.mark();
   }
-  return {runs, iterations: round, seed, violations};
+  return {
+    runs,
+    iterations: round,
+    seed,
+    violations,
+    slowestIterationMs: budget.slowestIterationMs(),
+    slowestIterationRound: budget.slowestIterationRound(),
+  };
 }
 
 /** One target × one seed: valid, extras, and junk passes. Runs INSIDE a

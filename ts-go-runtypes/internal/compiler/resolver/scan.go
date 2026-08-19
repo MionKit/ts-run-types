@@ -2,6 +2,9 @@ package resolver
 
 import (
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -15,6 +18,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 	"github.com/mionkit/ts-runtypes/internal/textpos"
 )
 
@@ -145,7 +149,7 @@ func (sess *Session) dispatchScanFiles(files []string) ([]protocol.Site, []diagn
 	// (registerPureFnFactory's `CompTimeArgs<PureFnId>` used non-literally, …).
 	// The general form of the old marker-only exemption: drop every diagnostic
 	// anchored in an external-library file. Sites/collection are untouched; only
-	// diagnostics are scoped. See docs/done/scan-diagnostics-marker-own-source.md.
+	// diagnostics are scoped.
 	diags = sess.dropExternalLibraryDiagnostics(diags)
 	return sites, diags, err
 }
@@ -304,6 +308,28 @@ func (state scanState) detectMarker(paramType *checker.Type) (marker.Kind, *chec
 	return kind, typeArg, matched
 }
 
+// nearMissDiagnostic builds MKR012 for a parameter whose type is named like a
+// marker but was declared by a package the project does not trust. The
+// "using file's package" is passed so a project's OWN same-named brand — the
+// case the gate exists to keep inert — never reports.
+func (state scanState) nearMissDiagnostic(file string, call *ast.Node, paramType *checker.Type) (diagnostics.Diagnostic, bool) {
+	usingModule := marker.DeclaringModuleOfNode(call, state.sess.marker.FS)
+	nearMiss, found := marker.DetectNearMiss(paramType, state.sess.marker, usingModule)
+	if !found {
+		return diagnostics.Diagnostic{}, false
+	}
+	sourceFile := ast.GetSourceFileOfNode(call)
+	if sourceFile == nil {
+		return diagnostics.Diagnostic{}, false
+	}
+	return diagnostics.New(
+		diagnostics.CodeMarkerUntrustedPackage,
+		textpos.NodeSite(file, sourceFile, call),
+		nearMiss.MarkerName,
+		nearMiss.DeclaringModule,
+	), true
+}
+
 // pendingCall is the checker-bound analysis result for one injection
 // call site — a complete Site minus the wire ID, plus the resolved type
 // argument and the checker that materialized it. analyzeCall produces
@@ -332,7 +358,10 @@ type pendingCall struct {
 	// comma — otherwise the pre-existing comma plus the injected `, …` yield
 	// an empty argument `f(a, , …)`, which is invalid JS.
 	trailingComma bool
-	typeArgument  *checker.Type
+	// mockSeed is the literal mock.seed hint from a CompTimeHints options
+	// slot ("" = none) — see protocol.Site.MockSeed.
+	mockSeed     string
+	typeArgument *checker.Type
 	// owner is the checker that materialized typeArgument. Projection
 	// must run under it — types from different checkers never mix
 	// (upstream contract on Program.GetTypeCheckerForFile).
@@ -364,6 +393,22 @@ func (sess *Session) commitPending(pending pendingCall) (protocol.Site, []diagno
 		}
 		return protocol.Site{}, []diagnostics.Diagnostic{diag}, false
 	}
+	// Cross-site mock-sample disagreement on an entry this site shares with an
+	// earlier one. Raised HERE rather than in the cache because only the resolver
+	// knows the call sites: the diagnostic anchors on THIS site and names the one
+	// that interned first, so both ends of the conflict are in the message.
+	var diags []diagnostics.Diagnostic
+	for _, conflict := range sess.cache.SampleConflicts() {
+		diags = append(diags, diagnostics.New(
+			diagnostics.CodeFMTSampleConflict, pending.site,
+			conflict.Format,
+			formatSamplePool(conflict.Kept),
+			formatSamplePool(conflict.Incoming),
+			sess.formatSampleOrigin(conflict.ID),
+		))
+	}
+	sess.rememberSampleOrigin(id, pending)
+
 	return protocol.Site{
 		File:          pending.file,
 		Pos:           pending.pos,
@@ -374,7 +419,40 @@ func (sess *Session) commitPending(pending pendingCall) (protocol.Site, []diagno
 		FnIds:         pending.fnIds,
 		Demand:        pending.demand,
 		TrailingComma: pending.trailingComma,
-	}, nil, true
+		MockSeed:      pending.mockSeed,
+	}, diags, true
+}
+
+// rememberSampleOrigin records the FIRST site to resolve an id, so a later
+// conflicting site can name it. Only the first wins — that is precisely the site
+// whose declared pool the shared entry kept.
+func (sess *Session) rememberSampleOrigin(id string, pending pendingCall) {
+	if sess.sampleOrigins == nil {
+		sess.sampleOrigins = map[string]string{}
+	}
+	if _, seen := sess.sampleOrigins[id]; seen {
+		return
+	}
+	sess.sampleOrigins[id] = pending.file + ":" + strconv.Itoa(pending.pos)
+}
+
+// formatSampleOrigin renders the remembered site, or a plain fallback when the
+// entry was interned by something other than a scanned call site.
+func (sess *Session) formatSampleOrigin(id string) string {
+	if origin, ok := sess.sampleOrigins[id]; ok {
+		return origin
+	}
+	return "another site"
+}
+
+// formatSamplePool renders a pool for the message: the values, comma-joined, in
+// declaration order (which is the order the mock generator indexes into).
+func formatSamplePool(samples []string) string {
+	quoted := make([]string, 0, len(samples))
+	for _, sample := range samples {
+		quoted = append(quoted, strconv.Quote(sample))
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
 // analyzeCall inspects one call expression — the checker-bound analysis
@@ -451,6 +529,18 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 		if !matched {
 			continue
 		}
+		// A nil typeArg on an INJECTION marker means the alias never matched and
+		// only the brand PROPERTY did (matchedByBrand, which is deliberately not
+		// module-gated). The usual cause is a near miss: right marker name,
+		// declared by a package this project has not trusted. The call still
+		// emits a site, but for `unknown` instead of the user's type, so say so
+		// rather than letting it pass silently. Guarded on the nil typeArg so the
+		// check costs nothing on the hot path.
+		if typeArg == nil && (kind == marker.KindInjectRunTypeId || kind == marker.KindInjectTypeFnArgs) {
+			if nearMissDiag, found := state.nearMissDiagnostic(file, call, paramType); found {
+				diags = append(diags, nearMissDiag)
+			}
+		}
 		switch kind {
 		case marker.KindInjectRunTypeId:
 			// EVERY injection-marker parameter is its own slot (multi-slot
@@ -507,7 +597,14 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 	// carrier the enclosing marker discards. Only injection markers count as
 	// "enclosing" — wrappers without one (`optional(...)`, plain helpers,
 	// vitest's `expect`) are transparent, so the walk continues past them.
-	if state.enclosedByInjectionMarker(call) {
+	// …EXCEPT the id-LOOKUP escape. `getRunType<T>()` returns a RunType like a
+	// builder does, but it does not build one — it looks the id up in the
+	// runtime registry — so dropping its id leaves it with nothing to look up
+	// and it throws "no id injected" at the first call. Nested is exactly where
+	// convert emits it (`createValidateFn(getRunType<Named>())`), which is how
+	// this surfaced.
+	if state.enclosedByInjectionMarker(call) &&
+		!builders.IsIdLookupCall(state.scanChecker, call, state.sess.marker) {
 		return nil, diags
 	}
 	// EXPLICIT PASS-THROUGH (per slot): a marker parameter the caller already
@@ -530,6 +627,22 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 	if len(injecting) == 0 {
 		return nil, diags
 	}
+	// CompTimeHints slot: read the literal mock.seed hint when a marked
+	// options parameter was actually filled. Runs only on genuine marker
+	// calls (the injecting gate above), so plain calls never pay the
+	// per-parameter annotation walk. Lenient by the marker's contract — a
+	// dynamic bag simply yields no hint, never a diagnostic.
+	mockSeed := ""
+	for paramIndex := 0; paramIndex <= lastIndex && paramIndex < argsCount; paramIndex++ {
+		if parameters[paramIndex] == nil || callExpression == nil || callExpression.Arguments == nil {
+			continue
+		}
+		if !comptimeargs.IsCompTimeHintsParamNode(state.scanChecker, parameters[paramIndex], state.sess.marker) {
+			continue
+		}
+		mockSeed = extractMockSeedHint(state.scanChecker, callExpression.Arguments.Nodes[paramIndex])
+		break
+	}
 	// SINGLE TRAILING MARKER — the full path (reflect-form, comptime options,
 	// annotation honoring, the Temporal-not-loaded guard). Byte-identical to the
 	// pre-multislot behaviour for every existing call.
@@ -539,6 +652,7 @@ func (state scanState) analyzeCall(file string, call *ast.Node) ([]pendingCall, 
 		if !ok {
 			return nil, diags
 		}
+		pending.mockSeed = mockSeed
 		return []pendingCall{pending}, diags
 	}
 	// MULTI-SLOT INJECTION — several marker parameters (or a single non-trailing
@@ -559,17 +673,29 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	sourceFile := ast.GetSourceFileOfNode(call)
 	injectionTypeArgument := slot.typeArg
 	injectionFnKeys := slot.fnKeys
-	// Guard against a `Temporal.*` type that silently resolved to `any`
-	// because the consumer's tsconfig lib doesn't load the Temporal
-	// namespace — otherwise the emitted validator accepts anything. Emitted
-	// for the injection call regardless of what the type argument resolved
-	// to (it inspects the written syntax, not the resolved type).
-	diags = append(diags, detectTemporalNotLoaded(state.scanChecker, file, call)...)
+	// One walk over the call's written type-argument syntax classifies every
+	// type reference into the silent-any guard that owns it: `Temporal.<Name>`
+	// that degraded to `any` → TMP001 (Temporal lib not loaded — otherwise the
+	// emitted validator accepts anything), any other name that resolved to the
+	// checker's ERROR type — `any` the author never wrote — → MKR013.
+	temporalDiags, nameDiags := detectWrittenTypeRefGuards(state.scanChecker, file, call)
+	diags = append(diags, temporalDiags...)
 	// Sibling guard: T resolved to `any` because an import in this file
 	// failed to resolve in the scan program (MKR007, Error) — the injection
 	// still proceeds (noop tuples), so behavior without failOnError is
 	// unchanged; the diagnostic is what fails strict builds.
-	diags = append(diags, state.detectAnyFromUnresolvedImport(file, call, injectionTypeArgument)...)
+	importDiags := state.detectAnyFromUnresolvedImport(file, call, injectionTypeArgument)
+	diags = append(diags, importDiags...)
+	// MKR013 is suppressed when MKR007 fired (the import message names the
+	// actionable cause); TMP001 above always surfaces. The slot probe covers
+	// the reflect form and yields to a walk hit AND to TMP001 (the same
+	// degraded slot, with a lib-specific fix message).
+	if len(importDiags) == 0 {
+		if len(nameDiags) == 0 && len(temporalDiags) == 0 {
+			nameDiags = detectUnresolvedNameSlot(file, call, injectionTypeArgument)
+		}
+		diags = append(diags, nameDiags...)
+	}
 	typeArgument := injectionTypeArgument
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body with the id slot EMPTY — `T` is the
@@ -639,11 +765,11 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 		// recommended replacement is the static form using `ReturnType<
 		// typeof fn>`. Emit a build warning to nudge the user toward it.
 		//
-		// EXCEPT a value-first schema-builder call (`object({…})`, `circular(…)`,
+		// EXCEPT a builder call (`object({…})`, `circular(…)`,
 		// `array(…)`, …) IS the intended reflect-form value — it's pure
 		// construction, not a side-effectful user function — so it must not warn.
 		if argZero != nil && argZero.Kind == ast.KindCallExpression &&
-			!builders.IsSchemaLeafCall(state.scanChecker, state.sess.markerModule(), argZero, state.sess.marker.FS) {
+			!builders.IsBuilderLeafCall(state.scanChecker, argZero, state.sess.marker) {
 			if diagnostic, ok := state.sess.markerDiagFunctionCallArg(file, argZero); ok {
 				diags = append(diags, diagnostic)
 			}
@@ -661,14 +787,14 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 		// reflect-form args (property access, function calls, element
 		// access) don't go through const-binding CFA and don't exhibit
 		// the trap, so they fall through to the apparent-type path.
-		// Skip annotation honoring for the SCHEMA overload: when argZero is a
-		// RunType-typed const (`createValidateFn(schemaConst)` where
-		// `const schemaConst: RunType<T> = …`), the declared type is `RunType<T>`,
+		// Skip annotation honoring for the RUN-TYPE overload: when argZero is a
+		// RunType-typed const (`createValidateFn(runTypeConst)` where
+		// `const runTypeConst: RunType<T> = …`), the declared type is `RunType<T>`,
 		// but the injection's typeArgument is already the UNWRAPPED `T` (inferred
-		// from the schema overload's `RunType<T>` param). Overriding it with
+		// from the run-type overload's `RunType<T>` param). Overriding it with
 		// `RunType<T>` would validate against RunType's own shape, not `T` — and
-		// break recursive schemas bound to an annotated const.
-		if annotated, ok := state.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, state.sess.markerModule(), state.sess.marker.FS) {
+		// break recursive run-types bound to an annotated const.
+		if annotated, ok := state.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, state.sess.marker) {
 			typeArgument = annotated
 		}
 	}
@@ -681,12 +807,12 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 	// literal when present, falling back to the whole call.
 	if options.Any() {
 		resolvedKind := typeid.KindOf(state.scanChecker, typeArgument)
-		if options.Has("noLiterals") && resolvedKind != protocol.KindLiteral {
+		if options.Has("noLiterals") && resolvedKind != reflection.KindLiteral {
 			if diagnostic, ok := state.sess.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoLiteralsNoop); ok {
 				diags = append(diags, diagnostic)
 			}
 		}
-		if options.Has("noIsArrayCheck") && resolvedKind != protocol.KindArray {
+		if options.Has("noIsArrayCheck") && resolvedKind != reflection.KindArray {
 			if diagnostic, ok := state.sess.noopValidateOptionDiag(file, call, lastIndex, argsCount, diagnostics.CodeValidateOptionsNoArrayNoop); ok {
 				diags = append(diags, diagnostic)
 			}
@@ -791,15 +917,26 @@ func (state scanState) analyzeTrailingInjection(file string, call *ast.Node, cal
 func (state scanState) analyzeMultiSlotInjection(file string, call *ast.Node, injecting []injectMarker, argsCount int, trailingComma bool) ([]pendingCall, []diagnostics.Diagnostic) {
 	var diags []diagnostics.Diagnostic
 	sourceFile := ast.GetSourceFileOfNode(call)
-	// The Temporal-not-loaded guard is a per-call check (inspects written
-	// syntax, not the resolved type), so it fires once for the whole call.
-	diags = append(diags, detectTemporalNotLoaded(state.scanChecker, file, call)...)
+	// One walk over the call's written type-argument syntax classifies every
+	// type reference into the guard that owns it (TMP001 / MKR013) — per-call,
+	// like the trailing path. The per-slot reflect probe below yields to both
+	// families' hits; MKR013 additionally yields to a slot's MKR007 after the
+	// loop (the import names the cause), while TMP001 always surfaces.
+	temporalDiags, nameRefDiags := detectWrittenTypeRefGuards(state.scanChecker, file, call)
+	diags = append(diags, temporalDiags...)
+	importFired := false
 	pos := call.End() - 1
 	var pendings []pendingCall
 	for _, m := range injecting {
 		// Silent-any guard per slot (MKR007) — a wrapper slot whose T checked
 		// as `any` because this file has an unresolved import.
-		diags = append(diags, state.detectAnyFromUnresolvedImport(file, call, m.typeArg)...)
+		importDiags := state.detectAnyFromUnresolvedImport(file, call, m.typeArg)
+		diags = append(diags, importDiags...)
+		if len(importDiags) > 0 {
+			importFired = true
+		} else if len(nameRefDiags) == 0 && len(temporalDiags) == 0 {
+			diags = append(diags, detectUnresolvedNameSlot(file, call, m.typeArg)...)
+		}
 		if marker.IsFreeTypeParameter(m.typeArg) {
 			// A marker slot whose `T` is the enclosing wrapper's own free type
 			// parameter — no concrete id until the wrapper is instantiated.
@@ -866,6 +1003,9 @@ func (state scanState) analyzeMultiSlotInjection(file string, call *ast.Node, in
 			typeArgument:  m.typeArg,
 			owner:         state.scanChecker,
 		})
+	}
+	if !importFired {
+		diags = append(diags, nameRefDiags...)
 	}
 	return pendings, diags
 }
@@ -1062,6 +1202,86 @@ func eachOptionPropertyOf(typeChecker *checker.Checker, objectLiteralNode *ast.N
 	}
 }
 
+// extractMockSeedHint reads the literal `mock.seed` from a CompTimeHints
+// options argument (createMockDataFn's bag) — the knob that makes generated
+// pattern mockSample pools reproducible across builds. Best-effort by the
+// marker's contract: only a statically readable numeric literal counts; a
+// dynamic bag, computed seed, or absent key yields "" and the site simply
+// carries no hint (its pools then draw a fresh random key per build).
+// Returns canonical decimal text rather than a float so equal seeds written
+// differently ("7", "7.0") mix identically into the pool seed basis.
+func extractMockSeedHint(typeChecker *checker.Checker, argument *ast.Node) string {
+	candidate := comptimeargs.UnwrapWrappers(argument)
+	if candidate == nil {
+		return ""
+	}
+	// A whole-const preset (`createMockDataFn(v, mockPreset)`) resolves to
+	// its object literal, mirroring eachOptionProperty's whole-const path.
+	if candidate.Kind == ast.KindIdentifier {
+		if container, ok := comptimeargs.ResolveSpreadContainer(typeChecker, candidate); ok && container.Kind == ast.KindObjectLiteralExpression {
+			candidate = container
+		}
+	}
+	if candidate.Kind != ast.KindObjectLiteralExpression {
+		return ""
+	}
+	seed := ""
+	eachOptionPropertyOf(typeChecker, candidate, 0, func(name string, initializer *ast.Node) {
+		if name != "mock" || initializer == nil {
+			return
+		}
+		mockObject := comptimeargs.UnwrapWrappers(initializer)
+		if mockObject != nil && mockObject.Kind == ast.KindIdentifier {
+			if container, ok := comptimeargs.ResolveSpreadContainer(typeChecker, mockObject); ok && container.Kind == ast.KindObjectLiteralExpression {
+				mockObject = container
+			}
+		}
+		if mockObject == nil || mockObject.Kind != ast.KindObjectLiteralExpression {
+			return
+		}
+		// Last write wins across spreads/overrides, same as every option reader.
+		eachOptionPropertyOf(typeChecker, mockObject, 0, func(innerName string, innerInitializer *ast.Node) {
+			if innerName != "seed" {
+				return
+			}
+			if text, ok := numericLiteralText(innerInitializer); ok {
+				seed = text
+			}
+		})
+	})
+	return seed
+}
+
+// numericLiteralText returns the canonical decimal text of a (possibly
+// sign-prefixed) numeric literal, or ok=false for anything the build
+// cannot read statically.
+func numericLiteralText(node *ast.Node) (string, bool) {
+	candidate := comptimeargs.UnwrapWrappers(node)
+	if candidate == nil {
+		return "", false
+	}
+	negative := false
+	if candidate.Kind == ast.KindPrefixUnaryExpression {
+		prefixUnary := candidate.AsPrefixUnaryExpression()
+		if prefixUnary == nil || (prefixUnary.Operator != ast.KindMinusToken && prefixUnary.Operator != ast.KindPlusToken) {
+			return "", false
+		}
+		negative = prefixUnary.Operator == ast.KindMinusToken
+		candidate = comptimeargs.UnwrapWrappers(prefixUnary.Operand)
+	}
+	if candidate == nil || candidate.Kind != ast.KindNumericLiteral {
+		return "", false
+	}
+	value, err := strconv.ParseFloat(candidate.Text(), 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return "", false
+	}
+	if negative {
+		value = -value
+	}
+	return strconv.FormatFloat(value, 'g', -1, 64), true
+}
+
 // extractStrategyOption reads the `strategy` string property from the options
 // slot — the JSON encoder/decoder compile-time selector. Returns "" when
 // absent or not a string literal, so the caller falls back to the function's
@@ -1140,8 +1360,7 @@ func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 		// `expect(getRunTypeId<T>()).toBe(x)`, where `Assertion<U>.toBe(expected: U)`
 		// instantiates `expected` to `InjectRunTypeId<T>`. That false positive made
 		// the scanner treat `.toBe` as an enclosing marker and drop the injection
-		// on BOTH inner `getRunTypeId` calls. See
-		// docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md.
+		// on BOTH inner `getRunTypeId` calls.
 		if comptimeargs.IsInjectionMarkerParamNode(state.scanChecker, lastParam, state.sess.marker) {
 			return true
 		}
@@ -1367,14 +1586,14 @@ func (sess *Session) noopValidateOptionDiag(file string, call *ast.Node, lastInd
 }
 
 // isBuilderCallPredicate returns the closure comptimeargs.CheckLiteral uses to
-// recognize a static schema-construction call (a value-first builder OR an
+// recognize a static builder-construction call (a builder OR an
 // optional()/propMod() carrier) as a valid CompTimeArgs leaf — so a nested
 // `string({…})` or `optional(number())` inside `object({…})` passes without
 // recursing into it (each self-validates on its own scan visit).
 func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
-	module := state.sess.markerModule()
+	markerOpts := state.sess.marker
 	return func(node *ast.Node) bool {
-		return builders.IsSchemaLeafCall(state.scanChecker, module, node, state.sess.marker.FS)
+		return builders.IsBuilderLeafCall(state.scanChecker, node, markerOpts)
 	}
 }
 

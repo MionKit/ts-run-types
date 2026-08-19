@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // annotation is a small helper to build a FormatAnnotation for tests.
-func annotation(name string, params map[string]any) *protocol.FormatAnnotation {
-	return &protocol.FormatAnnotation{Name: name, Params: params}
+func annotation(name string, params map[string]any) *reflection.FormatAnnotation {
+	return &reflection.FormatAnnotation{Name: name, Params: params}
 }
 
 // TestNumberBinary_IntegerWidthLadder pins the int8/16/32 + float64
@@ -164,8 +164,13 @@ func TestValidateParams(t *testing.T) {
 	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"gt": 5.0, "lt": 2.0})); len(errs) == 0 {
 		t.Error("expected gt>=lt ordering error")
 	}
-	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"multipleOf": 2.5})); len(errs) == 0 {
-		t.Error("expected multipleOf-must-be-integer error")
+	// A fractional multipleOf is ALLOWED (JSON Schema permits any positive
+	// number, e.g. 0.01 on a money field); only a non-positive one is an error.
+	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"multipleOf": 2.5})); len(errs) != 0 {
+		t.Errorf("expected fractional multipleOf to be accepted, got %v", errs)
+	}
+	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"multipleOf": 0.0})); len(errs) == 0 {
+		t.Error("expected multipleOf-must-be-positive error")
 	}
 	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"multipleOf": 5.0, "float": true})); len(errs) == 0 {
 		t.Error("expected multipleOf+float error")

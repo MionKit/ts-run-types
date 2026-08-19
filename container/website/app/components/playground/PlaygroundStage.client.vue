@@ -2,13 +2,13 @@
 // PlaygroundStage - the interactive playground UI (client-only: it lazy-loads
 // Monaco + the resolver WASM, both browser-only). A Vue port of the former
 // <runtypes-playground> web component. Three columns:
-//   1. Source     - the TypeScript type (or value-first schema) editor, its
+//   1. Source     - the TypeScript type (or builder) editor, its
 //                   read-only import header + call footer, and the "Transformed
 //                   Src" view of what the build plugin injects.
 //   2. Generated  - the code RunTypes generates for the selected function + type.
 //   3. Function   - a build-function picker, a JS-expression input pane with
 //                   Random valid / Random invalid, a Run button, and the result.
-// Above: real-world presets + a TS-type / Schema mode switch.
+// Above: real-world presets + a TS-type / Builder mode switch.
 //
 // The engine (../../playground) is framework-agnostic; this component owns the
 // Monaco wiring, the debounced codegen, and the highlighted output. Colors follow
@@ -92,12 +92,18 @@ const transformviewHtml = ref('<div class="rtpg-placeholder">resolving…</div>'
 const codeviewHtml = ref('<div class="rtpg-placeholder">resolving…</div>');
 const genRandomBusy = ref(false);
 const genInvalidBusy = ref(false);
+// Which generator the sample input last came from, so a type edit refreshes it
+// with the same intent: a deliberately invalid value stays invalid against the
+// new type instead of silently turning valid.
+const lastMockKind = ref<'valid' | 'invalid'>('valid');
 
 const currentOp = computed<Operation>(() => operationByKey(operationKey.value));
 const needsInput = computed(() => currentOp.value.needsInput);
 const runLabel = computed(() => (currentOp.value.kind === 'graph' ? 'Unpack RunTypes' : 'Run'));
 const typeHintHtml = computed(() =>
-  mode.value === 'schema' ? `define <code>${ROOT_TYPE}</code> with RT/TF builders` : `define <code>${ROOT_TYPE}</code>`,
+  mode.value === 'builder'
+    ? `define <code>${ROOT_TYPE}</code> with RT/TF builders`
+    : `define <code>${ROOT_TYPE}</code>`,
 );
 
 // The operation picker, grouped by family (Validation / JSON encode / ...) so the
@@ -127,7 +133,7 @@ let headerEditor: Editor | null = null;
 let footerEditor: Editor | null = null;
 // Explicit file:/// models for the three TypeScript editors. Monaco resolves the
 // real `@ts-runtypes/core` overlay (staged under a virtual node_modules) only for a
-// `file://` model — an auto `inmemory://` model can't walk up to node_modules — so
+// `file://` model (an auto `inmemory://` model can't walk up to node_modules)so
 // each editor gets a per-instance file URI. Disposed on unmount (editor.dispose()
 // leaves externally-created models alive).
 let headerModel: TextModel | null = null;
@@ -135,6 +141,16 @@ let bodyModel: TextModel | null = null;
 let footerModel: TextModel | null = null;
 let codeTimer: ReturnType<typeof setTimeout> | null = null;
 let codeSeq = 0;
+let mockTimer: ReturnType<typeof setTimeout> | null = null;
+let mockSeq = 0;
+// True while a programmatic setValue rewrites the type editor (preset load, mode
+// switch). Those paths bring their own matching input, so only USER edits of the
+// type resync the sample value.
+let writingTypeSource = false;
+// Set when a type edit lands while the current function reads no input
+// (getRunType): nothing to regenerate now, but the value is stale for the next
+// function that does read it.
+let inputStale = false;
 
 const headerEditorEl = ref<HTMLElement>();
 const editorEl = ref<HTMLElement>();
@@ -247,7 +263,11 @@ function playgroundBase(): string {
 
 function resolverOptions(): ResolverOptions {
   const base = playgroundBase();
-  return {wasmUrl: `${base}playground-app/ts-runtypes.wasm.gz`, wasmExecUrl: `${base}playground-app/wasm_exec.js`};
+  return {
+    wasmUrl: `${base}playground-app/ts-runtypes.wasm.gz`,
+    wasmExecUrl: `${base}playground-app/wasm_exec.js`,
+    sidecarHookUrl: `${base}playground-app/sidecar-hook.js`,
+  };
 }
 
 function ensureMonacoWorkers(): void {
@@ -285,7 +305,7 @@ async function loadRuntypesSources(): Promise<Record<string, string>> {
 // registerRuntypesLibs feeds the real overlay to Monaco's TS language service ONCE
 // (global state, shared by every editor + playground instance): each virtual file is
 // added at its file:/// path so a snippet's `@ts-runtypes/core[/…]` import resolves
-// against the ACTUAL published types — the same sources the resolver uses — rather
+// against the ACTUAL published types (the same sources the resolver uses)rather
 // than a hand-maintained stub. Idempotent across instances via a global flag.
 function registerRuntypesLibs(mon: Monaco, overlay: Record<string, string>): void {
   const flag = globalThis as unknown as {__rtCoreLibsRegistered?: boolean};
@@ -375,17 +395,39 @@ function typeSource(): string {
   return typeEditor?.getValue() ?? '';
 }
 
+// Programmatic writes to the type editor. Monaco fires onDidChangeModelContent
+// synchronously from setValue, so the flag is enough to tell "the app replaced
+// the snippet" (preset / mode switch, which carry their own input) apart from
+// "the user is editing" (which must resync the input).
+function setTypeSource(value: string): void {
+  writingTypeSource = true;
+  try {
+    typeEditor?.setValue(value);
+  } finally {
+    writingTypeSource = false;
+  }
+}
+
 // ---- presets + mode ---------------------------------------------------------
 
 function currentPreset(): Preset {
   return PRESETS[presetIndex.value] ?? PRESETS[0];
 }
 
+function presetSource(preset: Preset, form: Mode): string {
+  if (form === 'builder') return preset.builder;
+  return preset.ts;
+}
+
 function loadPreset(index: number): void {
   presetIndex.value = index;
   const preset = currentPreset();
-  typeEditor?.setValue(mode.value === 'schema' ? preset.schema : preset.ts);
+  setTypeSource(presetSource(preset, mode.value));
   inputEditor?.setValue(preset.input);
+  // The preset ships a valid value for its own type, so that is the intent a
+  // later type edit should reproduce.
+  lastMockKind.value = 'valid';
+  inputStale = false;
   updateLineNumberOffsets();
   scheduleCodegen(PICK_DEBOUNCE_MS);
   resetResult();
@@ -397,7 +439,8 @@ function setMode(next: Mode): void {
   // Re-show the current preset in the new form so switching always yields a valid
   // snippet (custom edits in the other form are replaced).
   const preset = currentPreset();
-  typeEditor?.setValue(next === 'schema' ? preset.schema : preset.ts);
+  setTypeSource(presetSource(preset, next));
+  // Both forms model the same type, so the input on screen still fits.
   // The call shape differs by mode (`createX<MyType>()` vs `createX(MyType)`).
   updateSurrounding();
   scheduleCodegen(PICK_DEBOUNCE_MS);
@@ -415,6 +458,8 @@ watch(operationKey, () => {
   updateSurrounding();
   resetResult();
   scheduleCodegen(PICK_DEBOUNCE_MS);
+  // Picking up a type edit that landed while the input pane was hidden.
+  if (inputStale) scheduleInputResync(PICK_DEBOUNCE_MS);
 });
 
 // Track the color mode so Monaco's own theme flips with the site.
@@ -437,11 +482,48 @@ async function generateInto(generator: () => Promise<{value: unknown}>, busy: Re
 }
 
 function generateMock(): Promise<void> {
+  lastMockKind.value = 'valid';
+  inputStale = false;
   return generateInto(() => mock(typeSource(), resolverOptions(), mode.value), genRandomBusy);
 }
 
 function generateInvalid(): Promise<void> {
+  lastMockKind.value = 'invalid';
+  inputStale = false;
   return generateInto(() => mockInvalid(typeSource(), resolverOptions(), mode.value), genInvalidBusy);
+}
+
+// scheduleInputResync refreshes the sample value after a type edit settles, so a
+// value left over from the PREVIOUS type can never be run against the new one,
+// the "I changed MyType, hit Run, and validate says false" trap. Deferred when
+// the selected function reads no input; the flag makes the next one that does
+// pick the refresh up.
+function scheduleInputResync(delay: number): void {
+  if (!needsInput.value) {
+    inputStale = true;
+    return;
+  }
+  inputStale = false;
+  if (mockTimer) clearTimeout(mockTimer);
+  mockTimer = setTimeout(() => void resyncInput(), delay);
+}
+
+// Silent by design: mid-edit the snippet often does not resolve yet, and that is
+// not a failure worth showing: the current value simply stays until the type
+// compiles again, and the next keystroke reschedules.
+async function resyncInput(): Promise<void> {
+  if (!ready.value) return;
+  const seq = ++mockSeq;
+  const userCode = typeSource();
+  const generate = lastMockKind.value === 'invalid' ? mockInvalid : mock;
+  try {
+    const {value} = await generate(userCode, resolverOptions(), mode.value);
+    if (seq !== mockSeq) return; // a newer edit owns the input now
+    inputEditor?.setValue(jsValue(value));
+    resetResult();
+  } catch {
+    /* type does not resolve yet: keep what is on screen */
+  }
 }
 
 async function doRun(): Promise<void> {
@@ -484,7 +566,7 @@ async function renderResult(result: RunResult): Promise<string> {
       return `<div class="rtpg-badge ${result.value ? 'ok' : 'bad'}">${result.value ? 'true ✓' : 'false ✗'}</div>${diag}`;
     case 'errors': {
       const ok = result.value.length === 0;
-      const badge = `<div class="rtpg-badge ${ok ? 'ok' : 'bad'}">${ok ? 'valid — no errors' : `${result.value.length} error(s)`}</div>`;
+      const badge = `<div class="rtpg-badge ${ok ? 'ok' : 'bad'}">${ok ? 'valid, no errors' : `${result.value.length} error(s)`}</div>`;
       return `${badge}${ok ? '' : await block(result.value)}${diag}`;
     }
     case 'encode':
@@ -496,7 +578,10 @@ async function renderResult(result: RunResult): Promise<string> {
     case 'binaryRoundtrip':
       return `${label(`Encoded (${result.byteLength} bytes)`)}<pre class="rtpg-code rtpg-hex">${escapeHtml(result.hex)}</pre>${label('Decoded')}${await block(result.decoded)}${diag}`;
     case 'graph':
-      return `<div class="rtpg-badge ok">RunType resolved (${result.runTypes.length} node(s))</div>${label('Resolved RunType')}<pre class="rtpg-code">${await highlight(stringify(result.runTypes), 'json')}</pre>${diag}`;
+      // The live graph, descending from the root: children are the actual child
+      // nodes, so the output reads as the type's structure. Only a cycle shows
+      // up as a reference (`circular: true`): nothing else to look up by id.
+      return `<div class="rtpg-badge ok">RunType resolved (${result.runTypes.length} node(s))</div>${label('Resolved RunType')}<pre class="rtpg-code">${await highlight(stringify(result.tree), 'json')}</pre>${diag}`;
   }
 }
 
@@ -624,12 +709,13 @@ onMounted(async () => {
     typeEditor.onDidChangeModelContent(() => {
       updateLineNumberOffsets();
       scheduleCodegen(TYPE_DEBOUNCE_MS);
+      if (!writingTypeSource) scheduleInputResync(TYPE_DEBOUNCE_MS);
     });
     updateLineNumberOffsets();
     updateSurrounding();
 
     // Pre-warm the TS language service against the real overlay so the first
-    // hover/completion isn't blocked on a cold program build — runs in the
+    // hover/completion isn't blocked on a cold program build, runs in the
     // background, overlapping the WASM load below (best-effort).
     void (async () => {
       try {
@@ -652,12 +738,13 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (codeTimer) clearTimeout(codeTimer);
+  if (mockTimer) clearTimeout(mockTimer);
   headerEditor?.dispose();
   footerEditor?.dispose();
   typeEditor?.dispose();
   inputEditor?.dispose();
   headerEditor = footerEditor = typeEditor = inputEditor = null;
-  // Editors don't own externally-created models — dispose the file:/// models here.
+  // Editors don't own externally-created models: dispose the file:/// models here.
   headerModel?.dispose();
   bodyModel?.dispose();
   footerModel?.dispose();
@@ -688,9 +775,9 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="rtpg-mode"
-            :class="{'is-active': mode === 'schema'}"
-            title="ts-runtypes schema (value-first)"
-            @click="setMode('schema')"
+            :class="{'is-active': mode === 'builder'}"
+            title="ts-runtypes builder (run-type)"
+            @click="setMode('builder')"
           >
             <svg viewBox="0 0 32 32" aria-hidden="true">
               <path
@@ -698,7 +785,7 @@ onBeforeUnmount(() => {
                 d="M18.774 19.7a3.73 3.73 0 0 0 3.376 2.078c1.418 0 2.324-.709 2.324-1.688c0-1.173-.931-1.589-2.491-2.272l-.856-.367c-2.469-1.052-4.11-2.37-4.11-5.156c0-2.567 1.956-4.52 5.012-4.52A5.06 5.06 0 0 1 26.9 10.52l-2.665 1.711a2.33 2.33 0 0 0-2.2-1.467a1.49 1.49 0 0 0-1.638 1.467c0 1.027.636 1.442 2.1 2.078l.856.366c2.908 1.247 4.549 2.518 4.549 5.376c0 3.081-2.42 4.769-5.671 4.769a6.58 6.58 0 0 1-6.236-3.5ZM6.686 20c.538.954 1.027 1.76 2.2 1.76c1.124 0 1.834-.44 1.834-2.15V7.975h3.422v11.683c0 3.543-2.078 5.156-5.11 5.156A5.31 5.31 0 0 1 3.9 21.688Z"
               />
             </svg>
-            <span>Schema</span>
+            <span>Type Builder</span>
           </button>
         </div>
         <span class="rtpg-typegroup-sep" />
@@ -778,15 +865,13 @@ onBeforeUnmount(() => {
               4<span class="rtpg-tip rtpg-tip-left" role="tooltip">{{ STEP_TIPS.function }}</span>
             </button>
           </span>
+          <select v-model="operationKey" class="rtpg-select" aria-label="Build function">
+            <optgroup v-for="group in operationGroups" :key="group.label" :label="group.label">
+              <option v-for="op in group.ops" :key="op.key" :value="op.key">{{ op.menuLabel }}</option>
+            </optgroup>
+          </select>
         </div>
         <div class="rtpg-controls">
-          <label class="rtpg-field">
-            <select v-model="operationKey" class="rtpg-select">
-              <optgroup v-for="group in operationGroups" :key="group.label" :label="group.label">
-                <option v-for="op in group.ops" :key="op.key" :value="op.key">{{ op.menuLabel }}</option>
-              </optgroup>
-            </select>
-          </label>
           <div class="rtpg-info">
             <span class="rtpg-info-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -915,6 +1000,9 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 9px 13px;
+  /* Sized for the tallest head content (the function picker), so all three
+     pane heads stay on the same baseline whether or not they carry a control. */
+  min-height: 46px;
   border-bottom: 1px solid var(--rtpg-border);
   background: var(--rtpg-panel);
 }
@@ -925,12 +1013,18 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--rtpg-muted);
+  /* Never wrap: the function-picker head shares its row with the select, and a
+     two-line title there would break the three panes' shared baseline. */
+  white-space: nowrap;
 }
 .rt-playground .rtpg-head-title {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-width: 0;
+  /* Hold full width: the title is short, and it shares the function pane's head
+     with the picker, which shrinks instead (a shrinking title would be overrun
+     by the select rather than clipped, since the h2 does not wrap). */
+  flex: 0 0 auto;
 }
 .rt-playground .rtpg-hint {
   color: var(--rtpg-muted);
@@ -1113,21 +1207,36 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
 }
+/* The build-function picker, which sits in the "Pick a Function" pane head. A
+   muted primary border marks it as the pane's one control without competing
+   with the Run button; hover / focus take it to the full accent. */
 .rt-playground .rtpg-select {
   appearance: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  /* The longest option ("json dec remove unknown keys (default)") would set the
+     width; clip instead so a narrow pane shrinks the control rather than the
+     title. The section prefix leads the label, so it survives the ellipsis. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   background: var(--rtpg-panel-2);
   color: var(--rtpg-text);
-  border: 1px solid var(--rtpg-border);
+  border: 1px solid var(--rtpg-accent-dim);
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 4px 10px;
   font-family: var(--rtpg-mono);
-  font-size: 13px;
+  font-size: 12px;
+  /* Pinned so the control stays inside the head's min-height and this pane's
+     head matches the other two exactly. */
+  line-height: 1.2;
   cursor: pointer;
-  width: 100%;
 }
+.rt-playground .rtpg-select:hover,
 .rt-playground .rtpg-select:focus {
   outline: none;
-  border-color: var(--rtpg-accent-dim);
+  border-color: var(--rtpg-accent);
 }
 .rt-playground .rtpg-info {
   display: flex;

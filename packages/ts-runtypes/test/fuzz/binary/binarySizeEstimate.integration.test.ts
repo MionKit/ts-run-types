@@ -14,6 +14,8 @@
 import {describe, it, expect} from 'vitest';
 import {hasBinary} from './sizeFuzzRunner.ts';
 import {runSizeFuzz, runSizeFuzzForDuration} from './sizeFuzzRunner.ts';
+import {soakTestTimeout, pathologyReport} from '../core/soakBudget.ts';
+import {entrySeed} from '../core/fuzzPolicy.ts';
 
 describe('fuzz / binary size estimate — sound for in-bounds data', () => {
   const register = hasBinary() ? it : it.skip;
@@ -21,7 +23,7 @@ describe('fuzz / binary size estimate — sound for in-bounds data', () => {
   register(
     'no under-allocation for in-bounds data; oversized data grows and round-trips',
     async () => {
-      const report = await runSizeFuzz({seed: 0xc0ffee, iterations: 80});
+      const report = await runSizeFuzz({seed: entrySeed('size'), iterations: 80});
       if (report.violations.length > 0) {
         const summary = report.violations
           .slice(0, 25)
@@ -37,8 +39,7 @@ describe('fuzz / binary size estimate — sound for in-bounds data', () => {
       // and oversized values actually exercised grows. runSizeFuzz drives a fixed
       // deterministic floor case first, so these hold by construction whenever the
       // resolver is reachable — a resolver that dies under load makes runFloor throw
-      // a clear "resolver unavailable" instead of silently zeroing these counters
-      // (see docs/done/flaky-binary-size-estimate-fuzz.md).
+      // a clear "resolver unavailable" instead of silently zeroing these counters.
       expect(report.stats.noGrowChecked, 'no-resize lane never ran').toBeGreaterThan(0);
       expect(report.stats.negativesExercised, 'negative control never grew a buffer').toBeGreaterThan(0);
     },
@@ -50,15 +51,16 @@ describe('fuzz / binary size estimate — sound for in-bounds data', () => {
   it.runIf(soakMs > 0)(
     'soak — generate sized types continuously and log all findings',
     async () => {
-      const report = await runSizeFuzzForDuration(soakMs, {seed: Number(process.env.RT_FUZZ_SEED ?? 1)}, (v) => {
+      const report = await runSizeFuzzForDuration(soakMs, {seed: entrySeed('size')}, (v) => {
         console.error(`[size-fuzz][${v.oracle}] ${v.type} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
       });
       console.error(
         `[size-fuzz] soak finished: ${report.runs} types, ${report.violations.length} violation(s), ` +
           `${report.stats.noGrowChecked} no-resize checks, ${report.stats.negativesExercised} grows, ${report.stats.skipped} skipped`
       );
+      expect(pathologyReport(report.slowestIterationMs, report.slowestIterationRound)).toBeNull();
       expect(report.violations).toHaveLength(0);
     },
-    soakMs + 60_000
+    soakTestTimeout(soakMs)
   );
 });

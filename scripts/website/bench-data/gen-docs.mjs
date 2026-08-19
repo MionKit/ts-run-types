@@ -294,6 +294,11 @@ function buildValidationBench() {
             !f.endsWith('.typecost.json') &&
             !f.endsWith('.compiletime.json') &&
             !f.endsWith('.alignment.json') &&
+            // <competitor>.spec.json came from the removed JSON Schema
+            // spec-conformance lane; stale copies can linger in a cached results
+            // dir, carry the same `competitor` field, and would overwrite that
+            // competitor's real timing results — so keep filtering them out.
+            !f.endsWith('.spec.json') &&
             f !== 'alignment-misalignments.json' &&
             f !== 'env.json'
         )
@@ -312,24 +317,118 @@ function buildValidationBench() {
   const sources = new Map();
   for (const comp of competitors) sources.set(comp, extractCaseSources(path.join(COMPETITORS_DIR, comp, 'cases.ts')));
 
+  // Two benches, split by suite. The JSON Schema cases are NOT a third one: they
+  // are the `JSON_SCHEMA` group inside each of these two suites (structural
+  // keywords in validation, value constraints in format-validation), so they
+  // render as one more section per page. They used to be their own bench, which
+  // framed the lane as "who can consume a document" and left every column but
+  // ajv reading not-supported; each competitor now states the same constraint in
+  // its own dialect, which is the question the rest of the table already asks.
   const isFormat = (row) => row.suite === 'format-validation';
+  // The `strict` suite is deliberately NOT part of these two pages: it is the only
+  // suite measured under more than one JavaScript runtime, so it gets its own page
+  // where the runtime is a column. Leaving it here as well would publish the same
+  // numbers twice, once without the dimension that makes them interesting.
+  const isStrict = (row) => row.suite === 'strict';
   const core = emitValidationBench(
     'validation',
     'Validation',
-    rows.filter((row) => !isFormat(row)),
+    rows.filter((row) => !isFormat(row) && !isStrict(row)),
     competitors,
     byComp,
     sources
   );
-  const formats = emitValidationBench(
-    'validation-formats',
-    'Validation Formats',
-    rows.filter(isFormat),
-    competitors,
-    byComp,
-    sources
-  );
-  return core + formats;
+  const formats = emitValidationBench('validation-formats', 'Validation Formats', rows.filter(isFormat), competitors, byComp, sources);
+  const strict = emitStrictBench(rows.filter(isStrict), competitors, sources);
+  return core + formats + strict;
+}
+
+// ── strict bench: the one page with a RUNTIME dimension ───────────────────────
+// Every other page has one column per library. Here each library can appear twice,
+// once per JavaScript runtime, because the strict path is the only measured code that
+// specialises per engine (rt::countEnumKeys picks `for-in` on V8 and `Object.keys` on
+// JavaScriptCore). The extra column is what makes that visible to a reader.
+//
+// This reuses the existing table dataset shape verbatim — a "competitor" is just a
+// column name — so no website component knows anything about runtimes.
+function emitStrictBench(rows, competitors, sources) {
+  if (rows.length === 0) return 0;
+  const BUN_DIR = path.join(RESULTS_DIR, 'bun');
+  const readLane = (dir) => {
+    if (!fs.existsSync(dir)) return new Map();
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.json') && f !== 'env.json' && !f.endsWith('.typecost.json') && !f.endsWith('.compiletime.json') && !f.endsWith('.spec.json') && f !== 'alignment-misalignments.json');
+    return new Map(
+      files.map((f) => {
+        const parsed = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        return [parsed.competitor, new Map(parsed.cases.map((c) => [c.key, c]))];
+      })
+    );
+  };
+  const lanes = [
+    {suffix: '', byComp: readLane(RESULTS_DIR)},
+    {suffix: ' · bun', byComp: readLane(BUN_DIR)},
+  ];
+
+  const outDir = path.join(OUT_ROOT, 'strict');
+  fs.rmSync(outDir, {recursive: true, force: true});
+  fs.mkdirSync(outDir, {recursive: true});
+
+  const columns = [];
+  for (const comp of competitors) {
+    for (const lane of lanes) {
+      if (lane.byComp.has(comp)) columns.push({name: `${comp}${lane.suffix}`, comp, byComp: lane.byComp});
+    }
+  }
+
+  const cases = [];
+  for (const row of rows) {
+    const resultsForCase = {};
+    const detailComps = [];
+    const seenSource = new Set();
+    for (const column of columns) {
+      const c = column.byComp.get(column.comp)?.get(row.key);
+      const metricResult = {};
+      if (c?.validate) metricResult.validate = toMetric(c.validate);
+      if (c?.validationErrors) metricResult.validationErrors = toMetric(c.validationErrors);
+      if (Object.keys(metricResult).length > 0) resultsForCase[column.name] = metricResult;
+      // The source is per LIBRARY, not per runtime — the same bundle runs on both — so
+      // emit it once, under the library's own name.
+      if (seenSource.has(column.comp)) continue;
+      seenSource.add(column.comp);
+      const caseSources = sources.get(column.comp)?.get(row.key);
+      if (caseSources) detailComps.push({name: column.comp, sources: caseSources});
+    }
+    cases.push({key: safeKey(row.key), title: row.name, results: resultsForCase});
+    fs.writeFileSync(path.join(outDir, `${safeKey(row.key)}.json`), JSON.stringify({competitors: detailComps, samplesCode: samplesCodeFor(row.key)}));
+  }
+
+  const index = {
+    bench: 'strict',
+    label: 'Strict validation',
+    unit: 'ops',
+    showInvalid: true,
+    hasSamples: true,
+    metrics: [
+      {
+        key: 'validate',
+        label: 'Is-valid (strict)',
+        metricLabel: 'validate plus an unknown-key check (ops/sec, higher is better)',
+      },
+      {
+        key: 'validationErrors',
+        label: 'Validation errors (strict)',
+        metricLabel: 'getValidationErrors plus an unknown-key check (ops/sec, higher is better)',
+      },
+    ],
+    competitors: columns.map((c) => c.name),
+    versions: ENV?.versions,
+    meta: metaBlock(),
+    sections: [{key: 'STRICT', label: sectionLabel('STRICT'), cases}],
+  };
+  fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index));
+  return rows.length;
 }
 
 // Emit one validation bench (index.json + per-case source JSON) for a filtered set of
@@ -392,10 +491,18 @@ function emitValidationBench(outName, label, rows, competitors, byComp, sources)
 // ── typecost bench ───────────────────────────────────────────────────────────
 // Forms (not runtime competitors): each measures TypeScript type-instantiation
 // count per case (lower is better). Source for the hover comes from each form's
-// authoring file. No ajv — JSON Schema has no static type inference.
+// authoring file, resolved against COMPETITORS_DIR — so `srcFile` is a path
+// relative to container/benchmarks/competitors/, NOT an npm specifier (the two
+// ts-runtypes rows used to name `@ts-runtypes/core/…`, which resolves to a
+// directory that does not exist; extractCaseSources returns empty for a missing
+// file, so both columns shipped with no hover source at all).
+//
+// AJV has no row here, and that asymmetry is the page's point: it validates a
+// JSON Schema document but recovers NO static type from it, so there is no
+// type cost to measure.
 const TYPECOST_FORMS = [
-  {id: 'ts-runtypes-type', label: 'ts-runtypes (type)', srcFile: '@ts-runtypes/core/cases.ts', srcVar: 'cases'},
-  {id: 'ts-runtypes-schema', label: 'ts-runtypes (schema)', srcFile: '@ts-runtypes/core/schemaCases.ts', srcVar: 'schemaCases'},
+  {id: 'ts-runtypes-type', label: 'ts-runtypes (type)', srcFile: 'ts-runtypes/cases.ts', srcVar: 'cases'},
+  {id: 'ts-runtypes-schema', label: 'ts-runtypes (builder)', srcFile: 'ts-runtypes/schemaCases.ts', srcVar: 'schemaCases'},
   {id: 'typia', label: 'typia', srcFile: 'typia/cases.ts', srcVar: 'cases'},
   {id: 'typebox', label: 'typebox', srcFile: 'typebox/cases.ts', srcVar: 'cases'},
   {id: 'zod', label: 'zod', srcFile: 'zod/cases.ts', srcVar: 'cases'},
@@ -427,7 +534,12 @@ function buildTypecostBench() {
     return 0;
   }
 
-  const forms = TYPECOST_FORMS.filter((f) => byForm.get(f.id)?.size);
+  // Every declared form is a column, always. A form whose results are missing or
+  // empty (failed non-fatal typia install, dep not in the image yet, partial
+  // re-run over a stale .docdata) renders as n/a cells instead of vanishing — a
+  // silently disappearing column reads as "removed on purpose" when it is really
+  // "no data this run".
+  const forms = TYPECOST_FORMS;
   const sources = new Map(forms.map((f) => [f.id, extractCaseSources(path.join(COMPETITORS_DIR, f.srcFile), f.srcVar)]));
 
   const outDir = path.join(OUT_ROOT, 'typecost');
@@ -445,7 +557,11 @@ function buildTypecostBench() {
       // Single metric, single path — typecost has no valid/invalid split.
       if (inst !== undefined) results[form.label] = {typecost: {valid: inst, status: 'ok'}};
       // typecost is single-metric: show the type/schema form (validate body), or the
-      // error form for libraries with no cheap validator (zod).
+      // error form for libraries with no cheap validator (zod). Only for a form
+      // that actually produced a number: the source files are read per FORM, not
+      // per measured cell, so a form whose authoring file happens to mention the
+      // case would otherwise show a hover body under a cell reading n-a.
+      if (inst === undefined) continue;
       const caseSources = sources.get(form.id)?.get(key);
       const source = caseSources?.validate ?? caseSources?.validationErrors;
       if (source) detailComps.push({name: form.label, source});
@@ -655,9 +771,13 @@ function buildCompiletimeBench() {
     ['transform cost', (d) => clamp0(d.full_ms - d.typecheck_ms)],
   ];
   const tierLabels = TIERS.map(([label]) => label);
-  const cases = competitors.map((lib) => {
+  // Every declared library is a row, always (same posture as the typecost
+  // columns): a lib whose results file is absent — e.g. a quick run narrowed
+  // RT_COMPILETIME_COMPETITORS to ts-runtypes on a fresh .docdata — renders as a
+  // row of n/a cells instead of silently dropping out of the comparison.
+  const cases = COMPILETIME_LIBS.map((lib) => {
     const results = {};
-    for (const [label, pick] of TIERS) results[label] = {compiletime: {valid: rounded(pick(data[lib], lib)), status: 'ok'}};
+    if (data[lib]) for (const [label, pick] of TIERS) results[label] = {compiletime: {valid: rounded(pick(data[lib], lib)), status: 'ok'}};
     fs.writeFileSync(path.join(outDir, `${lib}.json`), JSON.stringify({competitors: []}));
     return {key: lib, title: lib, results};
   });

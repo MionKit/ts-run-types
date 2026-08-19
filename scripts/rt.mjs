@@ -8,7 +8,7 @@
 // modules IN-PROCESS (they inherit the loaded process.env) or spawns the tools
 // they drive (go/podman/pnpm/vitest/git/npm) with stdio inherited. Leaves throw a
 // CliError on failure (never process.exit); this file catches it, prints, and sets
-// process.exitCode. See docs/done/scripts-shell-to-mjs-migration.md.
+// process.exitCode.
 import {spawnSync} from 'node:child_process';
 import {writeFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -57,11 +57,36 @@ const FUZZ = {
   unit: {config: 'packages/ts-runtypes/test/fuzz/vitest.fuzz-unit.config.ts'},
   value: {patterns: ['fuzz.integration'], soak: {RT_FUZZ_SOAK_MS: '60000'}},
   types: {patterns: ['typeFuzz.integration'], soak: {RT_FUZZ_TYPES_SOAK_MS: '60000'}},
+  cloning: {patterns: ['cloneFuzz.integration'], soak: {RT_FUZZ_CLONE_SOAK_MS: '60000'}},
+  // Three compile-bound lanes whose RT_FUZZ_*_SOAK_MS vars were registered
+  // (scripts/lib/env.mjs) but had no entry here, so nothing could ever set them.
+  // `roundtrip` / `size` had no lane matching their files at all; `nondata` DID
+  // run under `types` (vitest's positional filter is case-INSENSITIVE, so
+  // `typeFuzz.integration` matches nonDataTypeFuzz too) but only ever at its
+  // 100-iteration default, because `types --soak` sets the TYPES var.
+  nondata: {patterns: ['nonDataTypeFuzz.integration'], soak: {RT_FUZZ_NONDATA_SOAK_MS: '60000'}},
+  roundtrip: {patterns: ['allStrategyRoundtrip.integration'], soak: {RT_FUZZ_ROUNDTRIP_SOAK_MS: '60000'}},
+  size: {patterns: ['binarySizeEstimate.integration'], soak: {RT_FUZZ_SIZE_SOAK_MS: '60000'}},
   enrich: {patterns: ['enrichFuzz.integration'], soak: {RT_FUZZ_ENRICH_SEQUENCES: '400', RT_FUZZ_ENRICH_MAXCMDS: '24'}},
   i18n: {patterns: ['i18nFuzz.integration'], soak: {RT_FUZZ_I18N_SEQUENCES: '400', RT_FUZZ_I18N_MAXCMDS: '24'}},
   typemod: {patterns: ['typeModFuzz.integration'], soak: {RT_FUZZ_TYPEMOD_REPORT: '1', RT_FUZZ_TYPEMOD_SEQUENCES: '400', RT_FUZZ_TYPEMOD_MAXSTEPS: '20'}},
   // race is the ONLY path that sets RT_FUZZ_RACE=1 — without it enrichRace self-skips.
   race: {patterns: ['enrichRace'], env: {RT_FUZZ_RACE: '1'}, soak: {RT_FUZZ_RACE_ITERATIONS: '25', RT_FUZZ_RACE_FANOUT: '8'}},
+  // Robustness fuzz of the committed go:embed sidecar bundle under real node
+  // (garbage patterns/flags/samples + oversized batches; RT_FUZZ_SEED replays).
+  sidecar: {patterns: ['patternSidecarFuzz']},
+  // Generation fuzz of the sidecar's `generate` op (supported-subset round-trip
+  // + determinism oracles, adversarial construct contract; RT_FUZZ_SEED replays).
+  patterngen: {patterns: ['patternGenFuzz']},
+  // Format-conversion sweep (Go-side: the printers live in internal/convert).
+  // Chain oracle per iteration: ids preserved on every leg (C2), canonical
+  // reflection graphs equal (C6), full chain converges (C4), re-conversion is
+  // a byte no-op (C5). RT_FUZZ_SEED replays a failure; RT_FUZZ_ITER widens.
+  convert: {goTest: ['./internal/convert/', '-run', 'TestFuzz_AtomChain', '-count=1'], soak: {RT_FUZZ_ITER: '150'}},
+  // FE twin of `convert`: the REAL `ts-runtypes convert` binary over a real
+  // temp project, randomized form chains over the full generated type space,
+  // per-leg id checks + the byte-equal type-form fixpoint oracle.
+  convertcli: {patterns: ['convertFuzz.integration'], soak: {RT_FUZZ_ITER: '40'}},
   all: {patterns: ['fuzz.integration', 'typeFuzz.integration', 'binaryEncoderResize']},
 };
 // Go→TS mirrors. rtx runs each generator DIRECTLY — the whole point is that
@@ -93,6 +118,11 @@ const CODEGEN = {
   // read by the bundler-option parity test so a project option added to only one
   // side (PluginOptions vs the tsconfig struct) fails CI.
   pluginkeys: {run: [...GO_RUN, './cmd/gen-plugin-keys'], outputs: ['packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts'], fmt: ['packages/ts-runtypes-devtools/src/go-generated/tsconfig-plugin-keys.generated.ts']},
+  // JS→Go mirror (the one lane pointed the other way): bundles the private
+  // @ts-runtypes/go-be-sidecar package (vite lib build) into the committed
+  // go:embed bundle the resolver spawns under node/bun for JS-regex jobs.
+  // No fmt step — the output is a JS bundle, not generated TS.
+  sidecar: {run: ['node', 'scripts/core/gen-sidecar-js.mjs'], outputs: ['ts-go-runtypes/internal/jsengine/sidecar.bundle.mjs'], fmt: []},
 };
 
 // Run one generator: either it writes its own outputs (proxy, stdio inherited),
@@ -131,16 +161,22 @@ function runCore(args) {
   if (sub === 'bump-tsgolint') return proxy('node', ['scripts/core/bump-tsgolint.mjs', ...rest]);
   if (sub === 'ensure-tsgolint') return proxy('node', ['scripts/core/ensure-tsgolint.mjs', ...rest]);
   if (sub === 'codegen') return runCodegen(rest);
+  // The whole suite tree, converted into the value forms and run against the
+  // same assertions. Generates, runs, removes — see scripts/core/converted-suites.mjs.
+  if (sub === 'converted-suites') return (ensureBuilt(), proxy('node', ['scripts/core/converted-suites.mjs', ...rest]));
   if (sub === 'fuzz') {
     const suite = FUZZ[rest[0]];
     if (!suite) die(`unknown fuzz suite '${rest[0] ?? ''}'. Try: ${Object.keys(FUZZ).join(' | ')} [--soak]`);
     const {value: soak, rest: extra} = takeFlag(rest.slice(1), '--soak');
     const env = {...(suite.env ?? {}), ...(soak ? suite.soak ?? {} : {})};
     ensureBuilt();
+    if (suite.goTest) return proxy('go', ['-C', 'ts-go-runtypes', 'test', ...suite.goTest, ...extra], env);
     if (suite.config) return proxy('pnpm', ['exec', 'vitest', 'run', '--config', suite.config, ...extra], env);
     return proxy('pnpm', ['exec', 'vitest', 'run', ...suite.patterns, ...extra], env);
   }
-  die('usage: rtx core <build|smoke|fuzz <suite>|codegen [--check]|bump-tsgolint [<rev>]|ensure-tsgolint [--check]>');
+  die(
+    'usage: rtx core <build|smoke|fuzz <suite>|codegen [--check]|converted-suites [--target T] [--keep]|bump-tsgolint [<rev>]|ensure-tsgolint [--check]>'
+  );
 }
 
 // ── website ────────────────────────────────────────────────────────────────
@@ -186,15 +222,21 @@ async function runWebsite(args) {
     const {main} = await import('./website/site.mjs');
     return main([hasFlag(rest, '--docs') ? 'verify-docs' : 'smoke']);
   }
+  // Recount the homepage's test tiles. `--check` fails instead of writing, so CI
+  // can gate the committed file the same way the codegen checks do.
+  if (sub === 'test-counts') {
+    const {main} = await import('./website/gen-test-counts.mjs');
+    return main(rest);
+  }
   if (sub === 'shell') {
     const {main} = await import('./website/site.mjs');
     return main(['shell']);
   }
-  die('usage: rtx website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview [--no-build]|check [--docs|--static]|container-build|shell>');
+  die('usage: rtx website <dev [--agent]|build [--no-bench|--quick|--ssr|--skip-playground]|preview [--no-build]|check [--docs|--static]|test-counts [--check]|container-build|shell>');
 }
 
 // ── bench ────────────────────────────────────────────────────────────────
-const BENCH_SUB = new Set(['audit', 'typecost', 'compiletime', 'serialization', 'smoke', 'prep', 'clean', 'capture-env', 'shell', 'transform-wire', 'fullbench', 'website-bench', 'bench-one', 'build']);
+const BENCH_SUB = new Set(['audit', 'typecheck', 'engine-check', 'typecost', 'compiletime', 'serialization', 'smoke', 'prep', 'clean', 'capture-env', 'shell', 'transform-wire', 'fullbench', 'website-bench', 'bench-one', 'build']);
 // Translate the rtx-level flags (--one/--full/--website/--build-only) to bench.mjs's
 // own sub-verbs; a bare sub-verb passes through, and the default is `bench`.
 function benchArgs(args) {
@@ -303,8 +345,9 @@ const HELP = `rtx — internal RunTypes dev/build/publish CLI  (run as: pnpm rtx
 core     the engine (Go resolver + TS marker/plugin)
   rtx core build [targets…]        build the binary + dev dists if stale
   rtx core smoke                   end-to-end smoke of the resolver + devtools
-  rtx core fuzz <suite> [--soak]   unit|value|types|enrich|i18n|typemod|race|all
-  rtx core codegen [all|constants|kind|fnhashes|typeformats|diag|builtinpurefns] [--check]   regenerate Go→TS mirrors + built-in pure-fn table
+  rtx core fuzz <suite> [--soak]   unit|value|types|nondata|roundtrip|size|cloning|enrich|i18n|typemod|race|sidecar|patterngen|convert|convertcli|all
+  rtx core codegen [all|constants|kind|fnhashes|typeformats|diag|builtinpurefns|pluginkeys|sidecar] [--check]   regenerate Go→TS mirrors, pure-fn table + sidecar bundle
+  rtx core converted-suites [--keep]   convert the suite tree into the builders form, run it, remove it
   rtx core bump-tsgolint [<rev>] [--skip-tests]   move the tsgolint/typescript-go pin (default: latest release), re-patch, rebuild + test
   rtx core ensure-tsgolint [--check]   check the submodule out to tsgolint.pin.json + re-apply patches (--check verifies only)
 
@@ -315,12 +358,14 @@ website
   rtx website preview [--no-build] serve the static site locally; regenerates it first unless --no-build
   rtx website check [--docs]       serves-a-page smoke (code-import + twoslash with --docs)
   rtx website check --static       serve the BUILT site + assert every benchmark page renders
+  rtx website test-counts [--check]  recount the homepage's test tiles (vitest list + go test -list)
   rtx website container-build      container-only prod build (not the full pipeline)
   rtx website shell                debug shell inside the website container
 
 bench
   rtx bench [--one <name>|--full|--website|--build-only] [--quick]
   rtx bench <audit|typecost|compiletime|serialization|smoke>
+  rtx bench typecheck              compile every competitor map in the image (totality gate)
 
 ${RELEASE_HELP}
 container  rtx container <build-image|ensure|login|push|pull|lock|clean> [website|e2e]
@@ -329,7 +374,8 @@ env        rtx env [push-image|publish-npm|deploy-website|--create-env]
 
 verify     build if stale, then lint + typecheck + format check
 fmt        format (oxfmt + prettier + gofmt); --check is read-only
-clean      clean build outputs; --deep also wipes node_modules
+clean      hard clean: dists, caches, run artifacts + node_modules
+           (--keep-deps keeps node_modules, --dry-run lists, --deep reinstalls after)
 `;
 
 async function dispatch(argv) {
@@ -350,7 +396,9 @@ async function dispatch(argv) {
     case 'env': return runEnv(rest);
     case 'verify': return (coreBuild(['all']), steps([['pnpm', ['run', 'lint']], ['pnpm', ['run', 'check-format']]]));
     case 'fmt': return proxy('pnpm', ['run', hasFlag(rest, '--check') ? 'check-format' : 'format']);
-    case 'clean': return proxy('pnpm', ['run', hasFlag(rest, '--deep') ? 'fresh-start' : 'clean']);
+    // Hard clean by default (dists, caches, run artifacts, node_modules); --deep
+    // reinstalls afterwards. --keep-deps / --dry-run pass through to clean.mjs.
+    case 'clean': return hasFlag(rest, '--deep') ? proxy('pnpm', ['run', 'fresh-start']) : proxy('pnpm', ['run', 'clean', ...rest]);
     case undefined:
     case 'help':
     case '-h':

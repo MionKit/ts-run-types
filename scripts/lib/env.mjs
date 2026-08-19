@@ -90,6 +90,8 @@ export const REGISTRY = [
   {name: 'RT_BENCH_QUICK', scope: 'dev', task: '-', desc: 'Fast/preview benchmark numbers (noisy)'},
   {name: 'RT_BENCH_NO_TIMING', scope: 'dev', task: '-', desc: 'Correctness-only run (no timing)'},
   {name: 'RT_BENCH_TIME_MS', scope: 'dev', task: '-', desc: 'Per-cell timing window in ms (default 100)'},
+  {name: 'RT_BENCH_BUN', scope: 'dev', task: '-', desc: "Set to 0 to skip the benchmarks' bun runtime lane (default: on). The lane re-runs each competitor's already-built dist/run.mjs under bun, which is what exercises the JavaScriptCore branch of rt::countEnumKeys"},
+  {name: 'RT_BENCH_SKIP_GROUPS', scope: 'internal', task: '-', desc: 'Comma-separated case GROUPS recorded as not-supported instead of run, for runtime capability gaps (the bun lane sets DATETIME: bun ships no Temporal). Set by bench.mjs; listed in each result JSON as skippedGroups'},
   {name: 'RT_BENCH_CASE', scope: 'dev', task: '-', desc: 'Restrict a run to matching case names (inspection)'},
   {name: 'RT_BENCH_DUMP', scope: 'dev', task: '-', desc: 'Print typecost probe sources (debug)'},
   {name: 'RT_BENCH_SERIALIZATION_OUT', scope: 'dev', task: '-', desc: 'Serialization bench output dir (default container/website/public/bench-data)'},
@@ -107,11 +109,13 @@ export const REGISTRY = [
 
   // — fuzz test knobs (package.json fuzz scripts + the harness) —
   {name: 'RT_FUZZ_SEED', scope: 'dev', task: '-', desc: 'Fuzz PRNG seed (per-suite default)'},
+  {name: 'RT_FUZZ_ITER', scope: 'dev', task: '-', desc: 'convert fuzz sweep iteration count'},
   {name: 'RT_FUZZ_SOAK_MS', scope: 'dev', task: '-', desc: 'value fuzz soak duration in ms'},
   {name: 'RT_FUZZ_TYPES_SOAK_MS', scope: 'dev', task: '-', desc: 'type fuzz soak duration in ms'},
   {name: 'RT_FUZZ_SIZE_SOAK_MS', scope: 'dev', task: '-', desc: 'binary-size fuzz soak duration in ms'},
   {name: 'RT_FUZZ_ROUNDTRIP_SOAK_MS', scope: 'dev', task: '-', desc: 'round-trip fuzz soak duration in ms'},
   {name: 'RT_FUZZ_NONDATA_SOAK_MS', scope: 'dev', task: '-', desc: 'non-data type fuzz soak duration in ms'},
+  {name: 'RT_FUZZ_CLONE_SOAK_MS', scope: 'dev', task: '-', desc: 'clone fuzz soak duration in ms'},
   {name: 'RT_FUZZ_ENRICH_SEQUENCES', scope: 'dev', task: '-', desc: 'enrich fuzz sequence count (default 6)'},
   {name: 'RT_FUZZ_ENRICH_MAXCMDS', scope: 'dev', task: '-', desc: 'enrich fuzz max commands per sequence (default 8)'},
   {name: 'RT_FUZZ_ENRICH_REPLAY', scope: 'dev', task: '-', desc: 're-run one failing enrich sequence verbatim (seed)'},
@@ -130,6 +134,7 @@ export const REGISTRY = [
   // — resolver knobs (the ts-runtypes Go binary) —
   {name: 'RT_CACHE_DIR', scope: 'dev', task: '-', desc: 'Internal RT disk-cache override (tests/power users): path forces it on there, "" forces it off, unset follows the tsconfig incremental/composite setting'},
   {name: 'RT_BIN', scope: 'dev', task: '-', desc: "Path to the resolver binary @ts-runtypes/bin's getExePath() should use, overriding the platform package (and the in-repo dev binary) for BOTH the bundler and lint lanes. Must name an executable file or the lookup throws. Its version folds into every typeId, so an override of a different version yields caches that diverge from a normal install"},
+  {name: 'RT_JS_RUNTIME', scope: 'dev', task: '-', desc: 'Path to the node/bun the resolver runs format-pattern checks on, consulted when no --js-runtime flag is passed (the bundler/lint plugins always pass their own process.execPath, so this matters for direct binary use: serve/compile by hand). Unset: the binary probes PATH for node, then bun'},
 
   // — build/release knobs —
   {name: 'RT_NPM_PROVENANCE', scope: 'dev', task: 'publish-npm', desc: 'Attach npm provenance on the CI stage-publish (default off). Needs a PUBLIC repo — npm refuses provenance from a private source repo; set the CI repo variable to 1 once this repo is public'},

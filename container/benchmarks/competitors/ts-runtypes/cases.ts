@@ -8,9 +8,10 @@
 // propagating position) opt out with NOT_SUPPORTED. This map also drives the
 // runtime ts-go column and typecost's ts-go-type column. TOTAL over every key.
 
-import type * as TF from '@ts-runtypes/core/formats';
+import * as TF from '@ts-runtypes/core/formats';
 import type * as TFT from '@ts-runtypes/core/formats/temporal';
-import {createValidateFn, createGetValidationErrorsFn, registerFormatPattern} from '@ts-runtypes/core';
+import * as RT from '@ts-runtypes/core/builders';
+import {createValidateFn, createGetValidationErrorsFn, createHasUnknownKeysFn, registerFormatPattern} from '@ts-runtypes/core';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
 
 // Custom string-format patterns the STRING_FORMAT.pattern_* cases reference —
@@ -2685,6 +2686,180 @@ export const cases: CompetitorCases = {
       }
       const getErrors = createGetValidationErrorsFn<RegistrationForm>();
       return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'REALWORLD.toBeChecked': {
+    build: () => {
+      interface ToBeChecked {
+        number: number;
+        negNumber: number;
+        maxNumber: number;
+        string: string;
+        longString: string;
+        boolean: boolean;
+        deeplyNested: {foo: string; num: number; bool: boolean};
+      }
+      return createValidateFn<ToBeChecked>();
+    },
+    buildErrors: () => {
+      interface ToBeChecked {
+        number: number;
+        negNumber: number;
+        maxNumber: number;
+        string: string;
+        longString: string;
+        boolean: boolean;
+        deeplyNested: {foo: string; num: number; bool: boolean};
+      }
+      const getErrors = createGetValidationErrorsFn<ToBeChecked>();
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+
+  // ── JSON_SCHEMA ──
+  // The case's schema document is ajv's column only; ts-runtypes states the
+  // same constraints natively — the structural keywords ride the value-first
+  // params bags on `RT.array` / `RT.record`, the value keywords are TF formats.
+  // Each schema is re-authored inline per thunk on purpose: every factory reads
+  // its own call site at BUILD time, so a shared cross-thunk local would have
+  // nothing for the second factory to read. Kept byte-honest against
+  // shared/cases (validation and format-validation each hold half the group) by
+  // the alignment audit, which runs every column over the same samples.
+  'JSON_SCHEMA.property_names': {
+    build: () => createValidateFn(RT.record(TF.number(), {propertyNames: TF.string({pattern: {source: '^[a-z]+$', flags: ''}})})),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(
+        RT.record(TF.number(), {propertyNames: TF.string({pattern: {source: '^[a-z]+$', flags: ''}})})
+      );
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'JSON_SCHEMA.contains_count': {
+    build: () => createValidateFn(RT.array(TF.number(), {contains: TF.number({min: 10}), minContains: 2})),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(RT.array(TF.number(), {contains: TF.number({min: 10}), minContains: 2}));
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'JSON_SCHEMA.unique_items': {
+    build: () => createValidateFn(RT.array(TF.number(), {uniqueItems: true})),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(RT.array(TF.number(), {uniqueItems: true}));
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'JSON_SCHEMA.object_size': {
+    build: () => createValidateFn(RT.record(TF.number(), {minProperties: 1, maxProperties: 3})),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(RT.record(TF.number(), {minProperties: 1, maxProperties: 3}));
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'JSON_SCHEMA.string_email': {
+    build: () => createValidateFn(TF.email()),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(TF.email());
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'JSON_SCHEMA.int_bounded': {
+    build: () => createValidateFn(TF.number({integer: true, min: 0, max: 130})),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(TF.number({integer: true, min: 0, max: 130}));
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'JSON_SCHEMA.string_pattern': {
+    build: () => createValidateFn(TF.string({pattern: {source: '^[a-z][a-z0-9-]*$', flags: ''}})),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(TF.string({pattern: {source: '^[a-z][a-z0-9-]*$', flags: ''}}));
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+  'JSON_SCHEMA.multiple_of': {
+    build: () => createValidateFn(TF.number({multipleOf: 5})),
+    buildErrors: () => {
+      const getErrors = createGetValidationErrorsFn(TF.number({multipleOf: 5}));
+      return (value: unknown) => getErrors(value).length === 0;
+    },
+  },
+
+  // ── STRICT ──
+  // The strict path: validate THEN reject undeclared keys. `runsAfterValidation`
+  // is what makes the emitter swap the key-array scan for the `cntEK(v) !== N`
+  // count check, so these are the only cases in the suite that reach
+  // rt::countEnumKeys — the per-engine counter. The `&&` short-circuit is what
+  // makes the option sound: hasUnknownKeys only ever sees values validate accepted.
+  'STRICT.flat_required': {
+    build: () => {
+      interface StrictFlat {
+        id: number;
+        name: string;
+        active: boolean;
+      }
+      const validate = createValidateFn<StrictFlat>();
+      const hasUnknownKeys = createHasUnknownKeysFn<StrictFlat>(undefined, {runsAfterValidation: true});
+      return (value: unknown) => validate(value) && !hasUnknownKeys(value);
+    },
+    buildErrors: () => {
+      interface StrictFlat {
+        id: number;
+        name: string;
+        active: boolean;
+      }
+      const getErrors = createGetValidationErrorsFn<StrictFlat>();
+      const hasUnknownKeys = createHasUnknownKeysFn<StrictFlat>(undefined, {runsAfterValidation: true});
+      return (value: unknown) => getErrors(value).length === 0 && !hasUnknownKeys(value);
+    },
+  },
+  'STRICT.nested_required': {
+    build: () => {
+      interface StrictNested {
+        name: string;
+        inner: {x: number; y: string};
+      }
+      const validate = createValidateFn<StrictNested>();
+      const hasUnknownKeys = createHasUnknownKeysFn<StrictNested>(undefined, {runsAfterValidation: true});
+      return (value: unknown) => validate(value) && !hasUnknownKeys(value);
+    },
+    buildErrors: () => {
+      interface StrictNested {
+        name: string;
+        inner: {x: number; y: string};
+      }
+      const getErrors = createGetValidationErrorsFn<StrictNested>();
+      const hasUnknownKeys = createHasUnknownKeysFn<StrictNested>(undefined, {runsAfterValidation: true});
+      return (value: unknown) => getErrors(value).length === 0 && !hasUnknownKeys(value);
+    },
+  },
+  'STRICT.moltar_dto': {
+    build: () => {
+      interface StrictMoltarDto {
+        number: number;
+        negNumber: number;
+        maxNumber: number;
+        string: string;
+        longString: string;
+        boolean: boolean;
+        deeplyNested: {foo: string; num: number; bool: boolean};
+      }
+      const validate = createValidateFn<StrictMoltarDto>();
+      const hasUnknownKeys = createHasUnknownKeysFn<StrictMoltarDto>(undefined, {runsAfterValidation: true});
+      return (value: unknown) => validate(value) && !hasUnknownKeys(value);
+    },
+    buildErrors: () => {
+      interface StrictMoltarDto {
+        number: number;
+        negNumber: number;
+        maxNumber: number;
+        string: string;
+        longString: string;
+        boolean: boolean;
+        deeplyNested: {foo: string; num: number; bool: boolean};
+      }
+      const getErrors = createGetValidationErrorsFn<StrictMoltarDto>();
+      const hasUnknownKeys = createHasUnknownKeysFn<StrictMoltarDto>(undefined, {runsAfterValidation: true});
+      return (value: unknown) => getErrors(value).length === 0 && !hasUnknownKeys(value);
     },
   },
 };

@@ -12,7 +12,9 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/entrymodules"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
+	"github.com/mionkit/ts-runtypes/internal/jsengine"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // PureFnDepUse is one pure-fn dependency an entry body reaches, paired with the
@@ -25,19 +27,6 @@ import (
 type PureFnDepUse struct {
 	Dep   protocol.PureFnDep
 	Sites []diagnostics.Site
-}
-
-// UncheckedPatternUse is one RE2-incompatible pattern (carrying
-// mockSamples) an entry reached, paired with the marker call sites that
-// demanded the entry. The resolver drains these into
-// RenderOpts.UncheckedPatternSink on the lint lane and fans each out into
-// one protocol.UncheckedPattern per site so the JS linter can run the real
-// RegExp.test and anchor any mismatch (FMT001) at the definition site.
-type UncheckedPatternUse struct {
-	Source  string
-	Flags   string
-	Samples []string
-	Sites   []diagnostics.Site
 }
 
 // RenderOpts threads the per-session disk cache into the per-entry collectors.
@@ -71,21 +60,20 @@ type RenderOpts struct {
 	// Populated serially per family collect; the parallel fan-out shards it per
 	// goroutine (see resolver.collectFamilies) exactly like DiagSink.
 	PureFnDepSink *[]PureFnDepUse
-	// UncheckedPatternSink, when non-nil (the lint lane), accumulates every
-	// RE2-incompatible pattern (carrying mockSamples) the walker reaches
-	// while rendering a LIVE entry, each paired with the entry's call
-	// sites. The resolver fans these into Response.UncheckedPatterns so the
-	// JS linter can run the real RegExp.test. Its presence also flips the
-	// walker into record mode, suppressing the fail-closed FMT004 build
-	// error (the linter owns the check on this lane). Sharded per goroutine
-	// like PureFnDepSink. Nil on the build lane.
-	UncheckedPatternSink *[]UncheckedPatternUse
-	// AllowUncheckedPatterns mirrors the build-lane
-	// allowUncheckedPatterns option: when set, an RE2-incompatible
-	// pattern is silently skipped instead of failing the build with FMT004.
-	// No effect on the lint lane (UncheckedPatternSink present), which always
-	// records + validates.
-	AllowUncheckedPatterns bool
+	// JSEngine is the JS engine format-pattern checks run on — the
+	// validation authority for pattern mockSamples (real `new RegExp`
+	// semantics, every lane). Nil means "no engine": pattern checks fail
+	// closed with the FMT004 missing-runtime diagnostic.
+	JSEngine jsengine.Engine
+	// PatternSampleCount mirrors the resolver's pattern mockSample
+	// auto-generation knob, and PatternGenFailures the reasons the
+	// resolver's enrichment pass (which runs BEFORE the collects and fills
+	// the samples) could not generate, keyed by `source \x00 flags`. The
+	// pattern emitter's emit-time FMT005 lane reads both to distinguish
+	// disabled (count 0) from failed generation — with the demanding call
+	// sites available for anchoring.
+	PatternSampleCount int
+	PatternGenFailures map[string]string
 	// ProvenanceSites maps each cached RunType ID to the set of marker
 	// call sites that reference it. EmitDiagnostic uses this to fan out
 	// one Diagnostic per call site so the user gets actionable file:line:col
@@ -106,7 +94,6 @@ type RenderOpts struct {
 	//     code slot is `undefined` (runtime derives `code` lazily if read).
 	//   - EmitBoth: both (the body twice) — runtimes that disallow `new Function`
 	//     (Cloudflare WorkerD, browser CSP without `unsafe-eval`) yet read `.code`.
-	// See docs/UNSUPPORTED-KINDS.md.
 	EmitMode constants.EmitMode
 	// RefTable resolves child ref ids to their RunType during a collect. When
 	// non-nil it is used instead of an index built from dump.RunTypes — the
@@ -114,7 +101,7 @@ type RenderOpts struct {
 	// is a per-request projection (the scanFiles scope) can always resolve a
 	// root's children, even ones interned while scanning a different file. Nil
 	// falls back to indexing dump.RunTypes (the unit-test shape).
-	RefTable map[string]*protocol.RunType
+	RefTable map[string]*reflection.RunType
 	// Facts, when non-nil, memoizes the canonical-node subtree predicates
 	// (isJsonCompatible / isExtraProof) across every collect of one
 	// dispatch. See FactsTable.
@@ -206,7 +193,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 	// dump.RunTypes projection may not contain.
 	refTable := opts.RefTable
 	if refTable == nil {
-		refTable = make(map[string]*protocol.RunType, len(dump.RunTypes))
+		refTable = make(map[string]*reflection.RunType, len(dump.RunTypes))
 		for _, runType := range dump.RunTypes {
 			if runType == nil || runType.ID == "" {
 				continue
@@ -223,7 +210,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 	// CompileChild; the compile pass returns CodeNS from any leaf with no emit,
 	// compound parents propagate it, and the walker's IsUnsupported flag drops
 	// the factory — see codetype.go's CodeNS contract.
-	renderEntry := func(runType *protocol.RunType, suffix string, options []string, rejectCircular bool) ([]string, bool) {
+	renderEntry := func(runType *reflection.RunType, suffix string, options []string, rejectCircular bool) ([]string, bool) {
 		if runType == nil || !emitter.Supports(runType) {
 			return nil, false
 		}
@@ -463,7 +450,7 @@ type entryRender struct {
 // a miss; we then fall through to the walker as usual and write the
 // fresh result back. Read/write errors are non-fatal — the collector
 // always produces output even when the cache is broken.
-func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string, rejectCircular bool) entryRender {
+func renderEntryWithDeps(runType *reflection.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*reflection.RunType, opts RenderOpts, variantSuffix string, variantOptions []string, rejectCircular bool) entryRender {
 	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID, rejectCircular)
 	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID, rejectCircular)
 
@@ -510,8 +497,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// Wire diagnostic emission for this walk. EmitDiagnostic fans each
 	// recorded code out across every call site referencing this RT.
 	walker.DiagSink = opts.DiagSink
-	walker.AllowUncheckedPatterns = opts.AllowUncheckedPatterns
-	walker.RecordUncheckedPatterns = opts.UncheckedPatternSink != nil
+	walker.JSEngine = opts.JSEngine
+	walker.PatternSampleCount = opts.PatternSampleCount
+	walker.PatternGenFailures = opts.PatternGenFailures
 	if opts.ProvenanceSites != nil {
 		walker.rootProvenance = opts.ProvenanceSites[runType.ID]
 	}
@@ -523,7 +511,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		// consumer can materialise a throwing factory with the catalog
 		// message. Surface the same code as a build-time diagnostic against
 		// every call site referencing this RT — users see the cause at build
-		// time AND at runtime. See docs/UNSUPPORTED-KINDS.md.
+		// time AND at runtime.
 		//
 		// Fallback to silent skip when the emitter registers no code
 		// for the leaf — preserves the safety net for unknown future
@@ -671,19 +659,6 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			*opts.PureFnDepSink = append(*opts.PureFnDepSink, PureFnDepUse{Dep: dep, Sites: walker.rootProvenance})
 		}
 	}
-	// Drain the lint lane's RE2-unchecked patterns, pairing each with
-	// this root's call sites so the JS linter anchors any mismatch at the
-	// definition site. Mirrors the PureFnDepSink fan-out above.
-	if opts.UncheckedPatternSink != nil {
-		for _, pattern := range walker.UncheckedPatterns {
-			*opts.UncheckedPatternSink = append(*opts.UncheckedPatternSink, UncheckedPatternUse{
-				Source:  pattern.Source,
-				Flags:   pattern.Flags,
-				Samples: pattern.Samples,
-				Sites:   walker.rootProvenance,
-			})
-		}
-	}
 	pureFnDeps := pureFnDepKeys(walker.PureFnDependencies)
 	argsText := joinArgs(args)
 	if variantSuffix == "" && !rejectCircular {
@@ -720,7 +695,7 @@ func pureFnDepKeys(deps []protocol.PureFnDep) []string {
 // currentHash`. Because both read-time hash checks guarantee structural
 // id → hash agreement, these translations are lossless; a cache hit
 // returns the exact entryRender the fresh walk would have produced.
-func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, opts RenderOpts) (entryRender, bool) {
+func tryReadCachedEntry(runType *reflection.RunType, settings constants.CacheModuleSettings, innerPrefix string, opts RenderOpts) (entryRender, bool) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return entryRender{}, false
 	}
@@ -795,7 +770,7 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 // structural id, and store the triple as a CrossFamilyRef. As with
 // ChildRefs, an unresolvable ref aborts the write cleanly rather than
 // persisting a record the reader can't verify.
-func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, pureFnDeps []string, isNoop bool, opts RenderOpts) {
+func writeCachedEntry(runType *reflection.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, pureFnDeps []string, isNoop bool, opts RenderOpts) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return
 	}
@@ -864,24 +839,24 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 // catalog template for root-throw diagnostics. The label is family-
 // independent ("Never", "Symbol", "Function", …); per-family wording
 // lives in the catalog entry's headline/detail text.
-func leafKindLabel(leaf *protocol.RunType) string {
+func leafKindLabel(leaf *reflection.RunType) string {
 	if leaf == nil {
 		return "Unsupported"
 	}
 	switch leaf.Kind {
-	case protocol.KindNever:
+	case reflection.KindNever:
 		return "Never"
-	case protocol.KindSymbol:
+	case reflection.KindSymbol:
 		return "Symbol"
-	case protocol.KindPromise:
+	case reflection.KindPromise:
 		return "Promise"
-	case protocol.KindFunction,
-		protocol.KindMethod,
-		protocol.KindMethodSignature,
-		protocol.KindCallSignature:
+	case reflection.KindFunction,
+		reflection.KindMethod,
+		reflection.KindMethodSignature,
+		reflection.KindCallSignature:
 		return "Function"
-	case protocol.KindClass:
-		if leaf.SubKind == protocol.SubKindNonSerializable {
+	case reflection.KindClass:
+		if leaf.SubKind == reflection.SubKindNonSerializable {
 			return "NonSerializableClass"
 		}
 		return "Class"
@@ -909,7 +884,7 @@ func leafKindLabel(leaf *protocol.RunType) string {
 //	'<message>' // alwaysThrowMessage
 //
 // See docs/ARCHITECTURE.md (disk cache format v10).
-func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCode string, kindLabel string, provenance []diagnostics.Site) string {
+func renderAlwaysThrowEntry(runType *reflection.RunType, innerName string, diagCode string, kindLabel string, provenance []diagnostics.Site) string {
 	args := []string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
@@ -943,82 +918,82 @@ func buildAlwaysThrowMessage(diagCode, kindLabel string, provenance []diagnostic
 // atomics it falls back to a name derived from the kind. Names mirror
 // the ReflectionKindName table at
 // (ref: packages/run-types/src/constants.kind.ts).
-func rtTypeName(runType *protocol.RunType) string {
+func rtTypeName(runType *reflection.RunType) string {
 	if runType.TypeName != "" {
 		return runType.TypeName
 	}
-	if runType.Kind == protocol.KindClass {
+	if runType.Kind == reflection.KindClass {
 		switch runType.SubKind {
-		case protocol.SubKindDate:
+		case reflection.SubKindDate:
 			return "date"
-		case protocol.SubKindMap:
+		case reflection.SubKindMap:
 			return "map"
-		case protocol.SubKindSet:
+		case reflection.SubKindSet:
 			return "set"
 		}
 	}
 	switch runType.Kind {
-	case protocol.KindAny:
+	case reflection.KindAny:
 		return "any"
-	case protocol.KindUnknown:
+	case reflection.KindUnknown:
 		return "unknown"
-	case protocol.KindNever:
+	case reflection.KindNever:
 		return "never"
-	case protocol.KindVoid:
+	case reflection.KindVoid:
 		return "void"
-	case protocol.KindNull:
+	case reflection.KindNull:
 		return "null"
-	case protocol.KindUndefined:
+	case reflection.KindUndefined:
 		return "undefined"
-	case protocol.KindString:
+	case reflection.KindString:
 		return "string"
-	case protocol.KindNumber:
+	case reflection.KindNumber:
 		return "number"
-	case protocol.KindBoolean:
+	case reflection.KindBoolean:
 		return "boolean"
-	case protocol.KindBigInt:
+	case reflection.KindBigInt:
 		return "bigint"
-	case protocol.KindSymbol:
+	case reflection.KindSymbol:
 		return "symbol"
-	case protocol.KindObject:
+	case reflection.KindObject:
 		// The ReflectionKindName maps deepkit's KindObject (4) to
 		// 'objectLiteral'; the atomic node lives at nodes/atomic/object.ts.
 		return "objectLiteral"
-	case protocol.KindRegexp:
+	case reflection.KindRegexp:
 		return "regexp"
-	case protocol.KindLiteral:
+	case reflection.KindLiteral:
 		return "literal"
-	case protocol.KindEnum:
+	case reflection.KindEnum:
 		return "enum"
-	case protocol.KindArray:
+	case reflection.KindArray:
 		return "array"
-	case protocol.KindObjectLiteral:
+	case reflection.KindObjectLiteral:
 		return "objectLiteral"
-	case protocol.KindClass:
+	case reflection.KindClass:
 		return "class"
-	case protocol.KindProperty:
+	case reflection.KindProperty:
 		return "property"
-	case protocol.KindPropertySignature:
+	case reflection.KindPropertySignature:
 		return "propertySignature"
-	case protocol.KindIndexSignature:
+	case reflection.KindIndexSignature:
 		return "indexSignature"
-	case protocol.KindFunction:
+	case reflection.KindFunction:
 		return "function"
-	case protocol.KindMethod:
+	case reflection.KindMethod:
 		return "method"
-	case protocol.KindMethodSignature:
+	case reflection.KindMethodSignature:
 		return "methodSignature"
-	case protocol.KindCallSignature:
+	case reflection.KindCallSignature:
 		return "callSignature"
-	case protocol.KindTuple:
+	case reflection.KindTuple:
 		return "tuple"
-	case protocol.KindTupleMember:
+	case reflection.KindTupleMember:
 		return "tupleMember"
-	case protocol.KindUnion:
+	case reflection.KindUnion:
 		return "union"
-	case protocol.KindTemplateLiteral:
+	case reflection.KindTemplateLiteral:
 		return "templateLiteral"
-	case protocol.KindPromise:
+	case reflection.KindPromise:
 		return "promise"
 	}
 	return ""

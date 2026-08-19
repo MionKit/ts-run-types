@@ -14,7 +14,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/jsengine"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // EmitContext is the narrow surface format emitters use to declare
@@ -58,17 +59,21 @@ type EmitContext interface {
 	// pattern. Deduped per-code per-walk by the walker.
 	EmitDiagnostic(code string, args ...string)
 
-	// AllowUncheckedPatterns reports whether the project opted into
-	// silencing the FMT004 build error for patterns RE2 can't verify
-	// (the allowUncheckedPatterns option). Build lane only.
-	AllowUncheckedPatterns() bool
+	// JSEngine returns the JS engine pattern checks run on (the sidecar
+	// under node/bun natively, the host itself under WASM) — the
+	// validation authority, since samples exist to satisfy the JS runtime
+	// validator. May be nil (tests, engine not configured): callers treat
+	// nil like an engine error and emit the missing-runtime diagnostic.
+	JSEngine() jsengine.Engine
 
-	// RecordUncheckedPattern hands a pattern RE2 can't compile
-	// (source, flags, samples) to the lint lane's sink so the JS linter
-	// can run the real `RegExp.test`. Returns true when recorded (lint
-	// lane); false when there is no sink (build lane), so the caller
-	// falls back to the fail-closed FMT004 path.
-	RecordUncheckedPattern(source, flags string, samples []string) bool
+	// PatternSampleCount / PatternGenFailure mirror the resolver's pattern
+	// mockSample auto-generation state, so the pattern emitter can tell
+	// "generation disabled" (count 0) from "generation failed" when a
+	// sample-less pattern reaches emit time — PatternGenFailure returns
+	// the reason the resolver's enrichment pass recorded for
+	// (source, flags), or "" when none.
+	PatternSampleCount() int
+	PatternGenFailure(source, flags string) string
 
 	// NextLocalVar returns a fresh, collision-free local identifier with
 	// the given prefix — used to hoist a `const re_N = new RegExp(...)`
@@ -89,7 +94,7 @@ type Emitter interface {
 	// for FormatString / FormatUUID / FormatEmail; KindNumber for the
 	// number-format family; etc. Used as a sanity guard — Lookup
 	// rejects entries whose Kind doesn't match the host RunType.
-	Kind() protocol.ReflectionKind
+	Kind() reflection.ReflectionKind
 
 	// EmitValidateCheck returns a JS expression (no `return`) evaluating
 	// to true when `vλl` satisfies the format constraints in
@@ -97,14 +102,14 @@ type Emitter interface {
 	// dependencies + hoist alias declarations into the factory's
 	// prologue. Empty return means "no additional check beyond the
 	// base-kind validator".
-	EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx EmitContext) string
+	EmitValidateCheck(annotation *reflection.FormatAnnotation, vλl string, ctx EmitContext) string
 
 	// EmitValidationErrorsCheck returns a JS statement that, when executed,
 	// pushes a TypeFormatError onto the errors array (named
 	// errorsArr) for `vλl` at `pathExpr` if the value fails this
 	// format. Empty return means "no format-specific error — the
 	// caller's base-kind error path is sufficient".
-	EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx EmitContext) string
+	EmitValidationErrorsCheck(annotation *reflection.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx EmitContext) string
 }
 
 // ParamValidator is an OPTIONAL Emitter capability: formats that have
@@ -114,7 +119,7 @@ type Emitter interface {
 // CodeFMTInvalidParams diagnostic per returned message. Returns nil when
 // the params are valid.
 type ParamValidator interface {
-	ValidateParams(annotation *protocol.FormatAnnotation) []string
+	ValidateParams(annotation *reflection.FormatAnnotation) []string
 }
 
 // FormatTransformer is an OPTIONAL Emitter capability: formats that
@@ -129,7 +134,7 @@ type FormatTransformer interface {
 	// (e.g. `v.trim().toLowerCase()`), or "" when this format's params
 	// specify no transform (identity). The format emitter wraps a
 	// non-empty result as `vλl = <expr>`.
-	EmitFormatTransform(annotation *protocol.FormatAnnotation, vλl string, ctx EmitContext) string
+	EmitFormatTransform(annotation *reflection.FormatAnnotation, vλl string, ctx EmitContext) string
 }
 
 // BinaryEncoder is an OPTIONAL Emitter capability: formats that pack the
@@ -141,7 +146,7 @@ type FormatTransformer interface {
 // (`{code: undefined}` → run-types default). The host splices the
 // non-empty result in place of the base KindNumber / KindBigInt arm.
 type BinaryEncoder interface {
-	EmitToBinary(annotation *protocol.FormatAnnotation, vλl, ser string, ctx EmitContext) string
+	EmitToBinary(annotation *reflection.FormatAnnotation, vλl, ser string, ctx EmitContext) string
 }
 
 // BinaryDecoder is the read-side sibling of BinaryEncoder (the
@@ -151,7 +156,7 @@ type BinaryEncoder interface {
 // base-kind decode arm. MUST stay byte-symmetric with the same format's
 // EmitToBinary — the round-trip is the only test of either half.
 type BinaryDecoder interface {
-	EmitFromBinary(annotation *protocol.FormatAnnotation, des string, ctx EmitContext) string
+	EmitFromBinary(annotation *reflection.FormatAnnotation, des string, ctx EmitContext) string
 }
 
 // BinarySizeHint reports a format's on-wire byte footprint to the
@@ -171,7 +176,7 @@ type BinarySizeHint struct {
 // drift. A format with no fixed width simply doesn't implement it (the
 // estimator then uses the base-kind width).
 type BinarySizer interface {
-	BinarySize(annotation *protocol.FormatAnnotation) BinarySizeHint
+	BinarySize(annotation *reflection.FormatAnnotation) BinarySizeHint
 }
 
 var (
@@ -180,7 +185,7 @@ var (
 )
 
 type registryKey struct {
-	kind protocol.ReflectionKind
+	kind reflection.ReflectionKind
 	name string
 }
 
@@ -205,7 +210,7 @@ func Register(emitter Emitter) {
 // is the same forward-compat lever that lets Phase 0 ship with an
 // empty registry and gracefully no-op for any FormatAnnotation it
 // encounters.
-func Lookup(kind protocol.ReflectionKind, name string) (Emitter, bool) {
+func Lookup(kind reflection.ReflectionKind, name string) (Emitter, bool) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 	emitter, ok := registry[registryKey{kind: kind, name: name}]
@@ -215,7 +220,7 @@ func Lookup(kind protocol.ReflectionKind, name string) (Emitter, bool) {
 // LookupForRunType is a convenience wrapper around Lookup keyed off the
 // RunType's Kind + FormatAnnotation.Name. Returns (nil, false) when rt
 // has no FormatAnnotation set.
-func LookupForRunType(rt *protocol.RunType) (Emitter, bool) {
+func LookupForRunType(rt *reflection.RunType) (Emitter, bool) {
 	if rt == nil || rt.FormatAnnotation == nil {
 		return nil, false
 	}

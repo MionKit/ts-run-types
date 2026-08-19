@@ -16,16 +16,12 @@ import {describe, it, expect, afterAll} from 'vitest';
 import {cleanupReconcileLane} from '../../util/enrichReconcile.ts';
 import {BIN} from './enrichCli.ts';
 import {runEnrichFuzz, runOneSequence, shrinkFailure, formatReport} from './enrichFuzzRunner.ts';
+import {entrySeed, parseSeed} from '../core/fuzzPolicy.ts';
 
 afterAll(cleanupReconcileLane);
 
-function parseSeed(raw: string | undefined, fallback: number): number {
-  if (!raw) return fallback >>> 0;
-  return (raw.startsWith('0x') ? parseInt(raw, 16) : Number(raw)) >>> 0;
-}
-
 const HAS_BIN = existsSync(BIN);
-const SEED = parseSeed(process.env.RT_FUZZ_SEED, 0x0e17c0de);
+const SEED = entrySeed('enrich');
 const SEQUENCES = Number(process.env.RT_FUZZ_ENRICH_SEQUENCES ?? 6);
 const MAX_COMMANDS = Number(process.env.RT_FUZZ_ENRICH_MAXCMDS ?? 8);
 const REPLAY = process.env.RT_FUZZ_ENRICH_REPLAY ? parseSeed(process.env.RT_FUZZ_ENRICH_REPLAY, 0) : null;
@@ -57,6 +53,10 @@ describe('enrichment sync fuzz', () => {
       }
       expect(report.runs).toBe(SEQUENCES);
     },
-    120_000
+    // Scales with the sequence knob: a soak-sized run (e.g. 400 sequences /
+    // ~3.3s each observed) must not be flagged by a fixed batch timeout —
+    // sync bodies cannot be preempted, so the flag lands AFTER the work and
+    // discards the verdict.
+    120_000 + SEQUENCES * 8_000
   );
 });

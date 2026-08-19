@@ -8,7 +8,7 @@
 // marginal cost of resolving THAT case's type, not the import scaffold):
 //
 //   ts-go (type)    type T = <the TS type>;             const x: T = <sample>;
-//   ts-go (schema)  const s = RT.…; type T = InferType<typeof s>;  const x: T = …;
+//   ts-go (builder)  const s = RT.…; type T = InferType<typeof s>;  const x: T = …;
 //   zod             const s = z.…;  type T = z.infer<typeof s>;  const x: T = …;
 //   typebox         const s = Type.…; type T = Static<typeof s>; const x: T = …;
 //   typia           type T = <the TS type, incl. `& tags.*`>;  const x: T = <sample>;
@@ -26,7 +26,7 @@
 //                     competitors/ts-runtypes/cases.ts.
 //   - typia:          the `typia.createIs<TYPE>()` type argument per case in
 //                     competitors/typia/cases.ts.
-//   - ts-go (schema): the `createValidateFn(EXPR)` argument per case in
+//   - ts-go (builder): the `createValidateFn(EXPR)` argument per case in
 //                     competitors/ts-runtypes/schemaCases.ts.
 //   - zod / typebox:  the `const schema = EXPR` declared inside each case's
 //                     build / buildErrors thunk in competitors/{zod,typebox}/cases.ts.
@@ -120,7 +120,7 @@ const OPTIONS = {
   // too — these just make it bulletproof regardless of probe location).
   paths: {
     '@ts-runtypes/core': [path.join(MARKER, 'index.d.ts')],
-    '@ts-runtypes/core/schema': [path.join(MARKER, 'schema', 'index.d.ts')],
+    '@ts-runtypes/core/builders': [path.join(MARKER, 'builders', 'index.d.ts')],
     '@ts-runtypes/core/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
     '@ts-runtypes/core/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
   },
@@ -292,7 +292,13 @@ async function main() {
   const tsSchema = extractTsGo(path.join(TSGO_DIR, 'schemaCases.ts'), 'schemaCases', 'schema');
   const zod = extractSchemaCompetitor(path.join(ZOD_DIR, 'cases.ts'), 'cases');
   const typebox = extractSchemaCompetitor(path.join(TYPEBOX_DIR, 'cases.ts'), 'cases');
-  const typia = extractTypeForm(path.join(TYPIA_DIR, 'cases.ts'), 'cases', 'typia.createIs');
+  // typia's install layer is non-fatal (container/website/Containerfile), so an
+  // image where it failed simply has no node_modules for it. Degrade to an empty
+  // form (every cell n/a) instead of paying ~200 probe compiles that all land as
+  // 'err' — the column still renders, and this line names the cause in the log.
+  const typiaInstalled = fs.existsSync(path.join(TYPIA_DIR, 'node_modules', 'typia'));
+  if (!typiaInstalled) console.error('typecost: typia is not installed in this image (its install layer is non-fatal); its column renders n/a.');
+  const typia = typiaInstalled ? extractTypeForm(path.join(TYPIA_DIR, 'cases.ts'), 'cases', 'typia.createIs') : {preamble: [], entries: {}, keys: []};
 
   const valueByKey = await loadSampleValues();
 
@@ -319,7 +325,7 @@ async function main() {
       const s = tsSchema.entries[key];
       const tp = typia.entries[key];
       if (t) console.log(`\n===== ts-go(type) =====\n${probeTsType(tsType.preamble, t.locals, t.typeText, value)}`);
-      if (s) console.log(`\n===== ts-go(schema) =====\n${probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value)}`);
+      if (s) console.log(`\n===== ts-go(builder) =====\n${probeTsSchema(tsSchema.preamble, s.locals, s.arg.text, value)}`);
       if (zod.entries[key]) console.log(`\n===== zod =====\n${probeZod(zod.preamble, zod.entries[key].locals, zod.entries[key].exprText, value)}`);
       if (typebox.entries[key]) console.log(`\n===== typebox =====\n${probeTypebox(typebox.preamble, typebox.entries[key].locals, typebox.entries[key].exprText, value)}`);
       if (tp) console.log(`\n===== typia =====\n${probeTsType(typia.preamble, tp.locals, tp.typeText, value)}`);
@@ -359,7 +365,7 @@ async function main() {
 
 const LIBS = [
   ['ts-go(type)', 'tsType', 'ts-runtypes-type'],
-  ['ts-go(schema)', 'tsSchema', 'ts-runtypes-schema'],
+  ['ts-go(builder)', 'tsSchema', 'ts-runtypes-schema'],
   ['zod', 'zod', 'zod'],
   ['typebox', 'typebox', 'typebox'],
   ['typia', 'typia', 'typia'],
@@ -431,7 +437,7 @@ function report(rows) {
       'first valid sample, serialized), forcing TypeScript to fully resolve the\n' +
       'type AND structurally check the value against it — the cost users pay on\n' +
       'every `const x: T = {…}`. ts-go(type) and typia are pure-type forms (the cost\n' +
-      'of resolving the literal T); ts-go(schema) is the value-first builder + InferType<>.\n' +
+      'of resolving the literal T); ts-go(builder) is the type-builder form + InferType<>.\n' +
       'ajv has no static type inference.'
   );
 }

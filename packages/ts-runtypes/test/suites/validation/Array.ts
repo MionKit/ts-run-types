@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const ARRAY = {
@@ -188,8 +188,9 @@ export const ARRAY = {
   bigint_array: {
     title: 'BigInt array',
     description: 'Every element passes the atomic strict-`typeof` bigint check; `[]` is valid.',
-    validateNotes:
+    validateNotes: [
       'Plain `number` elements (e.g. `2`, `Infinity`) are rejected — `typeof 2n === "bigint"` but `typeof 2 === "number"`.',
+    ],
     validate: () => createValidateFn<bigint[]>(),
     standardSchema: () => createStandardSchema<bigint[]>(),
     validateDataOnly: () => createValidateFn<DataOnly<bigint[]>>(),
@@ -237,7 +238,7 @@ export const ARRAY = {
   date_array: {
     title: 'Date array',
     description: 'Each element goes through the atomic `Date` check, so Invalid Date instances fail per element.',
-    validateNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
+    validateNotes: ['Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.'],
     validate: () => createValidateFn<Date[]>(),
     standardSchema: () => createStandardSchema<Date[]>(),
     validateDataOnly: () => createValidateFn<DataOnly<Date[]>>(),
@@ -288,8 +289,9 @@ export const ARRAY = {
   regexp_array: {
     title: 'RegExp array',
     description: 'Every element passes the atomic builtin-class RegExp check (`instanceof RegExp`); `[]` is valid.',
-    validateNotes:
+    validateNotes: [
       'A regex *source string* like `"/abc/"` is rejected — the element check is the nominal `instanceof RegExp`, not a string.',
+    ],
     validate: () => createValidateFn<RegExp[]>(),
     standardSchema: () => createStandardSchema<RegExp[]>(),
     validateDataOnly: () => createValidateFn<DataOnly<RegExp[]>>(),
@@ -337,7 +339,7 @@ export const ARRAY = {
   undefined_array: {
     title: 'Undefined array',
     description: 'Every element must strictly `=== undefined`; `null` and other falsy values are rejected per element.',
-    validateNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
+    validateNotes: ['Every element must strictly === undefined. `null` and other falsy values are rejected per-element.'],
     validate: () => createValidateFn<undefined[]>(),
     standardSchema: () => createStandardSchema<undefined[]>(),
     validateDataOnly: () => createValidateFn<DataOnly<undefined[]>>(),
@@ -770,7 +772,7 @@ export const ARRAY = {
     validate: () => createValidateFn<[string, number][]>(),
     standardSchema: () => createStandardSchema<[string, number][]>(),
     validateDataOnly: () => createValidateFn<DataOnly<[string, number][]>>(),
-    validateSchema: () => createValidateFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
+    validateSchema: () => createValidateFn(RT.array(RT.tuple({required: [TF.string(), TF.number()]}))),
     deserializeValidate: () => deserializeValidate<[string, number][]>(),
     validateReflect: () => {
       const v: [string, number][] = [];
@@ -782,7 +784,7 @@ export const ARRAY = {
     },
     getValidationErrors: () => createGetValidationErrorsFn<[string, number][]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<[string, number][]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.array(RT.tuple([TF.string(), TF.number()]))),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(RT.array(RT.tuple({required: [TF.string(), TF.number()]}))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<[string, number][]>(),
     getValidationErrorsReflect: () => {
       const v: [string, number][] = [];
@@ -1038,8 +1040,9 @@ export const ARRAY = {
     title: 'Symbol array',
     description:
       'A non-serializable symbol element propagates to the root and renders an alwaysThrow factory, so the first `createValidateFn<symbol[]>()` call throws.',
-    validateNotes:
+    validateNotes: [
       'Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, …) cannot be validated: the factory is rendered as alwaysThrow and the first createXxx<symbol[]>() call throws. Use a different shape to carry symbol-like data.',
+    ],
     validate: () => createValidateFn<symbol[]>(),
     standardSchema: () => createStandardSchema<symbol[]>(),
     validateDataOnly: () => createValidateFn<DataOnly<symbol[]>>(),

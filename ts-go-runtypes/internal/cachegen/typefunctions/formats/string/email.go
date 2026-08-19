@@ -1,10 +1,11 @@
 package string
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // emailEmitter implements the format named "email" — FormatEmail /
@@ -23,17 +24,50 @@ func init() {
 	formats.Register(emailEmitter{})
 }
 
-func (emailEmitter) Name() string                  { return "email" }
-func (emailEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
+func (emailEmitter) Name() string                    { return "email" }
+func (emailEmitter) Kind() reflection.ReflectionKind { return reflection.KindString }
 
-func (emailEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (emailEmitter) EmitValidateCheck(annotation *reflection.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation != nil && emailHasParts(annotation.Params) {
 		return emailValidateExprFor(ctx, annotation.Params, vλl)
+	}
+	if annotation != nil && emailHasRfc(annotation.Params) {
+		return emailRfcCheckExpr(ctx, annotation.Params, vλl)
 	}
 	return namedPatternValidate(ctx, annotation, vλl)
 }
 
-func (emailEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+// ── RFC 5321 path ────────────────────────────────────────────────────
+//
+// `emailRfc` routes the whole check to the pure-fn engine: a quoted local part
+// and an address-literal domain are not expressible as a pattern. 'ascii' backs
+// `format: 'email'`, 'unicode' backs `format: 'idn-email'`.
+
+func emailHasRfc(params map[string]any) bool {
+	mode, ok := params["emailRfc"].(string)
+	return ok && mode != ""
+}
+
+func emailRfcAllowsUnicode(params map[string]any) bool {
+	mode, _ := params["emailRfc"].(string)
+	return mode == "unicode"
+}
+
+func emailRfcCheckExpr(ctx formats.EmitContext, params map[string]any, vλl string) string {
+	conditions := lengthConditions(params, vλl, ctx)
+	idn := "false"
+	if emailRfcAllowsUnicode(params) {
+		idn = "true"
+	}
+	conditions = append(conditions, pureFnAlias(ctx, "isEmailAddress")+"("+vλl+",{idn:"+idn+"})")
+	return strings.Join(conditions, " && ")
+}
+
+func (emailEmitter) EmitValidationErrorsCheck(annotation *reflection.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+	if annotation != nil && emailHasRfc(annotation.Params) {
+		return "if (!(" + emailRfcCheckExpr(ctx, annotation.Params, vλl) + ")) " +
+			formats.FormatErrCall(pathExpr, errorsArr, "string", "email", "emailRfc", strconv.Quote(annotation.Params["emailRfc"].(string)))
+	}
 	if annotation != nil && emailHasParts(annotation.Params) {
 		return emailErrorsBlockFor(ctx, annotation.Params, vλl, pathExpr, errorsArr)
 	}
@@ -117,14 +151,14 @@ func emailErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExpr
 
 // EmitFormatTransform lowercases the email (ref: email.runtype.ts:148 —
 // emails are case-insensitive, so the canonical form is lower case).
-func (emailEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+func (emailEmitter) EmitFormatTransform(_ *reflection.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	return vλl + ".toLowerCase()"
 }
 
 // ValidateParams ports EmailRunTypeFormat.validateParams
 // (ref: email.runtype.ts:152-187): pattern is mutually exclusive with the
 // localPart/domain decomposition, and maxLength stays in range.
-func (emailEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+func (emailEmitter) ValidateParams(annotation *reflection.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
 	}

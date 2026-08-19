@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // numberFormatEmitter implements the format with name "numberFormat" —
@@ -38,15 +38,15 @@ func (numberFormatEmitter) Name() string {
 	return numberFormatName
 }
 
-func (numberFormatEmitter) Kind() protocol.ReflectionKind {
-	return protocol.KindNumber
+func (numberFormatEmitter) Kind() reflection.ReflectionKind {
+	return reflection.KindNumber
 }
 
 // EmitValidateCheck returns the AND of every active number predicate, in
 // emitIsType order (numberFormat.runtype.ts:40-81): integer/float,
 // max, min, lt, gt, multipleOf. Returns "" when no params constrain the
 // value — the host keeps its base Number.isFinite check.
-func (numberFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+func (numberFormatEmitter) EmitValidateCheck(annotation *reflection.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -75,7 +75,7 @@ func numberConditions(params map[string]any, vλl string) []string {
 		conditions = append(conditions, vλl+" > "+formats.FormatNumber(value))
 	}
 	if value, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
-		conditions = append(conditions, "("+vλl+" % "+formats.FormatNumber(value)+" === 0)")
+		conditions = append(conditions, multipleOfCondition(vλl, value))
 	}
 	return conditions
 }
@@ -85,7 +85,7 @@ func numberConditions(params map[string]any, vλl string) []string {
 // (numberFormat.runtype.ts:83-125). integer/float tag the error `val`
 // with the literal `true`; the range/multipleOf params tag it with the
 // bound.
-func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
+func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *reflection.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -120,7 +120,7 @@ func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 		statements = append(statements, "if ("+vλl+" <= "+formats.FormatNumber(value)+") "+errCall("gt", formats.FormatNumber(value)))
 	}
 	if value, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
-		statements = append(statements, "if (("+vλl+" % "+formats.FormatNumber(value)+" !== 0)) "+errCall("multipleOf", formats.FormatNumber(value)))
+		statements = append(statements, "if (!"+multipleOfCondition(vλl, value)+") "+errCall("multipleOf", formats.FormatNumber(value)))
 	}
 	return strings.Join(statements, ";")
 }
@@ -129,7 +129,7 @@ func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 // (numberFormat.runtype.ts:133-161). Returns "" (→ base float64 arm) for
 // floats, unconstrained integers, and integer ranges wider than int32;
 // otherwise the narrowest setUint8/16/32 / setInt8/16/32 the range fits.
-func (numberFormatEmitter) EmitToBinary(annotation *protocol.FormatAnnotation, vλl, ser string, _ formats.EmitContext) string {
+func (numberFormatEmitter) EmitToBinary(annotation *reflection.FormatAnnotation, vλl, ser string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -162,7 +162,7 @@ func (numberFormatEmitter) EmitToBinary(annotation *protocol.FormatAnnotation, v
 // (numberFormat.runtype.ts:163-191). Byte-symmetric with EmitToBinary;
 // returns the RHS expression the host assigns to `ret`, or "" for the
 // float64 fallback cases.
-func (numberFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation, des string, _ formats.EmitContext) string {
+func (numberFormatEmitter) EmitFromBinary(annotation *reflection.FormatAnnotation, des string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -195,7 +195,7 @@ func (numberFormatEmitter) EmitFromBinary(annotation *protocol.FormatAnnotation,
 // packed integer occupies, from the SAME integerType ladder EmitToBinary
 // uses. Floats, non-integers, unconstrained integers and ranges wider than
 // int32 all ride the base float64 arm — 8 bytes.
-func (numberFormatEmitter) BinarySize(annotation *protocol.FormatAnnotation) formats.BinarySizeHint {
+func (numberFormatEmitter) BinarySize(annotation *reflection.FormatAnnotation) formats.BinarySizeHint {
 	if annotation == nil {
 		return formats.BinarySizeHint{Fixed: 8}
 	}
@@ -270,7 +270,7 @@ func integerType(params map[string]any) integerKind {
 // `[x, y].filter(Boolean)` mutual-exclusivity / range checks are kept
 // spec-faithful: a `0` bound is falsy per the reference and so escapes these
 // checks — replicated here via numberTruthy for byte-for-byte parity.
-func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+func (numberFormatEmitter) ValidateParams(annotation *reflection.FormatAnnotation) []string {
 	const label = "NumberFormat"
 	if annotation == nil {
 		return nil
@@ -309,14 +309,33 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 	if multipleOf, ok := formats.ReadNumberParam(params, "multipleOf"); ok {
 		if multipleOf <= 0 {
 			errs = append(errs, label+": `multipleOf` must be greater than 0")
-		} else if multipleOf != float64(int64(multipleOf)) {
-			errs = append(errs, label+": `multipleOf` must be an integer to avoid floating-point precision issues")
 		}
+		// A fractional `multipleOf` used to be rejected here over floating-point
+		// precision. JSON Schema allows any positive number (`multipleOf: 0.01`
+		// on a money field is the obvious case) and defines the rule as "division
+		// by this value results in an integer", so multipleOfCondition emits that
+		// division directly rather than a modulo that cannot express it.
 		if float {
 			errs = append(errs, label+": `multipleOf` cannot be used with the `float` constraint")
 		}
 	}
 	return errs
+}
+
+// multipleOfCondition emits the "is a multiple of" predicate. An INTEGER divisor
+// keeps the modulo: it is exact on doubles, cheaper than a division, and stays
+// right for magnitudes past 2^53 where a quotient is integral simply because
+// every double that large is. A FRACTIONAL divisor cannot use it — `0.0075 %
+// 0.0001` is 9.99e-5, not 0 — so it takes JSON Schema's own wording, "division
+// by this value results in an integer". That also gives the spec's answer for an
+// overflowing divisor: `1e308 / 0.123456789` is Infinity, which is not an
+// integer, so the value is rejected instead of raising.
+func multipleOfCondition(vλl string, value float64) string {
+	literal := formats.FormatNumber(value)
+	if value == float64(int64(value)) {
+		return "(" + vλl + " % " + literal + " === 0)"
+	}
+	return "Number.isInteger(" + vλl + " / " + literal + ")"
 }
 
 // numberTruthy returns 1 when the param is present AND its value is

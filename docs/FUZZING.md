@@ -22,25 +22,34 @@ hold for **all** inputs. The first run already found and fixed a real bug — se
 
 All under [`packages/ts-runtypes/test/fuzz/`](../packages/ts-runtypes/test/fuzz/):
 
-| File                           | Role                                                                                                                                                                                                                                            |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `seededRng.ts`                 | Deterministic PRNG (`mulberry32`) + `withSeededRandom(seed, fn)` — scopes a seeded `Math.random` so a whole run replays from one number.                                                                                                        |
-| `invalidValue.ts`              | The metamorphic **giant switch** — the inverse of `mockType.ts`. Per-kind wrong-value generation + the tandem tree walk that corrupts one provably-invalid position.                                                                            |
-| `fuzzOracle.ts`                | The oracle layer: `FuzzTarget` shape + the O1–O7 (value) and TR1–TR4 (resolver/emit) invariant checks.                                                                                                                                          |
-| `fuzzRunner.ts`                | The Phase-1 driver: `runFuzz` (fixed iterations) and `runFuzzForDuration` (autonomous soak). Type-blind junk generator.                                                                                                                         |
-| `*.unit.test.ts`               | Offline unit tests (no Go binary) over hand-built `RunType` graphs + the Phase-2 generator/value layers.                                                                                                                                        |
-| `fuzz.integration.test.ts`     | Phase-1 end-to-end sweep over REAL compiled functions (needs the plugin + binary).                                                                                                                                                              |
-| `binaryEncoderResize.test.ts`  | Pinned regression for the first finding.                                                                                                                                                                                                        |
-| `cloning/referenceClone.ts`    | The clone ORACLE MODEL — a naive reference interpreter of `createCloneExactShapeFn<T>` over the reflected RunType graph; what the compiled clone is compared against (O15).                                                                       |
-| `cloning/extrasValue.ts`       | The extras mutator — injects undeclared `__fz_extra_<n>` keys at provably-sound plain-object positions (validate stays true, a correct clone must strip them). Same one-directional soundness contract as `invalidValue.ts`.                    |
-| `cloning/cloneOracle.ts`       | The cloning oracle layer: `CloneFuzzTarget` + the O15–O17 checks, a local Temporal-aware `deepEqual`, and the shared-mutable-reference walker (ported from `test/util/cloningAsserts.ts`).                                                     |
-| `cloning/cloneFuzzRunner.ts`   | The cloning driver: `runCloneFuzz` / `runCloneFuzzForDuration` — valid / extras / junk streams per seed.                                                                                                                                        |
-| `cloning/cloneFuzz.integration.test.ts` | The cloning end-to-end sweep over REAL compiled `createCloneExactShapeFn` factories, plus the CES001 throw-corpus and the cyclic-value pin (needs the plugin + binary).                                                                  |
-| `typeGen.ts` _(Phase 2)_       | The THIRD giant switch — a seeded generator of random types across the WIDEST space (classes, functions, symbols, index sigs, native builtins, intersections, circular interfaces, any/unknown/never/void) + named decls + a renderer to `.ts`. |
-| `shapeValue.ts` _(Phase 2)_    | Type→value: a conforming value for the serialisable subset, a strict `valueOracleSafe` gate, and a sound one-position corruption (mirrors invalidValue.ts's contract).                                                                          |
-| `typeFuzzHarness.ts` _(Ph 2)_  | Drives generated source through the resolver (`serve --sources ops`) → entry modules → REAL runtime factories; records diagnostics + per-factory wire outcome.                                                                                      |
-| `typeFuzzRunner.ts` _(Ph 2)_   | The Phase-2 driver: `runTypeFuzz` / `runTypeFuzzForDuration` — owns the resolver (restarts it on a hang), Tier-A (resolver/emit) on every type + Tier-B (value/robustness) per type.                                                            |
-| `typeFuzz.integration.test.ts` | Phase-2 end-to-end sweep over generated TYPES (needs the binary).                                                                                                                                                                               |
+| File | Role |
+| ---- | ---- |
+| `core/seededRng.ts` | Deterministic PRNG (`mulberry32`) + `withSeededRandom(seed, fn)` — scopes a seeded `Math.random` so a whole run replays from one number. |
+| `core/typeGen.ts` | The THIRD giant switch — a seeded generator of random types across the WIDEST space (classes, functions, symbols, index sigs, labeled tuples, native builtins, intersections, circular interfaces, any/unknown/never/void, format leaves) + named decls + a renderer to `.ts`. |
+| `core/runTypeGen.ts` | Seeded generator of `RunType` graphs directly, for the offline lanes that need a schema without compiling a type. |
+| `core/soakBudget.ts` | The soak wall clock: refuses to start an iteration the remaining budget cannot pay for, and sizes each soak test's vitest timeout. |
+| `value/invalidValue.ts` | The metamorphic **giant switch** — the inverse of `mockType.ts`. Per-kind wrong-value generation + the tandem tree walk that corrupts one provably-invalid position. |
+| `value/shapeValue.ts` | Type→value: a conforming value for the serialisable subset, a strict `valueOracleSafe` gate, and a sound one-position corruption (mirrors invalidValue.ts's contract). |
+| `value/fuzzOracle.ts` | The value oracle layer: the `FuzzTarget` shape and the O1–O7 / O12 checks. (The TR1–TR4 resolver/emit checks live in `type/typeFuzzRunner.ts`; this file only declares their ids.) |
+| `value/fuzzRunner.ts` | The Phase-1 driver: `runFuzz` (fixed iterations) and `runFuzzForDuration` (autonomous soak). Type-blind junk generator. |
+| `value/fuzz.integration.test.ts` | Phase-1 end-to-end sweep over REAL compiled functions (needs the plugin + binary). |
+| `type/typeFuzzHarness.ts` | Drives generated source through the resolver (`serve --sources ops`) → entry modules → REAL runtime factories; records diagnostics + per-factory wire outcome. Owns `SRC_OVERLAY` — the real `src/` tree handed to the resolver's virtual filesystem so fixtures import the shipped declarations instead of stand-ins (a workaround for the virtual FS, not a mechanism). |
+| `type/typeFuzzRunner.ts` | The Phase-2 driver: `runTypeFuzz` / `runTypeFuzzForDuration` — owns the resolver (restarts it on a hang), Tier-A (resolver/emit) on every type + Tier-B (value/robustness) per type. Hosts TR1–TR4 and the non-data O10 / O12 / O14 checks. |
+| `type/typeFuzz.integration.test.ts` | Phase-2 end-to-end sweep over generated TYPES, values from `shapeValue.ts` (needs the binary). |
+| `type/nonDataTypeFuzz.integration.test.ts` | The DataOnly non-data lane: same driver, values from the REAL `createMockDataFn`, serialize-or-fail contract. |
+| `type/mockSeedFuzz.ts`, `type/tsValidate.ts` | The mock-determinism driver, and the in-process TypeScript validity gate that filters false positives on non-compilable generated types. |
+| `type/*.smoke.test.ts`, `type/bugReprosValidTs.test.ts` | Pinned minimal repros for findings already fixed. |
+| `convert/convertRoundtrip.ts` + `convertFuzz.integration.test.ts` | The convert roundtrip lane — the FE, real-CLI twin of the Go atom sweep, run over the FULL generated type space (`CONVERT_GEN_OPTIONS` = the wild space + `structuralFormats`). Each iteration renders a declarations file with `getRunTypeId` probes (both call shapes for the root, asserted id-equal every draw), spawns the real `ts-runtypes convert` binary over a real temp project (the shipped dist package on disk), walks TWO independently randomized form chains (builders middles closed by the type form), asserts every declaration's id after EVERY leg via the resolver's serve ops, requires the two chains' final type forms to be BYTE-EQUAL, and re-converts that fixpoint once more asserting a byte no-op (C5 at the CLI level) — the canonical-fixpoint oracle that caught the path-dependent union order, dropped user import bindings, preset-vs-params id splits, and the RT.circular payload loss. Designed loud refusals reroll or count against a ceiling (`EXPECTED_REFUSALS`) so the allowlist can never swallow the lane. |
+| `roundtrip/roundtripOracle.ts` + `roundtripRunner.ts` | The all-strategy round-trip lane (`RT-*` oracles): every codec strategy for one generated serialisable type. |
+| `binary/sizeOracle.ts` + `sizeFuzzRunner.ts` | The binary size-estimate lane (`O-SIZE-*`): in-bounds values must not resize the cold buffer, oversized ones must. |
+| `binary/binaryEncoderResize.test.ts` | Pinned regression for the first finding. |
+| `cloning/referenceClone.ts` | The clone ORACLE MODEL — a naive reference interpreter of `createCloneExactShapeFn<T>` over the reflected RunType graph; what the compiled clone is compared against (O15). |
+| `cloning/extrasValue.ts` | The extras mutator — injects undeclared `__fz_extra_<n>` keys at provably-sound plain-object positions (validate stays true, a correct clone must strip them). Same one-directional soundness contract as `invalidValue.ts`. |
+| `cloning/cloneOracle.ts` | The cloning oracle layer: `CloneFuzzTarget` + the O15–O17 checks, a local Temporal-aware `deepEqual`, and the shared-mutable-reference walker. |
+| `cloning/cloneFuzzRunner.ts` | The cloning driver: `runCloneFuzz` / `runCloneFuzzForDuration` — valid / extras / junk streams per seed. |
+| `cloning/cloneFuzz.integration.test.ts` | The cloning end-to-end sweep over REAL compiled `createCloneExactShapeFn` factories, plus the CES001 throw-corpus and the cyclic-value pin. |
+| `enrich/enrichModel.ts`, `i18nModel.ts`, `typeModFuzzRunner.ts` | The model-based enrichment lanes: random command sequences against the real CLI, checked by the `R*` / `T*` / `NL RC CB P` rule sets. |
+| `**/*.unit.test.ts` | Offline unit tests (no Go binary) over hand-built `RunType` graphs + the generator / value / budget layers. |
 
 ## Data generation — three streams
 
@@ -91,9 +100,29 @@ library must uphold, never from hand-written expected outputs:
 | **O5** | strong      | JSON wire is stable: `encode(decode(encode v)) === encode(v)` |
 | **O6** | strong      | binary wire is byte-stable through `decode∘encode`            |
 | **O7** | robustness  | `encode(valid)` does not throw and yields a wire value        |
+| **O10** | consistency | a type whose encoders ALL `alwaysThrow` carries an Error-severity diagnostic (fail ⇒ error) |
+| **O12** | consistency | the two wires agree on the value: `jsonEncode(binaryDecode(binaryEncode v))` equals `jsonEncode(v)` |
+| **O14** | consistency | JSON and binary agree on serialize-vs-`alwaysThrow` — the rule is the same for every serialization family |
 | **O15** | strong      | `clone(v)` deep-equals `referenceClone(schema, v)`           |
 | **O16** | strong      | clone never mutates its input, shares no mutable reference with it, and keeps the root prototype |
 | **O17** | consistency | `validate(clone(v))` is true, `clone∘clone` is stable, and extras-injected inputs come out `hasUnknownKeys`-clean |
+
+O10 / O12 / O14 are the non-data lane's additions
+([`type/typeFuzzRunner.ts`](../packages/ts-runtypes/test/fuzz/type/typeFuzzRunner.ts)),
+where values come from the REAL `createMockDataFn` and the serialize-vs-fail
+tier is read off the ACTUAL encoder behaviour.
+
+Four more lanes carry their own catalogues, on the same principle:
+
+| Ids | Lane | Where |
+| --- | --- | --- |
+| **RT-VALIDATE / RT-AGREE / RT-STABLE / RT-FAILAGREE / RT-NATIVE / RT-THROW** | all-strategy round-trip: every codec strategy for one generated type agrees | [`roundtrip/roundtripOracle.ts`](../packages/ts-runtypes/test/fuzz/roundtrip/roundtripOracle.ts) |
+| **O-SIZE-ROUNDTRIP / O-SIZE-GREW** | binary size estimate: an in-bounds value must not resize the cold buffer, an oversized one must | [`binary/sizeOracle.ts`](../packages/ts-runtypes/test/fuzz/binary/sizeOracle.ts) |
+| **R1 R2 R3 R5 R6 R7a R8 R10** | enrichment sync: idempotence, preservation, convergence, orphan carcasses, prune, totality | [`enrich/enrichModel.ts`](../packages/ts-runtypes/test/fuzz/enrich/enrichModel.ts) |
+| **T1–T7, T10** / **NL RC CB P** | i18n reconcile / type-modification: never-copy, arms-owned, kind-stable, todo discipline / nothing-lost, rename-carry, content-blindness, parse-safety | [`enrich/i18nModel.ts`](../packages/ts-runtypes/test/fuzz/enrich/i18nModel.ts), [`enrich/typeModFuzzRunner.ts`](../packages/ts-runtypes/test/fuzz/enrich/typeModFuzzRunner.ts) |
+
+Those four ride a `rule:` field rather than `oracle:`, so grepping for `oracle:`
+alone will not find them.
 
 O5/O6 compare the **wire image** (`encode∘decode∘encode === encode`) rather than
 value equality, which sidesteps the optional-`undefined`-key vs dropped-key
@@ -136,8 +165,59 @@ follow-up.
 
 All suites run through the internal CLI: `pnpm rtx core fuzz <suite> [--soak]`. It
 builds the binary + plugin first (except `unit`, which needs neither) and sets the
-suite's `RT_FUZZ_*` env for you. Suites: `unit | value | types | enrich | i18n |
-typemod | race | all`.
+suite's `RT_FUZZ_*` env for you. Suites: `unit | value | types | nondata |
+roundtrip | size | cloning | enrich | i18n | typemod | race |
+sidecar | patterngen | convert | convertcli | all`.
+
+The `convert` suite is the format-conversion sweep and lives Go-side
+(`ts-go-runtypes/internal/convert/fuzz_atoms_test.go`, where the printers
+live): each iteration generates a random declaration file (atoms, literals,
+formats, containers, functions — named and optional-param arms — labeled and
+unlabeled tuples, Temporal leaves nested anywhere (all 8 unbranded
+`Temporal.*` types plus branded `TFT.*` bound forms over the 6 orderable
+families, riding the shared ambient), brands, readonly members, self-cycles,
+mutual cycles, cross-declaration references),
+converts it type → builders → type, and asserts per leg that
+conversion is total (C1), every declaration keeps its structural id (C2),
+the chain converges (C4), re-conversion is a byte no-op (C5) and the
+canonical reflection graph loses no information the id ignores (C6). `RT_FUZZ_SEED` replays a failure;
+`RT_FUZZ_ITER` (the `--soak` knob) widens the sweep.
+
+The `convertcli` suite is its FE twin (`convert/` in the fuzz tree, see the
+layout table): the same C2 oracle per leg but through the REAL CLI binary over
+a real on-disk project, the full `typeGen` space instead of the atom grammar,
+RANDOMIZED chains instead of the fixed one, and the byte-equal type-form
+fixpoint across two independent chains as the convergence oracle. Same knobs:
+`RT_FUZZ_SEED` replays, `RT_FUZZ_ITER` widens.
+
+Its fixtures also carry marker CALL SITES in all three shapes: one naming its
+type, one reflecting a runtime value (both must survive every leg untouched) and
+one writing its type INLINE, which every leg rewrites into that form's value
+spelling and back. The inline probe is the only one exercising call-site
+conversion — the other two exercise the paths that skip it.
+
+Every lane already runs under the ordinary test commands — `go test
+./internal/...` picks up the Go `convert` sweep, `vitest run test/fuzz` picks up
+the rest — at its DEFAULT budget. `rtx core fuzz` is the soak / replay front
+door over those same commands, not a gate (`race` is the one lane it gates,
+since nothing else sets `RT_FUZZ_RACE=1`).
+
+The soak budgets run in CI in the `fuzz-soak` job of
+[release-gate.yml](../.github/workflows/release-gate.yml): one runner per lane,
+on release PRs, on the push to `prod`, and on demand with `gh workflow run
+release-gate.yml --ref <branch>`. Each lane is seeded from the run id and the
+seed is echoed, so a CI finding replays verbatim with `RT_FUZZ_SEED=<printed>
+pnpm rtx core fuzz <lane> --soak`. Nothing else runs a soak — the per-PR lanes
+are all at their defaults, which for the randomized sweeps is a handful of
+iterations.
+
+A `--soak` run is bounded by its own wall clock: the runner refuses to start an
+iteration the remaining budget cannot pay for
+([`core/soakBudget.ts`](../packages/ts-runtypes/test/fuzz/core/soakBudget.ts)),
+and every soak test sizes its vitest timeout with `soakTestTimeout(soakMs)` from
+the same module. Before that, the runners only bounded when an iteration could
+START, so a compile-bound lane overshot its budget and vitest reported a CLEAN
+soak as a timeout failure.
 
 ```bash
 # offline unit tests — pure logic, no Go binary needed
@@ -160,11 +240,14 @@ Reproducing a reported violation: every `Violation` carries the `seed` that
 produced it. `withSeededRandom(seed, …)` (or `runFuzz(targets, {seed})`) replays
 the exact same data.
 
-Adding a target: in `fuzz.integration.test.ts`, build a concretely-typed
+Adding a target: in `value/fuzz.integration.test.ts`, build a concretely-typed
 `const schema = RT.…` and wire the `createX(schema)` factories into a
 `FuzzTarget`. The plugin resolves each `createX` **statically from its argument
 type**, so the schema must be a concrete `const` — never a generic `RunType`
-parameter passed through a helper (that injects the `unknown` runtype).
+parameter passed through a helper (that injects the `unknown` runtype). The
+cloning corpus shows the other supported spelling: a type argument
+(`createCloneExactShapeFn<T>()` + `getRunType<T>()`), which needs no `const` at
+all and is the more common form now.
 
 ## Findings
 
@@ -175,9 +258,18 @@ parameter passed through a helper (that injects the `unknown` runtype).
   `RangeError: buffer too small … Call resize() and retry.` instead of growing.
   Fixed in two steps: the serializer's writers now GROW IN PLACE (no throw, no
   re-encode) and the size predictor moved from a mean-EMA to Welford
-  mean + k·σ. See
-  [`docs/done/binary-buffer-sizing.md`](./done/binary-buffer-sizing.md); pinned by
-  `binaryEncoderResize.test.ts`.
+  mean + k·σ. Pinned by `binaryEncoderResize.test.ts`.
+- **Negated pattern-formats mocked unsoundly** (fixed). The mock walker's
+  negation rejection sampling tested `url` / `domain` with a loose stand-in
+  instead of their params, so `new URL()` rejected the relative references
+  `UriReference` / `IriReference` exist to accept and the loose domain test
+  demanded a dot a single-label `Hostname` does not have — an UNDER-match, the
+  one direction that ships a value `validate` rejects. Pattern-bearing named
+  formats now test their params, which is exactly what they compile to. Pinned
+  by `test/features/negatedFormatMockSoundness.test.ts`.
+
+Findings large enough to need their own spec are filed under
+[`docs/todos/`](todos/) rather than listed here.
 
 ## Phase 2 — random TypeScript type generation (implemented)
 
@@ -223,6 +315,7 @@ checks, per generated type:
 | **A** | **TR4** | every type       | each factory either wires OR throws a **controlled** `[CODE]` alwaysThrow (an _uncontrolled_ wire failure is the bug)     |
 | **B** | O1–O7   | serialisable     | the Phase-1 value oracles hold (valid accepted, corruption rejected, JSON/binary wire-stable, junk total)                 |
 | **B** | O3/O4'  | non-serialisable | robustness probe: `validate` / `getValidationErrors` return sanely or throw an **Error** — never a non-Error, never crash |
+| **B** | O7/O10/O12/O14 | non-data lane | the DataOnly serialize-or-fail contract (see below) |
 
 Tier A (every type) catches resolver panics, hangs, malformed emit (invalid JS),
 and dangling refs — the highest-value bugs. Tier B routes by a strict
@@ -233,11 +326,22 @@ straight from the abstract type (`validValue` / `corruptValue` in
 [`shapeValue.ts`](../packages/ts-runtypes/test/fuzz/value/shapeValue.ts)), so no
 dependency on `createMockDataFn`.
 
+That holds for the WILD lane (`valueSource: 'shape'`, the default). The DataOnly
+non-data lane sets `valueSource: 'mock'` and draws from the REAL
+`createMockDataFn` with `nonDataTypes` on instead — and there the
+serialize-vs-fail tier is read from the ACTUAL encoder behaviour, not from the
+resolver's diagnostics: the resolver over-reports Error severity for
+non-serialisable positions inside DROPPED subtrees, so a type can carry an Error
+and still serialize. The encoder either works or `alwaysThrow`s; that is the
+ground truth O10 / O14 are checked against.
+
 The harness ([`typeFuzzHarness.ts`](../packages/ts-runtypes/test/fuzz/type/typeFuzzHarness.ts))
 reuses the vite-plugin test helpers
 ([`helpers/inline.ts`](../packages/ts-runtypes-devtools/test/helpers/inline.ts)):
-render the fixture → `serve --sources ops` `ResolverClient.setSources` (atop the
-`RUNTYPES_DTS` ambient overlay — a tiny inferred Program, no node_modules) →
+render the fixture → `serve --sources ops` `ResolverClient.setSources` (atop
+`MARKER_PACKAGE_OVERLAY` — the REAL `@ts-runtypes/core` package.json + dist
+.d.ts tree served as virtual node_modules, so the marker module resolves the
+way a consumer install does) →
 `scanFiles` → `evalEntryModules` executes the emitted virtual modules into their
 tuples → each fn tuple is passed as the injected id to the REAL factory
 (`createValidateFn(undefined, undefined, tuple)` → `initFromTuple` links the whole
@@ -247,7 +351,8 @@ reported violation replays exactly.
 
 ### Known limitations
 
-- **Recursive types run Tier A only.** The in-process `evalEntryModules` linker
+- **Recursive types run Tier A only** (in the type lanes — the cloning lane DOES
+  fuzz circular types end-to-end with tree-shaped mock values, see above).** The in-process `evalEntryModules` linker
   can't materialise a cyclic function graph the way Vite's real module graph
   does (it recurses depth-first and overflows), so recursive types are policed
   by the resolver/emit oracles (TR1–TR3) and **not** executed in-process — their
@@ -261,6 +366,16 @@ reported violation replays exactly.
   instead. Widening the subset means teaching `shapeValue.ts` the exact
   validator semantics for each kind.
 - The live `rtUtils` registry accumulates across a long soak (every distinct
-  type registers its closure once); fine for time-bounded runs.
-- Not yet generated: branded `TypeFormat` primitives, generics / conditional /
-  mapped types, template-literal types. Each is a natural new arm of `typeGen.ts`.
+  type registers its closure once). Per-iteration cost stays stationary now
+  that `findRTForType` is memoized (it used to scan the whole registry once
+  per format-annotated mock node, which turned one iteration into 300+
+  seconds — see docs/done/soak-single-iteration-pathology.md), and every soak
+  fails loudly with a replayable round if a future iteration exceeds
+  `SOAK_ITERATION_CEILING_MS`.
+- Not yet generated: generics / conditional / mapped types, template-literal
+  types, and Temporal members (their VALUES need the runtime Temporal object,
+  which the value lanes cannot assume — the Go-side convert sweep covers
+  Temporal types instead). Each is a natural new arm of `typeGen.ts`. (Branded `TypeFormat`
+  primitives ARE generated now — the `FormatLeafName` roster in every lane's
+  leaf pool, plus the structural decorations behind
+  `GenOptions.structuralFormats`, which only the convert lane turns on.)

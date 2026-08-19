@@ -21,8 +21,9 @@ export const BIGINT_FORMAT = {
   bigint_max: {
     title: 'BigInt Max',
     description: 'bigintFormat with an inclusive upper bound that rejects bigints above max.',
-    validateNotes:
+    validateNotes: [
       'Boundary value 100n passes (inclusive); 101n fails on `max`. A non-bigint (5) fails the bigint typeof gate before any format check.',
+    ],
     validate: () => createValidateFn<TF.BigInt<{max: 100n}>>(),
     standardSchema: () => createStandardSchema<TF.BigInt<{max: 100n}>>(),
     // One hand-authored Standard Schema expectation per file. Every other case
@@ -76,7 +77,7 @@ export const BIGINT_FORMAT = {
   bigint_min: {
     title: 'BigInt Min',
     description: 'bigintFormat with an inclusive lower bound that rejects bigints below min.',
-    validateNotes: 'Boundary value 0n passes (inclusive); -1n fails on `min`.',
+    validateNotes: ['Boundary value 0n passes (inclusive); -1n fails on `min`.'],
     validate: () => createValidateFn<TF.BigInt<{min: 0n}>>(),
     standardSchema: () => createStandardSchema<TF.BigInt<{min: 0n}>>(),
     validateReflect: () => {
@@ -113,8 +114,9 @@ export const BIGINT_FORMAT = {
   bigint_lt: {
     title: 'BigInt LessThan',
     description: 'bigintFormat with an exclusive upper bound where the bound itself is rejected.',
-    validateNotes:
+    validateNotes: [
       'Exclusive `lt`: 9n passes but the boundary 10n fails (and 11n above it). Lower bound is unconstrained, so -5n passes.',
+    ],
     validate: () => createValidateFn<TF.BigInt<{lt: 10n}>>(),
     standardSchema: () => createStandardSchema<TF.BigInt<{lt: 10n}>>(),
     validateReflect: () => {
@@ -154,7 +156,7 @@ export const BIGINT_FORMAT = {
   bigint_gt: {
     title: 'BigInt GreaterThan',
     description: 'bigintFormat with an exclusive lower bound where the bound itself is rejected.',
-    validateNotes: 'Exclusive `gt`: 1n passes but the boundary 0n fails (and -1n below it).',
+    validateNotes: ['Exclusive `gt`: 1n passes but the boundary 0n fails (and -1n below it).'],
     validate: () => createValidateFn<TF.BigInt<{gt: 0n}>>(),
     standardSchema: () => createStandardSchema<TF.BigInt<{gt: 0n}>>(),
     validateReflect: () => {
@@ -194,8 +196,9 @@ export const BIGINT_FORMAT = {
   bigint_multipleOf: {
     title: 'BigInt MultipleOf',
     description: 'bigintFormat divisibility constraint where only multiples of 5n pass.',
-    validateNotes:
+    validateNotes: [
       '0n counts as a multiple and passes; non-multiples (3n, 7n) fail on `multipleOf`. Negative multiples like -15n pass.',
+    ],
     validate: () => createValidateFn<TF.BigInt<{multipleOf: 5n}>>(),
     standardSchema: () => createStandardSchema<TF.BigInt<{multipleOf: 5n}>>(),
     validateReflect: () => {
@@ -235,8 +238,9 @@ export const BIGINT_FORMAT = {
   bigint_combined: {
     title: 'BigInt Combined',
     description: 'bigintFormat combining min, max, and multipleOf where each invalid sample trips a distinct constraint.',
-    validateNotes:
+    validateNotes: [
       'All three bounds enforced together: -10n fails `min`, 1010n fails `max`, 7n fails `multipleOf`. Boundary values 0n and 1000n pass (both inclusive and multiples of 10n).',
+    ],
     validate: () => createValidateFn<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     standardSchema: () => createStandardSchema<TF.BigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     validateReflect: () => {
@@ -277,8 +281,9 @@ export const BIGINT_FORMAT = {
   bigint_int64: {
     title: 'Int64',
     description: 'bigintFormat preset for the signed 64-bit range [-2^63, 2^63-1] that selects 8-byte binary packing.',
-    validateNotes:
+    validateNotes: [
       'Inclusive bounds min -9223372036854775808n / max 9223372036854775807n; one past either end (2^63 / -(2^63)-1) fails on `max` / `min` respectively.',
+    ],
     validate: () => createValidateFn<TF.BigInt64>(),
     standardSchema: () => createStandardSchema<TF.BigInt64>(),
     validateReflect: () => {
@@ -321,7 +326,7 @@ export const BIGINT_FORMAT = {
   bigint_uint64: {
     title: 'UInt64',
     description: 'bigintFormat preset for the unsigned 64-bit range [0, 2^64-1] that selects 8-byte binary packing.',
-    validateNotes: 'Inclusive bounds min 0n / max 18446744073709551615n; 2^64 fails `max` and -1n fails `min`.',
+    validateNotes: ['Inclusive bounds min 0n / max 18446744073709551615n; 2^64 fails `max` and -1n fails `min`.'],
     validate: () => createValidateFn<TF.BigUInt64>(),
     standardSchema: () => createStandardSchema<TF.BigUInt64>(),
     validateReflect: () => {

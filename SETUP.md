@@ -66,6 +66,19 @@ pnpm --filter @ts-runtypes/devtools run build         # the other
 
 Outputs land in `packages/*/dist/`. The plugin's dist must be present for marker-package typecheck (no `source` condition in its exports map) — rebuild after every plugin src edit.
 
+### Clean
+
+```bash
+pnpm run clean                   # hard clean (see below)
+pnpm run clean --keep-deps       # same, but leave node_modules installed
+pnpm run clean --dry-run         # list what would go, delete nothing
+pnpm run fresh-start             # hard clean + `pnpm install --frozen-lockfile`
+```
+
+`pnpm run clean` ([scripts/core/clean.mjs](scripts/core/clean.mjs)) is a **hard** clean: package dists + `.tsbuildinfo` + `.coverage`, `bin/`, the website's `.output` / `.nuxt` / playground bundle, tool caches (vite, vitest, nuxt, playwright, the host-built playground WASM under `.cache/`), run artifacts (`logs/`, `.docdata/`, bench results, `dist-binaries/`, `tarballs/`, the test suites' `__runtypes/` genDirs) and finally **every `node_modules` in the workspace**. Everything it removes is gitignored build output; it never touches `.env`, the vendored [ts-go-runtypes/third_party/](ts-go-runtypes/third_party/) tree, or the global pnpm store (`pnpm store prune` is a separate, deliberate call).
+
+Some of what it drops is expensive to regenerate (the playground WASM needs a container build; `.docdata/` + `public/bench-data/` need a full benchmark run) — use `--dry-run` first if you are unsure, and `pnpm --filter <pkg> run clean` when you only want one package's dist gone.
+
 ---
 
 ## Test
@@ -97,6 +110,7 @@ The package-manager files (`package.json`, lockfile, `pnpm-workspace.yaml`, `.np
 | Benchmarks  | `pnpm rtx bench`         | Build + run EVERY competitor in its own isolated container, then aggregate.         |
 | Benchmarks  | `pnpm rtx bench --one <n>` | Build + run a SINGLE competitor + aggregate (fastest verification loop).            |
 | Benchmarks  | `pnpm rtx bench smoke`   | Build every competitor's dist (no run) — minutes shorter.                           |
+| Benchmarks  | `pnpm rtx bench typecheck` | Compile every competitor project in the image — the gate that keeps each `cases.ts` total over the shared case keys. |
 | Benchmarks  | `pnpm rtx bench typecost`| Per-competitor type-instantiation-cost benchmark.                                  |
 | Benchmarks  | `pnpm rtx bench serialization` | ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER on Node 26 (native Temporal). |
 | Benchmarks  | `pnpm rtx bench --website` | **One command** for ALL website benchmark data: validation + typecost + capture-env + serialization (+ formats), every measurement taken inside the Node 26 container, then the `gen-docs` host transform. |
@@ -395,7 +409,11 @@ pnpm rtx release stage-approve --deploy-only  # no approvals; wait for npm to se
 
 If the queue can't be read automatically (not logged in, npm too old), the helper prints the exact leaves-first commands to run by hand (`npm stage list`, then `npm stage approve <stage-id>` in order).
 
-**Deploy the docs site.** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`) that must run only after the stage-ids are approved. `stage-approve` dispatches it automatically once npm serves the freshly-approved version (a fresh publish lags a little on the registry CDN, so it polls before dispatching; `--no-deploy` skips, `--deploy-only` re-fires a skipped or failed dispatch). The manual path remains as fallback: **Actions → prod · deploy website → Run workflow**, selecting the **`prod`** ref. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only. A pre-build guard ([`rtx release verify-live`](scripts/release/verify-live.mjs)) aborts the deploy unless the checked-out tree matches the **live** npm release (all `@ts-runtypes/*` packages, in lockstep) — so a deploy dispatched from `main`, or from `prod` before the stage-ids are approved, fails fast instead of shipping docs for a version nobody can install yet.
+**Deploy the docs site.** Staging means "`publish-npm` finished" ≠ "packages live", so the deploy is a separate workflow ([`website-deploy.yml`](.github/workflows/website-deploy.yml), `workflow_dispatch`, `environment: production`) that must run only after the stage-ids are approved. `stage-approve` dispatches it automatically once npm serves the freshly-approved version (a fresh publish lags a little on the registry CDN, so it polls before dispatching; `--no-deploy` skips, `--deploy-only` re-fires a skipped or failed dispatch). The manual path remains as fallback: **Actions → prod · deploy website → Run workflow**, selecting **`prod`** or **`main`** — the deploy pins `--branch=prod` (the Cloudflare Pages production branch), so both refs ship the same live site and the ref decides only which tree gets built. The workflow refuses any other ref. The site builds from the repo (not from an installed npm version), so the optional `version` input is for the run log only. A pre-build guard ([`rtx release verify-live`](scripts/release/verify-live.mjs)) aborts the deploy unless the checked-out tree matches the **live** npm release (all `@ts-runtypes/*` packages, in lockstep) — so a deploy dispatched from a `main` carrying an unreleased bump, or from `prod` before the stage-ids are approved, fails fast instead of shipping docs for a version nobody can install yet.
+
+**Shipping a docs-only fix between releases.** `main` is a valid deploy ref precisely so a docs or benchmark fix can go live without cutting a version: land it on `main`, leave `version.json` alone, and dispatch the deploy against **`main`**. `verify-live` still passes (the tree's version is the one already live), `publish.yml` never runs (nothing is pushed to `prod`), and no bump or promotion is involved. Do NOT reach for a `main → prod` merge to ship docs — a push to `prod` starts the release train.
+
+Why the `--branch=prod` pin matters: Pages decides production-vs-preview from the branch wrangler reports, and with no flag wrangler reads it from git. Before the pin, a dispatch from anything but `prod` uploaded everything, printed `Deployment complete!`, exited 0 — and served the result at a preview alias, leaving the live site on its previous build. Green, and no deploy.
 
 **First-publish bootstrap (one-time).** npm can't **stage** a package name that has no published version yet, so the very first version of each `@ts-runtypes/*` package must be a plain, live publish before CI's staged path can take over. The initial versions were published manually with `pnpm rtx release manual-publish` — it builds the ten packages, does an interactive `npm login` (one 2FA challenge for the whole run), then publishes them all **live** and **leaves-first** with `--access public` (`@ts-runtypes/core`, `@ts-runtypes/devtools`, `@ts-runtypes/bin`, and the seven `@ts-runtypes/binary-<os>-<arch>`); it's **resumable**, so already-live versions are skipped. Use the same command to bootstrap any new sibling package before its first CI release, and make sure the repo `NPM_TOKEN` secret is set so `publish-npm` can authenticate.
 
@@ -408,7 +426,7 @@ CI runs Node 26; staged publishing needs npm **≥ 11.15.0**. The `publish-npm` 
 3. **Merge with "Create a merge commit" — never rebase, never squash.** `prod` must advance only by true merge commits of `main`; a rebase/squash breaks the shared ancestry and the next release PR stops being mergeable. [`publish.yml`](.github/workflows/publish.yml)'s first job (`merge-shape`) fails fast on a wrong-method merge and prints the recovery (an empty `main → prod` re-merge PR).
 4. `publish.yml` runs the gate again, then **stages** every package to npm (with `NPM_TOKEN`) and tags the release on `prod`. Delete the frozen branch once the tag exists: `git push origin --delete release/vX.Y.Z`.
 5. Approve the staged packages with 2FA, leaves-first: `pnpm rtx release stage-approve` (one OTP prompt, reused while its window lasts). Once npm serves the new version, it **auto-dispatches the website deploy**.
-6. Docs deploy fallback — only if step 5 reported `DEPLOY NOT TRIGGERED`: `pnpm rtx release stage-approve --deploy-only`, or **Actions → prod · deploy website → Run workflow** against the **`prod`** ref (the `verify-live` guard aborts if the version isn't live on npm yet).
+6. Docs deploy fallback — only if step 5 reported `DEPLOY NOT TRIGGERED`: `pnpm rtx release stage-approve --deploy-only`, or **Actions → prod · deploy website → Run workflow** against the **`prod`** ref (or **`main`**, which deploys the same live site; the `verify-live` guard aborts if the version isn't live on npm yet).
 
 > **One-time (prod ruleset).** The `prod` branch ruleset must require the pre-publish checks as status checks — including **`release head is an ancestor of main`** (the `main-ancestor` job) alongside the gate and `version-fresh` — so a release branch that drifted off `main` cannot merge. Configure it under **Settings → Rules → prod**.
 
@@ -487,6 +505,7 @@ pnpm rtx website check --static  # serve the built site + assert the benchmark p
 pnpm rtx bench [--one <name>|--full|--website] [--quick]   # benchmarks
 pnpm rtx verify                  # lint + typecheck + format check
 pnpm rtx fmt [--check]           # format (oxfmt + prettier + gofmt)
+pnpm rtx clean [--keep-deps|--dry-run|--deep]   # hard clean; --deep reinstalls after
 pnpm rtx codegen all --check     # regenerate Go→TS mirrors, fail on drift
 pnpm rtx publish [--dry-run]     # preflight -> npm -> website (interactive)
 ```

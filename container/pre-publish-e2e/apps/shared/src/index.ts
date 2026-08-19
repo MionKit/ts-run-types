@@ -7,7 +7,7 @@ export type {CheckResult} from './check';
 import type {CheckResult} from './check';
 
 export * from './validation';
-export * from './types-vs-schemas';
+export * from './type-builders';
 export * from './reflection';
 export * from './json';
 export * from './binary';
@@ -21,7 +21,7 @@ export * from './overrides';
 export {friendly, friendlyEs, mockUser} from './enrichment';
 
 import {checkValidation} from './validation';
-import {checkTypesVsSchemas} from './types-vs-schemas';
+import {checkTypeBuilders} from './type-builders';
 import {checkReflection} from './reflection';
 import {checkJson} from './json';
 import {checkBinary} from './binary';
@@ -37,7 +37,7 @@ import {checkEnrichment} from './enrichment';
 // The 13 feature families (enrichment is family 11). Order mirrors the spec table.
 const FAMILIES: {family: string; run: () => CheckResult[]}[] = [
   {family: 'validation', run: checkValidation},
-  {family: 'types-vs-schemas', run: checkTypesVsSchemas},
+  {family: 'type-builders', run: checkTypeBuilders},
   {family: 'reflection', run: checkReflection},
   {family: 'json', run: checkJson},
   {family: 'binary', run: checkBinary},

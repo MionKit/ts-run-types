@@ -139,11 +139,11 @@ export type InjectTypeFnArgs<
  *   - REFLECTION — let `T` be inferred from a runtime value:
  *     `getRunTypeId(user)`. The value is read only for its type; at runtime it
  *     is ignored, so nothing leaks into the output.
- *   - SCHEMA (value-first) — pass a `RunType` schema, get the id of the type it
- *     MODELS: `getRunTypeId(object({…}))`. `T` is the UNWRAPPED modeled type;
- *     without this overload a value-first `getRunTypeId(schema)` infers
+ *   - RUN-TYPE — pass the run-type a builder returned, get the id of the type
+ *     it MODELS: `getRunTypeId(object({…}))`. `T` is the UNWRAPPED modeled
+ *     type; without this overload `getRunTypeId(runType)` infers
  *     `T = RunType<…>` and returns the id of the `RunType` wrapper interface
- *     instead of the type the schema describes. Mirrors `createMockDataFn`.
+ *     instead of the type the run-type describes. Mirrors `createMockDataFn`.
  *
  * Throws if the transformer is not active — the id can only be computed at
  * build time. The plugin injects the runtype's entry-module tuple at the
@@ -156,9 +156,9 @@ export type InjectTypeFnArgs<
  * whose runtime fn is a noop validator / best-effort serializer (with a
  * build-time diagnostic).
  */
-// Schema overload first so a value-first `getRunTypeId(schema)` binds `T` from
+// Run-type overload first so `getRunTypeId(runType)` binds `T` from
 // `RunType<T>` rather than matching `(_value?: T)` with `T = RunType<T>`.
-export function getRunTypeId<T>(schema: RunType<T>, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+export function getRunTypeId<T>(runType: RunType<T>, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 export function getRunTypeId<T>(_value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 export function getRunTypeId<T>(_valueOrSchema?: T | RunType<T>, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (isEntryTuple(id)) {
@@ -187,9 +187,9 @@ export function getRunTypeId<T>(_valueOrSchema?: T | RunType<T>, id?: InjectRunT
  * property: intersecting one onto a TUPLE parameter — the old
  * `T & {__rtCompTimeArgsBrand?: never}` used by `tuple`/`union`/`func` —
  * cost ~700 TS instantiations per call (the array-literal-vs-tuple-intersection
- * check; see docs/value-first-typecheck-cost.md). The Go scanner therefore
- * detects this marker SYNTACTICALLY, off the parameter's `CompTimeArgs<…>` type
- * annotation, instead of off a brand property on the resolved type.
+ * check). The Go scanner therefore detects this marker SYNTACTICALLY, off the
+ * parameter's `CompTimeArgs<…>` type annotation, instead of off a brand property
+ * on the resolved type.
  */
 export type CompTimeArgs<T> = T;
 
@@ -206,6 +206,28 @@ export type CompTimeArgs<T> = T;
  * unwrapped.
  */
 export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
+
+/**
+ * Compile-time HINTS marker — the LENIENT sibling of `CompTimeArgs<T>`,
+ * reusable by any function whose options carry build-readable knobs. It
+ * marks a parameter the build READS best-effort but never validates: when
+ * the argument is an object literal (or a `const` preset / spread chain the
+ * scanner can resolve), statically readable values inside it are honored at
+ * build time; anything dynamic stays perfectly legal and is simply
+ * invisible to the build. No `CTA0xx` enforcement, no fn-variant selection,
+ * nothing folds into any cache id.
+ *
+ * Current reader: `createMockDataFn`'s options — a literal `mock.seed`
+ * makes the generated pattern mockSample pools reproducible across builds
+ * (the same seed also drives the runtime pick, since factory options merge
+ * into every call); without one, sample-less pattern pools are drawn fresh
+ * on every build.
+ *
+ * Like `CompTimeArgs<T>` it is the IDENTITY `T` — no phantom brand property
+ * (see the instantiation-cost note above) — and the Go scanner detects it
+ * SYNTACTICALLY off the parameter's `CompTimeHints<…>` type annotation.
+ */
+export type CompTimeHints<T> = T;
 
 /**
  * Pure-function marker — the DIRECT form. Brands a function-typed parameter as

@@ -15,7 +15,7 @@ name: ci
 # packages-only change runs the fuzz half without re-running the Go suite. (A Go
 # change still runs js-lint too: typecheck compiles the ts-go-runtypes testfixtures.)
 # `vitest run test/fuzz` and `vitest run --exclude '**/test/fuzz/**'` are a
-# complete, DISJOINT partition of the suite (23 + 151 = 174 files), so no test is
+# complete, DISJOINT partition of the suite, so no test is
 # dropped or double-run — a semantic split by directory instead of a hash shard.
 # (This used to be Go+shard-1 vs lint+shard-2 with `vitest --shard`; once oxlint
 # replaced the much heavier ESLint the lint side went light, so the even shards
@@ -86,15 +86,18 @@ jobs:
         if: needs.changes.outputs.go == 'true'
         working-directory: ts-go-runtypes
         run: go vet ./cmd/... ./internal/...
+      # Build BEFORE the Go suite: since the real-package migration the Go
+      # tests read packages/ts-runtypes/dist (testfixtures.RealMarkerPackage +
+      # the on-disk fixture tsconfigs' paths), and the fuzz half below spawns
+      # the binary and reads the dists. One build feeds both; the Go compile
+      # is cache-warm from vet.
+      - name: Build the resolver + dists (marker dist read by the Go suite; binary spawned by fuzz)
+        run: pnpm run check:builds
       - name: Go test suite
         if: needs.changes.outputs.go == 'true'
         working-directory: ts-go-runtypes
         run: go test ./internal/...
-      # The fuzz tests spawn the binary and read the dists — build first
-      # (cache-warm from go test/vet, so ~fast).
-      - name: Build the resolver + dists (spawned/read by the fuzz suite)
-        run: pnpm run check:builds
-      - name: JS fuzz suite (test/fuzz/** — 23 files)
+      - name: JS fuzz suite (test/fuzz/**)
         run: pnpm exec vitest run test/fuzz
       # enrichRace self-skips unless RT_FUZZ_RACE=1 (scripts audit §3.4); the
       # test/fuzz run above never sets it, so the concurrency coverage rides here.
@@ -134,7 +137,7 @@ jobs:
         run: pnpm run check:env
       - name: Lint + typecheck
         run: pnpm run lint
-      - name: JS suite (everything except test/fuzz — 151 files)
+      - name: JS suite (everything except test/fuzz)
         run: pnpm exec vitest run --exclude '**/test/fuzz/**'
 
   # ── commitlint: Conventional Commits gate on the PR's commits ──────────────
@@ -234,6 +237,14 @@ jobs:
         uses: ./.github/actions/cache-playground-wasm
       - name: Website serves-a-page smoke
         run: pnpm rtx website check
+      # The competitor maps declare themselves TOTAL over the shared case keys, and
+      # nothing used to compile them (vite/esbuild strip types without checking), so a
+      # dropped key read as an absent column instead of a build failure. This is the
+      # gate. It runs BEFORE the build smoke because it is much cheaper and fails on
+      # the same drift, and it includes typia — no .ttsc plugin is needed to
+      # type-check, only to build, so RT_BENCH_NO_TYPIA is deliberately NOT set here.
+      - name: Benchmark competitor-map typecheck
+        run: pnpm rtx bench typecheck
       # RT_BENCH_NO_TYPIA stays until the prebuilt image BAKES typia's .ttsc plugin (a
       # local image change + republish); a no-.ttsc image would otherwise recompile
       # it ~200s here. Drop this once that image is live.

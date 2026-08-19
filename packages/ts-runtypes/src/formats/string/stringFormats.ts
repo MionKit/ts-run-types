@@ -28,6 +28,18 @@ import {
   URL_PATTERN,
   URL_HTTP_PATTERN,
   URL_FILE_PATTERN,
+  BASE64_PATTERN,
+  BASE32_PATTERN,
+  BASE16_PATTERN,
+  HOSTNAME_PATTERN,
+  STRING_DURATION_PATTERN,
+  JSON_POINTER_PATTERN,
+  RELATIVE_JSON_POINTER_PATTERN,
+  URI_PATTERN,
+  URI_REFERENCE_PATTERN,
+  IRI_PATTERN,
+  IRI_REFERENCE_PATTERN,
+  URI_TEMPLATE_PATTERN,
 } from './string-patterns.ts';
 import {builderResult, presetBuilder} from '../../runtypes/builderCore.ts';
 import type {RunType} from '../../runtypes/types.ts';
@@ -46,16 +58,20 @@ import type {
 
 // PatternParam — the regex a string format validates against. Either a
 // `registerFormatPattern(...)` result (validates its samples at load) or an
-// inline `{source, flags?, mockSamples, message?}` literal (the
+// inline `{source, flags?, mockSamples?, message?}` literal (the
 // `StringPatternArgs` shape) the Go scanner recovers directly from the property.
-// EITHER WAY a pattern carries `mockSamples` — a bare `/regex/` with no samples
-// is deliberately NOT accepted (the mock generator needs samples to produce
-// matching values):
+// `mockSamples` are optional — a pattern without them gets a deterministic
+// sample pool generated from the regex at build time (declare your own to
+// curate the values, or when the build reports it cannot generate for a
+// construct):
 //   const slug = registerFormatPattern({source: '^[a-z-]+$', mockSamples: ['a-b']});
 //   type Slug = String<{pattern: typeof slug}>;
-//   type Digits = String<{pattern: {source: '^[0-9]+$'; mockSamples: ['1', '42']}}>;
-// (Built-ins encode their pattern as an inline `{source, flags, mockSamples}`
-// literal — a published .d.ts can't carry a regex VALUE for `typeof` recovery.)
+//   type Digits = String<{pattern: {source: '^[0-9]+$'}}>;
+// A bare `/regex/` VALUE stays deliberately NOT accepted: `typeof /x/` is
+// plain RegExp, so nothing about it survives as literal types for the
+// scanner (see StringPatternArgs.exec). Built-ins encode their pattern as an
+// inline `{source, flags, mockSamples}` literal — a published .d.ts can't
+// carry a regex VALUE for `typeof` recovery.
 export type PatternParam = FormatPattern | StringPatternArgs;
 
 // Samples — canonical valid values for the mock generator: either an
@@ -111,6 +127,12 @@ export interface StringParams {
   allowedValues?: AllowedValuesParam;
   disallowedValues?: DisallowedValuesParam;
   mockSamples?: readonly string[];
+  // JSON Schema content keywords. `contentEncoding` says how the string is
+  // encoded; `contentMediaType` says what the DECODED content is, so they
+  // compose: with both, the value must decode AND parse. These are ordinary
+  // string keywords — there is no separate content FORMAT.
+  contentEncoding?: 'base64' | 'base32' | 'base16';
+  contentMediaType?: 'application/json';
   // Transformer flags — applied only by the `createFormatTransformFn<T>`
   // RT-fn, NOT by validate / validationErrors validation.
   trim?: boolean;
@@ -150,29 +172,116 @@ export type String<P extends StringParams = {}, BrandName extends string = never
 // Alpha/AlphaNumeric/Numeric reference the registered char-class patterns
 // by `typeof` (see ./string-patterns.ts).
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-export type Alpha<P extends StringParams = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof ALPHA_PATTERN}, never>;
-export type AlphaNumeric<P extends StringParams = {}> = TypeFormat<
-  string,
+export type Alpha<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
   'stringFormat',
-  P & {pattern: typeof ALPHANUMERIC_PATTERN},
-  never
+  {pattern: typeof ALPHA_PATTERN},
+  P
 >;
-export type Numeric<P extends StringParams = {}> = TypeFormat<
-  string,
+export type AlphaNumeric<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
   'stringFormat',
-  P & {pattern: typeof NUMERIC_PATTERN},
-  never
+  {pattern: typeof ALPHANUMERIC_PATTERN},
+  P
 >;
-export type Lowercase<P extends StringParams = {}> = String<P & {lowercase: true}>;
-export type Uppercase<P extends StringParams = {}> = String<P & {uppercase: true}>;
-export type Capitalize<P extends StringParams = {}> = String<P & {capitalize: true}>;
+export type Numeric<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
+  'stringFormat',
+  {pattern: typeof NUMERIC_PATTERN},
+  P
+>;
+export type Lowercase<P extends Override<StringParams, 'lowercase'> = {}> = PresetFormat<'stringFormat', {lowercase: true}, P>;
+export type Uppercase<P extends Override<StringParams, 'uppercase'> = {}> = PresetFormat<'stringFormat', {uppercase: true}, P>;
+export type Capitalize<P extends Override<StringParams, 'capitalize'> = {}> = PresetFormat<'stringFormat', {capitalize: true}, P>;
+// contentEncoding formats — a base64/32/16-encoded string. The type-first
+// spelling of JSON Schema `contentEncoding`; each rides the registered RFC 4648
+// pattern so the door's `contentEncoding: 'base64'` and `TF.base64()` converge.
+export type Base64<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
+  'stringFormat',
+  {pattern: typeof BASE64_PATTERN},
+  P
+>;
+export type Base32<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
+  'stringFormat',
+  {pattern: typeof BASE32_PATTERN},
+  P
+>;
+export type Base16<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
+  'stringFormat',
+  {pattern: typeof BASE16_PATTERN},
+  P
+>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
+
+// ─────────────────────────── JsonContent ────────────────────────────
+//
+// A string whose content parses as JSON — the type-first spelling of JSON
+// Schema `contentMediaType: 'application/json'` (optionally behind
+// `contentEncoding: 'base64'`). NOT a format of its own: these are `String`
+// aliases over the two content keywords, which the string emitter reads like
+// any other string param. Params mirror the schema translation's lowering so
+// the two authoring modes converge. `mockSamples` are id-irrelevant (they feed
+// createMockDataFn only) but carried so the mock draws valid JSON either way.
+// Spans what a JSON payload actually looks like, not just what parses: the
+// three trivial documents that catch empty-input handling, then a flat record,
+// a nested one, an array of records, and a string carrying every JSON escape
+// (quote / backslash / newline) plus non-ASCII text — so a mock consumer meets
+// real escaping instead of only `{}`.
+type DEFAULT_JSON_CONTENT_PARAMS = {
+  contentMediaType: 'application/json';
+  mockSamples: readonly [
+    '{}',
+    '[]',
+    'null',
+    '{"id":42,"name":"Ada Lovelace","active":true,"score":-1500}',
+    '{"user":{"id":7,"roles":["admin","editor"],"meta":{"seen":null}}}',
+    '[{"sku":"A-1","qty":2},{"sku":"B-7","qty":11}]',
+    '{"text":"quote \\" backslash \\\\ newline \\n","unicode":"héllo ✓"}',
+  ];
+};
+// The same span of documents, base64-encoded. Each one decodes to valid JSON
+// (the last is multi-byte UTF-8, so it exercises the decode step rather than
+// just the parse step).
+type DEFAULT_JSON_CONTENT_BASE64_PARAMS = {
+  contentEncoding: 'base64';
+  contentMediaType: 'application/json';
+  mockSamples: readonly [
+    'e30=',
+    'W10=',
+    'eyJpZCI6NDIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJhY3RpdmUiOnRydWV9',
+    'eyJ1c2VyIjp7ImlkIjo3LCJyb2xlcyI6WyJhZG1pbiIsImVkaXRvciJdfX0=',
+    'W3sic2t1IjoiQS0xIiwicXR5IjoyfSx7InNrdSI6IkItNyIsInF0eSI6MTF9XQ==',
+    'eyJ1bmljb2RlIjoiaMOpbGxvIOKckyIsIm5pbCI6bnVsbH0=',
+  ];
+};
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+export type JsonContent<P extends Override<StringParams> = {}> = PresetFormat<'stringFormat', DEFAULT_JSON_CONTENT_PARAMS, P>;
+export type JsonContentBase64<P extends Override<StringParams> = {}> = PresetFormat<
+  'stringFormat',
+  DEFAULT_JSON_CONTENT_BASE64_PARAMS,
+  P
+>;
 /* eslint-enable @typescript-eslint/no-empty-object-type */
 
 // ─────────────────────────────── UUID ───────────────────────────────
 
 export interface UUIDParams {
-  version: '4' | '7';
+  /** Which UUID version the validator pins.
+   *
+   *  `'4'` / `'7'` additionally require that exact digit in the version slot
+   *  (index 14). `'any'` does NOT skip validation: it checks the full RFC 9562
+   *  string layout — 36 characters, hyphens at 8/13/18/23, a hex digit in every
+   *  other position — and reads the version slot as an ordinary hex digit.
+   *
+   *  `'any'` is what JSON Schema `format: 'uuid'` means, not a workaround for
+   *  it: the RFC's string grammar is hex-and-hyphens with no version
+   *  constraint, and §5.9 / §5.10 make the Nil (all zeros) and Max (all f)
+   *  UUIDs valid, whose version slots name no version. Defaulting the bare
+   *  `UUID` to a pinned version would therefore REJECT valid UUIDs — including
+   *  every v1 and v7 value. Pin a version only when you mean to exclude the
+   *  others (`UUIDv4` / `UUIDv7`). **/
+  version: '4' | '7' | 'any';
 }
+// Version-agnostic UUID — any RFC 9562 version, the JSON Schema `format:
+// 'uuid'` meaning (see UUIDParams.version for exactly what is checked).
+export type UUID = TypeFormat<string, 'uuid', {version: 'any'}, never>;
 export type UUIDv4 = TypeFormat<string, 'uuid', {version: '4'}, never>;
 export type UUIDv7 = TypeFormat<string, 'uuid', {version: '7'}, never>;
 
@@ -191,13 +300,37 @@ export interface IPParams {
   allowLocalHost?: boolean;
   allowPort?: boolean;
 }
-type DEFAULT_IP_PARAMS = {version: 'any'; allowLocalHost: true};
-export type IP<P extends IPParams = DEFAULT_IP_PARAMS> = TypeFormat<string, 'ip', P, never>;
-export type IPv4 = IP<{version: 4; allowLocalHost: true}>;
-export type IPv6 = IP<{version: 6; allowLocalHost: true}>;
-export type IPWithPort = IP<{version: 'any'; allowLocalHost: true; allowPort: true}>;
-export type IPv4WithPort = IP<{version: 4; allowLocalHost: true; allowPort: true}>;
-export type IPv6WithPort = IP<{version: 6; allowLocalHost: true; allowPort: true}>;
+// The version-pinned aliases pin `version`: `ipv4({allowPort: true})` is the
+// point of the override, `ipv4({version: 6})` would just be `ipv6()` wearing the
+// wrong name.
+// `allowLocalHost` is OFF by default on every IP preset: these formats describe
+// an ADDRESS, so the hostname spelling "localhost" is opt-in
+// (`IPv4<{allowLocalHost: true}>`) rather than something a field silently
+// accepts. It never gates the loopback ADDRESSES — `127.0.0.1` and `::1` are
+// well-formed and pass on their own. This is also what JSON Schema's `ipv4` /
+// `ipv6` format keywords mean, so the schema door needs no override.
+type DEFAULT_IP_PARAMS = {version: 'any'; allowLocalHost: false};
+type DEFAULT_IPV4_PARAMS = {version: 4; allowLocalHost: false};
+type DEFAULT_IPV6_PARAMS = {version: 6; allowLocalHost: false};
+type DEFAULT_IP_PORT_PARAMS = {version: 'any'; allowLocalHost: false; allowPort: true};
+type DEFAULT_IPV4_PORT_PARAMS = {version: 4; allowLocalHost: false; allowPort: true};
+type DEFAULT_IPV6_PORT_PARAMS = {version: 6; allowLocalHost: false; allowPort: true};
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+export type IP<P extends Override<IPParams> = {}> = PresetFormat<'ip', DEFAULT_IP_PARAMS, P>;
+export type IPv4<P extends Override<IPParams, 'version'> = {}> = PresetFormat<'ip', DEFAULT_IPV4_PARAMS, P>;
+export type IPv6<P extends Override<IPParams, 'version'> = {}> = PresetFormat<'ip', DEFAULT_IPV6_PARAMS, P>;
+export type IPWithPort<P extends Override<IPParams, 'allowPort'> = {}> = PresetFormat<'ip', DEFAULT_IP_PORT_PARAMS, P>;
+export type IPv4WithPort<P extends Override<IPParams, 'version' | 'allowPort'> = {}> = PresetFormat<
+  'ip',
+  DEFAULT_IPV4_PORT_PARAMS,
+  P
+>;
+export type IPv6WithPort<P extends Override<IPParams, 'version' | 'allowPort'> = {}> = PresetFormat<
+  'ip',
+  DEFAULT_IPV6_PORT_PARAMS,
+  P
+>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 // ────────────────────────────── Domain ──────────────────────────────
 
@@ -229,19 +362,25 @@ export interface DomainParams {
   allowedValues?: AllowedValuesParam;
 }
 
-export type Domain = TypeFormat<string, 'domain', {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5}, never>;
-export type DomainUnicode = TypeFormat<
-  string,
+type DEFAULT_DOMAIN_PARAMS = {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5};
+type DEFAULT_DOMAIN_UNICODE_PARAMS = {pattern: typeof DOMAIN_UNICODE_PATTERN; maxLength: 253; minLength: 5};
+type DEFAULT_DOMAIN_PUNYCODE_PARAMS = {pattern: typeof DOMAIN_PUNYCODE_PATTERN; maxLength: 253; minLength: 5};
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+// `Domain` leaves `pattern` overridable on purpose (a caller's own domain regex
+// is a supported use); the script-specific variants pin it, since replacing it
+// is exactly `Domain<{pattern}>`.
+export type Domain<P extends Override<DomainParams> = {}> = PresetFormat<'domain', DEFAULT_DOMAIN_PARAMS, P>;
+export type DomainUnicode<P extends Override<DomainParams, 'pattern'> = {}> = PresetFormat<
   'domain',
-  {pattern: typeof DOMAIN_UNICODE_PATTERN; maxLength: 253; minLength: 5},
-  never
+  DEFAULT_DOMAIN_UNICODE_PARAMS,
+  P
 >;
-export type DomainPunycode = TypeFormat<
-  string,
+export type DomainPunycode<P extends Override<DomainParams, 'pattern'> = {}> = PresetFormat<
   'domain',
-  {pattern: typeof DOMAIN_PUNYCODE_PATTERN; maxLength: 253; minLength: 5},
-  never
+  DEFAULT_DOMAIN_PUNYCODE_PARAMS,
+  P
 >;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export type DEFAULT_STRICT_DOMAIN_PARAMS = {
   maxParts: 6;
@@ -251,9 +390,49 @@ export type DEFAULT_STRICT_DOMAIN_PARAMS = {
   names: {maxLength: 63; minLength: 2; pattern: typeof DOMAIN_NAME_PATTERN};
   tld: {maxLength: 12; minLength: 2; pattern: typeof DOMAIN_TLD_PATTERN};
 };
-// DomainStrict — ≤6 labels, ≥2 parts, no hyphen-edge labels,
-// alphabetical tld.
-export type DomainStrict = TypeFormat<string, 'domain', DEFAULT_STRICT_DOMAIN_PARAMS, never>;
+// DomainStrict — ≤6 labels, ≥2 parts, no hyphen-edge labels, alphabetical tld.
+// The label/tld decomposition IS the strictness, so those two stay pinned;
+// bounds and samples are retunable.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type DomainStrict<P extends Override<DomainParams, 'names' | 'tld'> = {}> = PresetFormat<
+  'domain',
+  DEFAULT_STRICT_DOMAIN_PARAMS,
+  P
+>;
+
+// FormatDefaults — a defaults bag with an override P layered on top (P's keys
+// win, the rest of the defaults survive). This is what lets a partial override
+// keep the built-in pattern + bounds: `Email<{maxLength: 100}>` replaces only
+// `maxLength`, so the baked pattern and `minLength` remain. The schema door
+// rides the SAME merge (a `format: 'email'` + `minLength` sibling lowers to
+// `Email<{minLength}>`), so the two authoring modes converge on one id.
+type Simplify<T> = {[K in keyof T]: T[K]};
+// Fast path FIRST: with no override there is nothing to merge, so hand back the
+// defaults bag untouched. That keeps the bare spelling of every preset
+// (`Email`, `UrlHttp`, …) exactly the type it was before it became overridable
+// — same id, and none of the Omit/Simplify cost, which the whole JSON Schema
+// format-lookup table would otherwise pay per row.
+type FormatDefaults<Defaults extends object, P> = [keyof P] extends [never] ? Defaults : Simplify<Omit<Defaults, keyof P> & P>;
+
+/** A predefined string format: the Go format `Tag`, the params the preset bakes
+ *  in, and whatever the caller layers on top. EVERY named string format below is
+ *  spelled through this, so "which keywords can this one override?" has a single
+ *  answer — all of them, with `Defaults` supplying whatever the caller left out
+ *  — instead of a different answer per name. **/
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type PresetFormat<Tag extends string, Defaults extends object, P = {}> = TypeFormat<
+  string,
+  Tag,
+  FormatDefaults<Defaults, P>,
+  never
+>;
+
+/** What a preset accepts as an override: its params family, minus the key(s)
+ *  that ARE the preset's identity. `urlHttp({maxLength: 100})` retunes the
+ *  bound, while swapping its pattern is just `url({pattern})` under a
+ *  misleading name — so the pinned key is rejected at the call site instead of
+ *  quietly producing a format whose name no longer describes it. **/
+type Override<Params, Pinned extends keyof Params = never> = Omit<Partial<Params>, Pinned>;
 
 // ─────────────────────────────── Email ──────────────────────────────
 
@@ -267,13 +446,42 @@ export interface EmailParams {
   domain?: DomainParams;
 }
 
-export type Email = TypeFormat<string, 'email', {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7}, never>;
-export type EmailPunycode = TypeFormat<
-  string,
+type DEFAULT_EMAIL_PARAMS = {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7};
+// The RFC 5321 pair. `TF.Email` above is the everyday shape (a dotted domain, a
+// plain local part), which is what most fields want; these two are what the
+// JSON Schema keywords mean, and they accept the whole grammar — quoted local
+// parts, address literals, and for the idn twin a local part in any script.
+type DEFAULT_EMAIL_ADDRESS_PARAMS = {
+  emailRfc: 'ascii';
+  maxLength: 254;
+  mockSamples: ['joe.bloggs@example.com', 'jane@mion.io', 'contact@test.org'];
+};
+type DEFAULT_IDN_EMAIL_PARAMS = {
+  emailRfc: 'unicode';
+  maxLength: 254;
+  mockSamples: ['joe.bloggs@example.com', 'δοκιμή@example.com'];
+};
+type DEFAULT_EMAIL_PUNYCODE_PARAMS = {pattern: typeof EMAIL_PUNYCODE_PATTERN; maxLength: 254; minLength: 7};
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+export type Email<P extends Override<EmailParams> = {}> = PresetFormat<'email', DEFAULT_EMAIL_PARAMS, P>;
+/** A full RFC 5321 address — what `format: 'email'` means. Wider than `Email`:
+ *  a quoted local part (`"joe bloggs"@example.com`) and an address literal
+ *  (`joe@[127.0.0.1]`) both pass. One practical narrowing shared with `Email`:
+ *  a NAMED domain must be dotted (`joe@tld` is RFC-legal but rejected). **/
+export type EmailAddress<P extends Override<EmailParams, 'pattern'> = {}> = PresetFormat<
   'email',
-  {pattern: typeof EMAIL_PUNYCODE_PATTERN; maxLength: 254; minLength: 7},
-  never
+  DEFAULT_EMAIL_ADDRESS_PARAMS,
+  P
 >;
+/** The same grammar with the local part and domain in any script — what
+ *  `format: 'idn-email'` means. **/
+export type IdnEmail<P extends Override<EmailParams, 'pattern'> = {}> = PresetFormat<'email', DEFAULT_IDN_EMAIL_PARAMS, P>;
+export type EmailPunycode<P extends Override<EmailParams, 'pattern'> = {}> = PresetFormat<
+  'email',
+  DEFAULT_EMAIL_PUNYCODE_PARAMS,
+  P
+>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export type DEFAULT_STRICT_EMAIL_PARAMS = {
   maxLength: 254;
@@ -288,95 +496,302 @@ export type DEFAULT_STRICT_EMAIL_PARAMS = {
   };
   domain: DEFAULT_STRICT_DOMAIN_PARAMS;
 };
-// EmailStrict — split on the last '@'; local part rejects spaces /
-// brackets / aliasing chars; domain validated strictly.
-export type EmailStrict = TypeFormat<string, 'email', DEFAULT_STRICT_EMAIL_PARAMS, never>;
+// EmailStrict — split on the last '@'; local part rejects spaces / brackets /
+// aliasing chars; domain validated strictly. Both halves of that split are the
+// strictness, so both stay pinned.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type EmailStrict<P extends Override<EmailParams, 'localPart' | 'domain'> = {}> = PresetFormat<
+  'email',
+  DEFAULT_STRICT_EMAIL_PARAMS,
+  P
+>;
 
 // ──────────────────────────────── URL ───────────────────────────────
 
 export interface UrlParams {
+  maxLength?: number;
+  minLength?: number;
   pattern?: {source: string; flags?: string} | {val: RegExp};
   mockSamples?: readonly string[];
 }
 
-export type Url = TypeFormat<string, 'url', {pattern: typeof URL_PATTERN; maxLength: 2048}, never>;
-export type UrlHttp = TypeFormat<string, 'url', {pattern: typeof URL_HTTP_PATTERN; maxLength: 2048}, never>;
-export type UrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTERN; maxLength: 2048}, never>;
+// ── JSON Schema named formats ──
+// Each is the shape its `format` keyword lowers to. They ride the existing
+// 'url' / 'stringFormat' emitters (a pattern plus optional length bounds is all
+// they need), so no new Go emitter arrives with them.
+type DEFAULT_URI_PARAMS = {pattern: typeof URI_PATTERN};
+type DEFAULT_URI_REFERENCE_PARAMS = {pattern: typeof URI_REFERENCE_PATTERN};
+type DEFAULT_IRI_PARAMS = {pattern: typeof IRI_PATTERN};
+type DEFAULT_IRI_REFERENCE_PARAMS = {pattern: typeof IRI_REFERENCE_PATTERN};
+type DEFAULT_URI_TEMPLATE_PARAMS = {pattern: typeof URI_TEMPLATE_PATTERN};
+// `idna` routes the check to the pure-fn engine instead of a pattern: an
+// `xn--` label has to be decoded before its characters can be judged. 'ascii'
+// is the RFC 1123 host name, 'unicode' additionally accepts the U-label
+// spelling. HOSTNAME_PATTERN stays on the ASCII preset for its mock pool.
+type DEFAULT_HOSTNAME_PARAMS = {pattern: typeof HOSTNAME_PATTERN; maxLength: 253; idna: 'ascii'};
+type DEFAULT_IDN_HOSTNAME_PARAMS = {maxLength: 253; idna: 'unicode'};
+type DEFAULT_STRING_DURATION_PARAMS = {pattern: typeof STRING_DURATION_PATTERN};
+// No pattern: whether a string compiles as a regular expression is a question
+// only the engine can answer, so the check is a pure fn and the pool is
+// declared (nothing can be generated from a constraint like this).
+type DEFAULT_REGEX_PARAMS = {
+  isRegex: true;
+  mockSamples: ['^[a-z]+$', '\\d{4}-\\d{2}-\\d{2}', '(foo|bar)+', '^.*$'];
+};
+type DEFAULT_JSON_POINTER_PARAMS = {pattern: typeof JSON_POINTER_PATTERN};
+type DEFAULT_RELATIVE_JSON_POINTER_PARAMS = {pattern: typeof RELATIVE_JSON_POINTER_PATTERN};
+
+type DEFAULT_URL_PARAMS = {pattern: typeof URL_PATTERN; maxLength: 2048};
+type DEFAULT_URL_HTTP_PARAMS = {pattern: typeof URL_HTTP_PATTERN; maxLength: 2048};
+type DEFAULT_URL_FILE_PARAMS = {pattern: typeof URL_FILE_PATTERN; maxLength: 2048};
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+export type Url<P extends Override<UrlParams> = {}> = PresetFormat<'url', DEFAULT_URL_PARAMS, P>;
+export type UrlHttp<P extends Override<UrlParams, 'pattern'> = {}> = PresetFormat<'url', DEFAULT_URL_HTTP_PARAMS, P>;
+export type UrlFile<P extends Override<UrlParams, 'pattern'> = {}> = PresetFormat<'url', DEFAULT_URL_FILE_PARAMS, P>;
+
+/** Any RFC 3986 URI, whatever the scheme (`mailto:`, `urn:`, `tel:`) — what
+ *  `format: 'uri'` means. `Url` is the narrower web-address form. **/
+export type Uri<P extends Override<UrlParams, 'pattern'> = {}> = PresetFormat<'url', DEFAULT_URI_PARAMS, P>;
+/** An RFC 3986 URI reference: a URI, or a relative one like `../a` or `#frag`. **/
+export type UriReference<P extends Override<UrlParams, 'pattern'> = {}> = PresetFormat<'url', DEFAULT_URI_REFERENCE_PARAMS, P>;
+/** RFC 3987 IRI — a URI whose characters may be non-ASCII. **/
+export type Iri<P extends Override<UrlParams, 'pattern'> = {}> = PresetFormat<'url', DEFAULT_IRI_PARAMS, P>;
+/** An IRI reference: an IRI, or a relative one. **/
+export type IriReference<P extends Override<UrlParams, 'pattern'> = {}> = PresetFormat<'url', DEFAULT_IRI_REFERENCE_PARAMS, P>;
+/** RFC 6570 URI template — a URI with `{…}` expressions left to fill in. **/
+export type UriTemplate<P extends Override<UrlParams, 'pattern'> = {}> = PresetFormat<'url', DEFAULT_URI_TEMPLATE_PARAMS, P>;
+/** RFC 1123 host name. Unlike `Domain` a single label is fine (`localhost`),
+ *  since a host name need not be a dotted public name. An `xn--` label is
+ *  decoded and checked against the IDNA rules rather than taken on trust. **/
+export type Hostname<P extends Override<DomainParams, 'pattern'> = {}> = PresetFormat<'domain', DEFAULT_HOSTNAME_PARAMS, P>;
+/** Internationalized host name (RFC 5890) — the same rules as `Hostname` plus
+ *  labels written in their own script (`実例.テスト`), including the contextual and
+ *  bidirectional rules those bring with them. **/
+export type IdnHostname<P extends Override<DomainParams, 'pattern'> = {}> = PresetFormat<
+  'domain',
+  DEFAULT_IDN_HOSTNAME_PARAMS,
+  P
+>;
+/** RFC 3339 duration string (`P4DT12H30M5S`). A LENGTH of time, so it is not
+ *  one of the Date/Time formats and takes no min/max bounds; those describe an
+ *  instant. Note this grammar is stricter than the `now±P…` bound specs. **/
+export type StringDuration<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
+  'stringFormat',
+  DEFAULT_STRING_DURATION_PARAMS,
+  P
+>;
+/** A string that is itself a usable ECMA-262 regular expression — what
+ *  `format: 'regex'` asserts. Not to be confused with the `pattern` param,
+ *  which is a regex the VALUE must match; here the value IS the regex. **/
+export type RegexString<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<'stringFormat', DEFAULT_REGEX_PARAMS, P>;
+/** RFC 6901 JSON pointer (`/store/book/0/title`). The empty string is the
+ *  whole document, and so is valid. **/
+export type JsonPointer<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
+  'stringFormat',
+  DEFAULT_JSON_POINTER_PARAMS,
+  P
+>;
+/** RFC 6901 relative JSON pointer (`1/foo`, `2#`) — a hop count, then either a
+ *  pointer or `#` for the key it landed on. **/
+export type RelativeJsonPointer<P extends Override<StringParams, 'pattern'> = {}> = PresetFormat<
+  'stringFormat',
+  DEFAULT_RELATIVE_JSON_POINTER_PARAMS,
+  P
+>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 // ───────────────────── Predefined string builders ───────────────────
 //
 // Value-first builder per named alias (`TF.email()` → `RunType<Email>`,
 // `TF.ipv4()`, `TF.uuidv4()`, `TF.stringDate({format: 'DD-MM-YYYY'})`, …), each
 // carrying the CONCRETE alias above so the value-first id converges with the
-// type-first `createValidateFn<Email>()`. Two shapes: fixed presets (no params) via
-// `presetBuilder`, and parameterised families (alpha / stringDate / …) with the
-// no-params/plain ↔ params two-overload split. For ad-hoc constraints use
-// `TF.string({…})`.
+// type-first `createValidateFn<Email>()`.
+//
+// EVERY predefined string builder takes the SAME optional params bag its type
+// does, layered over that preset's own defaults: `urlHttp({maxLength: 100})`
+// keeps the HTTP(S) pattern and replaces only the bound. There is no
+// params-capable vs params-less tier — the one exception is the UUID family,
+// whose only param is the version each alias exists to pin. For constraints
+// that no preset covers, use `TF.string({…})`.
 
-/** Alphabetic-only string (`Alpha`); `alpha({maxLength: 3})` adds bounds. **/
-export function alpha(id?: InjectRunTypeId<Alpha>): RunType<Alpha>;
-export function alpha<const P extends StringParams>(
-  formatParams: CompTimeArgs<ExactParams<P, StringParams>>,
-  id?: InjectRunTypeId<Alpha<P>>
-): RunType<Alpha<P>>;
-export function alpha(formatParamsOrId?: StringParams | InjectRunTypeId<Alpha>, id?: InjectRunTypeId<Alpha>): RunType<Alpha> {
-  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
-  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
-  return builderResult(injectedId, {type: 'stringFormat', formatParams});
+/** The call shape every predefined string builder shares. **/
+export interface PresetFormatBuilder<Tag extends string, Defaults extends object, Params> {
+  (id?: InjectRunTypeId<PresetFormat<Tag, Defaults>>): RunType<PresetFormat<Tag, Defaults>>;
+  <const P extends Params>(
+    formatParams: CompTimeArgs<ExactParams<P, Params>>,
+    id?: InjectRunTypeId<PresetFormat<Tag, Defaults, P>>
+  ): RunType<PresetFormat<Tag, Defaults, P>>;
 }
 
+/** One implementation behind all of them. The first argument is a params bag
+ *  only when it is a non-array object: an ARRAY there is an injected
+ *  entry-module id, which is the same line compose.ts draws between the two. **/
+function presetFormatBuilder<Tag extends string, Defaults extends object, Params>(
+  tag: Tag
+): PresetFormatBuilder<Tag, Defaults, Params> {
+  return ((formatParamsOrId?: Params | InjectRunTypeId<unknown>, id?: InjectRunTypeId<unknown>) => {
+    const isParams = typeof formatParamsOrId === 'object' && formatParamsOrId !== null && !Array.isArray(formatParamsOrId);
+    const injectedId = isParams ? id : ((formatParamsOrId as InjectRunTypeId<unknown> | undefined) ?? id);
+    return builderResult(injectedId, {type: tag, formatParams: isParams ? formatParamsOrId : {}});
+  }) as PresetFormatBuilder<Tag, Defaults, Params>;
+}
+
+/** Alphabetic-only string (`Alpha`); `alpha({maxLength: 3})` adds bounds. **/
+export const alpha = presetFormatBuilder<'stringFormat', {pattern: typeof ALPHA_PATTERN}, Override<StringParams, 'pattern'>>(
+  'stringFormat'
+);
 /** Alphanumeric-only string (`AlphaNumeric`). **/
-export const alphaNumeric = presetBuilder<AlphaNumeric>('stringFormat');
+export const alphaNumeric = presetFormatBuilder<
+  'stringFormat',
+  {pattern: typeof ALPHANUMERIC_PATTERN},
+  Override<StringParams, 'pattern'>
+>('stringFormat');
 /** Digits-only string (`Numeric`). **/
-export const numeric = presetBuilder<Numeric>('stringFormat');
+export const numeric = presetFormatBuilder<'stringFormat', {pattern: typeof NUMERIC_PATTERN}, Override<StringParams, 'pattern'>>(
+  'stringFormat'
+);
+/** Base64-encoded string (`Base64`) — JSON Schema `contentEncoding: 'base64'`. **/
+export const base64 = presetFormatBuilder<'stringFormat', {pattern: typeof BASE64_PATTERN}, Override<StringParams, 'pattern'>>(
+  'stringFormat'
+);
+/** Base32-encoded string (`Base32`) — JSON Schema `contentEncoding: 'base32'`. **/
+export const base32 = presetFormatBuilder<'stringFormat', {pattern: typeof BASE32_PATTERN}, Override<StringParams, 'pattern'>>(
+  'stringFormat'
+);
+/** Base16 / hex-encoded string (`Base16`) — JSON Schema `contentEncoding: 'base16'`. **/
+export const base16 = presetFormatBuilder<'stringFormat', {pattern: typeof BASE16_PATTERN}, Override<StringParams, 'pattern'>>(
+  'stringFormat'
+);
+/** A JSON-parseable string (`JsonContent`) — JSON Schema
+ *  `contentMediaType: 'application/json'`. **/
+export const jsonContent = presetFormatBuilder<'stringFormat', DEFAULT_JSON_CONTENT_PARAMS, Override<StringParams>>(
+  'stringFormat'
+);
+/** A base64-encoded JSON-parseable string (`JsonContentBase64`) — JSON Schema
+ *  `contentMediaType: 'application/json'` + `contentEncoding: 'base64'`. **/
+export const jsonContentBase64 = presetFormatBuilder<'stringFormat', DEFAULT_JSON_CONTENT_BASE64_PARAMS, Override<StringParams>>(
+  'stringFormat'
+);
 /** Lowercase string (`Lowercase`) — the transform applies only via
  *  `createFormatTransformFn`; validate validates it as a plain string. **/
-export const lowercase = presetBuilder<Lowercase>('stringFormat');
+export const lowercase = presetFormatBuilder<'stringFormat', {lowercase: true}, Override<StringParams, 'lowercase'>>(
+  'stringFormat'
+);
 /** Uppercase string (`Uppercase`). **/
-export const uppercase = presetBuilder<Uppercase>('stringFormat');
+export const uppercase = presetFormatBuilder<'stringFormat', {uppercase: true}, Override<StringParams, 'uppercase'>>(
+  'stringFormat'
+);
 /** Capitalized string (`Capitalize`). **/
-export const capitalize = presetBuilder<Capitalize>('stringFormat');
+export const capitalize = presetFormatBuilder<'stringFormat', {capitalize: true}, Override<StringParams, 'capitalize'>>(
+  'stringFormat'
+);
 
+// The UUID builders take no params, deliberately: `version` is UUIDParams' only
+// member and each alias exists to pin it, so an override could only ever turn
+// one alias into another.
+/** Version-agnostic UUID (`UUID`). **/
+export const uuid = presetBuilder<UUID>('uuid');
 /** UUID v4 (`UUIDv4`). **/
 export const uuidv4 = presetBuilder<UUIDv4>('uuid');
 /** UUID v7 (`UUIDv7`). **/
 export const uuidv7 = presetBuilder<UUIDv7>('uuid');
 
-/** IP address, any version with localhost (`IP`). **/
-export const ip = presetBuilder<IP>('ip');
-/** IPv4 (`IPv4`). **/
-export const ipv4 = presetBuilder<IPv4>('ip');
+/** IP address, any version (`IP`); `ip({allowLocalHost: true})` also accepts the
+ *  hostname `localhost`. **/
+export const ip = presetFormatBuilder<'ip', DEFAULT_IP_PARAMS, Override<IPParams>>('ip');
+/** IPv4 (`IPv4`); `ipv4({allowPort: true})` accepts a trailing port. **/
+export const ipv4 = presetFormatBuilder<'ip', DEFAULT_IPV4_PARAMS, Override<IPParams, 'version'>>('ip');
 /** IPv6 (`IPv6`). **/
-export const ipv6 = presetBuilder<IPv6>('ip');
+export const ipv6 = presetFormatBuilder<'ip', DEFAULT_IPV6_PARAMS, Override<IPParams, 'version'>>('ip');
 /** IP (any) with port (`IPWithPort`). **/
-export const ipWithPort = presetBuilder<IPWithPort>('ip');
+export const ipWithPort = presetFormatBuilder<'ip', DEFAULT_IP_PORT_PARAMS, Override<IPParams, 'allowPort'>>('ip');
 /** IPv4 with port (`IPv4WithPort`). **/
-export const ipv4WithPort = presetBuilder<IPv4WithPort>('ip');
+export const ipv4WithPort = presetFormatBuilder<'ip', DEFAULT_IPV4_PORT_PARAMS, Override<IPParams, 'version' | 'allowPort'>>(
+  'ip'
+);
 /** IPv6 with port (`IPv6WithPort`). **/
-export const ipv6WithPort = presetBuilder<IPv6WithPort>('ip');
+export const ipv6WithPort = presetFormatBuilder<'ip', DEFAULT_IPV6_PORT_PARAMS, Override<IPParams, 'version' | 'allowPort'>>(
+  'ip'
+);
 
-/** Domain name (`Domain`). **/
-export const domain = presetBuilder<Domain>('domain');
+/** Any RFC 3986 URI, any scheme (`Uri`). **/
+export const uri = presetFormatBuilder<'url', DEFAULT_URI_PARAMS, Override<UrlParams, 'pattern'>>('url');
+/** URI reference, relative allowed (`UriReference`). **/
+export const uriReference = presetFormatBuilder<'url', DEFAULT_URI_REFERENCE_PARAMS, Override<UrlParams, 'pattern'>>('url');
+/** IRI — a URI with non-ASCII characters allowed (`Iri`). **/
+export const iri = presetFormatBuilder<'url', DEFAULT_IRI_PARAMS, Override<UrlParams, 'pattern'>>('url');
+/** IRI reference, relative allowed (`IriReference`). **/
+export const iriReference = presetFormatBuilder<'url', DEFAULT_IRI_REFERENCE_PARAMS, Override<UrlParams, 'pattern'>>('url');
+/** RFC 6570 URI template (`UriTemplate`). **/
+export const uriTemplate = presetFormatBuilder<'url', DEFAULT_URI_TEMPLATE_PARAMS, Override<UrlParams, 'pattern'>>('url');
+/** RFC 1123 host name, single label allowed (`Hostname`). **/
+export const hostname = presetFormatBuilder<'domain', DEFAULT_HOSTNAME_PARAMS, Override<DomainParams, 'pattern'>>('domain');
+/** Internationalized host name (`IdnHostname`). **/
+export const idnHostname = presetFormatBuilder<'domain', DEFAULT_IDN_HOSTNAME_PARAMS, Override<DomainParams, 'pattern'>>(
+  'domain'
+);
+/** RFC 3339 duration string (`StringDuration`). **/
+export const stringDuration = presetFormatBuilder<
+  'stringFormat',
+  DEFAULT_STRING_DURATION_PARAMS,
+  Override<StringParams, 'pattern'>
+>('stringFormat');
+/** A string that compiles as an ECMA-262 regular expression (`RegexString`). **/
+export const regexString = presetFormatBuilder<'stringFormat', DEFAULT_REGEX_PARAMS, Override<StringParams, 'pattern'>>(
+  'stringFormat'
+);
+/** RFC 6901 JSON pointer (`JsonPointer`). **/
+export const jsonPointer = presetFormatBuilder<'stringFormat', DEFAULT_JSON_POINTER_PARAMS, Override<StringParams, 'pattern'>>(
+  'stringFormat'
+);
+/** RFC 6901 relative JSON pointer (`RelativeJsonPointer`). **/
+export const relativeJsonPointer = presetFormatBuilder<
+  'stringFormat',
+  DEFAULT_RELATIVE_JSON_POINTER_PARAMS,
+  Override<StringParams, 'pattern'>
+>('stringFormat');
+
+/** Domain name (`Domain`); `domain({maxLength: 100})` overrides bounds, keeping
+ *  the built-in pattern. **/
+export const domain = presetFormatBuilder<'domain', DEFAULT_DOMAIN_PARAMS, Override<DomainParams>>('domain');
 /** Unicode domain (`DomainUnicode`). **/
-export const domainUnicode = presetBuilder<DomainUnicode>('domain');
+export const domainUnicode = presetFormatBuilder<'domain', DEFAULT_DOMAIN_UNICODE_PARAMS, Override<DomainParams, 'pattern'>>(
+  'domain'
+);
 /** Punycode domain (`DomainPunycode`). **/
-export const domainPunycode = presetBuilder<DomainPunycode>('domain');
+export const domainPunycode = presetFormatBuilder<'domain', DEFAULT_DOMAIN_PUNYCODE_PARAMS, Override<DomainParams, 'pattern'>>(
+  'domain'
+);
 /** Strict domain — ≤6 labels, ≥2 parts, alphabetical tld (`DomainStrict`). **/
-export const domainStrict = presetBuilder<DomainStrict>('domain');
+export const domainStrict = presetFormatBuilder<'domain', DEFAULT_STRICT_DOMAIN_PARAMS, Override<DomainParams, 'names' | 'tld'>>(
+  'domain'
+);
 
-/** Email (`Email`). **/
-export const email = presetBuilder<Email>('email');
+/** Email (`Email`); `email({maxLength: 100})` overrides bounds, keeping the
+ *  built-in pattern. **/
+export const email = presetFormatBuilder<'email', DEFAULT_EMAIL_PARAMS, Override<EmailParams>>('email');
+/** Full RFC 5321 address (`EmailAddress`). **/
+export const emailAddress = presetFormatBuilder<'email', DEFAULT_EMAIL_ADDRESS_PARAMS, Override<EmailParams, 'pattern'>>('email');
+/** Internationalized address (`IdnEmail`). **/
+export const idnEmail = presetFormatBuilder<'email', DEFAULT_IDN_EMAIL_PARAMS, Override<EmailParams, 'pattern'>>('email');
 /** Punycode-domain email (`EmailPunycode`). **/
-export const emailPunycode = presetBuilder<EmailPunycode>('email');
+export const emailPunycode = presetFormatBuilder<'email', DEFAULT_EMAIL_PUNYCODE_PARAMS, Override<EmailParams, 'pattern'>>(
+  'email'
+);
 /** Strict email — strict local part + strict domain (`EmailStrict`). **/
-export const emailStrict = presetBuilder<EmailStrict>('email');
+export const emailStrict = presetFormatBuilder<
+  'email',
+  DEFAULT_STRICT_EMAIL_PARAMS,
+  Override<EmailParams, 'localPart' | 'domain'>
+>('email');
 
-/** URL (`Url`). **/
-export const url = presetBuilder<Url>('url');
-/** HTTP(S) URL (`UrlHttp`). **/
-export const urlHttp = presetBuilder<UrlHttp>('url');
+/** URL (`Url`); `url({maxLength: 100})` overrides bounds, keeping the built-in
+ *  pattern. **/
+export const url = presetFormatBuilder<'url', DEFAULT_URL_PARAMS, Override<UrlParams>>('url');
+/** HTTP(S) URL (`UrlHttp`); `urlHttp({maxLength: 100})` retunes the bound. **/
+export const urlHttp = presetFormatBuilder<'url', DEFAULT_URL_HTTP_PARAMS, Override<UrlParams, 'pattern'>>('url');
 /** file:// URL (`UrlFile`). **/
-export const urlFile = presetBuilder<UrlFile>('url');
+export const urlFile = presetFormatBuilder<'url', DEFAULT_URL_FILE_PARAMS, Override<UrlParams, 'pattern'>>('url');
 
 /** A string-date field (`StringDate`); `stringDate({format: 'DD-MM-YYYY'})`
  *  picks the layout and may add min/max bounds. **/

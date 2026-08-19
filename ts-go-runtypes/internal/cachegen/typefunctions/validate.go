@@ -8,7 +8,8 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
 	"github.com/mionkit/ts-runtypes/internal/constants"
 	"github.com/mionkit/ts-runtypes/internal/diagnostics"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/jsquote"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // numberBaseCheck returns the base `number` kind guard for the given numberMode
@@ -74,26 +75,26 @@ func (ValidateEmitter) EmitCircularGuard(fcpAlias, skeletonConst string) string 
 // validationSupports is shared by validate AND validationErrors — the
 // two families must cover exactly the same kinds (every kind validate
 // can check must be able to report errors, and vice versa).
-func validationSupports(rt *protocol.RunType) bool {
+func validationSupports(rt *reflection.RunType) bool {
 	if rt == nil {
 		return false
 	}
 	switch rt.Kind {
-	case protocol.KindAny, protocol.KindUnknown,
-		protocol.KindNever, protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol,
-		protocol.KindObject, protocol.KindRegexp,
-		protocol.KindLiteral, protocol.KindEnum:
+	case reflection.KindAny, reflection.KindUnknown,
+		reflection.KindNever, reflection.KindVoid,
+		reflection.KindNull, reflection.KindUndefined,
+		reflection.KindString, reflection.KindNumber, reflection.KindBoolean,
+		reflection.KindBigInt, reflection.KindSymbol,
+		reflection.KindObject, reflection.KindRegexp,
+		reflection.KindLiteral, reflection.KindEnum:
 		return true
-	case protocol.KindArray:
+	case reflection.KindArray:
 		// Gate on a non-nil child — a malformed RunType with Kind=KindArray
 		// and Child=nil would otherwise reach Emit and panic.
 		return rt.Child != nil
-	case protocol.KindObjectLiteral:
+	case reflection.KindObjectLiteral:
 		return true
-	case protocol.KindClass:
+	case reflection.KindClass:
 		// Date is treated as atomic (see KindClass arm in Emit); other
 		// classes go through the same emit path as interfaces (Children
 		// AND-chain) since ClassRunType extends InterfaceRunType.
@@ -103,37 +104,37 @@ func validationSupports(rt *protocol.RunType) bool {
 		// (NonSerializableRunType.emitIsType throws too — same
 		// semantic via a runtime-throwing factory).
 		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone, protocol.SubKindMap, protocol.SubKindSet,
-			protocol.SubKindNonSerializable:
+		case reflection.SubKindDate, reflection.SubKindNone, reflection.SubKindMap, reflection.SubKindSet,
+			reflection.SubKindNonSerializable:
 			return true
 		}
-		return protocol.IsTemporalSubKind(rt.SubKind)
-	case protocol.KindPromise:
+		return reflection.IsTemporalSubKind(rt.SubKind)
+	case reflection.KindPromise:
 		// We treat Promise<T> as a thenable check at the validate
 		// layer — the wrapped T isn't validated synchronously (the
 		// promise hasn't resolved yet). Use `Awaited<P>` for the
 		// resolved-value type.
 		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
+	case reflection.KindProperty, reflection.KindPropertySignature:
 		return true
-	case protocol.KindIndexSignature:
+	case reflection.KindIndexSignature:
 		return true
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
+	case reflection.KindFunction, reflection.KindMethod,
+		reflection.KindMethodSignature, reflection.KindCallSignature:
 		// Function-flavoured kinds emit `typeof v === 'function'` at
 		// top level. As children of an object, they're skipped from
 		// the parent's AND chain via the per-property skip rule (see
 		// emitObjectValidate in this file).
 		return true
-	case protocol.KindTuple:
+	case reflection.KindTuple:
 		return true
-	case protocol.KindTupleMember:
+	case reflection.KindTupleMember:
 		return true
-	case protocol.KindUnion:
+	case reflection.KindUnion:
 		// Children must be non-empty for a meaningful union check —
 		// an empty union resolves to `never` per the reference semantics.
 		return len(rt.Children) > 0
-	case protocol.KindTemplateLiteral:
+	case reflection.KindTemplateLiteral:
 		// Gate on a populated Literal payload — the serializer fills
 		// it with the texts + placeholder spans; without it we'd
 		// generate `new RegExp('^$')` which only matches the empty
@@ -143,7 +144,7 @@ func validationSupports(rt *protocol.RunType) bool {
 	return false
 }
 
-func (ValidateEmitter) Supports(rt *protocol.RunType) bool {
+func (ValidateEmitter) Supports(rt *reflection.RunType) bool {
 	return validationSupports(rt)
 }
 
@@ -160,7 +161,7 @@ func (ValidateEmitter) IsRTInlined(ctx *InlineContext) bool {
 
 // IsNoopType — the val entry is `() => true` exactly for any/unknown roots
 // (see isNoopForValidate).
-func (ValidateEmitter) IsNoopType(rt *protocol.RunType, ctx *EmitContext) bool {
+func (ValidateEmitter) IsNoopType(rt *reflection.RunType, ctx *EmitContext) bool {
 	return isNoopForValidate(rt, ctx)
 }
 
@@ -193,17 +194,18 @@ func (ValidateEmitter) ReturnName() string {
 // final panic surfaces that as a compile-time-loud failure (per the
 // "child kinds the dispatch doesn't handle should panic loudly"
 // contract in emitter.go).
-func (e ValidateEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
+func (e ValidateEmitter) Emit(rt *reflection.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
 	base := e.emitKindDefault(rt, ctx, expectedCType)
 	// Format annotations attach a format-specific predicate on top of
-	// the kind-default validator. We only splice when (a) the host kind
-	// produced a plain expression (CodeE) — splicing into a CodeRB
-	// statement body would require a second pass; (b) a format emitter
-	// is actually registered (Phase-0 graceful no-op); (c) the
-	// emitter's check is non-empty. The format predicate AND-chains
-	// after the base check so `typeof v === 'string'` runs before the
-	// format-specific regex / call.
-	if base.Type == CodeE && base.Code != "" && rt != nil && rt.FormatAnnotation != nil {
+	// the kind-default validator, spliced when (a) a format emitter is
+	// actually registered (Phase-0 graceful no-op) and (b) the emitter's
+	// check is non-empty. The format predicate AND-chains after the base
+	// check so `typeof v === 'string'` runs before the format-specific
+	// regex / call. Structural formats (formattedArray / formattedObject) ride
+	// statement-shaped bases — those hoist through the tier-3 ctxFn wrap
+	// first, exactly like the negation splice below; skipping them would
+	// silently drop a declared constraint.
+	if base.Code != "" && rt != nil && rt.FormatAnnotation != nil {
 		if emitter, ok := formats.LookupForRunType(rt); ok {
 			// Build-time param validation (the validateParams check, run AOT).
 			// Emitted from the validate walk since validate is rendered for every
@@ -215,63 +217,231 @@ func (e ValidateEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCT
 			}
 			check := emitter.EmitValidateCheck(rt.FormatAnnotation, ctx.Vλl, ctx)
 			if check != "" {
+				if base.Type != CodeE {
+					base = ctx.AsExpression(base)
+				}
+				if base.Type != CodeE {
+					panic("validate: format check on a base that did not reduce to a boolean expression (kind " +
+						strconv.Itoa(int(rt.Kind)) + ") — dropping it would silently weaken validation")
+				}
 				base.Code = "(" + base.Code + " && (" + check + "))"
 			}
 		}
 	}
+	// Negations invert their CHILD's validate expression and AND-chain after
+	// the base (and any format check): `base && !(child1) && !(child2)`.
+	// Children compile through the same CompileChild path union arms use, so
+	// heavy kinds arrive as opaque call expressions. A negation child that
+	// cannot produce a boolean expression would DROP the constraint silently
+	// — hard-fail instead (the loud-contract rule for unsupported child
+	// kinds). The root `true` of an any/unknown base is elided so a bare
+	// negation reads `!(child)`, not `(true && !(child))`. A statement-shaped
+	// base (array / tuple / object bodies) hoists into a context fn first —
+	// skipping it would silently drop the ¬, the one thing this block must
+	// never do.
+	// Contains assertions count the items matching their CHILD and gate on
+	// the occurrence bounds — statement bases hoist exactly like the format
+	// and negation splices. The child compiles against a fresh element
+	// accessor; an empty child (any/unknown — `contains: true`) counts every
+	// item, so the length itself is the count.
+	if rt != nil && len(rt.Contains) > 0 {
+		if base.Type != CodeE {
+			base = ctx.AsExpression(base)
+		}
+		if base.Type != CodeE {
+			panic("validate: contains on a base that did not reduce to a boolean expression (kind " +
+				strconv.Itoa(int(rt.Kind)) + ") — dropping it would silently weaken validation")
+		}
+		code := base.Code
+		for _, containsCheck := range rt.Contains {
+			check := emitContainsCount(ctx, containsCheck)
+			if code == "" || code == "true" {
+				code = check
+			} else {
+				code = "(" + code + " && " + check + ")"
+			}
+		}
+		base.Code = code
+	}
+	// patternProperties / propertyNames: per-key checks over the object's
+	// own keys — same statement-base hoist discipline as every splice above.
+	if rt != nil && (len(rt.PatternProps) > 0 || len(rt.PropNames) > 0) {
+		if base.Type != CodeE {
+			base = ctx.AsExpression(base)
+		}
+		if base.Type != CodeE {
+			panic("validate: patternProperties/propertyNames on a base that did not reduce to a boolean expression (kind " +
+				strconv.Itoa(int(rt.Kind)) + ") — dropping them would silently weaken validation")
+		}
+		code := base.Code
+		for _, patternProp := range rt.PatternProps {
+			check := emitPatternPropCheck(ctx, patternProp)
+			if code == "" || code == "true" {
+				code = check
+			} else {
+				code = "(" + code + " && " + check + ")"
+			}
+		}
+		for _, propNames := range rt.PropNames {
+			check := emitPropNamesCheck(ctx, propNames)
+			if check != "" {
+				if code == "" || code == "true" {
+					code = check
+				} else {
+					code = "(" + code + " && " + check + ")"
+				}
+			}
+		}
+		base.Code = code
+	}
 	return base
 }
 
-func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
+// emitContainsCount builds the boolean expression for one ContainsCheck:
+// count the items matching the child, assert Min ≤ count (≤ Max when
+// bounded). The child compiles through CompileChild with an element
+// accessor, so heavy children arrive as call expressions exactly like
+// union arms and negation children.
+func emitContainsCount(ctx *EmitContext, containsCheck *reflection.ContainsCheck) string {
+	boundsOver := func(countExpr string) string {
+		conditions := []string{countExpr + " >= " + formats.FormatNumber(containsCheck.Min)}
+		if containsCheck.Max >= 0 {
+			conditions = append(conditions, countExpr+" <= "+formats.FormatNumber(containsCheck.Max))
+		}
+		return "(" + strings.Join(conditions, " && ") + ")"
+	}
+	if ctx.ResolveRef(containsCheck.Child) == nil {
+		panic("validate: unresolvable contains child — dropping it would silently weaken validation")
+	}
+	iVar := ctx.NextLocalVar("ci")
+	ctx.SetChildAccessor(ctx.Vλl + "[" + iVar + "]")
+	childRT := ctx.CompileChild(containsCheck.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childRT.Type != CodeE {
+		panic("validate: contains child did not compile to a boolean expression — dropping it would silently weaken validation")
+	}
+	if childRT.Code == "" {
+		return boundsOver(ctx.Vλl + ".length")
+	}
+	nVar := ctx.NextLocalVar("cn")
+	return "((() => {let " + nVar + " = 0;for (let " + iVar + " = 0; " + iVar + " < " + ctx.Vλl + ".length; " + iVar + "++) {if (" +
+		childRT.Code + ") " + nVar + "++;}return " + boundsOver(nVar) + ";})())"
+}
+
+// emitPatternPropCheck: keys matching the entry's source must have values
+// validating against the entry's value child. The regex hoists into the
+// factory prologue once per (source, factory); the value child compiles
+// against a walker-allocated key accessor so a hoisted child still sees it.
+func emitPatternPropCheck(ctx *EmitContext, patternProp *reflection.PatternPropCheck) string {
+	if ctx.ResolveRef(patternProp.Value) == nil {
+		panic("validate: unresolvable patternProperties value child — dropping it would silently weaken validation")
+	}
+	// Hoist the key regex into the factory prologue (the emitPatternTest
+	// discipline — compiled once per factory, not per call).
+	reVar := ctx.NextLocalVar("reKey")
+	if !ctx.HasContextItem(reVar) {
+		ctx.SetContextItem(reVar, "const "+reVar+" = new RegExp("+jsquote.Double(patternProp.Source)+")")
+	}
+	kVar := ctx.NextLocalVar("pk")
+	ctx.SetChildAccessor(ctx.Vλl + "[" + kVar + "]")
+	childRT := ctx.CompileChild(patternProp.Value, CodeE)
+	ctx.SetChildAccessor("")
+	if childRT.Type != CodeE {
+		panic("validate: patternProperties value child did not compile to a boolean expression")
+	}
+	if childRT.Code == "" {
+		return "true"
+	}
+	// `for…in` rather than `for…of Object.keys(v)`: same enumeration the index
+	// signature loop and the closedness sweep use, without materialising a key
+	// array on every call. The loop stays an IIFE (not a prologue function)
+	// because the value child compiled against `v[<key>]` and closes over v.
+	return "((() => {for (const " + kVar + " in " + ctx.Vλl + ") {if (" + reVar + ".test(" + kVar + ") && !(" +
+		childRT.Code + ")) return false;}return true;})())"
+}
+
+// Mirrors identityChainMaxKeys in formats/structural/objectformat.go: at or
+// below this many keys an `===` chain beats a Set (pointer compares against
+// internalized strings, no hash, nothing hoisted).
+const unevalIdentityChainMaxKeys = 8
+
+// emitPropNamesCheck: every key validates (as a string) against the child.
+// The child compiles against the KEY, never against `v[key]`, so the whole
+// sweep hoists into the factory prologue — no key array, no per-key callback,
+// and nothing allocated per call (the `Object.keys(v).every(cb)` form paid all
+// three).
+func emitPropNamesCheck(ctx *EmitContext, propNames *reflection.RunType) string {
+	if ctx.ResolveRef(propNames) == nil {
+		panic("validate: unresolvable propertyNames child — dropping it would silently weaken validation")
+	}
+	kVar := ctx.NextLocalVar("pk")
+	ctx.SetChildAccessor(kVar)
+	childRT := ctx.CompileChild(propNames, CodeE)
+	ctx.SetChildAccessor("")
+	if childRT.Type != CodeE {
+		panic("validate: propertyNames child did not compile to a boolean expression")
+	}
+	if childRT.Code == "" {
+		return ""
+	}
+	fnVar := ctx.NextLocalVar("pnFn")
+	if !ctx.HasContextItem(fnVar) {
+		ctx.SetContextItem(fnVar, "const "+fnVar+" = function(o){for (const "+kVar+" in o) {if (!("+
+			childRT.Code+")) return false;}return true}")
+	}
+	return fnVar + "(" + ctx.Vλl + ")"
+}
+
+func (ValidateEmitter) emitKindDefault(rt *reflection.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}
 	v := ctx.Vλl
 	switch rt.Kind {
-	case protocol.KindString:
+	case reflection.KindString:
 		// (ref: nodes/atomic/string.ts:14)
 		return RTCode{Code: "typeof " + v + " === 'string'", Type: CodeE}
 
-	case protocol.KindNumber:
+	case reflection.KindNumber:
 		// (ref: nodes/atomic/number.ts:14). Default `Number.isFinite` rejects
 		// Infinity / -Infinity / NaN and non-numbers without coercion; the
 		// numberMode ValidateOption swaps in the looser typeof / notNaN checks
 		// to align with other libraries.
 		return RTCode{Code: numberBaseCheck(ctx.NumberMode(), v), Type: CodeE}
 
-	case protocol.KindBoolean:
+	case reflection.KindBoolean:
 		// (ref: nodes/atomic/boolean.ts:14)
 		return RTCode{Code: "typeof " + v + " === 'boolean'", Type: CodeE}
 
-	case protocol.KindBigInt:
+	case reflection.KindBigInt:
 		// (ref: nodes/atomic/bigInt.ts:14). Infinity / -Infinity rejection
 		// from bigInt.spec.ts falls out of `typeof` automatically.
 		return RTCode{Code: "typeof " + v + " === 'bigint'", Type: CodeE}
 
-	case protocol.KindSymbol:
+	case reflection.KindSymbol:
 		// Unsupported — `typeof v === 'symbol'` accepts ANY symbol,
 		// giving the false impression that the user's specific symbol
 		// value was validated. Symbol identity isn't comparable across
 		// realms / round-trips, so the validator gives no useful
-		// guarantee. See docs/UNSUPPORTED-KINDS.md FAQ.
+		// guarantee.
 		return RTCode{Code: "", Type: CodeNS}
 
-	case protocol.KindNull:
+	case reflection.KindNull:
 		// (ref: nodes/atomic/null.ts:14)
 		return RTCode{Code: v + " === null", Type: CodeE}
 
-	case protocol.KindUndefined:
+	case reflection.KindUndefined:
 		// (ref: nodes/atomic/undefined.ts:14). Note `typeof === 'undefined'`
 		// is used here while void uses `=== undefined` directly —
 		// different emit text, same accepted value set.
 		return RTCode{Code: "typeof " + v + " === 'undefined'", Type: CodeE}
 
-	case protocol.KindVoid:
+	case reflection.KindVoid:
 		// (ref: nodes/atomic/void.ts:14). void accepts only undefined;
 		// null is explicitly rejected (void.spec.ts).
 		return RTCode{Code: v + " === undefined", Type: CodeE}
 
-	case protocol.KindAny, protocol.KindUnknown:
+	case reflection.KindAny, reflection.KindUnknown:
 		// (ref: nodes/atomic/any.ts:13-15) (UnknownRunType extends AnyRunType).
 		// At root nest level the reference emits `undefined` (empty body); we emit
 		// `true` and rely on Finalize to collapse the body to a noop. The
@@ -282,20 +452,20 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		}
 		return RTCode{Code: "true", Type: CodeE}
 
-	case protocol.KindNever:
+	case reflection.KindNever:
 		// (ref: nodes/atomic/never.ts:13)
 		return RTCode{Code: "false", Type: CodeE}
 
-	case protocol.KindObject:
+	case reflection.KindObject:
 		// (ref: nodes/atomic/object.ts:13). Explicit null rejection despite
 		// JS `typeof null === 'object'` — bug-flavor case from object.spec.ts.
 		return RTCode{Code: objectGuard(v, ""), Type: CodeE}
 
-	case protocol.KindRegexp:
+	case reflection.KindRegexp:
 		// (ref: nodes/atomic/regexp.ts:13)
 		return RTCode{Code: "(" + v + " instanceof RegExp)", Type: CodeE}
 
-	case protocol.KindClass:
+	case reflection.KindClass:
 		// KindClass branches on SubKind:
 		//   - SubKindDate → atomic instanceof+validity check
 		//   - SubKindMap  → emitMapValidate (instanceof + .entries())
@@ -306,7 +476,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		//   - anything else (NonSerializable, future subkinds) →
 		//     CodeNS sentinel so the renderer skips this entry's
 		//     factory without panicking.
-		if rt.SubKind == protocol.SubKindDate {
+		if rt.SubKind == reflection.SubKindDate {
 			// (ref: nodes/atomic/date.ts:13). Rejects Invalid Date
 			// (`new Date('xx')` whose getTime() is NaN).
 			//
@@ -327,19 +497,19 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 				Type: CodeE,
 			}
 		}
-		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
+		if info, ok := reflection.TemporalInfoBySubKind(rt.SubKind); ok {
 			// Temporal types are always-valid once constructed (no NaN-like
 			// state — `from` throws instead), so a bare instanceof suffices.
 			// Same atomic, class-encoded, leaf-emit pattern as Date.
 			return RTCode{Code: "(" + v + " instanceof " + info.Builtin + ")", Type: CodeE}
 		}
-		if rt.SubKind == protocol.SubKindMap {
+		if rt.SubKind == reflection.SubKindMap {
 			return emitMapValidate(rt, ctx, v)
 		}
-		if rt.SubKind == protocol.SubKindSet {
+		if rt.SubKind == reflection.SubKindSet {
 			return emitSetValidate(rt, ctx, v)
 		}
-		if rt.SubKind == protocol.SubKindNonSerializable {
+		if rt.SubKind == reflection.SubKindNonSerializable {
 			// (ref: nodes/native/nonSerializable.ts:18-19) —
 			// `emitIsType(): RTCode { throw new Error('RT
 			// compilation disabled for Non Serializable types.'); }`.
@@ -350,14 +520,14 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 			// createRTFunction()-call equivalent).
 			return RTCode{Code: "", Type: CodeNS}
 		}
-		if rt.SubKind != protocol.SubKindNone {
+		if rt.SubKind != reflection.SubKindNone {
 			// Unknown future subkind — keep the silent-skip path.
 			return RTCode{Code: "", Type: CodeNS}
 		}
 		// Plain user class — fall through to the shared object emit.
 		return emitObjectValidate(rt, ctx, v)
 
-	case protocol.KindPromise:
+	case reflection.KindPromise:
 		// Promise validation can only check thenable-ness at
 		// runtime — the wrapped T isn't validated synchronously
 		// because the promise hasn't resolved. Callers who want to
@@ -368,7 +538,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 			Type: CodeE,
 		}
 
-	case protocol.KindEnum:
+	case reflection.KindEnum:
 		// (ref: nodes/atomic/enum.ts:14). Chain of `=== <value>` over
 		// rt.Values — mixed enums carry mixed value types (numeric
 		// reverse-mapped + string-enum values) so each entry is
@@ -386,7 +556,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		}
 		return RTCode{Code: "(" + strings.Join(parts, " || ") + ")", Type: CodeE}
 
-	case protocol.KindLiteral:
+	case reflection.KindLiteral:
 		// (ref: nodes/atomic/literal.ts:70-71) (emitIsType) +
 		// literal.ts:88-105 (compileIsLiteral). With the noLiterals
 		// ValidateOption set, the literal degrades to its base-kind
@@ -398,7 +568,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		}
 		return emitLiteral(rt, v)
 
-	case protocol.KindArray:
+	case reflection.KindArray:
 		// (ref: nodes/member/array.ts:emitIsType). Allocates an index
 		// counter + a result local, sets the child accessor on the
 		// current frame so the child's pushStack adopts `v[i0]` as its
@@ -471,7 +641,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		body.WriteString(")) return false;\n}\nreturn true")
 		return RTCode{Code: body.String(), Type: CodeRB}
 
-	case protocol.KindObjectLiteral:
+	case reflection.KindObjectLiteral:
 		// (ref: nodes/collection/interface.ts:emitIsType). (KindClass
 		// non-Date falls into the same function via the KindClass
 		// arm above.)
@@ -488,7 +658,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		// own emit and are filtered from the AND chain here.
 		return emitObjectValidate(rt, ctx, v)
 
-	case protocol.KindProperty, protocol.KindPropertySignature:
+	case reflection.KindProperty, reflection.KindPropertySignature:
 		// (ref: nodes/member/property.ts:emitIsType) (PropertySignature
 		// shares the same shape via PropertyRunType). Skips entirely
 		// when the wrapped child is function-flavoured (the
@@ -496,12 +666,12 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		// true; function kinds skipRT).
 		return emitPropertyValidate(rt, ctx, v)
 
-	case protocol.KindIndexSignature:
+	case reflection.KindIndexSignature:
 		// (ref: nodes/member/indexProperty.ts:emitIsType).
 		return emitIndexSignatureValidate(rt, ctx, v)
 
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
+	case reflection.KindFunction, reflection.KindMethod,
+		reflection.KindMethodSignature, reflection.KindCallSignature:
 		// (ref: nodes/function/function.ts:emitIsType). Method /
 		// MethodSignature / CallSignature all inherit FunctionRunType,
 		// so they share the same emit. Param-count arity guard
@@ -511,7 +681,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		// `call_signature_params` case in the OBJECT suite).
 		return RTCode{Code: "typeof " + v + " === 'function'", Type: CodeE}
 
-	case protocol.KindTuple:
+	case reflection.KindTuple:
 		// (ref: nodes/collection/tuple.ts:emitIsType). Composes into a
 		// return-block (CodeRB) for clean composition with rest
 		// elements and arbitrary child code shapes. The reference emit
@@ -521,13 +691,13 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		// each member's emit stay in whatever shape is natural.
 		return emitTupleValidate(rt, ctx, v)
 
-	case protocol.KindTupleMember:
+	case reflection.KindTupleMember:
 		// (ref: nodes/member/tupleMember.ts:emitIsType). Reads
 		// rt.Position to set the element accessor `v[<i>]`, recurses
 		// into Child, optionally wraps with the `undefined ||` guard.
 		return emitTupleMemberValidate(rt, ctx, v)
 
-	case protocol.KindUnion:
+	case reflection.KindUnion:
 		// (ref: nodes/collection/union.ts:emitIsType). Walks the safe
 		// children (SafeUnionChildren when present, else Children)
 		// and OR-chains their checks. Objects share a single
@@ -535,7 +705,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 		// doesn't crash inside a property access.
 		return emitUnionValidate(rt, ctx, v)
 
-	case protocol.KindTemplateLiteral:
+	case reflection.KindTemplateLiteral:
 		// (ref: nodes/collection/templateLiteral.ts:emitIsType).
 		// Compiles the template literal type to an anchored regex at
 		// RT-build time, then runs `typeof v === 'string' &&
@@ -569,7 +739,7 @@ func (ValidateEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _
 // TupleMember.emitIsType `if (this.isRest()) return childRT`
 // branch + RestParamsRunType's ArrayRunType-shaped for-loop, without
 // the reference quirk of mixing expression chains with statements.
-func emitTupleValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitTupleValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	if len(rt.Children) == 0 {
 		// Empty tuple: `Array.isArray(v) && v.length === 0`. We
 		// keep this as an expression since it's noop-free.
@@ -645,7 +815,7 @@ func stripTrailingReturnTrue(code string) string {
 
 // tupleHasRest reports whether any tuple child is a rest element. Used
 // to skip the upper-length-bound check (rest elements absorb extras).
-func tupleHasRest(rt *protocol.RunType, ctx *EmitContext) bool {
+func tupleHasRest(rt *reflection.RunType, ctx *EmitContext) bool {
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
@@ -667,7 +837,7 @@ func tupleHasRest(rt *protocol.RunType, ctx *EmitContext) bool {
 // from the member's position to v.length, validating each element
 // against the wrapped type. Returns CodeRB; the parent tuple emit
 // embeds the block directly.
-func emitTupleMemberValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitTupleMemberValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}
@@ -753,7 +923,7 @@ func emitTupleMemberValidate(rt *protocol.RunType, ctx *EmitContext, v string) R
 // input like `{c: 'foo'}` would match `{a?: string; b?: string}`
 // (no required props to fail on), which is incorrect per TS's
 // weak-type rules.
-func emitUnionValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitUnionValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	// DataOnly-strip members (symbol / function-like / Promise /
 	// non-serializable / never) so `Date | symbol` validates as `Date`,
 	// matching DataOnly<T>. An all-stripped union keeps its members and falls
@@ -826,7 +996,7 @@ func emitUnionValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode 
 //
 // If a key/value type has no validator (e.g. KindAny), that arm of
 // the check collapses and only the surviving side runs.
-func emitMapValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitMapValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	keyType, valueType := mapKeyValueTypes(rt, ctx)
 	entryVar := ctx.NextLocalVar("entry")
 	var body strings.Builder
@@ -893,7 +1063,7 @@ func emitMapValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 // emitSetValidate handles `Set<T>` (KindClass + SubKindSet). Same
 // pattern as Map but with a single Argument wrapper (SubKindSetItem)
 // and `.values()` iteration.
-func emitSetValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitSetValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	itemVar := ctx.NextLocalVar("item")
 	var body strings.Builder
@@ -933,7 +1103,7 @@ func emitSetValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 // (SubKindMapValue) — and returns the wrapped child types. Returns
 // nil for missing slots so the caller can collapse the matching arm
 // of the emit.
-func mapKeyValueTypes(rt *protocol.RunType, ctx *EmitContext) (key, value *protocol.RunType) {
+func mapKeyValueTypes(rt *reflection.RunType, ctx *EmitContext) (key, value *reflection.RunType) {
 	if len(rt.Arguments) >= 1 {
 		wrapper := ctx.ResolveRef(rt.Arguments[0])
 		if wrapper != nil {
@@ -952,7 +1122,7 @@ func mapKeyValueTypes(rt *protocol.RunType, ctx *EmitContext) (key, value *proto
 // setItemType reaches through the synthetic KindParameter wrapper
 // (SubKindSetItem) the serializer puts in Set.Arguments to return
 // the wrapped element type.
-func setItemType(rt *protocol.RunType, ctx *EmitContext) *protocol.RunType {
+func setItemType(rt *reflection.RunType, ctx *EmitContext) *reflection.RunType {
 	if len(rt.Arguments) == 0 {
 		return nil
 	}
@@ -965,12 +1135,12 @@ func setItemType(rt *protocol.RunType, ctx *EmitContext) *protocol.RunType {
 
 // iterableInnerTypes returns the child RunType(s) to walk for a native
 // iterable: [key, value] for a Map (SubKindMap), [item] for a Set.
-func iterableInnerTypes(rt *protocol.RunType, ctx *EmitContext) []*protocol.RunType {
-	if rt.SubKind == protocol.SubKindMap {
+func iterableInnerTypes(rt *reflection.RunType, ctx *EmitContext) []*reflection.RunType {
+	if rt.SubKind == reflection.SubKindMap {
 		keyType, valueType := mapKeyValueTypes(rt, ctx)
-		return []*protocol.RunType{keyType, valueType}
+		return []*reflection.RunType{keyType, valueType}
 	}
-	return []*protocol.RunType{setItemType(rt, ctx)}
+	return []*reflection.RunType{setItemType(rt, ctx)}
 }
 
 // emitTemplateLiteralValidate handles KindTemplateLiteral. Mirrors
@@ -983,7 +1153,7 @@ func iterableInnerTypes(rt *protocol.RunType, ctx *EmitContext) []*protocol.RunT
 // literal's text segments + placeholder kinds; spanToRegex mirrors
 // the pattern table verbatim (number → `-?(?:\d+\.?\d*|\.\d+)`,
 // string/any/infer → `[\s\S]*`, literal → escaped verbatim).
-func emitTemplateLiteralValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitTemplateLiteralValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	regex, ok := buildTemplateLiteralRegex(rt)
 	if !ok {
 		// Malformed literal payload — fall back to a typeof-string
@@ -1006,7 +1176,7 @@ func emitTemplateLiteralValidate(rt *protocol.RunType, ctx *EmitContext, v strin
 // `{templateLiteral: {texts: […], placeholders: [{kind, literal?}]}}`).
 // Returns false when the payload is missing or malformed — the caller
 // degrades gracefully to a plain typeof-string check.
-func buildTemplateLiteralRegex(rt *protocol.RunType) (string, bool) {
+func buildTemplateLiteralRegex(rt *reflection.RunType) (string, bool) {
 	if rt.Literal == nil {
 		return "", false
 	}
@@ -1057,17 +1227,17 @@ func spanRegexPattern(span map[string]any) string {
 	case int64:
 		kind = int(v)
 	}
-	switch protocol.ReflectionKind(kind) {
-	case protocol.KindLiteral:
+	switch reflection.ReflectionKind(kind) {
+	case reflection.KindLiteral:
 		if lit, ok := span["literal"]; ok {
 			return escapeRegex(stringifyLiteral(lit))
 		}
 		return `[\s\S]*`
-	case protocol.KindNumber:
+	case reflection.KindNumber:
 		return `-?(?:\d+\.?\d*|\.\d+)`
-	case protocol.KindBigInt:
+	case reflection.KindBigInt:
 		return `-?\d+`
-	case protocol.KindString, protocol.KindAny, protocol.KindUnknown:
+	case reflection.KindString, reflection.KindAny, reflection.KindUnknown:
 		return `[\s\S]*`
 	}
 	return `[\s\S]*`
@@ -1130,7 +1300,7 @@ func escapeRegex(s string) string {
 // own non-function-typed wrapped child can't be validated)
 // propagates CodeNS upward and the whole object factory is
 // silently skipped.
-func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitObjectValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	// First-pass: detect a CallSignature child.
 	// InterfaceRunType.emitIsType branches on `this.isCallable()` and
 	// emits `(callSigCheck && propsCheck)` — a callable interface
@@ -1138,13 +1308,13 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 	// with optional extra properties on top. Plain object check is
 	// suppressed in that case (a function is typeof === 'function',
 	// not 'object').
-	var callSigChild *protocol.RunType
+	var callSigChild *reflection.RunType
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
 			continue
 		}
-		if resolved.Kind == protocol.KindCallSignature {
+		if resolved.Kind == reflection.KindCallSignature {
 			callSigChild = child
 			break
 		}
@@ -1173,6 +1343,7 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 	// IndexSignatureRunType.getSkipCode + InterfaceRunType.getNamedChildren.
 	// No-op when the object has no index sig or no named props.
 	publishSiblingNamedKeysForIndexSig(rt, ctx)
+	publishSiblingPatternsForIndexSig(rt, ctx)
 	allOptional := true
 	hasContributingChild := false
 	hasIndexSig := false
@@ -1187,7 +1358,7 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
 		}
-		if resolved.Kind == protocol.KindIndexSignature {
+		if resolved.Kind == reflection.KindIndexSignature {
 			hasIndexSig = true
 		}
 		if isFunctionLikeKind(resolved.Kind) {
@@ -1269,14 +1440,14 @@ func emitObjectValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode
 // because an index sig validates value types on every own key (so
 // an array-input would fail the per-key check anyway when the value
 // type isn't satisfied).
-func memberIsOptional(rt *protocol.RunType) bool {
+func memberIsOptional(rt *reflection.RunType) bool {
 	if rt == nil {
 		return false
 	}
 	switch rt.Kind {
-	case protocol.KindProperty, protocol.KindPropertySignature:
+	case reflection.KindProperty, reflection.KindPropertySignature:
 		return rt.Optional
-	case protocol.KindIndexSignature:
+	case reflection.KindIndexSignature:
 		return false
 	}
 	return rt.Optional
@@ -1288,7 +1459,7 @@ func memberIsOptional(rt *protocol.RunType) bool {
 // its Vλl, then composes the optional guard if the property is
 // optional. Returns empty code when the wrapped child is function-
 // flavoured so the parent's AND chain drops the slot.
-func emitPropertyValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitPropertyValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}
@@ -1299,7 +1470,7 @@ func emitPropertyValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCo
 	if strippedPropertyDrop(resolved, rt.Name, ctx) {
 		// Directly DataOnly-stripped value (symbol / function / Promise / never /
 		// non-serializable native) — drop the slot from the AND chain, matching
-		// `DataOnly<{a: symbol}>` = `{}`. See docs/UNSUPPORTED-KINDS.md.
+		// `DataOnly<{a: symbol}>` = `{}`.
 		return RTCode{Code: "", Type: CodeE}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -1316,8 +1487,18 @@ func emitPropertyValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCo
 		}
 		return RTCode{Code: "", Type: CodeE}
 	}
-	if childRT.Code == "" {
-		return RTCode{Code: "", Type: CodeE}
+	// A member whose type imposes NO value check (`unknown` / `any`, which emit
+	// the bare `true`) still imposes PRESENCE when it is REQUIRED: `{}` is not
+	// assignable to `{foo: unknown}`. Emitting the value check alone drops the
+	// slot out of the AND chain entirely and the member silently becomes
+	// optional — which also quietly breaks looseCheckGate's "one required prop
+	// means the bare validate already enforces presence" shortcut. An OPTIONAL
+	// noop member asserts nothing at all, so it leaves the chain as before.
+	if childRT.Code == "" || isNoopForValidate(rt.Child, ctx) {
+		if rt.Optional {
+			return RTCode{Code: "", Type: CodeE}
+		}
+		return RTCode{Code: "(" + quoteJS(rt.Name) + " in " + v + ")", Type: CodeE}
 	}
 	if rt.Optional {
 		return RTCode{
@@ -1343,7 +1524,7 @@ func emitPropertyValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCo
 // publishSiblingNamedKeysForIndexSig (called from emitObjectValidate
 // before recursing into children) + siblingNamedSkipCode helpers in
 // unknownkeys_shared.go.
-func emitIndexSignatureValidate(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitIndexSignatureValidate(rt *reflection.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}
@@ -1361,7 +1542,7 @@ func emitIndexSignatureValidate(rt *protocol.RunType, ctx *EmitContext, v string
 	keyRegexVar := ""
 	if rt.Index != nil {
 		indexResolved := ctx.ResolveRef(rt.Index)
-		if indexResolved != nil && indexResolved.Kind == protocol.KindTemplateLiteral {
+		if indexResolved != nil && indexResolved.Kind == reflection.KindTemplateLiteral {
 			if regex, ok := buildTemplateLiteralRegex(indexResolved); ok {
 				keyRegexVar = ctx.NextLocalVar("reIdx")
 				if !ctx.HasContextItem(keyRegexVar) {
@@ -1389,6 +1570,10 @@ func emitIndexSignatureValidate(rt *protocol.RunType, ctx *EmitContext, v string
 	body.WriteString(v)
 	body.WriteString(") { ")
 	if skip := siblingNamedSkipCode(rt, ctx, keyVar); skip != "" {
+		body.WriteString(skip)
+		body.WriteString(" ")
+	}
+	if skip := siblingPatternSkipCode(rt, ctx, keyVar); skip != "" {
 		body.WriteString(skip)
 		body.WriteString(" ")
 	}
@@ -1424,7 +1609,7 @@ func emitIndexSignatureValidate(rt *protocol.RunType, ctx *EmitContext, v string
 //
 // — registered once per hash thanks to the ordered-items set; sibling
 // children in the same parent body see the same `const` declaration.
-func (ValidateEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
+func (ValidateEmitter) EmitDependencyCall(rt *reflection.RunType, childID string, ctx *EmitContext) string {
 	return ctx.emitDepCall(childID, ctx.Vλl, "")
 }
 
@@ -1443,7 +1628,7 @@ func (ValidateEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, 
 // observable semantics — including the escaped-regex spec case
 // /['"]\/ \\ \// which only differs in source-text, not in the
 // compared .source/.flags strings.
-func emitLiteral(rt *protocol.RunType, v string) RTCode {
+func emitLiteral(rt *reflection.RunType, v string) RTCode {
 	flagSet := make(map[string]bool, len(rt.Flags))
 	for _, flag := range rt.Flags {
 		flagSet[flag] = true
@@ -1490,7 +1675,7 @@ func emitLiteral(rt *protocol.RunType, v string) RTCode {
 // or — when no marker is set — from the Go-side type of `rt.Literal`.
 // Boolean → `typeof v === 'boolean'`; number → the numberMode-selected base
 // check (mirrors the KindNumber arm); string → `typeof v === 'string'`.
-func emitLiteralBaseKind(rt *protocol.RunType, v, numberMode string) RTCode {
+func emitLiteralBaseKind(rt *reflection.RunType, v, numberMode string) RTCode {
 	flagSet := make(map[string]bool, len(rt.Flags))
 	for _, flag := range rt.Flags {
 		flagSet[flag] = true

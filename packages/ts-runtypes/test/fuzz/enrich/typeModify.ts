@@ -18,7 +18,15 @@
 //
 // Everything draws from a passed `rng` so a seed replays the whole edit sequence.
 
-import {type Decl, type GeneratedType, type PropShape, type TypeShape, renderDecl} from '../core/typeGen.ts';
+import {
+  FUZZ_FORMAT_SCRATCH_PREAMBLE,
+  renderDecl,
+  usesFormatLeaves,
+  type Decl,
+  type GeneratedType,
+  type PropShape,
+  type TypeShape,
+} from '../core/typeGen.ts';
 
 // A "rooted" type is the unit the gen CLI targets: a set of exported decls plus
 // the NAME of the one the `createX<Root>()` / `gen <Root>` site points at. A
@@ -62,8 +70,14 @@ export interface ModifyResult {
 // Render a rooted type to a source module: every decl exported so the resolver
 // can target any of them by name. `renderDecl` already emits `interface` /
 // `type` / `declare class` / `enum`; prefixing `export ` keeps all valid.
+// Format/not leaves reference `TF.*` names, carried by the IMPORT-FREE scratch
+// preamble (a local namespace): these fixtures live in temp dirs where a
+// relative `./src/...` import cannot resolve, which is also why the generator
+// runs on SCRATCH_FORMAT_LEAVES — the only leaves that preamble can spell.
 export function renderRootedSource(rooted: RootedType): string {
-  return rooted.decls.map((decl) => `export ${renderDecl(decl)}`).join('\n') + '\n';
+  const decls = rooted.decls.map((decl) => `export ${renderDecl(decl)}`).join('\n') + '\n';
+  const usesFormats = usesFormatLeaves({decls: rooted.decls, root: {kind: 'null'}});
+  return usesFormats ? `${FUZZ_FORMAT_SCRATCH_PREAMBLE}\n${decls}` : decls;
 }
 
 // --- seeded helpers ------------------------------------------------------------
@@ -424,9 +438,9 @@ const renameRootReshaped: ValidOp = {
 };
 
 // The default operation set: field edits, `addDecl` (introducing a named sub-const),
-// and the TYPE-RENAME ops. Renames carry across the const-level graph-parity matcher
-// (docs/done/reconcile-rename-detection.md); the carry — pure rename AND rename +
-// reshape — is asserted on every run by the runner's RC oracle.
+// and the TYPE-RENAME ops. Renames carry across the const-level graph-parity matcher;
+// the carry — pure rename AND rename + reshape — is asserted on every run by the
+// runner's RC oracle.
 const VALID_OPS: ValidOp[] = [
   renameProp,
   addProp,

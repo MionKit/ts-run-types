@@ -7,7 +7,7 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const UNION = {
@@ -138,8 +138,9 @@ export const UNION = {
     title: 'Large union',
     description:
       'Past the 4 positional union() overloads, the value-first builder routes 8 heterogeneous arms (literals, primitives, and a {a}/{a;b} subset+superset pair) through the recursive UnionOf<T> infer fallback, which must both generate a correct validator and converge on the type-first union id while preserving the subset/superset arms with no subtype collapse at depth 8.',
-    validateNotes:
+    validateNotes: [
       'The `{a}`/`{a; b}` subset pair both stay reachable: a value matching the smaller `{a: string}` arm passes (e.g. `{a: "x"}` is valid), so the superset arm never swallows it. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
+    ],
     validate: () => createValidateFn<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     standardSchema: () =>
       createStandardSchema<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
@@ -325,8 +326,9 @@ export const UNION = {
   array_of_union: {
     title: 'Array of union',
     description: 'union.spec.ts "Arr with union of types" where each element independently runs the full union OR-chain.',
-    validateNotes:
+    validateNotes: [
       'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
+    ],
     validate: () => createValidateFn<(string | bigint | boolean | Date)[]>(),
     standardSchema: () => createStandardSchema<(string | bigint | boolean | Date)[]>(),
     validateDataOnly: () => createValidateFn<DataOnly<(string | bigint | boolean | Date)[]>>(),
@@ -386,8 +388,9 @@ export const UNION = {
     title: 'Union of objects',
     description:
       "union.spec.ts 'Union Obj' where disjoint object-typed members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
-    validateNotes:
+    validateNotes: [
       'An input passes if it satisfies AT LEAST one arm\'s required props; extra props are ignored (structural), so `{a: "x", aa: true, b: 1}` passes via the `{b: number}` arm. A failing value reports a single `expected: "union"` at the root, not per-arm errors.',
+    ],
     validate: () => createValidateFn<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     standardSchema: () => createStandardSchema<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
@@ -521,7 +524,7 @@ export const UNION = {
     title: 'Circular union',
     description:
       'union.spec.ts "Union circular" where a self-referential union via object and array arms is handled by always-non-inlined Union, Object, and Array with no IsCircular detection needed, terminating via the dependency-call layer\'s lazy-init two-phase cache registration.',
-    validateNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
+    validateNotes: ['Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.'],
     validateSchema: () => {
       const uc = RT.circular(
         RT.union([
@@ -623,16 +626,17 @@ export const UNION = {
     title: 'Union with methods',
     description:
       'union.spec.ts "Union with objects containing methods" where each arm carries a method that is skipped via the property-emit function-skip rule, so the AND chain inside each object reduces to the data-only props.',
-    validateNotes:
+    validateNotes: [
       'TS DIVERGENCE: method members (`getName`/`getAge`) are non-serializable and dropped, so each arm checks only its data prop — `{name: "x"}` with no method at all PASSES, and a wrong-typed method would not be caught.',
+    ],
     validate: () => createValidateFn<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     standardSchema: () => createStandardSchema<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     validateDataOnly: () => createValidateFn<DataOnly<{name: string; getName(): string} | {age: number; getAge(): number}>>(),
     validateSchema: () =>
       createValidateFn(
         RT.union([
-          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
-          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
+          RT.object({name: TF.string(), getName: RT.func({ret: TF.string()})}),
+          RT.object({age: TF.number(), getAge: RT.func({ret: TF.number()})}),
         ])
       ),
     deserializeValidate: () => deserializeValidate<{name: string; getName(): string} | {age: number; getAge(): number}>(),
@@ -656,8 +660,8 @@ export const UNION = {
     getValidationErrorsSchema: () =>
       createGetValidationErrorsFn(
         RT.union([
-          RT.object({name: TF.string(), getName: RT.func([], TF.string())}),
-          RT.object({age: TF.number(), getAge: RT.func([], TF.number())}),
+          RT.object({name: TF.string(), getName: RT.func({ret: TF.string()})}),
+          RT.object({age: TF.number(), getAge: RT.func({ret: TF.number()})}),
         ])
       ),
     deserializeGetValidationErrors: () =>
@@ -768,8 +772,9 @@ export const UNION = {
     title: 'Union with index arm',
     description:
       "union.spec.ts 'validate an union with index property' where one arm carries a named prop and an index signature, accepting index-typed extras alongside the named prop.",
-    validateNotes:
+    validateNotes: [
       'The index arm is NOT a catch-all: every extra key must match the index value type, so `{c: 1n, d: 2n}` passes but `{c: 1n, d: "hello"}` fails (string under a `bigint` index). A failing value reports a single `expected: "union"` at the root.',
+    ],
     validate: () => createValidateFn<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     standardSchema: () => createStandardSchema<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     validateDataOnly: () =>
@@ -947,8 +952,9 @@ export const UNION = {
     title: 'Mixed arrays and objects',
     description:
       "union.spec.ts 'Union Mixed' where array types and object shapes share the same union and the OR-chain dispatches on shape via Array.isArray versus object typeof.",
-    validateNotes:
+    validateNotes: [
       'Array arms match the WHOLE array, so a mixed array like `[1, "b"]` fails (no single array arm covers it); object arms accept extra props (`{b: 123, c: 123n}` passes via the `{b: number}` arm). A failing value reports a single `expected: "union"` at the root.',
+    ],
     validate: () =>
       createValidateFn<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     standardSchema: () =>
@@ -1122,8 +1128,9 @@ export const UNION = {
     title: 'Mixed with index',
     description:
       "union.spec.ts 'Union mixed with index property' where arrays and plain objects share the same union as objects carrying index signatures.",
-    validateNotes:
+    validateNotes: [
       'Each index arm constrains ALL extra keys to its value type, so `{a: "hello", b: 123n}` fails every arm (the string-index arm rejects the `bigint` `b`, the bigint-index arm rejects the string `a`). A failing value reports a single `expected: "union"` at the root.',
+    ],
     validate: () =>
       createValidateFn<
         | string[]
@@ -1281,8 +1288,9 @@ export const UNION = {
     title: 'Any fallback',
     description:
       "union.spec.ts 'support union with any type' where tsgo collapses `T | any` to `any`, so every value passes and the validator is effectively a no-op true.",
-    validateNotes:
+    validateNotes: [
       '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
+    ],
     validate: () => createValidateFn<string | any>(),
     standardSchema: () => createStandardSchema<string | any>(),
     validateDataOnly: () => createValidateFn<DataOnly<string | any>>(),

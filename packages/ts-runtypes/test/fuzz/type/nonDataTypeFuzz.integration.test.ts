@@ -22,6 +22,8 @@ import {describe, it, expect} from 'vitest';
 import {hasBinary} from './typeFuzzHarness.ts';
 import {runTypeFuzz, runTypeFuzzForDuration} from './typeFuzzRunner.ts';
 import {NONDATA_GEN_OPTIONS} from '../core/typeGen.ts';
+import {soakTestTimeout, pathologyReport} from '../core/soakBudget.ts';
+import {entrySeed, SUPPRESSION_CEILING, STRONG_ORACLE_FLOOR} from '../core/fuzzPolicy.ts';
 
 describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-data types', () => {
   const register = hasBinary() ? it : it.skip;
@@ -30,7 +32,7 @@ describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-
     'finds no DataOnly-contract violations across a batch of non-data types',
     async () => {
       const report = await runTypeFuzz({
-        seed: 0xda7a01,
+        seed: entrySeed('nondata'),
         iterations: 100,
         gen: NONDATA_GEN_OPTIONS,
         valueSource: 'mock',
@@ -46,6 +48,22 @@ describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-
         );
       }
       expect(report.runs).toBe(100);
+      // The TS-validity gate discards violations for a generated type that does
+      // not compile. Sound in principle, but it must never be able to swallow
+      // the whole lane: a generator regression emitting mostly-invalid
+      // TypeScript would turn this test green and silent. Observed rate is 0.
+      expect(
+        report.skippedInvalidTypes,
+        `the TS-validity gate suppressed ${report.skippedInvalidTypes}/${report.runs} runs — a generator regression can hide every violation behind it`
+      ).toBeLessThanOrEqual(Math.ceil(report.runs * SUPPRESSION_CEILING));
+      // Anti-vacuity: `runs` only proves the loop turned. A lane whose generator
+      // regressed into producing only robustness-probed types would still hit
+      // 100 runs while asserting almost nothing, so require that a real share of
+      // them reached the STRONG oracles.
+      expect(
+        report.strongOracleRuns,
+        `only ${report.strongOracleRuns}/${report.runs} generated types reached the strong oracles — the lane is close to vacuous`
+      ).toBeGreaterThanOrEqual(Math.ceil(report.runs * STRONG_ORACLE_FLOOR));
     },
     120_000
   );
@@ -57,7 +75,7 @@ describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-
     async () => {
       const report = await runTypeFuzzForDuration(
         soakMs,
-        {seed: Number(process.env.RT_FUZZ_SEED ?? 1), gen: NONDATA_GEN_OPTIONS, valueSource: 'mock'},
+        {seed: entrySeed('nondata'), gen: NONDATA_GEN_OPTIONS, valueSource: 'mock'},
         (v) => {
           console.error(`[nondata-fuzz][${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
         }
@@ -65,8 +83,9 @@ describe('fuzz / DataOnly non-data lane — serialize-or-fail contract over non-
       console.error(
         `[nondata-fuzz] soak finished: ${report.runs} types, ${report.violations.length} violation(s), ${report.skippedInvalidTypes} invalid-TS false positive(s) filtered`
       );
+      expect(pathologyReport(report.slowestIterationMs, report.slowestIterationRound)).toBeNull();
       expect(report.violations).toHaveLength(0);
     },
-    soakMs + 60_000
+    soakTestTimeout(soakMs)
   );
 });

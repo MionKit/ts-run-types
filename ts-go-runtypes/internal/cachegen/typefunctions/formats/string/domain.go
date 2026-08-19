@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // domainEmitter implements the format named "domain" — FormatDomain /
@@ -27,33 +27,40 @@ func init() {
 	formats.Register(domainEmitter{})
 }
 
-func (domainEmitter) Name() string                  { return "domain" }
-func (domainEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
+func (domainEmitter) Name() string                    { return "domain" }
+func (domainEmitter) Kind() reflection.ReflectionKind { return reflection.KindString }
 
-func (domainEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (domainEmitter) EmitValidateCheck(annotation *reflection.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation != nil && domainHasNames(annotation.Params) {
 		return domainValidateExprFor(ctx, annotation.Params, vλl)
+	}
+	if annotation != nil && domainHasIdna(annotation.Params) {
+		return idnaCheckExpr(ctx, annotation.Params, vλl)
 	}
 	return namedPatternValidate(ctx, annotation, vλl)
 }
 
-func (domainEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (domainEmitter) EmitValidationErrorsCheck(annotation *reflection.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation != nil && domainHasNames(annotation.Params) {
 		return domainErrorsBlockFor(ctx, annotation.Params, vλl, pathExpr, errorsArr)
+	}
+	if annotation != nil && domainHasIdna(annotation.Params) {
+		return "if (!(" + idnaCheckExpr(ctx, annotation.Params, vλl) + ")) " +
+			formats.FormatErrCall(pathExpr, errorsArr, "string", "domain", "idna", jsBool(idnaAllowsUnicode(annotation.Params)))
 	}
 	return namedPatternErrors(ctx, annotation, vλl, pathExpr, errorsArr, "domain")
 }
 
 // EmitFormatTransform lowercases the domain (ref: domain.runtype.ts:229
 // — all domains are case-insensitive, canonicalised to lower case).
-func (domainEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+func (domainEmitter) EmitFormatTransform(_ *reflection.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	return vλl + ".toLowerCase()"
 }
 
 // ValidateParams ports DomainRunTypeFormat.validateParams
 // (ref: domain.runtype.ts:235-248): names/tld travel together, are mutually
 // exclusive with pattern, and the length/part bounds stay in range.
-func (domainEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+func (domainEmitter) ValidateParams(annotation *reflection.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
 	}
@@ -86,6 +93,43 @@ func (domainEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []str
 func domainHasNames(params map[string]any) bool {
 	_, ok := params["names"].(map[string]any)
 	return ok
+}
+
+// ── IDNA path ────────────────────────────────────────────────────────
+//
+// A host name is not expressible as a pattern: an `xn--` label must be DECODED
+// before its characters can be judged, re-encoded to prove the spelling is
+// canonical, and the Bidi rule reads every label at once. So the `idna` param
+// routes the whole check to the pure-fn engine
+// (rtFormats::isIdnHostname and its deps in string-formats-pure-fns.ts), with
+// the declared length bounds AND-chained in front of it exactly as the pattern
+// path does.
+//
+//   idna: 'ascii'    → `format: 'hostname'`, RFC 1123 labels, A-labels decoded
+//   idna: 'unicode'  → `format: 'idn-hostname'`, U-labels accepted directly
+
+func domainHasIdna(params map[string]any) bool {
+	mode, ok := params["idna"].(string)
+	return ok && mode != ""
+}
+
+func idnaAllowsUnicode(params map[string]any) bool {
+	mode, _ := params["idna"].(string)
+	return mode == "unicode"
+}
+
+func jsBool(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
+
+func idnaCheckExpr(ctx formats.EmitContext, params map[string]any, vλl string) string {
+	conditions := lengthConditions(params, vλl, ctx)
+	call := pureFnAlias(ctx, "isIdnHostname") + "(" + vλl + ",{idn:" + jsBool(idnaAllowsUnicode(params)) + "})"
+	conditions = append(conditions, call)
+	return strings.Join(conditions, " && ")
 }
 
 // hasAllowedValues reports whether a sub-param map has an allowedValues

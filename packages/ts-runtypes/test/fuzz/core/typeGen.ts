@@ -7,7 +7,8 @@
 //
 // The space is intentionally adversarial — not just clean DTOs:
 //   - scalars + literals + `Date` / `RegExp` / `bigint`,
-//   - arrays, tuples, objects (optional / readonly / method / non-ident keys),
+//   - arrays, tuples (labeled + unlabeled — labels are id data), objects
+//     (optional / readonly / method / non-ident keys),
 //   - index signatures + `Record<…>`, unions, intersections,
 //   - native builtins `Map` / `Set` / `Promise`,
 //   - non-serialisable kinds: `function`, `symbol`, `any` / `unknown` /
@@ -43,10 +44,13 @@ export type TypeShape =
   | {kind: 'never'}
   | {kind: 'void'}
   | {kind: 'symbol'}
-  | {kind: 'array'; elem: TypeShape}
-  | {kind: 'tuple'; elems: TypeShape[]}
+  | {kind: 'array'; elem: TypeShape; structural?: ArrayStructural}
+  // `labels` names every slot (parallel to elems, all-or-nothing — the TS
+  // grammar) and renders `[k0: A, k1: B]`; the schema side renders the
+  // tsLabels dialect keyword. Generated only under `GenOptions.tupleLabels`.
+  | {kind: 'tuple'; elems: TypeShape[]; labels?: string[]}
   | {kind: 'object'; props: PropShape[]; index?: TypeShape; indexKey?: IndexKeyKind[]}
-  | {kind: 'record'; value: TypeShape}
+  | {kind: 'record'; value: TypeShape; structural?: ObjectStructural}
   | {kind: 'union'; members: TypeShape[]}
   | {kind: 'intersection'; members: TypeShape[]}
   | {kind: 'map'; key: TypeShape; value: TypeShape}
@@ -58,7 +62,469 @@ export type TypeShape =
   | {kind: 'sharedarraybuffer'}
   | {kind: 'dataview'}
   | {kind: 'typedarray'; name: TypedArrayName}
+  // Type-format leaves (branded string/number constraints).
+  | {kind: 'format'; name: FormatLeafName}
   | {kind: 'ref'; name: string};
+
+/** The format-leaf vocabulary the generator draws from. Two rules govern it:
+ *
+ *  COVERAGE — every format feature the product ships must be generatable:
+ *  all 19 `BrandBySchemaFormat` keyword rows, both content keywords, and
+ *  representative param constraints (length / pattern / numeric bounds), so
+ *  every lane's oracles (mock / validate / encode / translate) can
+ *  reach every feature under random composition.
+ *
+ *  NO DUPLICATION — `tsText` spells the SHIPPED brand (`TF.*`, imported by
+ *  the fixture preamble below), never a hand-written restatement of its
+ *  encoding. The `schema` field is the keyword row under test, not a copy of
+ *  a type: when a brand's lowering changes, the type-first side moves
+ *  automatically and the id oracles fail LOUDLY at the exact leaf — the
+ *  opposite of the retired hand-copied aliases, which drifted silently until
+ *  they surfaced as mystery id mismatches hundreds of types into a soak
+ *  (docs/done/fuzz-followups.md, the `email` incident).
+ *
+ *  `valid` values satisfy the format; `counter` values satisfy the BASE kind
+ *  but fail the format; `test` is a reference predicate for the OFFLINE
+ *  oracle only (shapeValue.unit) — the integration lanes always defer to the
+ *  real engine. **/
+export type FormatLeafName =
+  // Param constraints (the mechanical keyword↔param rows).
+  | 'emailish'
+  | 'minLen50'
+  | 'maxLen8'
+  | 'patternA'
+  | 'integer'
+  | 'min0max100'
+  // The 19 `format:` keyword rows (BrandBySchemaFormat).
+  | 'email'
+  | 'idnEmail'
+  | 'uuid'
+  | 'date'
+  | 'time'
+  | 'dateTime'
+  | 'hostname'
+  | 'idnHostname'
+  | 'ipv4'
+  | 'ipv6'
+  | 'uri'
+  | 'uriReference'
+  | 'uriTemplate'
+  | 'iri'
+  | 'iriReference'
+  | 'stringDuration'
+  | 'regex'
+  | 'jsonPointer'
+  | 'relativeJsonPointer'
+  // The content keywords.
+  | 'base64'
+  | 'jsonContent';
+
+/** The subset the SCRATCH-DIR lanes (enrich / typemod) may draw: their
+ *  fixtures live in temp dirs with no ts-runtypes install, so they carry
+ *  FUZZ_FORMAT_SCRATCH_PREAMBLE (a local raw-sentinel `TF` namespace) instead
+ *  of the import — and that namespace only spells the param brands
+ *  (String / Number / Integer), deliberately: the named-format brands'
+ *  raw spellings are exactly the multi-kilobyte hand copies this roster
+ *  design exists to forbid. **/
+export const SCRATCH_FORMAT_LEAVES: readonly FormatLeafName[] = [
+  'emailish',
+  'minLen50',
+  'maxLen8',
+  'patternA',
+  'integer',
+  'min0max100',
+];
+
+/** Structural constraint params the generator can attach to an array /
+ *  record shape. Rendered through the SHIPPED `TF.FormattedArray` /
+ *  `TF.FormattedObject` wrappers; generated ONLY under
+ *  `GenOptions.structuralFormats` so the value / binary / roundtrip lanes
+ *  never see them (their value generators don't enforce the constraints —
+ *  id convergence is the only oracle here). **/
+export interface ArrayStructural {
+  uniqueItems?: true;
+  maxItems?: number;
+  /** `contains` with the PINNED plain-number child (`{type: 'number'}` ↔
+   *  `rt$child: number`); min 1 spells NO minContains on the schema side
+   *  (the Contains default). Rendered as the raw __rtContains sentinel. **/
+  contains?: {min: number; max?: number};
+}
+export interface ObjectStructural {
+  minProperties?: number;
+  maxProperties?: number;
+  /** Fixed vocabulary (the pinned door leg): '^n_' keys map to numbers. **/
+  patternProps?: true;
+  /** Fixed typed child (the pinned ShortKeys twin): string & maxLength 3. **/
+  propNames?: true;
+}
+
+/** The email pattern the fuzz brand carries (fixture alias + oracle predicate
+ *  share it). Deliberately backslash-free — see FUZZ_FORMAT_PREAMBLE. **/
+export const FUZZ_EMAIL_PATTERN = '^[a-z0-9.]+@[a-z0-9-]+[.][a-z]{2,}$';
+export interface FormatLeafSpec {
+  family: 'string' | 'number';
+  tsText: string;
+  schema: Record<string, unknown>;
+  valid: readonly (string | number)[];
+  counter: readonly (string | number)[];
+  /** Reference predicate (base-kind check INCLUDED) for the offline oracle in
+   *  shapeValue.unit — the integration lanes still defer to the real engine. **/
+  test: (value: unknown) => boolean;
+}
+export const FORMAT_LEAVES: Record<FormatLeafName, FormatLeafSpec> = {
+  // --- param constraints -----------------------------------------------------
+  // A plain pattern brand sharing FUZZ_EMAIL_PATTERN with its schema twin and
+  // its predicate; flags 'u' because the `pattern` keyword compiles in unicode
+  // mode. NOT the `email` format keyword — that is the `email` leaf below,
+  // spelled as the brand the keyword actually lowers to.
+  emailish: {
+    family: 'string',
+    tsText: `TF.String<{pattern: {source: '${FUZZ_EMAIL_PATTERN}'; flags: 'u'}}>`,
+    schema: {type: 'string', pattern: FUZZ_EMAIL_PATTERN},
+    valid: ['ada@example.com', 'bob.builder@test.org'],
+    counter: ['plain words', 'missing-at.example.com'],
+    test: (value) => typeof value === 'string' && new RegExp(FUZZ_EMAIL_PATTERN).test(value),
+  },
+  // minLength 50, NOT a small bound: a bound in the middle of the random
+  // string-length distribution (uniform over [1, 100]) keeps both the valid
+  // and the failing side dense under random draws.
+  minLen50: {
+    family: 'string',
+    tsText: 'TF.String<{minLength: 50}>',
+    schema: {type: 'string', minLength: 50},
+    valid: ['this-string-is-definitely-at-least-fifty-characters-long', 'x'.repeat(60)],
+    counter: ['short', ''],
+    test: (value) => typeof value === 'string' && value.length >= 50,
+  },
+  maxLen8: {
+    family: 'string',
+    tsText: 'TF.String<{maxLength: 8}>',
+    schema: {type: 'string', maxLength: 8},
+    valid: ['short', ''],
+    counter: ['definitely longer than eight'],
+    test: (value) => typeof value === 'string' && value.length <= 8,
+  },
+  patternA: {
+    family: 'string',
+    // flags 'u': the schema twin spells this as the `pattern` keyword, which
+    // the door compiles in unicode mode, so the type-first side has to say so
+    // too for the two to converge on one id.
+    tsText: "TF.String<{pattern: {source: '^a'; flags: 'u'}}>",
+    schema: {type: 'string', pattern: '^a'},
+    valid: ['abc', 'a'],
+    counter: ['b-side', 'zzz'],
+    test: (value) => typeof value === 'string' && /^a/.test(value),
+  },
+  integer: {
+    family: 'number',
+    tsText: 'TF.Integer',
+    schema: {type: 'integer'},
+    valid: [0, 42, -3],
+    counter: [1.5, -0.25],
+    test: (value) => typeof value === 'number' && Number.isInteger(value),
+  },
+  min0max100: {
+    family: 'number',
+    tsText: 'TF.Number<{min: 0; max: 100}>',
+    schema: {type: 'number', minimum: 0, maximum: 100},
+    valid: [0, 50, 100],
+    counter: [-1, 101.5],
+    test: (value) => typeof value === 'number' && value >= 0 && value <= 100,
+  },
+  // --- the 19 `format:` keyword rows ----------------------------------------
+  // EmailAddress, not Email: the keyword means the full RFC 5321 grammar (see
+  // BrandBySchemaFormat). The old hand-copied leaf paired this keyword with a
+  // pattern brand and could never converge — the incident that led to the
+  // no-duplication rule above.
+  email: {
+    family: 'string',
+    tsText: 'TF.EmailAddress',
+    schema: {type: 'string', format: 'email'},
+    valid: ['ada@example.com', 'bob.builder@test.org'],
+    counter: ['plain words', 'missing-at.example.com'],
+    test: (value) => typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+  },
+  idnEmail: {
+    family: 'string',
+    tsText: 'TF.IdnEmail',
+    schema: {type: 'string', format: 'idn-email'},
+    valid: ['ada@example.com', 'züri@example.com'],
+    counter: ['plain words', 'missing-at.example.com'],
+    test: (value) => typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value),
+  },
+  uuid: {
+    family: 'string',
+    tsText: 'TF.UUID',
+    schema: {type: 'string', format: 'uuid'},
+    valid: ['3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'f47ac10b-58cc-4372-a567-0e02b2c3d479'],
+    counter: ['not-a-uuid', '12345'],
+    test: (value) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value),
+  },
+  date: {
+    family: 'string',
+    tsText: 'TF.StringDate',
+    schema: {type: 'string', format: 'date'},
+    valid: ['2024-01-15', '1999-12-31'],
+    counter: ['15-01-2024', 'not-a-date'],
+    test: (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value),
+  },
+  time: {
+    family: 'string',
+    tsText: 'TF.StringTime',
+    schema: {type: 'string', format: 'time'},
+    // TF.StringTime's default is {format: 'ISO'} — RFC 3339 full-time, which
+    // REQUIRES the trailing Z / ±HH:MM offset (isTimeString_ISO_TZ). A bare
+    // 'HH:mm:ss' never validated; the old pool just predated this leaf being
+    // drawn by the fixed-seed lanes.
+    valid: ['12:30:45Z', '23:59:59+02:00'],
+    counter: ['25:99:99x', 'not-a-time'],
+    test: (value) => typeof value === 'string' && /^\d{2}:\d{2}:\d{2}/.test(value) && !/x$/.test(value),
+  },
+  dateTime: {
+    family: 'string',
+    tsText: 'TF.StringDateTime',
+    schema: {type: 'string', format: 'date-time'},
+    valid: ['2024-01-15T12:30:45Z', '1999-12-31T23:59:59Z'],
+    counter: ['2024-01-15 12:30:45x', 'not-a-datetime'],
+    test: (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}/.test(value) && !/x$/.test(value),
+  },
+  hostname: {
+    family: 'string',
+    tsText: 'TF.Hostname',
+    schema: {type: 'string', format: 'hostname'},
+    valid: ['example.com', 'localhost'],
+    counter: ['-bad', 'under_score'],
+    test: (value) =>
+      typeof value === 'string' &&
+      /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/.test(value) &&
+      value.length <= 253,
+  },
+  idnHostname: {
+    family: 'string',
+    tsText: 'TF.IdnHostname',
+    schema: {type: 'string', format: 'idn-hostname'},
+    valid: ['example.com', 'bücher.example'],
+    counter: ['-bad', 'has space'],
+    test: (value) => typeof value === 'string' && value.length > 0 && !/[\s_]/.test(value) && !/^-|-$/.test(value),
+  },
+  ipv4: {
+    family: 'string',
+    tsText: 'TF.IPv4',
+    schema: {type: 'string', format: 'ipv4'},
+    valid: ['192.168.0.1', '8.8.8.8'],
+    counter: ['not-an-ip', '1.2.3'],
+    test: (value) => typeof value === 'string' && /^(\d{1,3}\.){3}\d{1,3}$/.test(value),
+  },
+  ipv6: {
+    family: 'string',
+    tsText: 'TF.IPv6',
+    schema: {type: 'string', format: 'ipv6'},
+    valid: ['::1', '2001:db8::8a2e:370:7334'],
+    counter: ['not-an-ip', '192.168.0.1'],
+    test: (value) => typeof value === 'string' && value.includes(':') && /^[0-9A-Fa-f:.]+$/.test(value),
+  },
+  uri: {
+    family: 'string',
+    tsText: 'TF.Uri',
+    schema: {type: 'string', format: 'uri'},
+    valid: ['https://example.com/a', 'mailto:ada@example.com'],
+    counter: ['../relative', 'a b'],
+    test: (value) => typeof value === 'string' && /^[A-Za-z][A-Za-z0-9+\-.]*:\S*$/.test(value) && !/[^\x00-\x7F]/.test(value),
+  },
+  uriReference: {
+    family: 'string',
+    tsText: 'TF.UriReference',
+    schema: {type: 'string', format: 'uri-reference'},
+    valid: ['/abs/path', '#frag'],
+    counter: ['a b', 'http://example.com/ä'],
+    test: (value) => typeof value === 'string' && !/[\s]/.test(value) && !/[^\x00-\x7F]/.test(value),
+  },
+  uriTemplate: {
+    family: 'string',
+    tsText: 'TF.UriTemplate',
+    schema: {type: 'string', format: 'uri-template'},
+    valid: ['http://example.com/{id}', '{/path*}'],
+    counter: ['http://example.com/{id', 'a b'],
+    test: (value) =>
+      typeof value === 'string' &&
+      /^(?:[^\x00-\x20"'<>\\^\x60{|}\x7F]|\{[+#./;?&=,!@|]?(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2})(?:\.?(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2}))*(?::[1-9][0-9]{0,3}|\*)?(?:,(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2})(?:\.?(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2}))*(?::[1-9][0-9]{0,3}|\*)?)*\})*$/.test(
+        value
+      ),
+  },
+  iri: {
+    family: 'string',
+    tsText: 'TF.Iri',
+    schema: {type: 'string', format: 'iri'},
+    valid: ['https://example.com/päth', 'mailto:ada@example.com'],
+    counter: ['../päth', 'a b'],
+    test: (value) => typeof value === 'string' && /^[A-Za-z][A-Za-z0-9+\-.]*:\S*$/.test(value),
+  },
+  iriReference: {
+    family: 'string',
+    tsText: 'TF.IriReference',
+    schema: {type: 'string', format: 'iri-reference'},
+    valid: ['/relative/päth', '#フラグ'],
+    counter: ['a b'],
+    test: (value) => typeof value === 'string' && !/[\s]/.test(value),
+  },
+  stringDuration: {
+    family: 'string',
+    tsText: 'TF.StringDuration',
+    schema: {type: 'string', format: 'duration'},
+    valid: ['P4DT12H30M5S', 'P2W'],
+    counter: ['P1Y2D', 'PT0.5S'],
+    test: (value) =>
+      typeof value === 'string' &&
+      /^P(?:\d+W|(?:\d+Y(?:\d+M(?:\d+D)?)?|\d+M(?:\d+D)?|\d+D)(?:T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))?|T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))$/.test(
+        value
+      ),
+  },
+  regex: {
+    family: 'string',
+    tsText: 'TF.RegexString',
+    schema: {type: 'string', format: 'regex'},
+    valid: ['^a.*b$', '[0-9]+'],
+    counter: ['(unclosed', '+dangling'],
+    test: (value) => {
+      if (typeof value !== 'string') return false;
+      try {
+        new RegExp(value);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  },
+  jsonPointer: {
+    family: 'string',
+    tsText: 'TF.JsonPointer',
+    schema: {type: 'string', format: 'json-pointer'},
+    valid: ['/store/book/0', '/a~1b'],
+    counter: ['no-leading-slash', '/a~2b'],
+    test: (value) => typeof value === 'string' && /^(?:\/(?:[^~\/]|~[01])*)*$/.test(value),
+  },
+  relativeJsonPointer: {
+    family: 'string',
+    tsText: 'TF.RelativeJsonPointer',
+    schema: {type: 'string', format: 'relative-json-pointer'},
+    valid: ['1/foo', '2#'],
+    counter: ['01', '/foo'],
+    test: (value) => typeof value === 'string' && /^(?:0|[1-9][0-9]*)(?:#|(?:\/(?:[^~\/]|~[01])*)*)$/.test(value),
+  },
+  // --- the content keywords ---------------------------------------------------
+  base64: {
+    family: 'string',
+    tsText: 'TF.Base64',
+    schema: {type: 'string', contentEncoding: 'base64'},
+    valid: ['', 'QQ==', 'SGVsbG8='],
+    counter: ['QQ=', 'not base64!'],
+    test: (value) => typeof value === 'string' && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value),
+  },
+  jsonContent: {
+    family: 'string',
+    tsText: 'TF.JsonContent',
+    schema: {type: 'string', contentMediaType: 'application/json'},
+    valid: ['{}', '7', 'true'],
+    counter: ['not json', '{'],
+    test: (value) => {
+      if (typeof value !== 'string') return false;
+      try {
+        JSON.parse(value);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  },
+};
+export const FORMAT_LEAF_NAMES = Object.keys(FORMAT_LEAVES) as readonly FormatLeafName[];
+
+/** Fixture preamble every resolver-lane renderer prepends when a generated
+ *  type carries format / structural shapes: the SHIPPED brands, imported for
+ *  real. Nothing is restated, so nothing can drift — the
+ *  harnesses put the actual `src/` tree in the resolver's virtual filesystem
+ *  (SRC_OVERLAY in typeFuzzHarness.ts) and tsValidate anchors its virtual
+ *  file at the package
+ *  root, so both resolve these relative imports to the same shipped
+ *  sources. **/
+export const FUZZ_FORMAT_PREAMBLE = "import type * as TF from './src/formats/index.ts';";
+
+/** The PACKAGE-import twin, for lanes whose fixtures live in a real on-disk
+ *  project with the shipped dist installed (the convert roundtrip lane) — the
+ *  same shipped types, resolved the way a consumer install resolves them. **/
+export const FUZZ_FORMAT_PREAMBLE_PACKAGE = "import type * as TF from '@ts-runtypes/core/formats';";
+
+/** The SCRATCH-DIR twin: enrich / typemod fixtures live in temp dirs where a
+ *  relative './src/...' import cannot resolve, so they carry a local `TF`
+ *  namespace restating ONLY the param brands' raw sentinel encoding (the
+ *  only spellings SCRATCH_FORMAT_LEAVES can render).
+ *
+ *  ⚠️ EXCEPTION, NOT THE RULE. Fuzz fixtures use the real shipped types,
+ *  imported (FUZZ_FORMAT_PREAMBLE above) — restating one is allowed ONLY
+ *  where an import physically cannot resolve, and must be pinned against the
+ *  shipped encoding so drift fails loudly (here:
+ *  scratchFormatPreamble.test.ts). Do not add spellings here to make a new
+ *  leaf reach the scratch lanes; see "Real types, never copies" in
+ *  test/fuzz/README.md. **/
+export const FUZZ_FORMAT_SCRATCH_PREAMBLE = [
+  'namespace TF {',
+  '  type Fmt<Base, Name extends string, Params extends object> = Base & {readonly __rtFormatName?: Name; readonly __rtFormatParams?: Params};',
+  "  export type String<P extends object> = Fmt<string, 'stringFormat', P>;",
+  "  export type Number<P extends object> = Fmt<number, 'numberFormat', P>;",
+  '  export type Integer = Number<{integer: true}>;',
+  '}',
+].join('\n');
+
+/** True when any shape in the generated type renders a `TF.*` spelling —
+ *  format leaves or structural array/record decorations — i.e. exactly when
+ *  the renderers must prepend a format preamble. **/
+export function usesFormatLeaves(gen: GeneratedType): boolean {
+  let found = false;
+  const walk = (shape: TypeShape): void => {
+    if (found) return;
+    if (
+      shape.kind === 'format' ||
+      (shape.kind === 'array' && shape.structural !== undefined) ||
+      (shape.kind === 'record' && shape.structural !== undefined)
+    ) {
+      found = true;
+      return;
+    }
+    childShapes(shape).forEach(walk);
+  };
+  for (const decl of gen.decls) {
+    if (decl.kind === 'interface' || decl.kind === 'class') decl.props.forEach((p) => walk(p.shape));
+    else if (decl.kind === 'type') walk(decl.shape);
+  }
+  walk(gen.root);
+  return found;
+}
+
+/** Every direct child shape of a node (shared by the small walkers here and
+ *  the convert lane's convertibility filter). **/
+export function childShapes(shape: TypeShape): TypeShape[] {
+  switch (shape.kind) {
+    case 'array':
+    case 'set':
+      return [shape.elem];
+    case 'record':
+    case 'promise':
+      return [shape.value];
+    case 'map':
+      return [shape.key, shape.value];
+    case 'tuple':
+      return shape.elems;
+    case 'union':
+    case 'intersection':
+      return shape.members;
+    case 'function':
+      return [...shape.params, shape.ret];
+    case 'object':
+      return [...shape.props.map((p) => p.shape), ...(shape.index ? [shape.index] : [])];
+    default:
+      return [];
+  }
+}
 
 /** The typed-array constructors the generator can emit — a representative
  *  slice (all are non-serialisable `ArrayBufferView`s under DataOnly). **/
@@ -134,6 +600,20 @@ export interface GenOptions {
   /** Generate named decls (interfaces / classes / enums), including recursive
    *  interfaces. **/
   named: boolean;
+  /** Emit the STRUCTURAL format surface: formattedArray / formattedObject
+   *  params on arrays and records. Only id-convergence oracles turn this on —
+   *  the value lanes' generators don't enforce the constraints, so a
+   *  valid-value draw could violate them. **/
+  structuralFormats?: boolean;
+  /** The format leaves this lane may draw (default: all of FORMAT_LEAF_NAMES).
+   *  The scratch-dir lanes pass SCRATCH_FORMAT_LEAVES — the only leaves their
+   *  import-free preamble can spell. **/
+  formatLeafPool?: readonly FormatLeafName[];
+  /** Emit LABELED tuples sometimes (`[k0: A, k1: B]` — every slot named, the
+   *  TS all-or-nothing rule). Labels fold into the structural id, so every
+   *  lane may generate them. The value lanes are unaffected (validation is
+   *  positional). **/
+  tupleLabels?: boolean;
 }
 
 export const WILD_GEN_OPTIONS: GenOptions = {
@@ -143,6 +623,7 @@ export const WILD_GEN_OPTIONS: GenOptions = {
   nonDataTypes: true,
   weirdKeys: true,
   named: true,
+  tupleLabels: true,
 };
 
 /** Serialisable-only preset — the strong value oracles (O1/O2/O5/O6) need clean
@@ -155,6 +636,7 @@ export const DATA_GEN_OPTIONS: GenOptions = {
   nonDataTypes: false,
   weirdKeys: true,
   named: true,
+  tupleLabels: true,
 };
 
 /** DataOnly-contract preset — clean serialisable base PLUS the stripped kinds
@@ -168,6 +650,7 @@ export const NONDATA_GEN_OPTIONS: GenOptions = {
   nonDataTypes: true,
   weirdKeys: true,
   named: true,
+  tupleLabels: true,
 };
 
 // keep DEFAULT pointed at the wild space — the headline behaviour.
@@ -347,11 +830,11 @@ function genParams(ctx: Ctx, depth: number): TypeShape[] {
 export function genShape(ctx: Ctx, depth: number): TypeShape {
   if (depth >= ctx.opts.maxDepth || chance(0.4)) return genLeaf(ctx);
   const builders: Array<() => TypeShape> = [
-    () => ({kind: 'array', elem: genShape(ctx, depth + 1)}),
+    () => withArrayStructural(ctx, {kind: 'array', elem: genShape(ctx, depth + 1)}),
     () => genTuple(ctx, depth),
     () => genObject(ctx, depth),
     () => genUnion(ctx, depth),
-    () => ({kind: 'record', value: genShape(ctx, depth + 1)}),
+    () => withRecordStructural(ctx, {kind: 'record', value: genShape(ctx, depth + 1)}),
   ];
   // Intersections + Map/Set round-trip, so every preset can emit them (the
   // primitive-brand arm inside genIntersection stays gated on `wild`).
@@ -388,6 +871,9 @@ function genLeaf(ctx: Ctx): TypeShape {
     () => ({kind: 'regexp'}),
     () => ({kind: 'undefined'}),
     () => genLiteral(),
+    // Format brands — serialisable (JSON codecs see the base kind) and
+    // validate-relevant.
+    () => ({kind: 'format', name: pick(ctx.opts.formatLeafPool ?? FORMAT_LEAF_NAMES)}),
   ];
   // Broad / edge kinds — adversarial but not "non-data" per se (any/unknown are
   // passthrough; never/void have their own arms). Gated on `wild`.
@@ -421,10 +907,43 @@ function genLiteral(): TypeShape {
   return {kind: 'literal', value: chance(0.5)};
 }
 
+/** Sometimes decorate an array / record with structural params
+ *  (structuralFormats lanes only). Small bounds; the convergence oracle
+ *  never draws values. **/
+function withArrayStructural(ctx: Ctx, shape: TypeShape & {kind: 'array'}): TypeShape {
+  if (!ctx.opts.structuralFormats || !chance(0.3)) return shape;
+  const structural: ArrayStructural = {};
+  if (chance(0.6)) structural.uniqueItems = true;
+  if (chance(0.6)) structural.maxItems = 1 + int(4);
+  // Child-schema slot: the id fold is satisfiability-blind, so contains may
+  // stack with any elem / bound combination (this lane never draws values).
+  if (chance(0.4)) structural.contains = {min: 1 + int(2), ...(chance(0.4) ? {max: 4 + int(3)} : {})};
+  if (structural.uniqueItems === undefined && structural.maxItems === undefined && structural.contains === undefined) {
+    structural.uniqueItems = true;
+  }
+  return {...shape, structural};
+}
+function withRecordStructural(ctx: Ctx, shape: TypeShape & {kind: 'record'}): TypeShape {
+  if (!ctx.opts.structuralFormats || !chance(0.3)) return shape;
+  const structural: ObjectStructural = {};
+  if (chance(0.6)) structural.minProperties = int(3);
+  if (chance(0.6)) structural.maxProperties = 3 + int(4);
+  // Key-constraint sentinels, one at a time (fixed vocabularies).
+  if (chance(0.35)) structural.patternProps = true;
+  else if (chance(0.35)) structural.propNames = true;
+  if (Object.keys(structural).length === 0) structural.minProperties = 1;
+  return {...shape, structural};
+}
+
 function genTuple(ctx: Ctx, depth: number): TypeShape {
   const length = 1 + int(ctx.opts.maxBreadth);
   const elems: TypeShape[] = [];
   for (let i = 0; i < length; i++) elems.push(genShape(ctx, depth + 1));
+  // Labeled tuples label EVERY slot (TS grammar); labels are id data, so the
+  // pipeline must keep same-shape labeled/unlabeled tuples distinct.
+  if (ctx.opts.tupleLabels && chance(1 / 3)) {
+    return {kind: 'tuple', elems, labels: elems.map((_, i) => `k${i}`)};
+  }
   return {kind: 'tuple', elems};
 }
 
@@ -532,6 +1051,35 @@ function renderKey(name: string): string {
   return isIdent(name) ? name : JSON.stringify(name);
 }
 
+// Structural decorations render through the SHIPPED FormattedArray /
+// FormattedObject wrappers (imported via FUZZ_FORMAT_PREAMBLE) — the params
+// bag below is the keyword vocabulary under test, not a restated encoding;
+// the wrappers own the sentinel lowering, so it can never drift from the
+// door's. Key order is fixed so a seed replays byte-identically.
+function arrayStructuralParams(structural: ArrayStructural): string {
+  const parts: string[] = [];
+  if (structural.uniqueItems) parts.push('uniqueItems: true');
+  if (structural.maxItems !== undefined) parts.push(`maxItems: ${structural.maxItems}`);
+  if (structural.contains) {
+    // The pinned plain-number child; min 1 spells NO minContains (the
+    // Contains default on both sides).
+    parts.push('contains: number');
+    if (structural.contains.min > 1) parts.push(`minContains: ${structural.contains.min}`);
+    if (structural.contains.max !== undefined) parts.push(`maxContains: ${structural.contains.max}`);
+  }
+  return `{${parts.join('; ')}}`;
+}
+function recordStructuralParams(structural: ObjectStructural): string {
+  const parts: string[] = [];
+  if (structural.minProperties !== undefined) parts.push(`minProperties: ${structural.minProperties}`);
+  if (structural.maxProperties !== undefined) parts.push(`maxProperties: ${structural.maxProperties}`);
+  // Fixed vocabularies matching the renderSchema twins ('^n_' → number keys;
+  // maxLength-3 key names).
+  if (structural.patternProps) parts.push(`patternProperties: {'^n_': number}`);
+  if (structural.propNames) parts.push('propertyNames: TF.String<{maxLength: 3}>');
+  return `{${parts.join('; ')}}`;
+}
+
 export function renderType(shape: TypeShape): string {
   switch (shape.kind) {
     case 'number':
@@ -554,12 +1102,21 @@ export function renderType(shape: TypeShape): string {
       return 'RegExp';
     case 'literal':
       return typeof shape.value === 'string' ? JSON.stringify(shape.value) : String(shape.value);
-    case 'array':
-      return `Array<${renderType(shape.elem)}>`;
-    case 'tuple':
-      return `[${shape.elems.map(renderType).join(', ')}]`;
-    case 'record':
-      return `Record<string, ${renderType(shape.value)}>`;
+    case 'array': {
+      const text = `Array<${renderType(shape.elem)}>`;
+      if (!shape.structural) return text;
+      return `TF.FormattedArray<${text}, ${arrayStructuralParams(shape.structural)}>`;
+    }
+    case 'tuple': {
+      if (!shape.labels) return `[${shape.elems.map(renderType).join(', ')}]`;
+      const slots = shape.elems.map((elem, i) => `${shape.labels?.[i]}: ${renderType(elem)}`);
+      return `[${slots.join(', ')}]`;
+    }
+    case 'record': {
+      const text = `Record<string, ${renderType(shape.value)}>`;
+      if (!shape.structural) return text;
+      return `TF.FormattedObject<${text}, ${recordStructuralParams(shape.structural)}>`;
+    }
     case 'map':
       return `Map<${renderType(shape.key)}, ${renderType(shape.value)}>`;
     case 'set':
@@ -576,6 +1133,8 @@ export function renderType(shape: TypeShape): string {
       return 'DataView';
     case 'typedarray':
       return shape.name;
+    case 'format':
+      return FORMAT_LEAVES[shape.name].tsText;
     case 'ref':
       return shape.name;
     case 'union':
@@ -630,9 +1189,16 @@ export function renderDecl(decl: Decl): string {
   }
 }
 
-/** Render the decls block + the root type expression for a generated type. **/
-export function renderGenerated(gen: GeneratedType): {decls: string; rootExpr: string} {
-  return {decls: gen.decls.map(renderDecl).join('\n'), rootExpr: renderType(gen.root)};
+/** Render the decls block + the root type expression for a generated type.
+ *  When the type carries format / structural shapes, the decls block LEADS
+ *  with the import preamble (the shipped brands), so every
+ *  resolver lane's `${decls}` interpolation stays correct with no per-harness
+ *  wiring. Scratch-dir lanes render their own decls with
+ *  FUZZ_FORMAT_SCRATCH_PREAMBLE instead. **/
+export function renderGenerated(gen: GeneratedType, preamble: string = FUZZ_FORMAT_PREAMBLE): {decls: string; rootExpr: string} {
+  const decls = gen.decls.map(renderDecl).join('\n');
+  const withPreamble = usesFormatLeaves(gen) ? `${preamble}\n${decls}` : decls;
+  return {decls: withPreamble, rootExpr: renderType(gen.root)};
 }
 
 /** Short human-readable summary for titles / logs. **/
@@ -647,7 +1213,7 @@ export function describeShape(shape: TypeShape, depth = 0): string {
     case 'array':
       return `${describeShape(shape.elem, depth + 1)}[]`;
     case 'tuple':
-      return `[${shape.elems.map((s) => describeShape(s, depth + 1)).join(',')}]`;
+      return `[${shape.labels ? 'lbl:' : ''}${shape.elems.map((s) => describeShape(s, depth + 1)).join(',')}]`;
     case 'object':
       return `{${shape.props.length}${shape.index ? '+idx' : ''}}`;
     case 'record':
@@ -666,6 +1232,8 @@ export function describeShape(shape: TypeShape, depth = 0): string {
       return `(${shape.members.map((s) => describeShape(s, depth + 1)).join('&')})`;
     case 'literal':
       return typeof shape.value === 'string' ? `'${shape.value}'` : String(shape.value);
+    case 'format':
+      return `F:${shape.name}`;
     case 'ref':
       return shape.name;
     default:

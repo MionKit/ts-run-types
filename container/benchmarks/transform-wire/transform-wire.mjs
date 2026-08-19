@@ -1,5 +1,4 @@
-// Transform-wire benchmark — 'go' vs 'edits' transform mode, the choice
-// docs/todos/transform-wire-modes.md exists to settle on DATA.
+// Transform-wire benchmark — 'go' vs 'edits' transform mode, settled on DATA.
 //
 // 'go' mode: the resolver applies the rewrite and ships the whole rewritten
 // file + source map per file. 'edits' mode: it ships the raw edit list
@@ -14,6 +13,13 @@
 //   - request count.
 // 'go' is measured twice — with and without the sourcesContent map trim — since
 // eliding it is the cheap milestone-0 win that narrows the comparison.
+//
+// RE-BASELINE (protocol startup-config audit): request wire sizes dropped by
+// the `outDir` + `omitSourcesContent` bytes that used to ride EVERY transform
+// request — both are spawn config now. The trim itself became a session flag,
+// so each mode's client is constructed with it rather than passing it per call.
+// Numbers recorded before that change read a few bytes high on the request side;
+// response sizes and timings are unaffected.
 //
 // Reusable both ways: `node transform-wire/transform-wire.mjs` on the host (the
 // binary + built ts-runtypes-devtools resolve locally) and in the bench container
@@ -48,17 +54,36 @@ const {applyEdits, sourceHash} = await distImport('apply-edits.js');
 
 const RT_BINARY = process.env.RT_BINARY ?? argOf('--binary') ?? path.join(COMPETITOR_DIR, 'bin', 'ts-runtypes');
 
-// Ambient marker declaration so the corpus resolves 'ts-runtypes' without any
-// node_modules — keeps the harness self-contained on host and in-container.
-const RUNTYPES_DTS = `declare module '@ts-runtypes/core' {
-  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
-  export type CompTimeFnArgs<T> = T & {readonly __rtCompTimeFnArgsBrand?: never};
-  export type InjectTypeFnArgs<T, F1 extends string, F2 extends string = never, F3 extends string = never> = string & {readonly __rtInjectTypeFnArgsBrand?: T; readonly __rtInjectTypeFnArgsFns?: [F1, F2, F3]};
-  export function getRunTypeId<T>(value?: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export type ValidateFn = (value: unknown) => boolean;
-  export function createValidateFn<T>(val?: T, options?: CompTimeFnArgs<{noLiterals?: boolean}>, id?: InjectTypeFnArgs<T, 'val'>): ValidateFn;
+// The REAL marker package (package.json + built dist .d.ts tree) as virtual
+// node_modules sources, so the corpus resolves '@ts-runtypes/core' exactly the
+// way a consumer install does — no hand-written stand-in to drift. Candidates
+// cover both postures: in the container the bench mounts the package at
+// COMPETITOR_DIR/node_modules/@ts-runtypes/core; on the host --pkg points at
+// packages/ts-runtypes-devtools, whose sibling directory is the package.
+const MARKER_PKG_DIR = [
+  path.join(COMPETITOR_DIR, 'node_modules', '@ts-runtypes', 'core'),
+  path.resolve(PKG_ROOT, '..', 'core'),
+  path.resolve(PKG_ROOT, '..', 'ts-runtypes'),
+].find((dir) => fs.existsSync(path.join(dir, 'package.json')));
+if (!MARKER_PKG_DIR) {
+  console.error('transform-wire: cannot locate the @ts-runtypes/core package (looked next to COMPETITOR_DIR and --pkg)');
+  process.exit(1);
 }
-`;
+const MARKER_OVERLAY = (() => {
+  const files = {
+    'node_modules/@ts-runtypes/core/package.json': fs.readFileSync(path.join(MARKER_PKG_DIR, 'package.json'), 'utf8'),
+  };
+  const walk = (dir, rel) => {
+    for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), `${rel}${entry.name}/`);
+      else if (entry.name.endsWith('.d.ts')) {
+        files[`node_modules/@ts-runtypes/core/dist/${rel}${entry.name}`] = fs.readFileSync(path.join(dir, entry.name), 'utf8');
+      }
+    }
+  };
+  walk(path.join(MARKER_PKG_DIR, 'dist'), '');
+  return files;
+})();
 
 // ── corpus ───────────────────────────────────────────────────────────────────
 // One file = `filler` comment lines (to grow file size independently of site
@@ -80,7 +105,7 @@ function genFile(fileIndex, sites, filler) {
 }
 
 function genCorpus({files, sites, filler}) {
-  const sources = {'runtypes.d.ts': RUNTYPES_DTS};
+  const sources = {...MARKER_OVERLAY};
   const names = [];
   for (let f = 0; f < files; f++) {
     const name = `corpus/file_${f}.ts`;
@@ -118,7 +143,7 @@ const MODES = [
 async function transformFile(client, mode, file, source) {
   if (mode.emitEdits) {
     const t0 = process.hrtime.bigint();
-    const resp = await client.transform([file], undefined, {emitEdits: true});
+    const resp = await client.transform([file], {emitEdits: true});
     const rtMs = Number(process.hrtime.bigint() - t0) / 1e6;
     const fr = resp.transformed[file];
     if (!fr) return {rtMs, applyMs: 0};
@@ -127,7 +152,7 @@ async function transformFile(client, mode, file, source) {
     return {rtMs, applyMs: Number(process.hrtime.bigint() - t1) / 1e6};
   }
   const t0 = process.hrtime.bigint();
-  await client.transform([file], undefined, mode.omitSourcesContent ? {omitSourcesContent: true} : undefined);
+  await client.transform([file]);
   return {rtMs: Number(process.hrtime.bigint() - t0) / 1e6, applyMs: 0};
 }
 
@@ -142,7 +167,12 @@ const median = (xs) => {
 const round2 = (n) => Math.round(n * 100) / 100;
 
 async function runMode(mode, names, sources) {
-  const client = new ResolverClient(RT_BINARY, COMPETITOR_DIR, '', {serverMode: true});
+  // The sourcesContent trim is SESSION config (--omit-sources-content), so it
+  // rides client construction — one spawn per mode, which this loop already did.
+  const client = new ResolverClient(RT_BINARY, COMPETITOR_DIR, '', {
+    serverMode: true,
+    ...(mode.omitSourcesContent ? {omitSourcesContent: true} : {}),
+  });
   try {
     await client.setSources(sources);
     // Warm-up pass (discarded): first-touch scan + type interning per file.

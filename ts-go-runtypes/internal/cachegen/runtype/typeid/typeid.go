@@ -3,9 +3,13 @@
 // (ref: packages/run-types/src/lib/typeId.ts) so two structurally-equal types
 // (identical kind + identical children, regardless of alias name) produce the
 // same string. Atomic kinds are just `String(kind)`; collections compose
-// `${kind}{c1,c2,…}`; cycles emit a back-ref token `$<kind>_<i>:<structuralSig>`
-// — anchored on the cycle target's STRUCTURE (not its declaration), so
-// structurally-identical recursive types converge regardless of name/position.
+// `${kind}{c1,c2,…}`; cyclic clusters are CANONICALIZED (canonicalize.go):
+// partition refinement over per-member templates yields the bisimulation
+// quotient, and each block's id is a deterministic rooted unroll whose
+// back-edges are bare `$<kind>_<relDepth>` tokens relative to the emission
+// stack — so the id is a function of the type's bisimulation class alone,
+// independent of walk entry point, checker node interning, and union member
+// order.
 //
 // Output is fed into `internal/cachegen/hashid.Dict.Unique` to produce the short hash
 // id that travels on the wire.
@@ -19,7 +23,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // Computer is the stateful walker. Memoises results on *checker.Type pointer
@@ -29,6 +33,42 @@ type Computer struct {
 	typeChecker *checker.Checker
 	cache       map[*checker.Type]string
 	stack       []*checker.Type
+	// lowlinks parallels stack: lowlinks[i] is the shallowest stack index any
+	// cycle token minted inside frame i's open interval targets (own index when
+	// none). A frame that pops with lowlinks[i] < i composed a string whose
+	// back-edge tokens dangle ABOVE it — the `$<kind>_<relDepth>` depths are
+	// meaningful only at this exact stack position, so the string must never
+	// enter the pointer cache: a later cache hit at a different depth would
+	// splice a relative depth baked elsewhere (the interned-vs-cloned shared
+	// recursive container divergence). Frames whose tokens all close at or
+	// below themselves are position-independent and cache as before.
+	lowlinks []int
+	// cycleTargets parallels stack: true when some back-edge minted inside the
+	// frame's open interval TARGETS it. The lowlink alone cannot mark a direct
+	// self-loop's root (the token's target IS the top frame, so no lowering
+	// happens), and a frame that pops cacheable AND targeted is an SCC root —
+	// the trigger for canonicalization.
+	cycleTargets []bool
+	// pendingMarks parallels stack: len(pending) at push time. pending collects
+	// every pointer popped UNCACHEABLE (a cycle-interior node); the SCC root's
+	// pop consumes its segment (pending[mark:]) as the cluster membership.
+	// Nested disjoint SCCs consume their own segments first, so marks nest
+	// LIFO; a cacheable non-root pop always finds its segment empty (an
+	// unconsumed entry would have poisoned this frame's lowlink).
+	pendingMarks []int
+	pending      []*checker.Type
+	// templating, when non-nil, redirects Compute for in-cluster children to
+	// slot placeholders (canonicalize.go) — the template-extraction re-walk.
+	templating *clusterState
+	// alias maps a block's COMPOSITION SPELLING (its template with every slot
+	// substituted by the target block's full canonical id — exactly what an
+	// acyclic parent pointing into the cluster composes as its dispatch base)
+	// to the block's canonical ids. An entry container that sits OUTSIDE the
+	// pointer-SCC (the interned `Array<N0>` under `Record<string, N0[]>`) is
+	// bisimilar to a cluster block but never triggers canonicalization itself;
+	// the alias probe at its cacheable pop remaps it, which is what makes the
+	// two authoring forms of such roots converge.
+	alias map[string]aliasEntry
 	// depthExceeded latches when Compute hits maxWalkDepth on this computer's
 	// stack — a type graph that instantiates a fresh *checker.Type per level
 	// (defeating the pointer cycle guard) or is genuinely unbounded. The walk
@@ -41,12 +81,14 @@ type Computer struct {
 	// SELF-INSTANTIATING GENERIC — surfaced as MKR009 naming the type), or ""
 	// when no single named type dominates (plain too-deep nesting — MKR008).
 	depthCulprit string
-	// bareCycles makes cycleRef emit a name-free `$<kind>_<index>` token (no
-	// structural anchor). Used only by the sub-walk that COMPUTES the structural
-	// anchor, to terminate without infinite recursion.
-	bareCycles bool
-	// sigCache memoises structuralSignature per recursive type.
-	sigCache map[*checker.Type]string
+	// walkOps counts Compute's real expansions (cache-missing, non-cycle
+	// dispatches) since the last ResetDepthExceeded. The depth cap alone cannot
+	// bound a graph that mints a fresh *checker.Type per member query at SHALLOW
+	// depth (tsgo's error-recovered parse of a truncated source reaches this): no
+	// pointer repeats, so the cache never hits and every subtree re-expands per
+	// query — bounded depth, exponential time. maxWalkOps latches the same
+	// discard-and-diagnose path as the depth cap.
+	walkOps int
 	// overrides folds `overrideX<T>(pureFn)` registrations into the structural
 	// id. Keyed by a node's BASE structural key (children's overrides already
 	// folded, this node's own NOT yet) → family op key → cfn body hash. When a
@@ -76,6 +118,12 @@ func NewWithOverrides(typeChecker *checker.Checker, overrides map[string]map[str
 // no computable structural id changes.
 const maxWalkDepth = 512
 
+// maxWalkOps caps one top-level walk's TOTAL expansions (see walkOps). A
+// legitimate walk expands each distinct node once (the pointer cache holds), so
+// even monster types sit orders of magnitude below this; only a walk whose
+// pointers never repeat can reach it, and such a walk never terminates usefully.
+const maxWalkOps = 1_000_000
+
 // depthSentinel is the deterministic string Compute returns at maxWalkDepth. It
 // never ships as a real id: the cache layer detects the depthExceeded flag and
 // raises a diagnostic instead of committing a node. The value only needs to be
@@ -95,46 +143,105 @@ func (computer *Computer) DepthCulprit() string { return computer.depthCulprit }
 func (computer *Computer) ResetDepthExceeded() {
 	computer.depthExceeded = false
 	computer.depthCulprit = ""
+	computer.walkOps = 0
 }
 
 // Compute returns the structural id of tsType. Safe to call repeatedly with
 // the same Computer — results are cached.
 func (computer *Computer) Compute(tsType *checker.Type) string {
 	if tsType == nil {
-		return strconv.Itoa(int(protocol.KindNever))
+		return strconv.Itoa(int(reflection.KindNever))
+	}
+	// A latched walk is already doomed — its ids are discarded and the site
+	// diagnosed (MKR008/MKR009) — so composing more text is pure waste, and on
+	// a fresh-type-minting graph EXPONENTIAL waste: unwind immediately.
+	if computer.depthExceeded {
+		return depthSentinel
+	}
+	// Template-extraction re-walk (canonicalize.go): an in-cluster child
+	// resolves to a slot placeholder instead of text, so ONE check here covers
+	// every child-resolution site in dispatch and its helpers.
+	if st := computer.templating; st != nil {
+		if slot, ok := st.slotOf[tsType]; ok {
+			return slotMark(slot)
+		}
+	}
+	// Cycle first, cache second: a node can be BOTH cached and on the live
+	// stack when a completed walk cached it and a later re-entrant walk
+	// (BaseStructuralKey at override-stamp time) pushes it again — the cached
+	// FINAL id must not stand in for the back-edge, or the re-entrant walk
+	// composes a different base key than the fold pass did. On ordinary walks a
+	// node is never both (the cache is written only at pop), so the order costs
+	// nothing.
+	if index := computer.stackIndex(tsType); index >= 0 {
+		return computer.cycleRef(tsType, index)
 	}
 	if cached, ok := computer.cache[tsType]; ok {
 		return cached
 	}
-	// Cycle: emit back-ref before pushing onto the stack.
-	if index := computer.stackIndex(tsType); index >= 0 {
-		return computer.cycleRef(tsType, index)
-	}
-	// Depth backstop: a graph that instantiates a FRESH *checker.Type on every
+	// Walk backstop: a graph that instantiates a FRESH *checker.Type on every
 	// member query (lib.esnext's IteratorObject family; a self-instantiating
 	// generic; a genuinely unbounded alias) never repeats a pointer, so neither
-	// the cache nor stackIndex ever fires and the recursion would overflow the Go
-	// stack (fatal, uncatchable). len(stack) is the live recursion depth, so cap
-	// it here — after the cheap cache/cycle returns, before the push. The flag is
-	// authoritative; the sentinel only keeps sink-less walks deterministic, and is
-	// deliberately NOT cached so the same pointer reached at a shallower depth
-	// elsewhere can still compute a real id.
-	if len(computer.stack) >= maxWalkDepth {
+	// the cache nor stackIndex ever fires. Deep spirals would overflow the Go
+	// stack (fatal, uncatchable) — maxWalkDepth caps the live recursion depth.
+	// SHALLOW fresh-minting graphs (tsgo's error-recovered parse of a truncated
+	// source) instead re-expand every subtree per query — bounded depth,
+	// exponential time — so maxWalkOps caps the walk's total expansions. Both
+	// checks sit here, after the cheap cache/cycle returns, before the push. The
+	// flag is authoritative; the sentinel only keeps sink-less walks
+	// deterministic and is never cached — once the latch is set, the entry check
+	// above unwinds every remaining Compute immediately (the walk's ids are
+	// discarded and the site diagnosed, so nothing needs a real id after it).
+	computer.walkOps++
+	if len(computer.stack) >= maxWalkDepth || computer.walkOps >= maxWalkOps {
 		if !computer.depthExceeded {
 			computer.depthExceeded = true
 			computer.depthCulprit = computer.classifySpiral()
 		}
 		return depthSentinel
 	}
-	computer.stack = append(computer.stack, tsType)
+	computer.pushFrame(tsType)
 	base := computer.dispatch(tsType)
-	computer.stack = computer.stack[:len(computer.stack)-1]
+	cacheable, wasTarget, mark := computer.popFrame()
+	if !cacheable {
+		// Cycle interior — this raw text is only meaningful at the current
+		// stack position; it composes into text that the SCC root's pop
+		// discards. Record the pointer so the root's canonicalization includes
+		// it in the cluster. No override fold (doomed text).
+		computer.pending = append(computer.pending, tsType)
+		return base
+	}
+	if wasTarget && !computer.depthExceeded {
+		// SCC root: replace the raw entry-dependent unroll with the canonical
+		// cluster emission; canonicalizeCluster caches every member.
+		return computer.canonicalizeCluster(tsType, mark, base).final
+	}
 	// Fold this node's own override suffix AFTER dispatch: `base` already has
 	// children's suffixes (composed via their Compute calls), and the override
-	// map is keyed by exactly this base key. The cache stores the FINAL (folded)
-	// key so parents compose it.
-	id := base + computer.overrideSuffix(base)
-	computer.cache[tsType] = id
+	// map is keyed by exactly this base key. The alias probe first: a node whose
+	// base equals a canonical block's composition spelling is bisimilar to that
+	// block (an entry container outside the pointer-SCC) and must take the
+	// block's id, or bisimilar roots composed through it would diverge.
+	if entry, ok := computer.alias[base]; ok {
+		return computer.commitCache(tsType, entry.final)
+	}
+	return computer.commitCache(tsType, base+computer.overrideSuffix(base))
+}
+
+// commitCache writes the pop-time pointer-cache entry and returns id, EXCEPT
+// while the depth latch is set. The sentinel itself is never cached, but an
+// ANCESTOR of the frame that returned it composes the sentinel into its own
+// text, and the latch is cleared per top-level walk (ResetDepthExceeded) — so
+// without this gate a later, non-latching walk could cache-hit that ancestor
+// and commit a `$depth`-poisoned structural string as a real id, with no
+// diagnostic. Skipping the write is a safe overapproximation: frames popped
+// BEFORE the latch cannot contain the sentinel (they only lose a cache entry,
+// and recompute identically), and a walk that latches is discarded and
+// diagnosed anyway (MKR008 / MKR009 via assignID).
+func (computer *Computer) commitCache(tsType *checker.Type, id string) string {
+	if !computer.depthExceeded {
+		computer.cache[tsType] = id
+	}
 	return id
 }
 
@@ -145,6 +252,43 @@ func (computer *Computer) stackIndex(tsType *checker.Type) int {
 		}
 	}
 	return -1
+}
+
+// pushFrame opens a walk frame: all parallel slices move together (every
+// pusher must use this — a stack-only push desyncs the others and the
+// pop-time propagation would index past their ends).
+func (computer *Computer) pushFrame(tsType *checker.Type) {
+	computer.stack = append(computer.stack, tsType)
+	computer.lowlinks = append(computer.lowlinks, len(computer.stack)-1)
+	computer.cycleTargets = append(computer.cycleTargets, false)
+	computer.pendingMarks = append(computer.pendingMarks, len(computer.pending))
+}
+
+// popFrame closes the top frame. cacheable reports whether the composed
+// string is position-independent (every cycle token minted beneath it closed
+// at or below the frame itself); wasTarget whether some back-edge targeted
+// this frame (cacheable && wasTarget = an SCC root, the canonicalization
+// trigger); mark is the frame's pending watermark (the root's cluster is
+// pending[mark:]). When a token still dangles above, the escape propagates
+// into the parent frame's lowlink; a frame whose lowlink equals its own index
+// is a self-contained cycle root and must NOT propagate (its string closes
+// here — poisoning the parent would needlessly stop it caching).
+func (computer *Computer) popFrame() (cacheable bool, wasTarget bool, mark int) {
+	top := len(computer.stack) - 1
+	low := computer.lowlinks[top]
+	wasTarget = computer.cycleTargets[top]
+	mark = computer.pendingMarks[top]
+	computer.stack = computer.stack[:top]
+	computer.lowlinks = computer.lowlinks[:top]
+	computer.cycleTargets = computer.cycleTargets[:top]
+	computer.pendingMarks = computer.pendingMarks[:top]
+	if low >= top {
+		return true, wasTarget, mark
+	}
+	if top > 0 {
+		computer.lowlinks[top-1] = min(computer.lowlinks[top-1], low)
+	}
+	return false, wasTarget, mark
 }
 
 // classifySpiral names the depth cap's CAUSE: when instantiations of one named
@@ -214,50 +358,27 @@ func (computer *Computer) cycleRef(tsType *checker.Type, index int) string {
 	// (distinct *checker.Type pointers first reached at different depths) used to
 	// get different back-edge tokens and thus different ids. Relative depth is a
 	// structural quantity, so the two authoring paths converge.
+	//
+	// The token is BARE — no structural anchor. Raw-walk text containing tokens
+	// never survives: it is discarded when the SCC root's pop replaces it with
+	// the canonical cluster emission (canonicalize.go), whose own tokens are
+	// depth-relative within the canonical emission stack and need no anchor
+	// either (the quotient already separates distinct shapes). A token is always
+	// followed by a composition delimiter (`,` `}` `]` `?` `...` or end), never
+	// a digit, so `$30_2` cannot prefix-collide with `$30_21`.
 	relDepth := len(computer.stack) - index
-	base := "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(relDepth)
-	// The sub-walk that computes the structural anchor uses bare tokens to
-	// terminate; everyone else anchors on the cycle target's STRUCTURE.
-	if computer.bareCycles {
-		return base
+	// Every frame between the back-edge and its target composes a string that is
+	// only meaningful at its current stack position — record the escape on the
+	// top frame so popFrame keeps those strings out of the pointer cache, and
+	// mark the TARGET frame so its pop triggers canonicalization (the lowlink
+	// alone cannot mark a direct self-loop's root: the target IS the top frame,
+	// so no lowering happens). Lives here (not in Compute) so BaseStructuralKey's
+	// cycle path registers both too.
+	if top := len(computer.lowlinks) - 1; top >= 0 && index < computer.lowlinks[top] {
+		computer.lowlinks[top] = index
 	}
-	// Anchor the back-edge on the cycle target's STRUCTURE, not its declaration.
-	// Two structurally-identical recursive types therefore share one id — correct
-	// dedup (identical shape ⇒ identical validator) AND it lets a value-first
-	// `circular((self) => …)` schema (an anonymous `Recursive<Body>`) converge with
-	// the equivalent type-first recursive type. A purely undifferentiated token
-	// (`$<kind>_<index>`) is NOT enough — distinct recursive shapes that share a
-	// cycle position would then collide and the renderer would wire the wrong
-	// child (the "shadowing" the tuple-slot case `[bigint, Foo?]` hit). The
-	// structural signature keeps distinct shapes distinct while merging identical
-	// ones.
-	return base + ":" + computer.structuralSignature(tsType)
-}
-
-// structuralSignature returns a name-free hash of tsType's SHAPE, used as the
-// cycle back-edge anchor. Computed by a fresh sub-walk with bare cycle tokens
-// (so it terminates); memoised per type. Structurally-equal recursive types
-// produce the same signature regardless of how/where they were declared.
-func (computer *Computer) structuralSignature(tsType *checker.Type) string {
-	if computer.sigCache == nil {
-		computer.sigCache = make(map[*checker.Type]string)
-	}
-	if sig, ok := computer.sigCache[tsType]; ok {
-		return sig
-	}
-	sub := &Computer{typeChecker: computer.typeChecker, cache: make(map[*checker.Type]string), bareCycles: true, overrides: computer.overrides}
-	sig := sub.Compute(tsType)
-	// A depth-cap hit in the sub-walk must not yield a silently-truncated outer
-	// id: propagate the latch (and its classified cause) so the cache layer
-	// still raises the diagnostic.
-	if sub.depthExceeded {
-		computer.depthExceeded = true
-		if computer.depthCulprit == "" {
-			computer.depthCulprit = sub.depthCulprit
-		}
-	}
-	computer.sigCache[tsType] = sig
-	return sig
+	computer.cycleTargets[index] = true
+	return "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(relDepth)
 }
 
 func (computer *Computer) dispatch(tsType *checker.Type) string {
@@ -269,7 +390,7 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 		flags&checker.TypeFlagsNumberLiteral != 0 ||
 		flags&checker.TypeFlagsBooleanLiteral != 0 ||
 		flags&checker.TypeFlagsBigIntLiteral != 0 {
-		return strconv.Itoa(int(kind)) + ":" + literalString(tsType, computer.typeChecker)
+		return strconv.Itoa(int(kind)) + ":" + computer.lit(literalString(tsType, computer.typeChecker))
 	}
 
 	// Unique symbol literal — also a literal kind in the reflection model,
@@ -279,16 +400,16 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 		if symbol := tsType.Symbol(); symbol != nil {
 			name = symbol.Name
 		}
-		return strconv.Itoa(int(kind)) + ":sym:" + name
+		return strconv.Itoa(int(kind)) + ":sym:" + computer.lit(name)
 	}
 
 	// Atomic primitives — id is just the kind number.
 	switch kind {
-	case protocol.KindAny, protocol.KindUnknown, protocol.KindNever, protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol, protocol.KindObject,
-		protocol.KindRegexp:
+	case reflection.KindAny, reflection.KindUnknown, reflection.KindNever, reflection.KindVoid,
+		reflection.KindNull, reflection.KindUndefined,
+		reflection.KindString, reflection.KindNumber, reflection.KindBoolean,
+		reflection.KindBigInt, reflection.KindSymbol, reflection.KindObject,
+		reflection.KindRegexp:
 		return strconv.Itoa(int(kind))
 	}
 
@@ -299,7 +420,7 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 	// with the bare-kind id because each enum is handed a distinct Type object
 	// per declaration at runtime — we have to dedup ourselves.)
 	if flags&checker.TypeFlagsEnum != 0 || flags&checker.TypeFlagsEnumLike != 0 || flags&checker.TypeFlagsEnumLiteral != 0 {
-		return strconv.Itoa(int(protocol.KindEnum)) + ":" + enumDiscriminator(tsType, computer.typeChecker)
+		return strconv.Itoa(int(reflection.KindEnum)) + ":" + computer.lit(enumDiscriminator(tsType, computer.typeChecker))
 	}
 
 	// Template literal — id captures the literal text segments + the
@@ -311,13 +432,13 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 			texts := tpl.Texts()
 			spanIDs := computer.childIDs(tpl.Types())
 			var b strings.Builder
-			b.WriteString(strconv.Itoa(int(protocol.KindTemplateLiteral)))
+			b.WriteString(strconv.Itoa(int(reflection.KindTemplateLiteral)))
 			b.WriteString(":tl:")
 			for i, text := range texts {
 				if i > 0 {
 					b.WriteByte('|')
 				}
-				b.WriteString(text)
+				b.WriteString(computer.lit(text))
 			}
 			b.WriteByte('#')
 			for i, id := range spanIDs {
@@ -338,9 +459,9 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 		// `A | B | …` even when tsgo computes the two in different member orders, and
 		// dedups `A | B` with `B | A`. Runtime member precedence is unaffected — it's
 		// driven by node.Children downstream (union_safeorder.go), not by this id.
-		unionIDs := computer.childIDs(tsType.Distributed())
-		sort.Strings(unionIDs)
-		return collectionID(int(kind), unionIDs, false)
+		members := tsType.Distributed()
+		unionIDs := computer.childIDs(members)
+		return collectionJoined(int(kind), computer.sortedJoin(unionIDs), false)
 	}
 	if flags&checker.TypeFlagsIntersection != 0 {
 		return computer.collapsedIntersectionID(tsType)
@@ -355,73 +476,88 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 	return strconv.Itoa(int(kind))
 }
 
+// tupleID folds a tuple type's id — bracket-delimited child list per the
+// reference algorithm, with each element's variadic FLAGS (rest / variadic)
+// folded in. The reference RT-compiles per call so a rest tail and a fixed
+// slot never share a runtime Type; our AOT cache is project-global, so
+// without the flag a rest tuple `[number, ...string[]]` and a fixed tuple
+// `[number, string]` both reduce to `Tuple[<number>,<string>]`, collide on a
+// single cache slot, and the (nondeterministically chosen) winner gives one
+// of them the wrong validator. Mirrors the flag handling in
+// internal/cachegen/runtype/serialize.go:projectTuple.
+//
+// Element LABELS fold into the id too (`[s: string]` → `Tuple[s:5]`,
+// unlabeled `[string]` stays `Tuple[5]`): canonical nodes are shared
+// singletons and the projected node carries `children[].name`, so two
+// same-shape tuples differing only in labels MUST NOT collapse — the
+// first-interned site's labels would win for both (scan-order
+// nondeterminism; the mion route-param-names bug). This is the
+// canonical-node rule applied to identity: label data lives on the
+// node, so the label is part of what the node IS. Labeled `Parameters<H>`
+// tuples are exactly how frameworks reflect handler param names.
+//
+// labelOverride (one entry per element) substitutes the declaration labels —
+// how the lifted `__rtLabels` sentinel folds the value-first object form onto
+// the type-first labeled tuple's id. nil reads the ElementInfos labels.
+func (computer *Computer) tupleID(tsType *checker.Type, labelOverride []string) string {
+	typeArguments := computer.typeChecker.GetTypeArguments(tsType)
+	elementInfos := tsType.TargetTupleType().ElementInfos()
+	ids := make([]string, 0, len(typeArguments))
+	for i, typeArgument := range typeArguments {
+		optional, rest, variadic := false, false, false
+		label := ""
+		if i < len(elementInfos) {
+			elementFlags := elementInfos[i].TupleElementFlags()
+			optional = elementFlags&checker.ElementFlagsOptional != 0
+			rest = elementFlags&checker.ElementFlagsRest != 0
+			variadic = elementFlags&checker.ElementFlagsVariadic != 0
+			label = TupleElementLabel(elementInfos[i])
+		}
+		if i < len(labelOverride) {
+			label = labelOverride[i]
+		}
+		// Optional tuple slots type as `T | undefined`; strip it so the slot id
+		// matches the projected node (serialize.go projectTuple does the same).
+		// Tuple slots carry no memberID/optBit (unlike object props / params), so
+		// the `?` suffix keeps optionality in the id — otherwise `[T, U?]` and
+		// `[T, U]` collide (the `|undefined` used to encode it implicitly, before
+		// the strip). Rest reuses TS's `...`; variadic keeps a distinct
+		// `#variadic` marker since it can't share `...` with rest.
+		var child string
+		if optional {
+			child = computer.optionalChildID(typeArgument) + "?"
+		} else {
+			child = computer.Compute(typeArgument)
+		}
+		if rest {
+			child += "..."
+		}
+		if variadic {
+			child += "#variadic"
+		}
+		if label != "" {
+			child = computer.lit(label) + ":" + child
+		}
+		ids = append(ids, child)
+	}
+	return collectionID(int(reflection.KindTuple), ids, true)
+}
+
 func (computer *Computer) objectID(tsType *checker.Type) string {
 	if checker.IsTupleType(tsType) {
-		// Tuple — bracket-delimited child list per the reference algorithm, with
-		// each element's variadic FLAGS (rest / variadic) folded into the id.
-		// The reference RT-compiles per call so a rest tail and a fixed slot
-		// never share a runtime Type; our AOT cache is project-global, so
-		// without the flag a rest tuple `[number, ...string[]]` and a fixed
-		// tuple `[number, string]` both reduce to `Tuple[<number>,<string>]`,
-		// collide on a single cache slot, and the (nondeterministically chosen)
-		// winner gives one of them the wrong validator. Mirrors the flag
-		// handling in internal/cachegen/runtype/serialize.go:projectTuple.
-		//
-		// Element LABELS fold into the id too (`[s: string]` → `Tuple[s:5]`,
-		// unlabeled `[string]` stays `Tuple[5]`): canonical nodes are shared
-		// singletons and the projected node carries `children[].name`, so two
-		// same-shape tuples differing only in labels MUST NOT collapse — the
-		// first-interned site's labels would win for both (scan-order
-		// nondeterminism; the mion route-param-names bug). This is the
-		// canonical-node rule applied to identity: label data lives on the
-		// node, so the label is part of what the node IS. Labeled `Parameters<H>`
-		// tuples are exactly how frameworks reflect handler param names.
-		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
-		elementInfos := tsType.TargetTupleType().ElementInfos()
-		ids := make([]string, 0, len(typeArguments))
-		for i, typeArgument := range typeArguments {
-			optional, rest, variadic := false, false, false
-			label := ""
-			if i < len(elementInfos) {
-				elementFlags := elementInfos[i].TupleElementFlags()
-				optional = elementFlags&checker.ElementFlagsOptional != 0
-				rest = elementFlags&checker.ElementFlagsRest != 0
-				variadic = elementFlags&checker.ElementFlagsVariadic != 0
-				label = tupleElementLabel(elementInfos[i])
-			}
-			// Optional tuple slots type as `T | undefined`; strip it so the slot id
-			// matches the projected node (serialize.go projectTuple does the same).
-			// Tuple slots carry no memberID/optBit (unlike object props / params), so
-			// the `?` suffix keeps optionality in the id — otherwise `[T, U?]` and
-			// `[T, U]` collide (the `|undefined` used to encode it implicitly, before
-			// the strip). Rest reuses TS's `...`; variadic keeps a distinct
-			// `#variadic` marker since it can't share `...` with rest.
-			var child string
-			if optional {
-				child = computer.optionalChildID(typeArgument) + "?"
-			} else {
-				child = computer.Compute(typeArgument)
-			}
-			if rest {
-				child += "..."
-			}
-			if variadic {
-				child += "#variadic"
-			}
-			if label != "" {
-				child = label + ":" + child
-			}
-			ids = append(ids, child)
-		}
-		return collectionID(int(protocol.KindTuple), ids, true)
+		return computer.tupleID(tsType, nil)
 	}
 
-	// Array.
-	if computer.typeChecker.IsArrayLikeType(tsType) {
+	// Array. GetTypeArguments only works on TypeReference targets — an
+	// array-LIKE mapped hybrid (e.g. a mapped type over `T[] & {brand}`)
+	// passes IsArrayLikeType with no reference target and would segfault
+	// the checker, so gate on the Reference flag and let non-references
+	// fall through to the member walks.
+	if computer.typeChecker.IsArrayLikeType(tsType) && tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 		if len(typeArguments) > 0 {
 			child := computer.Compute(typeArguments[0])
-			return memberID(int(protocol.KindArray), "0", false, child)
+			return memberID(int(reflection.KindArray), "0", false, child)
 		}
 	}
 
@@ -430,7 +566,7 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 		if len(typeArguments) > 0 {
 			child := computer.Compute(typeArguments[0])
-			return memberID(int(protocol.KindPromise), "0", false, child)
+			return memberID(int(reflection.KindPromise), "0", false, child)
 		}
 	}
 
@@ -448,34 +584,54 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 	if symbol := tsType.Symbol(); symbol != nil {
 		switch symbol.Name {
 		case "Date":
-			return strconv.Itoa(int(protocol.SubKindDate))
+			return strconv.Itoa(int(reflection.SubKindDate))
 		case "Map":
 			if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
 				typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 				if len(typeArguments) == 2 {
-					return strconv.Itoa(int(protocol.SubKindMap)) + "{" +
-						strconv.Itoa(int(protocol.SubKindMapKey)) + ":" + computer.Compute(typeArguments[0]) + "," +
-						strconv.Itoa(int(protocol.SubKindMapValue)) + ":" + computer.Compute(typeArguments[1]) + "}"
+					return strconv.Itoa(int(reflection.SubKindMap)) + "{" +
+						strconv.Itoa(int(reflection.SubKindMapKey)) + ":" + computer.Compute(typeArguments[0]) + "," +
+						strconv.Itoa(int(reflection.SubKindMapValue)) + ":" + computer.Compute(typeArguments[1]) + "}"
 				}
 			}
-			return strconv.Itoa(int(protocol.SubKindMap))
+			return strconv.Itoa(int(reflection.SubKindMap))
 		case "Set":
 			if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
 				typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 				if len(typeArguments) == 1 {
-					return strconv.Itoa(int(protocol.SubKindSet)) + "{" +
-						strconv.Itoa(int(protocol.SubKindSetItem)) + ":" + computer.Compute(typeArguments[0]) + "}"
+					return strconv.Itoa(int(reflection.SubKindSet)) + "{" +
+						strconv.Itoa(int(reflection.SubKindSetItem)) + ":" + computer.Compute(typeArguments[0]) + "}"
 				}
 			}
-			return strconv.Itoa(int(protocol.SubKindSet))
+			return strconv.Itoa(int(reflection.SubKindSet))
 		}
 	}
 	// Non-serialisable globals (Error, WeakMap, typed arrays, …) are tagged
 	// with SubKindNonSerializable and use that as their structural prefix —
-	// matches the `subKind || kind` rule.
-	if symbol := tsType.Symbol(); symbol != nil && protocol.IsNonSerializableSymbol(symbol.Name) {
-		ids := computer.memberIDs(tsType, true)
-		return collectionID(int(protocol.SubKindNonSerializable), ids, false)
+	// matches the `subKind || kind` rule. Identity is the CONSTRUCTOR NAME
+	// (plus any type arguments), never the lib member surface, in lockstep
+	// with projectClass: the projection deliberately stops at
+	// subKind + classRef + Arguments because no consumer walks lib members and
+	// the expanded shape carries "an unstable structural id". Walking them
+	// here made that instability real — a typed array's `subarray()` returns
+	// its own type, and whether the checker hands back the SAME type pointer
+	// (cycle token) or a fresh instantiation (one more unrolled level) depends
+	// on how the type was reached, so `Uint8Array` and `typeof someUint8Array`
+	// hashed differently. It was also no more discriminating: `Error` and
+	// `EvalError` are structurally identical, so the member walk gave them one
+	// shared id anyway.
+	if symbol := tsType.Symbol(); symbol != nil && reflection.IsNonSerializableSymbol(symbol.Name) {
+		id := strconv.Itoa(int(reflection.SubKindNonSerializable))
+		if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
+			if typeArguments := computer.typeChecker.GetTypeArguments(tsType); len(typeArguments) > 0 {
+				// Positional, not sorted — argument ORDER is part of the type.
+				id = collectionJoined(int(reflection.SubKindNonSerializable),
+					strings.Join(computer.childIDs(typeArguments), ","), false)
+			}
+		}
+		// Same `#name` suffix convention as the class branch below: outside the
+		// `{…}` group so it cannot be mistaken for a member.
+		return id + "#" + computer.lit(symbol.Name)
 	}
 	if isClass(tsType) {
 		// Generic user class — composition of property ids (sorted for
@@ -491,12 +647,12 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 		// (TS internal symbol name, 0xFE prefix — same test as `userClassName`)
 		// are never registered, so they keep the nameless structural id.
 		ids := computer.memberIDs(tsType, true)
-		id := collectionID(int(protocol.KindClass), ids, false)
+		id := collectionJoined(int(reflection.KindClass), computer.sortedJoin(ids), false)
 		// Append the class name as an unambiguous suffix outside the `{…}`
 		// member group (a bare `name:` token inside could collide with a
 		// property literally named `name`). `#` never appears in a member id.
 		if symbol := tsType.Symbol(); symbol != nil && symbol.Name != "" && symbol.Name[0] != 0xFE {
-			id += "#" + symbol.Name
+			id += "#" + computer.lit(symbol.Name)
 		}
 		return id
 	}
@@ -507,7 +663,7 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 	callSignatures := computer.typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall)
 	properties := computer.typeChecker.GetPropertiesOfType(tsType)
 	if len(callSignatures) > 0 && len(properties) == 0 {
-		return computer.signatureID(callSignatures[0], protocol.KindFunction, "")
+		return computer.signatureID(callSignatures[0], reflection.KindFunction, "")
 	}
 
 	// objectLiteral — composition of property ids, sorted by name for stability.
@@ -515,31 +671,42 @@ func (computer *Computer) objectID(tsType *checker.Type) string {
 	if len(callSignatures) > 0 {
 		// Embed call signatures alongside members.
 		for _, signature := range callSignatures {
-			ids = append(ids, computer.signatureID(signature, protocol.KindCallSignature, ""))
+			ids = append(ids, computer.signatureID(signature, reflection.KindCallSignature, ""))
 		}
-		sort.Strings(ids)
 	}
-	return collectionID(int(protocol.KindObjectLiteral), ids, false)
+	return collectionJoined(int(reflection.KindObjectLiteral), computer.sortedJoin(ids), false)
 }
 
+// memberIDs returns the member id list UNSORTED — callers compose it through
+// sortedJoin (ordinary walks sort immediately, template walks defer to
+// emission; see canonicalize.go).
 func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string {
 	properties := computer.typeChecker.GetPropertiesOfType(tsType)
 	out := make([]string, 0, len(properties))
 	for _, propertySymbol := range properties {
+		// The format / slot sentinels are never real properties: when an
+		// object ∧ sentinel intersection is hashed through the merged
+		// property walk, the sentinel props must stay out of the member list
+		// (the collapse folds them as a format key / slot fold instead).
+		// Mirrors the serialize-side projectMembersInto skip, which is
+		// symbol-aware (matches the late-bound `unique symbol` spelling too).
+		if IsFormatSentinelPropName(propertySymbol.Name) ||
+			IsContainsSentinelPropName(propertySymbol.Name) || IsLabelsSentinelPropName(propertySymbol.Name) {
+			continue
+		}
 		out = append(out, computer.memberID(propertySymbol, asClass))
 	}
 	for _, indexInfo := range computer.typeChecker.GetIndexInfosOfType(tsType) {
 		keyID := computer.Compute(indexInfo.KeyType())
 		valueID := computer.Compute(indexInfo.ValueType())
-		out = append(out, strconv.Itoa(int(protocol.KindIndexSignature))+":"+keyID+":"+valueID)
+		out = append(out, strconv.Itoa(int(reflection.KindIndexSignature))+":"+keyID+":"+valueID)
 	}
-	sort.Strings(out)
 	return out
 }
 
 func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	propertyType := computer.typeChecker.GetTypeOfSymbol(symbol)
-	memberName := stableMemberName(symbol.Name)
+	memberName := computer.lit(stableMemberName(symbol.Name))
 	// A non-enumerable-guarded member (lib-global-inherited or `@nonEnumerable`)
 	// is treated as optional in the projected shape — the wire may omit it — so
 	// its `optional` id bit folds the guard in, matching the projection
@@ -581,17 +748,17 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	if propertyType != nil {
 		signatures := computer.typeChecker.GetSignaturesOfType(propertyType, checker.SignatureKindCall)
 		if len(signatures) > 0 && len(computer.typeChecker.GetPropertiesOfType(propertyType)) == 0 {
-			kind := protocol.KindMethodSignature
+			kind := reflection.KindMethodSignature
 			if asClass {
-				kind = protocol.KindMethod
+				kind = reflection.KindMethod
 			}
 			return computer.signatureID(signatures[0], kind, memberName) + optBit(optional) + readonlyBit(readonly) + guardedBit(guarded)
 		}
 	}
 
-	kind := protocol.KindPropertySignature
+	kind := reflection.KindPropertySignature
 	if asClass {
-		kind = protocol.KindProperty
+		kind = reflection.KindProperty
 	}
 	// Optional properties carry `T | undefined` at the symbol-type layer; the
 	// `optional` bit IS the "undefined-permitted" signal, so the union wrapper is
@@ -602,10 +769,15 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	// structural id and the projected runtype node disagree on the optional child's
 	// shape, and a recursive optional property's cycle back-edge binds inconsistently
 	// ($23 `T | undefined` wrapper vs $30 object) between the type-first and
-	// value-first authoring paths.
-	child := computer.Compute(propertyType)
+	// value-first authoring paths. The if/else (matching the tuple and signature
+	// paths) matters: an unconditional walk of the raw `T | undefined` wrapper
+	// used to pollute the pointer cache with back-edge depths inflated by the
+	// discarded union frame.
+	var child string
 	if optional {
 		child = computer.optionalChildID(propertyType)
+	} else {
+		child = computer.Compute(propertyType)
 	}
 	return memberID(int(kind), memberName, optional, child) + readonlyBit(readonly) + guardedBit(guarded)
 }
@@ -651,7 +823,7 @@ func guardedBit(guarded bool) string {
 	return ""
 }
 
-func (computer *Computer) signatureID(signature *checker.Signature, kind protocol.ReflectionKind, name string) string {
+func (computer *Computer) signatureID(signature *checker.Signature, kind reflection.ReflectionKind, name string) string {
 	params := signature.Parameters()
 	parts := make([]string, 0, len(params)+1)
 	position := 0
@@ -663,22 +835,33 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 	// stay in the id so the naming is additive; params are behaviour-neutral
 	// (notSupported) but their names are graph DATA.
 	// A trailing FIXED rest-tuple param (`(...args: [a: A, b: B])`, the shape a
-	// value-first `func([a: A, b: B], R)` brands) is expanded into positional
+	// value-first `func({params: [a: A, b: B], ret: R})` brands) is expanded into positional
 	// element params carrying the tuple LABELS as their names, so a labeled
 	// value-first tuple still matches the equivalent written `(a: A, b: B)`.
+	// The `__rtLabels` carrier (`(...args: [A] & {__rtLabels?: ['a']})`, the
+	// shape `func({params: [slot('a', …)], ret: R})` brands) expands the same way with the lifted
+	// labels, so the object form matches the written `(a: A) => R` too.
 	// An UNLABELED value-first tuple expands with empty names and so matches
 	// only other unlabeled forms — sound, just less dedup. (The method/property
 	// NAME — separate from param names — is preserved via the `name` argument
 	// below.)
 	for i, paramSymbol := range params {
 		paramType := computer.typeChecker.GetTypeOfSymbol(paramSymbol)
-		if i == len(params)-1 && isRestParam(paramSymbol) && checker.IsTupleType(paramType) {
-			if elements, ok := computer.fixedTupleParamElements(paramType); ok {
-				for _, element := range elements {
-					parts = append(parts, memberID(int(protocol.KindParameter), paramNameSlot(position, element.label), false, element.id))
-					position++
+		if i == len(params)-1 && isRestParam(paramSymbol) {
+			restTuple, labelOverride := paramType, []string(nil)
+			if !checker.IsTupleType(restTuple) {
+				if carrierTuple, labels, ok := SplitLabeledTupleIntersection(computer.typeChecker, paramType); ok {
+					restTuple, labelOverride = carrierTuple, labels
 				}
-				continue
+			}
+			if checker.IsTupleType(restTuple) {
+				if elements, ok := computer.fixedTupleParamElements(restTuple, labelOverride); ok {
+					for _, element := range elements {
+						parts = append(parts, memberID(int(reflection.KindParameter), paramNameSlot(position, computer.lit(element.label)), false, element.id))
+						position++
+					}
+					continue
+				}
 			}
 		}
 		optional := paramSymbol.Flags&ast.SymbolFlagsOptional != 0
@@ -693,7 +876,7 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 		if isRestParam(paramSymbol) {
 			child += "..."
 		}
-		parts = append(parts, memberID(int(protocol.KindParameter), paramNameSlot(position, paramSymbol.Name), optional, child))
+		parts = append(parts, memberID(int(reflection.KindParameter), paramNameSlot(position, computer.lit(paramSymbol.Name)), optional, child))
 		position++
 	}
 	parts = append(parts, "->"+computer.Compute(computer.typeChecker.GetReturnTypeOfSignature(signature)))
@@ -727,8 +910,10 @@ type tupleParamElement struct {
 // when it is a FIXED tuple (no rest / variadic element). Used to expand a
 // trailing rest-tuple parameter into positional params. Returns ok=false for a
 // tuple carrying a variadic-ish element (a genuine variadic signature), which
-// is kept as a single `...` entry instead.
-func (computer *Computer) fixedTupleParamElements(tupleType *checker.Type) ([]tupleParamElement, bool) {
+// is kept as a single `...` entry instead. labelOverride (one entry per
+// element — the lifted `__rtLabels` sentinel) substitutes the declaration
+// labels; nil reads the ElementInfos labels.
+func (computer *Computer) fixedTupleParamElements(tupleType *checker.Type, labelOverride []string) ([]tupleParamElement, bool) {
 	typeArguments := computer.typeChecker.GetTypeArguments(tupleType)
 	elementInfos := tupleType.TargetTupleType().ElementInfos()
 	elements := make([]tupleParamElement, 0, len(typeArguments))
@@ -739,18 +924,23 @@ func (computer *Computer) fixedTupleParamElements(tupleType *checker.Type) ([]tu
 			if flags&checker.ElementFlagsRest != 0 || flags&checker.ElementFlagsVariadic != 0 {
 				return nil, false
 			}
-			label = tupleElementLabel(elementInfos[i])
+			label = TupleElementLabel(elementInfos[i])
+		}
+		if i < len(labelOverride) {
+			label = labelOverride[i]
 		}
 		elements = append(elements, tupleParamElement{id: computer.Compute(typeArgument), label: label})
 	}
 	return elements, true
 }
 
-// tupleElementLabel extracts a tuple element's declared label (`[s: string]` →
+// TupleElementLabel extracts a tuple element's declared label (`[s: string]` →
 // "s"), or "" when unlabeled. The label lives on the labeled Parameter /
 // NamedTupleMember AST node's inner binding name — mirrors
 // serialize.go:projectTuple and the tsgo checker's getTupleElementLabel.
-func tupleElementLabel(info checker.TupleElementInfo) string {
+// Exported for the serialize side's rest-tuple parameter expansion, whose
+// label reads must match this fold exactly.
+func TupleElementLabel(info checker.TupleElementInfo) string {
 	labelDecl := info.LabeledDeclaration()
 	if labelDecl == nil {
 		return ""
@@ -1001,8 +1191,7 @@ func collapseBooleanPair(typeChecker *checker.Checker, members []*checker.Type) 
 // so a synthesized union and a real one with the same members converge on one id.
 func SyntheticUnionStructural(computer *Computer, members []*checker.Type) string {
 	ids := computer.childIDs(members)
-	sort.Strings(ids)
-	return collectionID(int(protocol.KindUnion), ids, false)
+	return collectionJoined(int(reflection.KindUnion), computer.sortedJoin(ids), false)
 }
 
 // optionalChildID returns the structural id of an optional member's child, with
@@ -1023,92 +1212,92 @@ func (computer *Computer) optionalChildID(childType *checker.Type) string {
 
 // KindOf returns the ReflectionKind that best classifies a tsgo type.
 // Exported because the serializer needs the same classification logic to
-// produce the protocol.RunType.
-func KindOf(typeChecker *checker.Checker, tsType *checker.Type) protocol.ReflectionKind {
+// produce the reflection.RunType.
+func KindOf(typeChecker *checker.Checker, tsType *checker.Type) reflection.ReflectionKind {
 	if tsType == nil {
-		return protocol.KindNever
+		return reflection.KindNever
 	}
 	flags := tsType.Flags()
 	switch {
 	case flags&checker.TypeFlagsAny != 0:
-		return protocol.KindAny
+		return reflection.KindAny
 	case flags&checker.TypeFlagsUnknown != 0:
-		return protocol.KindUnknown
+		return reflection.KindUnknown
 	case flags&checker.TypeFlagsNever != 0:
-		return protocol.KindNever
+		return reflection.KindNever
 	case flags&checker.TypeFlagsVoid != 0:
-		return protocol.KindVoid
+		return reflection.KindVoid
 	case flags&checker.TypeFlagsUndefined != 0:
-		return protocol.KindUndefined
+		return reflection.KindUndefined
 	case flags&checker.TypeFlagsNull != 0:
-		return protocol.KindNull
+		return reflection.KindNull
 	case flags&checker.TypeFlagsStringLiteral != 0,
 		flags&checker.TypeFlagsNumberLiteral != 0,
 		flags&checker.TypeFlagsBooleanLiteral != 0,
 		flags&checker.TypeFlagsBigIntLiteral != 0,
 		flags&checker.TypeFlagsUniqueESSymbol != 0:
-		return protocol.KindLiteral
+		return reflection.KindLiteral
 	case flags&checker.TypeFlagsString != 0:
-		return protocol.KindString
+		return reflection.KindString
 	case flags&checker.TypeFlagsNumber != 0:
-		return protocol.KindNumber
+		return reflection.KindNumber
 	case flags&checker.TypeFlagsBoolean != 0:
-		return protocol.KindBoolean
+		return reflection.KindBoolean
 	case flags&checker.TypeFlagsBigInt != 0:
-		return protocol.KindBigInt
+		return reflection.KindBigInt
 	case flags&checker.TypeFlagsESSymbol != 0:
-		return protocol.KindSymbol
+		return reflection.KindSymbol
 	case flags&checker.TypeFlagsEnum != 0,
 		flags&checker.TypeFlagsEnumLike != 0,
 		flags&checker.TypeFlagsEnumLiteral != 0:
-		return protocol.KindEnum
+		return reflection.KindEnum
 	case flags&checker.TypeFlagsTemplateLiteral != 0:
-		return protocol.KindTemplateLiteral
+		return reflection.KindTemplateLiteral
 	case flags&checker.TypeFlagsUnion != 0:
-		return protocol.KindUnion
+		return reflection.KindUnion
 	case flags&checker.TypeFlagsIntersection != 0:
-		return protocol.KindIntersection
+		return reflection.KindIntersection
 	case flags&checker.TypeFlagsNonPrimitive != 0:
-		return protocol.KindObject
+		return reflection.KindObject
 	case flags&checker.TypeFlagsObject != 0:
 		return objectKind(typeChecker, tsType)
 	}
-	return protocol.KindUnknown
+	return reflection.KindUnknown
 }
 
-func objectKind(typeChecker *checker.Checker, tsType *checker.Type) protocol.ReflectionKind {
+func objectKind(typeChecker *checker.Checker, tsType *checker.Type) reflection.ReflectionKind {
 	if checker.IsTupleType(tsType) {
-		return protocol.KindTuple
+		return reflection.KindTuple
 	}
 	if typeChecker.IsArrayLikeType(tsType) {
-		return protocol.KindArray
+		return reflection.KindArray
 	}
 	// Builtin Temporal types are namespace-member interfaces tsgo reports as
 	// object literals; standard, we treat them as classes (atomic builtins).
 	if _, ok := TemporalInfoForType(tsType); ok {
-		return protocol.KindClass
+		return reflection.KindClass
 	}
 	if symbol := tsType.Symbol(); symbol != nil {
 		switch symbol.Name {
 		case "Promise":
-			return protocol.KindPromise
+			return reflection.KindPromise
 		case "RegExp":
-			return protocol.KindRegexp
+			return reflection.KindRegexp
 		case "Date", "Map", "Set":
 			// Built-in interfaces from lib.d.ts that we treat as classes
 			// (dispatched through initClassRunType in createRunType.ts).
-			return protocol.KindClass
+			return reflection.KindClass
 		}
 	}
 	if isClass(tsType) {
-		return protocol.KindClass
+		return reflection.KindClass
 	}
 	// Free callable with no own properties → reflection function kind.
 	if len(typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall)) > 0 &&
 		len(typeChecker.GetPropertiesOfType(tsType)) == 0 {
-		return protocol.KindFunction
+		return reflection.KindFunction
 	}
-	return protocol.KindObjectLiteral
+	return reflection.KindObjectLiteral
 }
 
 func isClass(tsType *checker.Type) bool {
@@ -1129,10 +1318,17 @@ func isClass(tsType *checker.Type) bool {
 // (e.g. KindTuple) or a ReflectionSubKind (e.g. SubKindNonSerializable)
 // per the `subKind || kind` rule.
 func collectionID(prefix int, children []string, brackets bool) string {
+	return collectionJoined(prefix, strings.Join(children, ","), brackets)
+}
+
+// collectionJoined is collectionID over an already-joined child list — the
+// form the content-sorted composites use so sortedJoin can defer their
+// ordering to canonical emission in template mode.
+func collectionJoined(prefix int, joined string, brackets bool) string {
 	if brackets {
-		return strconv.Itoa(prefix) + "[" + strings.Join(children, ",") + "]"
+		return strconv.Itoa(prefix) + "[" + joined + "]"
 	}
-	return strconv.Itoa(prefix) + "{" + strings.Join(children, ",") + "}"
+	return strconv.Itoa(prefix) + "{" + joined + "}"
 }
 
 func memberID(prefix int, name string, optional bool, child string) string {
@@ -1220,20 +1416,20 @@ func literalString(tsType *checker.Type, typeChecker *checker.Checker) string {
 	return typeChecker.TypeToString(tsType)
 }
 
-// TemporalInfoForType returns the protocol.TemporalInfo for a *checker.Type
+// TemporalInfoForType returns the reflection.TemporalInfo for a *checker.Type
 // that resolves to a builtin Temporal type (e.g. `Temporal.PlainDate`), or
 // ok=false otherwise. Detection is namespace-qualified: the type's symbol
 // name must match a registry entry AND the symbol's parent must be the
 // `Temporal` namespace — so a user type named `PlainDate` (no Temporal
 // parent) never matches. Shared by the serialize-side projector and the
 // structural-id computer so both agree on what a Temporal type is.
-func TemporalInfoForType(tsType *checker.Type) (protocol.TemporalInfo, bool) {
+func TemporalInfoForType(tsType *checker.Type) (reflection.TemporalInfo, bool) {
 	if tsType == nil {
-		return protocol.TemporalInfo{}, false
+		return reflection.TemporalInfo{}, false
 	}
 	symbol := tsType.Symbol()
-	if symbol == nil || symbol.Parent == nil || symbol.Parent.Name != protocol.TemporalNamespace {
-		return protocol.TemporalInfo{}, false
+	if symbol == nil || symbol.Parent == nil || symbol.Parent.Name != reflection.TemporalNamespace {
+		return reflection.TemporalInfo{}, false
 	}
-	return protocol.TemporalInfoByName(symbol.Name)
+	return reflection.TemporalInfoByName(symbol.Name)
 }

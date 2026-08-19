@@ -7,14 +7,14 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // Tuple labels and function param names are ID-RELEVANT: canonical nodes are
 // shared singletons carrying `children[].name` / `parameters[].name`, so two
 // same-shape types differing only in labels/param names must intern as
 // DIFFERENT nodes — otherwise whichever call site is scanned first supplies
-// the names for both (the mion route-param-names bug; see
-// docs/done/tuple-labels-unreliable-on-canonical-nodes.md).
+// the names for both (the mion route-param-names bug).
 //
 // Fixtures live in internal/testfixtures/tuplelabels/, one file per variant,
 // each containing BOTH getRunTypeId call shapes (marker coverage rule) so the
@@ -66,7 +66,7 @@ func scanRootID(t *testing.T, r *resolver.Session, file string) string {
 }
 
 // nodeByID fetches a node from the full dump.
-func nodeByID(t *testing.T, r *resolver.Session, id string) *protocol.RunType {
+func nodeByID(t *testing.T, r *resolver.Session, id string) *reflection.RunType {
 	t.Helper()
 	dump := r.Dispatch(protocol.Request{Op: protocol.OpDump}).RunTypes
 	for _, node := range dump {

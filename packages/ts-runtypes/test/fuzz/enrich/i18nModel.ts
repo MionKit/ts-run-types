@@ -1,8 +1,7 @@
 // The model + command set for the FriendlyText i18n-sync fuzzer.
 //
 // SUT: the `enrich --i18n` / `enrich --i18n --no-emit` pipeline over a (SOURCE
-// TYPE, translation file T) pair — the SRC-DERIVED reconcile
-// (docs/done/friendly-unified-src-reconcile.md): a locale file is generated
+// TYPE, translation file T) pair — the SRC-DERIVED reconcile: a locale file is generated
 // from the source TYPE by the same driver as the friendly mirror; the friendly
 // mirror is a DISCOVERY input only (breadcrumb + type-name annotations), never
 // a content input. The fuzzer therefore edits the .ts SOURCE (format params
@@ -116,8 +115,17 @@ function runTranslateCli(fixture: ReconcileFixture, args: string[]): CliResult {
 }
 
 // The inline format-brand intersections the .ts source declares per field kind.
-const MINLENGTH_FMT = "string & {readonly __rtFormatName?: 'stringFormat'; readonly __rtFormatParams?: {minLength: 2}}";
-function patternFmt(name: string): string {
+//
+// ⚠️ EXCEPTION, NOT THE RULE: fuzz fixtures use the real shipped types,
+// imported, wherever an import can resolve ("Real types, never copies" in
+// test/fuzz/README.md). These are inline ONLY because the fixtures are scratch
+// temp dirs with no ts-runtypes install, so a relative import cannot resolve.
+// Exported so i18nInlineSpelling.test.ts can pin them against the SHIPPED
+// TF.String<P> encoding by structural id: if the sentinel encoding ever
+// changes, that test fails loudly instead of this fuzzer silently exercising a
+// plain string. Do not copy this pattern for new fixtures.
+export const MINLENGTH_FMT = "string & {readonly __rtFormatName?: 'stringFormat'; readonly __rtFormatParams?: {minLength: 2}}";
+export function patternFmt(name: string): string {
   return `string & {readonly __rtFormatName?: 'stringFormat'; readonly __rtFormatParams?: {pattern: {source: '${name}'; flags: ''}}}`;
 }
 
@@ -388,10 +396,16 @@ export const I18N_COMMANDS: I18nCommand[] = [
       const afterFirst = readTranslation(ctx.fixture);
 
       // Move tokens of leaves the source dropped (or de-declared) to carcassed.
+      // De-declared covers a field DROPPED and RE-ADDED between updates with a
+      // different spec: T still carries the old line, but a re-add without the
+      // pattern param de-declares that leaf, so its authored value must carcass
+      // (the reconciler parks it in an @rtOrphanChild) exactly like a drop.
       for (const [leafId, token] of [...model.authored]) {
-        const field = leafId.split('.')[0];
+        const [field, key] = leafId.split('.');
         const isFieldLeaf = field !== 'root' && field !== PLURAL_FIELD;
-        if (isFieldLeaf && !model.fields.has(field)) {
+        if (!isFieldLeaf) continue;
+        const spec = model.fields.get(field);
+        if (!spec || (key === 'pattern' && !spec.pattern)) {
           model.authored.delete(leafId);
           model.carcassed.set(leafId, token);
         }

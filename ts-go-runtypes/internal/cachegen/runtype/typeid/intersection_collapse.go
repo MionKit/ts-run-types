@@ -1,12 +1,10 @@
 package typeid
 
 import (
-	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // collapsedIntersectionID mirrors the serialize-side collapse so two
@@ -58,18 +56,22 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 			if !samePrimitiveBaseFlags(primitiveMember.Flags(), member.Flags()) {
 				hasIncompat = true
 			}
-		case memberFlags&checker.TypeFlagsObject != 0:
+		case memberFlags&checker.TypeFlagsObject != 0,
+			// The bare `object` keyword (TypeFlagsNonPrimitive) — mirror the
+			// serialize side so `object & {sentinel}` hashes the base
+			// instead of silently dropping the base member.
+			memberFlags&checker.TypeFlagsNonPrimitive != 0:
 			objectMembers = append(objectMembers, member)
 		}
 	}
 
 	if hasNever || hasIncompat {
-		return strconv.Itoa(int(protocol.KindNever))
+		return strconv.Itoa(int(reflection.KindNever))
 	}
 
 	if literalMember != nil && primitiveMember != nil {
 		if !literalExtendsPrimitiveFlags(literalMember.Flags(), primitiveMember.Flags()) {
-			return strconv.Itoa(int(protocol.KindNever))
+			return strconv.Itoa(int(reflection.KindNever))
 		}
 		primitiveMember = nil
 	}
@@ -82,15 +84,19 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 	if primary != nil && len(objectMembers) > 0 {
 		primaryID := computer.Compute(primary)
 		brandIDs := make([]string, 0, len(objectMembers))
+		var annotations []*reflection.FormatAnnotation
 		var formatKey string
 		for _, objectMember := range objectMembers {
 			// Format brands are lifted out of TypeMeta on the serialize
 			// side; here we mirror the lift in the ID so two intersections
 			// that differ only in their format brand still hash distinctly.
 			// Canonical params (sorted keys, recursed) make order-of-keys
-			// in `{maxLength: 10}` irrelevant to the cache key.
+			// in `{maxLength: 10}` irrelevant to the cache key. Multiple
+			// same-family brands MERGE (sibling conjunction: `$ref`-target ∧
+			// local keyword), mirroring the serialize side, so `A & B` and
+			// `B & A` fold one canonical key.
 			if annotation := FormatAnnotationFromType(computer.typeChecker, objectMember); annotation != nil {
-				formatKey += FormatAnnotationStructuralKey(annotation)
+				annotations = append(annotations, annotation)
 				continue
 			}
 			// A pure `{__rtFormatBrand}` member is the TS-only nominal brand: it
@@ -101,10 +107,23 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 			}
 			brandIDs = append(brandIDs, computer.Compute(objectMember))
 		}
-		sort.Strings(brandIDs)
+		if merged, ok := MergeFormatAnnotations(annotations); ok {
+			if merged != nil {
+				formatKey = FormatAnnotationStructuralKey(merged)
+			}
+		} else {
+			// Unmergeable stack — the serialize side fails the build loudly;
+			// fold a deterministic sorted concat so this id stays stable in
+			// the meantime.
+			keys := make([]string, 0, len(annotations))
+			for _, annotation := range annotations {
+				keys = append(keys, FormatAnnotationStructuralKey(annotation))
+			}
+			formatKey = computer.sortedJoin(keys)
+		}
 		result := primaryID
 		if len(brandIDs) > 0 {
-			result += "&{" + strings.Join(brandIDs, ",") + "}"
+			result += "&{" + computer.sortedJoin(brandIDs) + "}"
 		}
 		return result + formatKey
 	}
@@ -126,6 +145,143 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 	}
 
 	if len(objectMembers) > 0 {
+		// Structural format brands and slot sentinels among object-only
+		// intersections (`unknown[] & {__rtFormatName?: …}`): lift them
+		// before the merged hash. memberIDs skips the sentinel props from
+		// the merged property walk, so the remaining hash equals the
+		// sentinel-free object's — the brand contributes only
+		// the format key, mirroring the serialize side.
+		var containsIDs []string
+		var patternIDs []string
+		var propNamesIDs []string
+		var tupleLabels []string
+		var haveTupleLabels bool
+		var annotations []*reflection.FormatAnnotation
+		var restMembers []*checker.Type
+		for _, objectMember := range objectMembers {
+			// Labeled-tuple sentinel (`[A, B] & {__rtLabels?: ['x', 'y']}`):
+			// lift the labels and fold them INTO the tuple id below — the
+			// per-element label fold the type-first labeled tuple gets — so
+			// the value-first object form and `[x: A, y: B]` share one id.
+			// Twin of the serialize side's label-aware projectTuple.
+			if labels, isLabels := TupleLabelsFromMember(computer.typeChecker, objectMember); isLabels && !haveTupleLabels {
+				tupleLabels, haveTupleLabels = labels, true
+				continue
+			}
+			if childType, minCount, maxCount, ok := ContainsSpecFromMember(computer.typeChecker, objectMember); ok {
+				containsIDs = append(containsIDs,
+					computer.Compute(childType)+":"+strconv.FormatFloat(minCount, 'g', -1, 64)+":"+strconv.FormatFloat(maxCount, 'g', -1, 64))
+				continue
+			}
+			if specs, ok := PatternPropsFromMember(computer.typeChecker, objectMember); ok {
+				// Source + value pin the semantics; the key brand exists only
+				// for mock pools and stays out of the id (its pattern equals
+				// the source by construction).
+				for _, spec := range specs {
+					patternIDs = append(patternIDs, strconv.Quote(spec.Source)+":"+computer.Compute(spec.Value))
+				}
+				continue
+			}
+			if childType := PropNamesChildFromMember(computer.typeChecker, objectMember); childType != nil {
+				propNamesIDs = append(propNamesIDs, computer.Compute(childType))
+				continue
+			}
+			if annotation := FormatAnnotationFromType(computer.typeChecker, objectMember); annotation != nil {
+				annotations = append(annotations, annotation)
+				continue
+			}
+			if IsFormatBrandMember(computer.typeChecker, objectMember) {
+				continue
+			}
+			restMembers = append(restMembers, objectMember)
+		}
+		restCount := len(restMembers)
+		var soleRest *checker.Type
+		if restCount == 1 {
+			soleRest = restMembers[0]
+		}
+		formatKey := ""
+		if merged, ok := MergeFormatAnnotations(annotations); ok {
+			if merged != nil {
+				formatKey = FormatAnnotationStructuralKey(merged)
+			}
+		} else {
+			// Unmergeable stack — the serialize side fails the build loudly;
+			// fold a deterministic sorted concat so this id stays stable in
+			// the meantime (same fallback as the primitive branch above).
+			keys := make([]string, 0, len(annotations))
+			for _, annotation := range annotations {
+				keys = append(keys, FormatAnnotationStructuralKey(annotation))
+			}
+			formatKey = computer.sortedJoin(keys)
+		}
+		containsKey := ""
+		if len(containsIDs) > 0 {
+			containsKey = "c{" + computer.sortedJoin(containsIDs) + "}"
+		}
+		if len(patternIDs) > 0 {
+			containsKey += "pp{" + computer.sortedJoin(patternIDs) + "}"
+		}
+		if len(propNamesIDs) > 0 {
+			containsKey += "pn{" + computer.sortedJoin(propNamesIDs) + "}"
+		}
+		if restCount == 0 {
+			// Every member was a sentinel — the base is `unknown`.
+			return strconv.Itoa(int(reflection.KindUnknown)) + containsKey + formatKey
+		}
+		if restCount == 1 && (formatKey != "" || containsKey != "" || haveTupleLabels) {
+			// Single base ∧ sentinel(s): hash the base AS ITSELF plus the
+			// contains / pattern folds + format key — the
+			// serialize side projects the base node directly (array /
+			// record / class), never a merged objectLiteral. Lifted tuple
+			// labels fold INTO the tuple id (per-element, the type-first
+			// spelling's fold); they apply only to a tuple base whose element
+			// count they cover — anything else is a hand-rolled sentinel,
+			// ignored on both sides.
+			if haveTupleLabels && checker.IsTupleType(soleRest) &&
+				len(tupleLabels) == len(computer.typeChecker.GetTypeArguments(soleRest)) {
+				return computer.tupleID(soleRest, tupleLabels) + containsKey + formatKey
+			}
+			return computer.Compute(soleRest) + containsKey + formatKey
+		}
+		// Tuple ∩ tuple — merge slot-wise (tuplemerge.go) so the id equals
+		// the equivalent hand-written tuple's; a genuine conflict hashes as
+		// never (over-rejects, never silently under-validates). Twin of the
+		// serialize-side merge in runtype/intersection_collapse.go.
+		if restCount >= 2 && AllTupleOrArrayTypes(computer.typeChecker, restMembers) {
+			picks, ok := MergeTupleIntersection(computer.typeChecker, restMembers, func(a, b *checker.Type) bool {
+				return computer.Compute(a) == computer.Compute(b)
+			})
+			if !ok {
+				return strconv.Itoa(int(reflection.KindNever))
+			}
+			ids := make([]string, 0, len(picks))
+			for _, pick := range picks {
+				// Same per-slot formulas as the plain tuple id (typeid.go):
+				// optional slots resolve through optionalChildID + "?", rest
+				// through "..." — so the merged id is byte-equal to the
+				// equivalent hand-written tuple's.
+				var child string
+				switch {
+				case pick.Fold != nil:
+					// A folded slot is already undefined-stripped, so it needs
+					// no optional-child resolution — just the `?` marker.
+					child = pick.Fold.Structural(computer)
+					if pick.Optional {
+						child += "?"
+					}
+				case pick.Optional:
+					child = computer.optionalChildID(pick.Type) + "?"
+				default:
+					child = computer.Compute(pick.Type)
+				}
+				if pick.Rest {
+					child += "..."
+				}
+				ids = append(ids, child)
+			}
+			return collectionID(int(reflection.KindTuple), ids, true) + containsKey + formatKey
+		}
 		// Object × object — the TS checker already merged properties on
 		// the intersection type. Hash the merged members directly rather
 		// than routing through objectID: the intersection isn't a Reference
@@ -141,14 +297,13 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 		// the two forms diverge, even though their projected nodes match.
 		if callSignatures := computer.typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall); len(callSignatures) > 0 {
 			for _, signature := range callSignatures {
-				ids = append(ids, computer.signatureID(signature, protocol.KindCallSignature, ""))
+				ids = append(ids, computer.signatureID(signature, reflection.KindCallSignature, ""))
 			}
-			sort.Strings(ids)
 		}
-		return collectionID(int(protocol.KindObjectLiteral), ids, false)
+		return collectionJoined(int(reflection.KindObjectLiteral), computer.sortedJoin(ids), false) + containsKey + formatKey
 	}
 
-	return strconv.Itoa(int(protocol.KindUnknown))
+	return strconv.Itoa(int(reflection.KindUnknown))
 }
 
 // builtinClassNamesID is the id-side mirror of the serialize-side

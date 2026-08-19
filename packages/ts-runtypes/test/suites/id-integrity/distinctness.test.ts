@@ -12,7 +12,7 @@
 
 import {describe, it, expect} from 'vitest';
 import {createValidateFn} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 
 // Each pair is two structurally-distinct types whose cached validate factories

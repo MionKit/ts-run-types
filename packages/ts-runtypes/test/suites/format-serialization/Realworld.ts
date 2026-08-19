@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import type {SerializationCase} from './types.ts';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import '@ts-runtypes/core/formats';
 import {
   createBinaryDecoderFn,
@@ -274,8 +274,9 @@ export const REALWORLD = {
     title: 'Class with a currency-format field + Date',
     description:
       'A registered `Invoice` class carrying a `TF.Currency<{integer,min:0,max:65535}>` field and a Date. Reconstruction composes with the format families: the uint16 currency bounds pick the 2-byte binary width inside the class encode, the Date rides its ISO-string arm, and decode rebuilds a real Invoice.',
-    serializeNotes:
+    serializeNotes: [
       'Class serializer keyed by type id; the currency format still packs to 2 bytes on the binary wire inside the class body. Value-first schema is not-supported (a class is not an `RT.*` model).',
+    ],
     mutateEncoder: () => {
       class Invoice {
         constructor(

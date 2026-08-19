@@ -36,6 +36,8 @@ export const typeFormats = {
   dateTime: {name: 'dateTime', kind: RunTypeKind.string},
   domain: {name: 'domain', kind: RunTypeKind.string},
   email: {name: 'email', kind: RunTypeKind.string},
+  formattedArray: {name: 'formattedArray', kind: RunTypeKind.array},
+  formattedObject: {name: 'formattedObject', kind: RunTypeKind.object},
   ip: {name: 'ip', kind: RunTypeKind.string},
   nativeDate: {name: 'nativeDate', kind: RunTypeKind.class},
   numberFormat: {name: 'numberFormat', kind: RunTypeKind.number},

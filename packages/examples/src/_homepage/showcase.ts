@@ -2,8 +2,6 @@ import type * as TF from '@ts-runtypes/core/formats';
 import {
   createValidateFn,
   createGetValidationErrorsFn,
-  createJsonEncoderFn,
-  createJsonDecoderFn,
   createBinaryEncoderFn,
   createBinaryDecoderFn,
   createMockDataFn,
@@ -11,7 +9,7 @@ import {
 } from '@ts-runtypes/core';
 
 // start-type
-// One real-world type — the single source of truth for everything below.
+// One real-world type, the single source of truth for everything below.
 type Order = {
   id: TF.UUIDv4;
   customer: {name: string; email: TF.Email};
@@ -39,19 +37,11 @@ const orderErrors = createGetValidationErrorsFn<Order>();
 orderErrors({...order, total: 'free'}); // [{path: ['total'], expected: 'number'}]
 // end-validate
 
-// start-json
-const toJson = createJsonEncoderFn<Order>();
-const fromJson = createJsonDecoderFn<Order>();
-
-const wire = toJson(order)!; // Date -> string (undefined only for undefined input)
-const back = fromJson(wire); // string -> Date again, typed as DataOnly<Order>
-// end-json
-
 // start-binary
 const toBytes = createBinaryEncoderFn<Order>();
 const fromBytes = createBinaryDecoderFn<Order>();
 
-const bytes = toBytes(order); // a Uint8Array — the compact wire, smaller than JSON
+const bytes = toBytes(order); // a Uint8Array: the compact wire, smaller than JSON
 const order2 = fromBytes(bytes); // back to a typed object
 // end-binary
 
@@ -63,9 +53,9 @@ const fake = mockOrder(); // a valid, randomized Order for your tests
 // start-standard
 const orderSchema = createStandardSchema<Order>();
 
-// a Standard Schema v1 object — hand it to any tool that speaks the spec
+// a Standard Schema v1 object: hand it to any tool that speaks the spec
 orderSchema['~standard'].validate(order); // {value: order}
 orderSchema['~standard'].validate({}); // {issues: [{message, path}, …]}
 // end-standard
 
-export {order, back, order2, fake, orderSchema};
+export {order, order2, fake, orderSchema};

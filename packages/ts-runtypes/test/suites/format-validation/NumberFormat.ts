@@ -235,8 +235,9 @@ export const NUMBER_FORMAT = {
   number_float: {
     title: 'Float',
     description: 'numberFormat with the `float` flag that rejects whole numbers, the inverse of TF.Integer.',
-    validateNotes:
+    validateNotes: [
       'Fractional values (1.5, -0.5, 3.14) pass; whole numbers (1, 0, -2) fail on `float`. `float` and `integer` are mutually exclusive.',
+    ],
     validate: () => createValidateFn<TF.Float>(),
     standardSchema: () => createStandardSchema<TF.Float>(),
     validateReflect: () => {

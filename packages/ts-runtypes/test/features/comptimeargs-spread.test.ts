@@ -5,7 +5,7 @@
 //
 //   - builder spread: `object({...base, extra})` reflects the SAME merged type
 //     as the fully-inlined object, and its validator checks every merged field;
-//   - tuple spread: `tuple([...head, tail])` validates each merged slot;
+//   - tuple spread: `tuple({required: [...head, tail]})` validates each merged slot;
 //   - option-bag spread: a `{...preset}` JSON-strategy preset takes effect
 //     (mutate observed), and an inline key overrides the preset (last wins).
 //
@@ -14,7 +14,7 @@
 // asserts hash equivalence between them.
 import {describe, expect, test} from 'vitest';
 import {createValidateFn, createJsonEncoderFn, getRunTypeId, type InferType} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 import '@ts-runtypes/core/formats';
 
@@ -50,7 +50,7 @@ describe('CompTimeArgs spread — builders', () => {
 
   test('tuple spread validates each merged slot', () => {
     const head = [TF.number(), TF.string()] as const;
-    const Tup = RT.tuple([...head, RT.boolean()]);
+    const Tup = RT.tuple({required: [...head, RT.boolean()]});
     const isTup = createValidateFn<InferType<typeof Tup>>();
 
     expect(isTup([1, 'a', true])).toBe(true);

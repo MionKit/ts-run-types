@@ -14,13 +14,17 @@
 // the real generated encoders/decoders), NOT like container/benchmarks/ (no podman, no
 // per-competitor isolation).
 //
-// Six round-trips per case (the "competitors" the table shows):
-//   clone        cloneEncoder  + preserveDecoder   (strategy 'clone', default)
-//   mutate       mutateEncoder + preserveDecoder   (strategy 'mutate')
-//   direct       directEncoder + preserveDecoder   (strategy 'direct')
-//   compact      compactEncoder + compactDecoder   (strategy 'compact', positional array)
-//   binary       binaryEncoder + binaryDecoder
-//   native JSON  JSON.stringify + JSON.parse       (baseline, JSON-safe cases only)
+// Eight round-trips per case (the "competitors" the table shows). Each one's
+// reader-facing blurb lives on its ROUNDTRIPS entry and ships as index.columnNotes,
+// which is what hovering that column's table header reveals:
+//   clone              cloneEncoder  + preserveDecoder   (strategy 'clone', default)
+//   mutate             mutateEncoder + preserveDecoder   (strategy 'mutate')
+//   direct             directEncoder + preserveDecoder   (strategy 'direct')
+//   compact            compactEncoder + compactDecoder   (strategy 'compact', positional array)
+//   binary             binaryEncoder + binaryDecoder
+//   jsonSchema         the clone codec, authored from a JSON Schema document
+//   jsonSchema binary  the binary codec, authored from a JSON Schema document
+//   native JSON        JSON.stringify + JSON.parse       (baseline, JSON-safe cases only)
 //
 // Three metric groups (one stacked table each on the page):
 //   roundtrip  derived client-side = 1/(t_encode + t_network(bytes) + t_decode)
@@ -125,17 +129,96 @@ const OUT_DIR = path.join(OUT_BASE, SUITE_CFG.bench);
 
 // The round-trips shown as columns. `enc`/`dec` name the SerializationCase thunk
 // fields; `native` synthesises JSON.stringify/parse (no thunk). Order = column order.
+// `note` is the reader-facing one-liner behind the info icon on every table caption.
 const ROUNDTRIPS = [
-  {key: 'clone', enc: 'cloneEncoder', dec: 'preserveDecoder', kind: 'json'},
-  {key: 'mutate', enc: 'mutateEncoder', dec: 'preserveDecoder', kind: 'json'},
-  {key: 'direct', enc: 'directEncoder', dec: 'preserveDecoder', kind: 'json'},
-  {key: 'compact', enc: 'compactEncoder', dec: 'compactDecoder', kind: 'json'},
-  {key: 'binary', enc: 'binaryEncoder', dec: 'binaryDecoder', kind: 'binary'},
-  {key: 'native JSON', enc: null, dec: null, kind: 'native'},
+  {
+    key: 'clone',
+    enc: 'cloneEncoder',
+    dec: 'preserveDecoder',
+    kind: 'json',
+    note: 'Default. Builds a fresh copy and drops any key the type does not declare.',
+  },
+  {
+    key: 'mutate',
+    enc: 'mutateEncoder',
+    dec: 'preserveDecoder',
+    kind: 'json',
+    note: 'Writes into the value you pass in and keeps the keys it does not declare.',
+  },
+  {
+    key: 'direct',
+    enc: 'directEncoder',
+    dec: 'preserveDecoder',
+    kind: 'json',
+    note: 'A single pass over the value, the least overhead of the JSON strategies.',
+  },
+  {
+    key: 'compact',
+    enc: 'compactEncoder',
+    dec: 'compactDecoder',
+    kind: 'json',
+    note: 'Positional arrays instead of named keys, so no field names travel on the wire.',
+  },
+  {
+    key: 'binary',
+    enc: 'binaryEncoder',
+    dec: 'binaryDecoder',
+    kind: 'binary',
+    note: 'Raw bytes rather than text. Best for numeric payloads.',
+  },
+  // The codec authored from a JSON Schema document instead of a TypeScript type.
+  // It converges on the same structural id as the `clone` column's type-first
+  // twin, hence the same generated codec — so this column is the evidence that
+  // the authoring form costs nothing at run time, not a different strategy.
+  {
+    key: 'jsonSchema',
+    enc: 'jsonSchemaEncoder',
+    dec: 'jsonSchemaDecoder',
+    kind: 'json',
+    note: 'The clone strategy authored from a JSON Schema document. Same codec, so the authoring form costs nothing at run time.',
+  },
+  {
+    key: 'jsonSchema binary',
+    enc: 'jsonSchemaBinaryEncoder',
+    dec: 'jsonSchemaBinaryDecoder',
+    kind: 'binary',
+    note: 'The binary strategy authored from a JSON Schema document.',
+  },
+  {
+    key: 'native JSON',
+    enc: null,
+    dec: null,
+    kind: 'native',
+    note: 'Baseline. Plain JSON.stringify and JSON.parse, on JSON-safe cases only.',
+  },
 ];
 
+// competitor -> what that column is, revealed by hovering that column's header
+// (BenchTable reads index.columnNotes). The detail line names the thunks this run
+// actually timed, so the tooltip cannot drift from the measured pair.
+function columnNotes() {
+  const notes = {};
+  for (const rt of ROUNDTRIPS) {
+    notes[rt.key] = {text: rt.note, detail: `encode ${rt.enc ?? 'JSON.stringify'} · decode ${rt.dec ?? 'JSON.parse'}`};
+  }
+  return notes;
+}
+
 // Thunk fields whose TS source we extract for the hover panel.
-const SOURCE_FIELDS = ['cloneEncoder', 'mutateEncoder', 'directEncoder', 'compactEncoder', 'binaryEncoder', 'preserveDecoder', 'compactDecoder', 'binaryDecoder'];
+const SOURCE_FIELDS = [
+  'cloneEncoder',
+  'mutateEncoder',
+  'directEncoder',
+  'compactEncoder',
+  'binaryEncoder',
+  'jsonSchemaEncoder',
+  'jsonSchemaBinaryEncoder',
+  'preserveDecoder',
+  'compactDecoder',
+  'binaryDecoder',
+  'jsonSchemaDecoder',
+  'jsonSchemaBinaryDecoder',
+];
 
 // Bandwidth options for the page's round-trip selector (Mbps). Default mid-tier.
 const BANDWIDTHS_MBPS = [10, 100, 1000];
@@ -174,7 +257,17 @@ async function loadSuiteWithPlugin() {
     ssr: {resolve: {conditions: ['source']}, ...(SSR_NOEXTERNAL.length ? {noExternal: SSR_NOEXTERNAL.map((p) => new RegExp(p))} : {})},
     optimizeDeps: {noDiscovery: true},
     logLevel: 'error',
-    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', ...OUTDIR_OPT})],
+    // In-container this config is read from a bind-mounted marker package whose
+    // `extends` chain walks OUT of it, so bench.mjs mounts that chain too
+    // (SERIALIZATION_TSCONFIG there must name this same file).
+    //
+    // failOnError:false for the same reason packages/ts-runtypes/vitest.config.ts
+    // sets it — this is the marker package's OWN test program, and buildStart
+    // scans everything tsconfig.test.json includes, alwaysThrow suites included.
+    // Those deliberately hold Error-severity types (root-position symbols,
+    // functions, …), so the strict default refuses to boot the project and the
+    // bench dies before a single case is measured. Consumers keep the default.
+    plugins: [runtypesPlugin({binary: BIN, cwd: PACKAGE_ROOT, tsconfig: 'tsconfig.test.json', failOnError: false, ...OUTDIR_OPT})],
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);
@@ -527,6 +620,7 @@ async function main() {
     label: SUITE_CFG.label,
     showStrategy: false,
     competitors: ROUNDTRIPS.map((rt) => rt.key),
+    columnNotes: columnNotes(),
     bandwidthsMbps: BANDWIDTHS_MBPS,
     defaultBandwidthMbps: DEFAULT_BANDWIDTH_MBPS,
     metrics: [

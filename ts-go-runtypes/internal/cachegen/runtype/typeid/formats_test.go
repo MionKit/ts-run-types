@@ -8,6 +8,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // The test overlay extends the standard runtypes.d.ts with a TypeFormat
@@ -26,17 +27,43 @@ const runtypesWithFormatsDTS = `declare module '@ts-runtypes/core' {
 }
 `
 
+// runtypesWithSymbolFormatsDTS is the SHIPPED spelling of the same alias: the
+// sentinels ride `unique symbol` keys (src/runtypes/sentinelKeys.ts) so that
+// branding a type leaves the STRING keys of the shape it brands untouched.
+// tsgo names such a property InternalSymbolNamePrefix + "@" + the DECLARATION's
+// name + "@" + a per-program id, which is what isSentinelProp matches.
+const runtypesWithSymbolFormatsDTS = `declare module '@ts-runtypes/core' {
+  export type InjectRunTypeId<T> = string & {readonly __rtInjectRunTypeIdBrand?: T};
+  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function getRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export const __rtFormatName: unique symbol;
+  export const __rtFormatParams: unique symbol;
+  export type TypeFormat<Base, Name extends string, Params, BrandName extends string = never> = Base & {
+    readonly [__rtFormatName]?: Name;
+    readonly [__rtFormatParams]?: Params;
+  };
+}
+`
+
 // runFormatScan builds an in-memory program with the format-aware .d.ts
 // overlay, scans the supplied code, and returns the root call site's
 // RunType. Sibling of rootFor in structural_test.go — kept separate so
 // the format-specific .d.ts doesn't leak into the shared overlay.
-func runFormatScan(t *testing.T, code string) *protocol.RunType {
+func runFormatScan(t *testing.T, code string) *reflection.RunType {
+	t.Helper()
+	return runFormatScanWithDTS(t, runtypesWithFormatsDTS, code)
+}
+
+// runFormatScanWithDTS is runFormatScan over a caller-supplied marker .d.ts, so
+// the string-keyed and symbol-keyed spellings of the sentinels can be scanned
+// through the identical pipeline and compared.
+func runFormatScanWithDTS(t *testing.T, markerDTS, code string) *reflection.RunType {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	dtsPath := tspath.ResolvePath(cwd, "runtypes.d.ts")
 	testPath := tspath.ResolvePath(cwd, "test.ts")
 	overlay := map[string]string{
-		dtsPath:  runtypesWithFormatsDTS,
+		dtsPath:  markerDTS,
 		testPath: code,
 	}
 	prog, err := program.NewInferred(program.Options{
@@ -76,7 +103,7 @@ import type {TypeFormat} from '@ts-runtypes/core';
 type FixtureFormat = TypeFormat<string, 'fixture', {tag: 1}>;
 getRunTypeId<FixtureFormat>();
 `)
-	if root.Kind != protocol.KindString {
+	if root.Kind != reflection.KindString {
 		t.Fatalf("expected branded primitive to surface as KindString, got %v", root.Kind)
 	}
 	if root.FormatAnnotation == nil {
@@ -215,11 +242,11 @@ getRunTypeId<Other>();
 }
 
 func TestFormatAnnotation_StructuralKey_Canonicalises(t *testing.T) {
-	a := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+	a := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
 		Name:   "fixture",
 		Params: map[string]any{"a": 1.0, "b": 2.0},
 	})
-	b := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+	b := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
 		Name:   "fixture",
 		Params: map[string]any{"b": 2.0, "a": 1.0},
 	})
@@ -231,41 +258,59 @@ func TestFormatAnnotation_StructuralKey_Canonicalises(t *testing.T) {
 	}
 }
 
-// TestFormatAnnotation_SamplesFoldIntoKey pins that mockSamples and message
-// ARE id-relevant: cache entries are shared singletons and for createMockDataFn
-// the samples are behaviour — two same-shape formats differing only in
-// samples/message must NOT collapse onto one entry (first-intern
-// nondeterminism; see docs/done/format-pattern-samples-dedup-and-length-soundness.md).
-func TestFormatAnnotation_SamplesFoldIntoKey(t *testing.T) {
-	withSamples := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+// TestFormatAnnotation_SamplesExcludedFromKey pins that mockSamples is NOT
+// id-relevant (generation metadata, not validation behaviour) while `message`
+// and a pattern's `source`/`flags` still are. Two same-shape formats differing
+// only in samples MUST share one key (and dedup onto one cache entry).
+func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
+	withSamples := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
 		Name:   "stringFormat",
-		Params: map[string]any{"maxLength": 10.0, "mockSamples": []any{"a", "b"}, "message": "too long"},
+		Params: map[string]any{"maxLength": 10.0, "mockSamples": []any{"a", "b"}},
 	})
-	bare := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+	bare := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
 		Name:   "stringFormat",
 		Params: map[string]any{"maxLength": 10.0},
 	})
-	if withSamples == bare {
-		t.Fatalf("mockSamples/message must affect the key; both gave %q", bare)
+	if withSamples != bare {
+		t.Fatalf("mockSamples must NOT affect the key; %q != %q", withSamples, bare)
 	}
-	// Id-relevant at nested depth too (FormatPattern nests them in `pattern`).
-	nested := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+	// Different declared pools still converge on the same key (the conflict is a
+	// build diagnostic, not an id split).
+	otherSamples := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
+		Name:   "stringFormat",
+		Params: map[string]any{"maxLength": 10.0, "mockSamples": []any{"x", "y", "z"}},
+	})
+	if otherSamples != bare {
+		t.Fatalf("a different sample pool must NOT change the key; %q != %q", otherSamples, bare)
+	}
+	// `message` DOES stay id-relevant (it changes the emitted error val).
+	withMessage := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
+		Name:   "stringFormat",
+		Params: map[string]any{"maxLength": 10.0, "message": "too long"},
+	})
+	if withMessage == bare {
+		t.Fatalf("message must affect the key; both gave %q", bare)
+	}
+	// Samples are skipped at NESTED depth too (FormatPattern nests them in
+	// `pattern`), but the pattern's source/flags stay.
+	nested := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
 		Name:   "stringFormat",
 		Params: map[string]any{"pattern": map[string]any{"source": "^x$", "flags": "", "mockSamples": []any{"x"}}},
 	})
-	nestedNoSamples := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+	nestedNoSamples := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
 		Name:   "stringFormat",
 		Params: map[string]any{"pattern": map[string]any{"source": "^x$", "flags": ""}},
 	})
-	if nested == nestedNoSamples {
-		t.Fatalf("nested mockSamples must affect the key; both gave %q", nested)
+	if nested != nestedNoSamples {
+		t.Fatalf("nested mockSamples must NOT affect the key; %q != %q", nested, nestedNoSamples)
 	}
-	// Identical params (samples included) still converge on one key.
-	if again := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+	// A different pattern SOURCE still differentiates.
+	nestedOtherSource := typeid.FormatAnnotationStructuralKey(&reflection.FormatAnnotation{
 		Name:   "stringFormat",
-		Params: map[string]any{"maxLength": 10.0, "mockSamples": []any{"a", "b"}, "message": "too long"},
-	}); again != withSamples {
-		t.Fatalf("identical params must share a key: %q vs %q", again, withSamples)
+		Params: map[string]any{"pattern": map[string]any{"source": "^y$", "flags": ""}},
+	})
+	if nestedOtherSource == nested {
+		t.Fatalf("a different pattern source must still differ")
 	}
 	// Sanity: a real validation param (maxLength) still differentiates.
 	if bare == nestedNoSamples {
@@ -273,11 +318,11 @@ func TestFormatAnnotation_SamplesFoldIntoKey(t *testing.T) {
 	}
 }
 
-// TestFormatAnnotation_SamplesDistinctEndToEnd confirms sample id-relevance
+// TestFormatAnnotation_SamplesSharedEndToEnd confirms sample id-irrelevance
 // holds through the full scan → structural id (not just the key fn): formats
-// differing only in mockSamples intern as DIFFERENT entries, each mocking
-// from its own samples.
-func TestFormatAnnotation_SamplesDistinctEndToEnd(t *testing.T) {
+// differing ONLY in mockSamples intern as the SAME entry (samples describe the
+// same validator). A different validation param still forks the id.
+func TestFormatAnnotation_SamplesSharedEndToEnd(t *testing.T) {
 	a := runFormatScan(t, `
 import {getRunTypeId} from '@ts-runtypes/core';
 import type {TypeFormat} from '@ts-runtypes/core';
@@ -290,7 +335,60 @@ import type {TypeFormat} from '@ts-runtypes/core';
 type T = TypeFormat<string, 'stringFormat', {maxLength: 10; mockSamples: ['x', 'y', 'z']}>;
 getRunTypeId<T>();
 `)
-	if a.ID == b.ID {
-		t.Fatalf("formats differing only in mockSamples must NOT share one id; both gave %q", a.ID)
+	if a.ID != b.ID {
+		t.Fatalf("formats differing only in mockSamples must share one id; %q != %q", a.ID, b.ID)
+	}
+	// A real validation param still differentiates.
+	c := runFormatScan(t, `
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
+type T = TypeFormat<string, 'stringFormat', {maxLength: 20; mockSamples: ['a', 'b']}>;
+getRunTypeId<T>();
+`)
+	if c.ID == a.ID {
+		t.Fatalf("a different maxLength must fork the id; both gave %q", a.ID)
+	}
+}
+
+// TestSymbolKeyedSentinel_MatchesStringKeyed is the tripwire for the ONE
+// compiler-internal detail this package depends on: how tsgo names a property
+// whose key is a `unique symbol`. The shipped types brand with symbol keys so
+// they stay out of a branded type's string keys, and the resolver recognises
+// them by matching that name.
+//
+// If upstream ever changes the naming scheme, the failure mode without this
+// test is SILENT and total: no sentinel is ever matched, every branded type
+// degrades to its base, and ids shift wholesale with nothing red. So assert the
+// end state directly — a symbol-keyed brand must be recognised, and must land
+// on the SAME structural id as the string-keyed spelling of the same type,
+// since the property name never reaches the hash.
+func TestSymbolKeyedSentinel_MatchesStringKeyed(t *testing.T) {
+	const code = `
+import {getRunTypeId} from '@ts-runtypes/core';
+import type {TypeFormat} from '@ts-runtypes/core';
+type FixtureFormat = TypeFormat<string, 'fixture', {tag: 1}>;
+getRunTypeId<FixtureFormat>();
+`
+	stringKeyed := runFormatScanWithDTS(t, runtypesWithFormatsDTS, code)
+	symbolKeyed := runFormatScanWithDTS(t, runtypesWithSymbolFormatsDTS, code)
+
+	if symbolKeyed.FormatAnnotation == nil {
+		t.Fatalf("symbol-keyed sentinels were NOT recognised: the brand degraded to a bare %v. "+
+			"isSentinelProp expects tsgo to name such a property %q + declName + \"@\" + symbolId; "+
+			"if upstream changed that scheme, update it there", symbolKeyed.Kind, typeid.LateBoundNamePrefixForTest())
+	}
+	if symbolKeyed.FormatAnnotation.Name != "fixture" {
+		t.Fatalf("symbol-keyed format name = %q, want %q", symbolKeyed.FormatAnnotation.Name, "fixture")
+	}
+	if got, ok := symbolKeyed.FormatAnnotation.Params["tag"]; !ok || got != float64(1) {
+		t.Fatalf("symbol-keyed params.tag = %v (ok=%v), want 1", got, ok)
+	}
+	if stringKeyed.FormatAnnotation == nil {
+		t.Fatalf("string-keyed sentinels were not recognised — the baseline itself is broken")
+	}
+	// The point of the whole encoding: how the key is SPELLED must not change
+	// the type's identity, so a fixture written either way caches as one entry.
+	if symbolKeyed.ID != stringKeyed.ID {
+		t.Fatalf("id depends on the sentinel key spelling: symbol-keyed %q vs string-keyed %q", symbolKeyed.ID, stringKeyed.ID)
 	}
 }

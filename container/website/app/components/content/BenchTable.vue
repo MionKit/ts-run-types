@@ -3,7 +3,7 @@ import {reactive, ref, computed, onMounted} from 'vue';
 
 type CaseStatus = 'ok' | 'fail' | 'not-supported';
 
-/** One metric for a competitor — throughput on the valid (accept), invalid
+/** One metric for a competitor: throughput on the valid (accept), invalid
  *  (reject) and mixed (interleaved) input streams. */
 interface PathResult {
   valid?: number;
@@ -33,7 +33,7 @@ interface BenchCase {
   /** results[competitor][metricKey] -> {valid, invalid, status} */
   results: Record<string, Record<string, PathResult>>;
   /** serialization bench: false when native JSON can't round-trip this case's
-   *  data (bigint / Date / Map / Set / Temporal) — drives the "non-JSON" badge. */
+   *  data (bigint / Date / Map / Set / Temporal), drives the "non-JSON" badge. */
   jsonSafe?: boolean;
 }
 
@@ -43,6 +43,14 @@ interface BenchSection {
   cases: BenchCase[];
 }
 
+/** What one column measures: surfaced by hovering that column's header
+ *  (BenchColumnInfo). Optional per bench: no `columnNotes` block in the index,
+ *  no glyph and no hover. */
+interface ColumnNote {
+  text: string;
+  detail?: string;
+}
+
 interface BenchIndex {
   bench: string;
   label: string;
@@ -50,12 +58,12 @@ interface BenchIndex {
   /** when true, each competitor splits into valid (accept) + invalid (reject) columns */
   showInvalid?: boolean;
   /** true when per-case detail JSON carries a shared `samples` block (validation +
-   *  correctness) — drives the hover hint wording and the "Tested data" panel column. */
+   *  correctness): drives the hover hint wording and the "Tested data" panel column. */
   hasSamples?: boolean;
   /** false hides the comptime/jit/interpreted build-strategy tags (serialization
    *  columns are our own round-trips, not competitor libraries). Defaults true. */
   showStrategy?: boolean;
-  /** true hides the "Aggregated · geometric mean" summary table — for panels whose
+  /** true hides the "Aggregated · geometric mean" summary table, for panels whose
    *  rows aren't comparable (e.g. compile-time tiers: strip/typecheck/full), where a
    *  geomean across rows is meaningless. */
   hideAggregate?: boolean;
@@ -67,6 +75,10 @@ interface BenchIndex {
   competitors: string[];
   /** competitor/form label -> installed library version (shown under the header) */
   versions?: Record<string, string>;
+  /** competitor label -> what that column is, revealed by hovering its column
+   *  header. Absent for benches whose column names speak for themselves (the
+   *  library names on the validation pages), which then render no info glyph. */
+  columnNotes?: Record<string, ColumnNote>;
   /** run environment captured at benchmark time */
   meta?: {generatedAt?: string; os?: string; cpu?: string; cores?: number | null; node?: string; typescript?: string};
   sections: BenchSection[];
@@ -114,16 +126,16 @@ interface AggRow {
 }
 
 const props = defineProps<{
-  /** bench slug — fetched from /bench-data/<bench>/index.json */
+  /** bench slug: fetched from /bench-data/<bench>/index.json */
   bench: string;
   /** when set, render only this metric's block (one benchmark per page) */
   metric?: string;
-  /** disable the hover/click "show source" detail panel — for tables with no code to
+  /** disable the hover/click "show source" detail panel, for tables with no code to
    *  show (e.g. the correctness page). Pass the string `"false"` from MDC. Typed as a
    *  string (not boolean) so an absent prop stays `undefined` rather than being cast to
    *  `false` by Vue's Boolean-prop coercion (which would disable it on EVERY table). */
   showCode?: string;
-  /** disable the per-row heatmap colouring + its legend — for tables where ranking a
+  /** disable the per-row heatmap colouring + its legend, for tables where ranking a
    *  row is meaningless (correctness, the pivoted build-cost table). Same `"false"`
    *  string convention as showCode. */
   colorize?: string;
@@ -144,10 +156,10 @@ const {highlight} = useCodeHighlighter();
 const index = ref<BenchIndex | null>(null);
 const indexState = ref<'loading' | 'ready' | 'missing'>('loading');
 
-/** Row-heatmap coloring style — toggled from the legend; 'tint' background or 'text'. */
+/** Row-heatmap coloring style: toggled from the legend; 'tint' background or 'text'. */
 const colorMode = ref<'tint' | 'text'>('tint');
 
-/** Link speed (Mbps) for the derived round-trip metric — picked in its block. */
+/** Link speed (Mbps) for the derived round-trip metric, picked in its block. */
 const bandwidthMbps = ref<number>(100);
 
 const details = reactive<Record<string, DetailEntry>>({});
@@ -156,12 +168,12 @@ function metricByKey(key: string): Metric | undefined {
   return index.value?.metrics.find((m) => m.key === key);
 }
 
-/** Cell unit for a metric — per-metric override, else the index-level unit. */
+/** Cell unit for a metric: per-metric override, else the index-level unit. */
 function unitFor(metricKey: string): BenchIndex['unit'] | 'bytes' {
   return metricByKey(metricKey)?.unit ?? index.value?.unit;
 }
 
-/** Heatmap direction for a metric — explicit `lowerBetter`, else count/bytes. */
+/** Heatmap direction for a metric: explicit `lowerBetter`, else count/bytes. */
 function lowerBetterFor(metricKey: string): boolean {
   const metric = metricByKey(metricKey);
   if (metric?.lowerBetter != null) return metric.lowerBetter;
@@ -190,7 +202,7 @@ function roundtripValue(perMetric: Record<string, PathResult> | undefined, mbps:
 
 /** Sections with the derived `roundtrip` result injected per competitor (reactive
  *  on bandwidth), so the existing per-metric rendering + aggregate work unchanged.
- *  A no-op (same ref) when no metric is `derived` — validation/typecost untouched. */
+ *  A no-op (same ref) when no metric is `derived`, validation/typecost untouched. */
 const enrichedSections = computed<BenchSection[]>(() => {
   if (!index.value) return [];
   if (!index.value.metrics.some((m) => m.derived === 'roundtrip')) return index.value.sections;
@@ -237,7 +249,7 @@ function metricSourceHtml(competitor: BenchCompetitorSource): string | undefined
   return competitor.sourceHtml ?? competitor.sourcesHtml?.validate ?? competitor.sourcesHtml?.validationErrors;
 }
 
-/** The active row's case data (per-competitor results) — looked up from the index so
+/** The active row's case data (per-competitor results), looked up from the index so
  *  the panel can echo the same metric the table cell shows. */
 const activeCase = computed<BenchCase | undefined>(() => {
   if (!index.value || !active.value) return undefined;
@@ -248,7 +260,7 @@ const activeCase = computed<BenchCase | undefined>(() => {
   return undefined;
 });
 
-/** Detail-panel columns — one per competitor that supports this page's metric, each
+/** Detail-panel columns: one per competitor that supports this page's metric, each
  *  carrying the same result (valid + invalid) shown in its table cell. */
 const panelColumns = computed(() => {
   const entry = activeDetail.value;
@@ -257,7 +269,7 @@ const panelColumns = computed(() => {
   const metricKey = props.metric ?? index.value?.metrics[0]?.key;
   const cols: Array<{label: string; html?: string; plain?: string; notes?: string[]; metric?: {valid: string; invalid: string; status: 'ok' | 'fail' | 'na'}}> = [];
   // Disagreements on top (correctness bench, divergent rows only): the exact values
-  // that produced the divergence, one note per library — what the reader is after.
+  // that produced the divergence, one note per library, what the reader is after.
   const disagreements = entry.data.disagreements;
   if (disagreements?.length) {
     const notes: string[] = [];
@@ -281,7 +293,7 @@ const panelColumns = computed(() => {
   return cols;
 });
 
-/** How each library produces its validator — shown as a per-column tag, explained in
+/** How each library produces its validator: shown as a per-column tag, explained in
  *  the legend. comptime = AOT (generated at build time: ts-go, typia); jit = compiled
  *  at runtime via codegen (ajv.compile, TypeCompiler.Compile); interpreted = the schema
  *  is walked on every call (zod). */
@@ -293,8 +305,20 @@ function strategyOf(competitor: string): 'comptime' | 'jit' | 'interpreted' {
 }
 
 /** Build-strategy tags describe RUNTIME validator construction, so they only apply to
- *  the throughput benches — the typecost (type-instantiation count) table hides them. */
+ *  the throughput benches: the typecost (type-instantiation count) table hides them. */
 const showStrategy = computed(() => index.value?.showStrategy !== false && index.value?.unit !== 'count');
+
+/** Per-column explanations for the caption info icon, empty when the bench index
+ *  ships no `columnNotes`, which is what keeps the icon off the other pages. */
+const columnNotes = computed<Record<string, ColumnNote>>(() => index.value?.columnNotes ?? {});
+
+/** Which edge a column's tip hangs from: columns in the left half open rightward
+ *  and vice versa, so a wide tip always grows toward the middle of the table and
+ *  never spills out of the horizontally scrolling wrapper. */
+function tipAlign(columnIndex: number): 'left' | 'right' {
+  const total = index.value?.competitors.length ?? 0;
+  return columnIndex * 2 < total ? 'left' : 'right';
+}
 
 /** Installed library version for a column (competitor name, or typecost form label). */
 function versionOf(competitor: string): string | undefined {
@@ -303,7 +327,7 @@ function versionOf(competitor: string): string | undefined {
 
 /** major.minor, dropping the patch / prerelease noise (4.4.3 → 4.4, 13.0.0-dev → 13.0).
  *  Exception: for 0.x packages the patch IS the meaningful release axis (semver treats
- *  0.minor.patch as breaking.feature), so keep a non-zero patch — e.g. typebox 0.34.49. */
+ *  0.minor.patch as breaking.feature), so keep a non-zero patch, e.g. typebox 0.34.49. */
 function shortVersion(version: string | undefined): string {
   if (!version) return '';
   const parts = version.split('.');
@@ -349,7 +373,7 @@ const verdictKeys = computed(() => {
   };
 });
 
-/** Metrics to render — one block per metric, the `metric` prop's block, or (verdict)
+/** Metrics to render: one block per metric, the `metric` prop's block, or (verdict)
  *  a single round-trip block that folds the other two into its cells. */
 const displayedMetrics = computed<Metric[]>(() => {
   if (!index.value) return [];
@@ -417,7 +441,7 @@ async function loadDetail(item: {key: string; title: string}) {
   }
 }
 
-/** Compact value — ops/sec (1.2M/s) for runtime, or a bare count (1.2M) for the
+/** Compact value: ops/sec (1.2M/s) for runtime, or a bare count (1.2M) for the
  *  typecost bench. `bare` drops the `/s` (used for the invalid number, whose unit
  *  is already established by the valid number it sits beside). */
 function formatValue(value: number, unit: BenchIndex['unit'] | 'bytes', bare = false): string {
@@ -442,14 +466,14 @@ interface CombinedCell {
   invalid: string;
   /** 0 (worst in its row) → 1 (best); null for non-ok cells. Drives the row heatmap. */
   rank?: number | null;
-  /** value > 0 — drives the correctness "misaligned" red tint (tintMisalign mode). */
+  /** value > 0: drives the correctness "misaligned" red tint (tintMisalign mode). */
   misaligned?: boolean;
 }
 
 function combinedCell(kase: BenchCase, metricKey: string, comp: string): CombinedCell {
   const result = kase.results[comp]?.[metricKey];
   // No entry at all = the competitor can't express this case → n-a (distinct from
-  // a measured 0, which is a real value — e.g. a typecost case that cost the type
+  // a measured 0, which is a real value, e.g. a typecost case that cost the type
   // checker zero extra instantiations).
   if (!result) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
   if (result.status === 'fail') return {cls: 'bench-val--fail', valid: 'FAIL', invalid: ''};
@@ -468,13 +492,13 @@ function combinedAggCell(values: {valid: number | null; invalid: number | null},
   const valid = values.valid != null ? formatValue(values.valid, unit) : '';
   const invalid = values.invalid != null ? formatValue(values.invalid, unit, true) : '';
   // null geomean = the competitor doesn't participate in this row (geomeanOver
-  // collapses an all-zero category to 0), so it's n-a — same as a cell.
+  // collapses an all-zero category to 0), so it's n-a, same as a cell.
   if (!valid && !invalid) return {cls: 'bench-val--na', valid: 'n-a', invalid: ''};
   return {cls: 'bench-val--ok', valid: valid || '—', invalid, misaligned: values.valid != null && Math.round(values.valid) > 0};
 }
 
 /** Per-row heatmap ranks: 0 = worst in the row, 1 = best, over the positive values
- *  only (others null). Direction follows the metric — count benches (typecost) are
+ *  only (others null). Direction follows the metric: count benches (typecost) are
  *  lower-is-better. Small gaps are dampened toward neutral (0.5) so a row of near-ties
  *  isn't painted a dramatic red→green spread. Dampening is always on. */
 function ranksFor(values: (number | null)[], lowerBetter = false): (number | null)[] {
@@ -495,7 +519,7 @@ function ranksFor(values: (number | null)[], lowerBetter = false): (number | nul
   });
 }
 
-/** One combined cell per competitor, in column order — computed once per row, each
+/** One combined cell per competitor, in column order, computed once per row, each
  *  carrying its row-relative rank for the heatmap. */
 function sectionCells(kase: BenchCase, metricKey: string): CombinedCell[] {
   if (!index.value) return [];
@@ -584,7 +608,7 @@ function verdictAggCells(row: AggRow): VerdictCell[] {
   // has encode/decode also has payload and round-trip, so all three tiers average over
   // the same case set. If a future bench gave a competitor encdec without payload (or a
   // metric-specific fail), this cell could pair a round-trip number with enc/dec/bytes
-  // computed over a different basis — revisit the per-tier basis if that becomes possible.
+  // computed over a different basis: revisit the per-tier basis if that becomes possible.
   const {throughput, payload} = verdictKeys.value;
   const tRow = throughput ? aggregates.value[throughput]?.find((r) => r.key === row.key) : undefined;
   const pRow = payload ? aggregates.value[payload]?.find((r) => r.key === row.key) : undefined;
@@ -595,7 +619,7 @@ function verdictAggCells(row: AggRow): VerdictCell[] {
   return buildVerdict(rtVals, (i) => ({enc: tRow?.values[comps[i]]?.valid, dec: tRow?.values[comps[i]]?.invalid, bytes: pRow?.values[comps[i]]?.valid}));
 }
 
-/** Geometric mean of the positive values — outlier-resistant summary across cases. */
+/** Geometric mean of the positive values: outlier-resistant summary across cases. */
 function geomean(values: number[]): number | null {
   const positive = values.filter((value) => typeof value === 'number' && value > 0);
   if (positive.length === 0) return null;
@@ -611,7 +635,7 @@ function caseSupported(kase: BenchCase, comp: string, metricKey: string): boolea
 /** Fair comparison basis for an aggregate row: the participants (competitors that
  *  support >=1 of these cases) and the COMMON cases EVERY participant supports.
  *  Geomeans are taken over the common set so a library is never penalised in the
- *  mean for ALSO supporting harder cases the others can't express — otherwise a
+ *  mean for ALSO supporting harder cases the others can't express, otherwise a
  *  broad library's slow exclusive cases drag its mean below a narrow library that
  *  never attempts them. Participants are row-local, so a category one lib can't do
  *  at all doesn't blank the whole row. */
@@ -625,7 +649,7 @@ function commonBasis(cases: BenchCase[], metricKey: string): {participants: stri
 /** Geometric mean of one competitor's `path` values over the given cases. For
  *  throughput (higher-is-better, ops) a 0/absent value means the case didn't run, so
  *  only positive values count. For typecost (count, lower-is-better) a value of 0 is
- *  REAL and the BEST outcome — a type that resolves with zero extra instantiations —
+ *  REAL and the BEST outcome (a type that resolves with zero extra instantiations),
  *  so zeros are kept via +1 smoothing (geomean of value+1, minus 1) instead of being
  *  dropped: dropping them would compute the mean over only a library's EXPENSIVE
  *  cases and hide how often it's free (e.g. TypeBox is free on ~40% of cases, so a
@@ -655,9 +679,9 @@ function aggregateFor(metricKey: string): AggRow[] {
   const allCases: BenchCase[] = [];
 
   // Typecost (lower-is-better): PER-COMPETITOR basis. Each library is geomean'd over
-  // the cases IT supports — its own n-a cases drop out (geomeanOver skips them), but a
+  // the cases IT supports: its own n-a cases drop out (geomeanOver skips them), but a
   // case still counts for the other libraries that DO support it; a library that
-  // supports nothing here renders n-a. Throughput (higher-is-better): COMMON basis —
+  // supports nothing here renders n-a. Throughput (higher-is-better) uses a COMMON basis:
   // every participant over the same cases all support, so a library that skips slow
   // cases can't look faster than one that runs them.
   const lowerBetter = index.value?.unit === 'count';
@@ -708,7 +732,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
     </div>
 
     <div v-else-if="indexState === 'missing'" class="bench-note">
-      <span class="bench-prompt">$</span> Benchmark data not generated yet — run
+      <span class="bench-prompt">$</span> Benchmark data not generated yet, run
       <code>pnpm run gen:bench-docs</code>.
     </div>
 
@@ -723,10 +747,10 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
         </div>
         <p v-if="codeEnabled" class="bench-metric-hint">hover any row for {{ index.hasSamples ? 'the tested data and ' : '' }}each competitor's source</p>
 
-        <!-- Serialization verdict: page-level sticky link-speed bar — re-derives every
+        <!-- Serialization verdict: page-level sticky link-speed bar: re-derives every
              round-trip headline + the heatmap live; enc/dec + bytes stay frozen below. -->
         <div v-if="isVerdict && index.bandwidthsMbps" class="bench-bw-bar">
-          <span id="bench-bw-label" class="bench-bw-label"><i class="ti ti-wifi" aria-hidden="true"></i> link speed</span>
+          <span id="bench-bw-label" class="bench-bw-label"><svg class="bench-bw-icon" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1.4 7a9.2 9.2 0 0 1 13.2 0" /><path d="M4.2 9.3a5.6 5.6 0 0 1 7.6 0" /><path d="M6.4 11.9a2.2 2.2 0 0 1 3.2 0" /></g><circle cx="8" cy="13.4" r="0.95" fill="currentColor" /></svg> link speed</span>
           <span class="bench-bw-seg" role="group" aria-labelledby="bench-bw-label">
             <button
               v-for="bw in index.bandwidthsMbps"
@@ -755,8 +779,8 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
               </span>
             </span>
             <span class="bench-legend-note">
-              each cell stacks <span class="bench-legend-valid">round-trip/sec</span> at the link speed (headline, tinted — green = fastest), then <code>&uarr;encode &darr;decode</code>, then
-              <span class="bench-legend-pl">bytes on the wire</span> (green = fewest).<br/><code>n-a</code> = can't round-trip this case (no encode/decode result — mostly the native JSON baseline)
+              each cell stacks <span class="bench-legend-valid">round-trip/sec</span> at the link speed (headline, tinted: green = fastest), then <code>&uarr;encode &darr;decode</code>, then
+              <span class="bench-legend-pl">bytes on the wire</span> (green = fewest).<br/><code>n-a</code> = can't round-trip this case (no encode/decode result, mostly the native JSON baseline)
             </span>
           </div>
           <div v-else-if="metric.cellHint" class="bench-legend-row bench-legend-metric">
@@ -773,7 +797,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
           </div>
           <div v-else class="bench-legend-row bench-legend-metric">
             <span class="bench-legend-note">
-              each cell = {{ index.unit === 'count' ? 'TypeScript type-instantiations — lower is better' : 'validations/sec — higher is better' }};
+              each cell = {{ index.unit === 'count' ? 'TypeScript type-instantiations, lower is better' : 'validations/sec, higher is better' }};
               <code>0</code> is a real value, <code>n-a</code> = unsupported
             </span>
           </div>
@@ -807,8 +831,8 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
               <thead>
                 <tr class="bench-head">
                   <th class="bench-th bench-th--case">category</th>
-                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">
-                    <span class="bench-th-name">{{ comp }}</span>
+                  <th v-for="(comp, ci) in index.competitors" :key="comp" class="bench-th bench-th--comp">
+                    <span class="bench-th-name">{{ comp }}<BenchColumnInfo v-if="columnNotes[comp]" :label="comp" :note="columnNotes[comp]" :align="tipAlign(ci)" /></span>
                     <span v-if="versionOf(comp)" class="bench-th-version" :title="versionOf(comp)">v{{ shortVersion(versionOf(comp)) }}</span>
                     <span v-if="showStrategy" class="bench-tag" :class="`bench-tag--${strategyOf(comp)}`">{{ strategyOf(comp) }}</span>
                   </th>
@@ -856,8 +880,8 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
               <thead>
                 <tr class="bench-head">
                   <th class="bench-th bench-th--case">case</th>
-                  <th v-for="comp in index.competitors" :key="comp" class="bench-th bench-th--comp">
-                    <span class="bench-th-name">{{ comp }}</span>
+                  <th v-for="(comp, ci) in index.competitors" :key="comp" class="bench-th bench-th--comp">
+                    <span class="bench-th-name">{{ comp }}<BenchColumnInfo v-if="columnNotes[comp]" :label="comp" :note="columnNotes[comp]" :align="tipAlign(ci)" /></span>
                     <span v-if="versionOf(comp)" class="bench-th-version" :title="versionOf(comp)">v{{ shortVersion(versionOf(comp)) }}</span>
                     <span v-if="showStrategy" class="bench-tag" :class="`bench-tag--${strategyOf(comp)}`">{{ strategyOf(comp) }}</span>
                   </th>
@@ -996,7 +1020,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   color: var(--ui-text-highlighted, #e8eaed);
 }
 
-/* Build-strategy tag (comptime / jit / interpreted) — in column headers + legend. */
+/* Build-strategy tag (comptime / jit / interpreted), in column headers + legend. */
 /* Plain coloured text (more readable than a bordered pill). */
 .bench-tag {
   display: inline-block;
@@ -1019,7 +1043,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   color: var(--ui-text-dimmed, var(--ui-text-muted, #9aa0a6));
 }
 
-/* Strategy key — three equal columns (comptime / jit / interpreted), left-aligned,
+/* Strategy key: three equal columns (comptime / jit / interpreted), left-aligned,
    glosses wrap within their column; set off by a subtle rule like the footer. */
 .bench-legend-strategy {
   display: grid;
@@ -1137,7 +1161,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   color: var(--ui-text-muted, #9aa0a6);
 }
 
-/* Aggregated rows are a read-only summary — no hover detail panel. */
+/* Aggregated rows are a read-only summary: no hover detail panel. */
 .bench-row--agg {
   cursor: default;
 }
@@ -1177,7 +1201,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   overflow-wrap: anywhere;
 }
 
-/* Competitor column header — centered + bright, same look as the type-cost table. */
+/* Competitor column header: centered + bright, same look as the type-cost table. */
 .bench-th--comp {
   text-align: center;
   color: var(--ui-text-highlighted, #e8eaed);
@@ -1188,7 +1212,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   display: block;
 }
 
-/* installed library version under the column name — dim + monospace-ish */
+/* installed library version under the column name, dim + monospace-ish */
 .bench-th-version {
   display: block;
   margin-top: 0.1rem;
@@ -1203,7 +1227,21 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   font-weight: 600;
 }
 
-/* Run-environment line above the tables — quiet, terminal-style. */
+/* The whole header cell is the hover target for its column note, the info glyph
+   BenchColumnInfo draws is only the cue that there is something to hover. Reaching
+   into the child's tip is deliberate: the trigger has to be the cell, which lives
+   here, while the tip's own look stays the child's business. */
+.bench-th--comp:hover :deep(.bench-info-tip) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bench-th--comp:hover :deep(.bench-info-glyph) {
+  color: var(--ui-primary, #79af43);
+  opacity: 1;
+}
+
+/* Run-environment line above the tables: quiet, terminal-style. */
 .bench-runinfo {
   margin: 0 0 0.85rem;
   font-size: 0.7rem;
@@ -1289,8 +1327,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   background: hsl(calc(var(--rank) * 130deg) 55% 48% / 0.2);
 }
 
-/* Correctness "misaligned" flag (tintMisalign mode): any cell whose value is > 0 —
-   a divergence from ts-runtypes — gets a flat red tint + reddened number. Not a rank
+/* Correctness "misaligned" flag (tintMisalign mode): any cell whose value is > 0 (   a divergence from ts-runtypes)gets a flat red tint + reddened number. Not a rank
    ramp; a binary "this library disagreed here". */
 .bench-val--misaligned {
   background: hsl(0deg 60% 50% / 0.18);
@@ -1317,7 +1354,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   color: hsl(calc(var(--rank) * 130deg) 55% 38%);
 }
 
-/* Combined cell — valid (accept) is the centered headline (inherits the cell's
+/* Combined cell: valid (accept) is the centered headline (inherits the cell's
    ok/fail color); invalid (reject) hangs off its bottom-right corner, smaller +
    dimmed. Both colors are theme tokens (Nuxt UI) so they adapt to light + dark. */
 .bench-val-wrap {
@@ -1342,7 +1379,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
 }
 
 /* ── Serialization "verdict" layout ──────────────────────────────────────────
-   Sticky page-level link-speed bar — the one knob that re-derives every round-trip
+   Sticky page-level link-speed bar: the one knob that re-derives every round-trip
    headline + the heatmap. Sits under the fixed docs header. */
 .bench-bw-bar {
   position: sticky;
@@ -1363,10 +1400,11 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   font-size: 0.82rem;
   color: var(--ui-text-muted, #b3b8bd);
 }
-.bench-bw-label .ti {
-  font-size: 0.95rem;
-  vertical-align: -0.12em;
-  margin-right: 0.15rem;
+/* Inline SVG rather than an icon font: the site ships no webfont, so the Tabler
+   class this used to carry drew nothing at all. */
+.bench-bw-icon {
+  vertical-align: -0.14em;
+  margin-right: 0.2rem;
 }
 .bench-bw-seg {
   display: inline-flex;
@@ -1423,7 +1461,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-muted, #b3b8bd);
 }
-/* lower-better "fewest bytes" cue — text (not a cell background), so it never reads
+/* lower-better "fewest bytes" cue: text (not a cell background), so it never reads
    as a second heatmap signal next to the round-trip tint. */
 .bench-val-pl--min {
   color: #86b94a;
@@ -1502,7 +1540,7 @@ const aggregates = computed<Record<string, AggRow[]>>(() => {
   .bench-val-pl {
     font-size: 0.54rem;
   }
-  /* the bandwidth note is the least essential token — drop it to save a row */
+  /* the bandwidth note is the least essential token, drop it to save a row */
   .bench-bw-hint {
     display: none;
   }

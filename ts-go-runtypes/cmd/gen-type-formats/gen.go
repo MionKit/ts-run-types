@@ -11,15 +11,14 @@ import (
 	// Blank-import the aggregator so every concrete format emitter registers
 	// with formats.Registry via its init() before Generate() enumerates it.
 	_ "github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats/all"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // monorepoRoot is the repository root — three dirs up from this file (cmd/
 // gen-type-formats → cmd → ts-go-runtypes → repo root). The `packages/`
 // workspaces live here, NOT under the Go module (a past migration moved the Go
-// tree into ts-go-runtypes/ but left packages/ at the repo root; see
-// docs/done/go-tree-subdir-migration.md), so the output path is one level above
-// the Go module.
+// tree into ts-go-runtypes/ but left packages/ at the repo root), so the output
+// path is one level above the Go module.
 func monorepoRoot() string {
 	_, thisFile, _, _ := runtime.Caller(0)
 	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
@@ -49,19 +48,27 @@ func jsStr(s string) string {
 
 // kindJsName maps the base ReflectionKind a format refines onto its RunTypeKind
 // JS property name, so the emitted metadata references RunTypeKind.<name> instead
-// of a bare wire integer. Formats only ever refine these four kinds; a new one
-// panics so the generator (and TestTypeFormatsFileInSync) fail loudly until this
-// map is extended, rather than emitting a broken RunTypeKind.undefined reference.
-func kindJsName(kind protocol.ReflectionKind) string {
+// of a bare wire integer. A kind outside this map panics so the generator (and
+// TestTypeFormatsFileInSync) fail loudly until it is extended, rather than
+// emitting a broken RunTypeKind.undefined reference.
+func kindJsName(kind reflection.ReflectionKind) string {
 	switch kind {
-	case protocol.KindString:
+	case reflection.KindString:
 		return "string"
-	case protocol.KindNumber:
+	case reflection.KindNumber:
 		return "number"
-	case protocol.KindBigInt:
+	case reflection.KindBigInt:
 		return "bigint"
-	case protocol.KindClass:
+	case reflection.KindClass:
 		return "class"
+	case reflection.KindArray:
+		return "array"
+	case reflection.KindTuple:
+		return "tuple"
+	case reflection.KindObject:
+		return "object"
+	case reflection.KindObjectLiteral:
+		return "objectLiteral"
 	default:
 		panic(fmt.Sprintf("gen-type-formats: format refines unmapped ReflectionKind %d — extend kindJsName", int(kind)))
 	}
@@ -74,7 +81,14 @@ func Generate() string {
 	entries := formats.Registered()
 	// Registered() sorts by (kind, name); re-sort by name alone for a stable,
 	// human-scannable alphabetical table (and unique-key detection below).
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	// Same-name entries (one family under several base kinds) tie-break by
+	// kind so the deduped row below is deterministic — sort.Slice is unstable.
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Name() != entries[j].Name() {
+			return entries[i].Name() < entries[j].Name()
+		}
+		return entries[i].Kind() < entries[j].Kind()
+	})
 
 	var out strings.Builder
 	out.WriteString("// ============================================================================\n")
@@ -114,7 +128,12 @@ func Generate() string {
 	for _, emitter := range entries {
 		name := emitter.Name()
 		if seen[name] {
-			panic("gen-type-formats: duplicate format name " + name)
+			// One family may register under SEVERAL base kinds (formattedObject
+			// covers objectLiteral AND the bare `object` keyword); the table
+			// stays name-keyed with the first (kind, name)-sorted entry —
+			// the registry itself already panics on an exact (kind, name)
+			// duplicate, so this is never a silent clash between emitters.
+			continue
 		}
 		seen[name] = true
 		fmt.Fprintf(&out, "  %s: {name: %s, kind: RunTypeKind.%s},\n", name, jsStr(name), kindJsName(emitter.Kind()))

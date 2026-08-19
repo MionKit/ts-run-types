@@ -75,11 +75,11 @@ type tsRuntypesPlugin struct {
 	SingleThreaded *bool `json:"singleThreaded"`
 	ParallelScan   *bool `json:"parallelScan"`
 	ParallelRender *bool `json:"parallelRender"`
-	// AllowUncheckedPatterns silences the fail-closed FMT004 build error for
-	// format patterns whose mockSamples RE2 can't verify (JS-only regex
-	// features), asserting the ts-runtypes JS linter owns that check. A pointer
-	// so an absent key falls through to the false default. Build-lane only.
-	AllowUncheckedPatterns *bool `json:"allowUncheckedPatterns"`
+	// Pattern mockSample auto-generation: how many samples to generate per
+	// sample-less pattern (0 disables) and the per-sample draw multiplier.
+	// Pointers so an explicit 0 is distinct from an absent key.
+	PatternSampleCount   *int `json:"patternSampleCount"`
+	PatternSampleRetries *int `json:"patternSampleRetries"`
 	// PureFnReport is the pure-fn build report switch: `true` emits the report
 	// AND writes it to the HARDCODED `<genDir>/types/pure-fns-report.json`;
 	// absent (nil) / false keeps it off. A pointer so an absent key falls
@@ -95,27 +95,51 @@ type tsRuntypesPlugin struct {
 	// default). A pointer so an absent key (nil) is distinct from an explicit
 	// false. The enrich lane ignores it.
 	FailOnError *bool `json:"failOnError"`
-	// Size groups the binary `dynamic` strategy's cold-start buffer-estimate
-	// knobs under one `size` object (like `i18n`). A nil object (absent key)
-	// keeps every binary default.
-	Size *sizePluginConfig `json:"size"`
+	// BinarySizing groups the binary `dynamic` strategy's cold-start
+	// buffer-estimate knobs under one `binarySizing` object (like `i18n`). A nil
+	// object (absent key) keeps every binary default.
+	BinarySizing *binarySizingPluginConfig `json:"binarySizing"`
 	// Validate groups project-wide defaults for the per-call-site ValidateOptions
-	// bag under one `validate` object (like `size`). A nil object (absent key)
+	// bag under one `validate` object (like `binarySizing`). A nil object (absent key)
 	// keeps every validator on its built-in default. Merged per field into each
 	// validate / validationErrors call site by the scanner (site value wins per
 	// field); folds into each entry's fnHash variant, so it is NOT a disk
 	// fingerprint input.
 	Validate *validatePluginConfig `json:"validate"`
+	// Markers groups the marker-package gate under one `markers` object (like
+	// `binarySizing`). It answers "which packages am I willing to accept the
+	// marker types from?", so a library can declare `InjectRunTypeId` and
+	// friends itself instead of depending on ts-runtypes purely for types. A nil
+	// object (absent key) keeps the built-in gate: markers count only when
+	// @ts-runtypes/core declared them.
+	Markers *markersPluginConfig `json:"markers"`
 }
 
-// sizePluginConfig is the `size` object under the ts-runtypes plugin entry:
+// markersPluginConfig is the `markers` object under the ts-runtypes plugin
+// entry:
+//
+//	{ "packages": ["@my-org/runtypes-markers"], "checkPackage": true }
+//
+// packages ADDS packages allowed to declare the marker types; @ts-runtypes/core
+// is always accepted on top of whatever is listed, so this key can never take a
+// working call site away. checkPackage:false drops the package gate entirely —
+// a type is a marker on its NAME alone, wherever it came from. That is the
+// escape hatch, not the recommended setting: with it off, any local `type
+// InjectRunTypeId<T> = …` starts driving rewrites.
+type markersPluginConfig struct {
+	Packages     []string `json:"packages"`
+	CheckPackage *bool    `json:"checkPackage"`
+}
+
+// binarySizingPluginConfig is the `binarySizing` object under the ts-runtypes
+// plugin entry:
 //
 //	{ "bias": 0.8, "items": 100, "stringBytes": 32, "maxBytes": 65536 }
 //
 // bias (0..1) tunes how generous the first buffer is; items / stringBytes are
 // the assumed magnitudes for unbounded collections and strings; maxBytes caps
 // the estimate. Pointers so an absent key falls through to the binary default.
-type sizePluginConfig struct {
+type binarySizingPluginConfig struct {
 	Bias        *float64 `json:"bias"`
 	Items       *int     `json:"items"`
 	StringBytes *int     `json:"stringBytes"`

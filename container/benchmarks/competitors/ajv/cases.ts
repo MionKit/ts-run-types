@@ -1,6 +1,23 @@
 import Ajv from 'ajv';
+import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import {NOT_SUPPORTED, type CompetitorCases} from '../../shared/harness/types.ts';
+// The JSON_SCHEMA lane compiles the case's OWN document, imported rather than
+// re-authored, so "same schema, two libraries" is true by construction.
+import {JSON_SCHEMA} from '../../shared/cases/json-schema/index.ts';
+
+// The 2020-12 dialect twin. The default `Ajv` export is draft-07 and would
+// silently ignore `prefixItems` (and read `items: false` with draft-07
+// semantics), so this lane must not use it.
+type JsonSchemaKey = keyof typeof JSON_SCHEMA;
+const doc = (key: JsonSchemaKey): object => JSON_SCHEMA[key].schema as object;
+
+function compile2020(key: JsonSchemaKey, allErrors: boolean): (value: unknown) => boolean {
+  const ajv = new Ajv2020({strict: false, allowUnionTypes: true, allErrors});
+  addFormats(ajv, {mode: 'full'});
+  const validate = ajv.compile(doc(key));
+  return (value: unknown) => validate(value) === true;
+}
 
 // Each supported case compiles its JSON Schema inside its own builder thunk —
 // self-contained and copy-paste runnable, with any shared sub-schema inlined. The
@@ -3332,6 +3349,211 @@ export const cases: CompetitorCases = {
           },
         },
         required: ['email', 'password', 'acceptedTerms', 'profile'],
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+  },
+  'REALWORLD.toBeChecked': {
+    build: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {
+          number: {type: 'number'},
+          negNumber: {type: 'number'},
+          maxNumber: {type: 'number'},
+          string: {type: 'string'},
+          longString: {type: 'string'},
+          boolean: {type: 'boolean'},
+          deeplyNested: {
+            type: 'object',
+            properties: {foo: {type: 'string'}, num: {type: 'number'}, bool: {type: 'boolean'}},
+            required: ['foo', 'num', 'bool'],
+          },
+        },
+        required: ['number', 'negNumber', 'maxNumber', 'string', 'longString', 'boolean', 'deeplyNested'],
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    buildErrors: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true, allErrors: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {
+          number: {type: 'number'},
+          negNumber: {type: 'number'},
+          maxNumber: {type: 'number'},
+          string: {type: 'string'},
+          longString: {type: 'string'},
+          boolean: {type: 'boolean'},
+          deeplyNested: {
+            type: 'object',
+            properties: {foo: {type: 'string'}, num: {type: 'number'}, bool: {type: 'boolean'}},
+            required: ['foo', 'num', 'bool'],
+          },
+        },
+        required: ['number', 'negNumber', 'maxNumber', 'string', 'longString', 'boolean', 'deeplyNested'],
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+  },
+
+  // ── JSON_SCHEMA ──
+  // One document, compiled by ajv 2020-12 exactly as ts-runtypes receives it.
+  // No `samples` override survives in this group: every remaining case was
+  // verified to agree with our semantics by RUNNING ajv (full-mode email
+  // requires the dotted TLD; multipleOf rejects NaN and Infinity). The two
+  // cases that did diverge (record_number, union_anyof, both the bare
+  // `{type:'number'}` NaN/Infinity split) were plain shapes and left this group
+  // with the rest of the shape cases.
+  'JSON_SCHEMA.property_names': {
+    build: () => compile2020('property_names', false),
+    buildErrors: () => compile2020('property_names', true),
+  },
+  'JSON_SCHEMA.contains_count': {
+    build: () => compile2020('contains_count', false),
+    buildErrors: () => compile2020('contains_count', true),
+  },
+  'JSON_SCHEMA.unique_items': {
+    build: () => compile2020('unique_items', false),
+    buildErrors: () => compile2020('unique_items', true),
+  },
+  'JSON_SCHEMA.object_size': {
+    build: () => compile2020('object_size', false),
+    buildErrors: () => compile2020('object_size', true),
+  },
+  'JSON_SCHEMA.string_email': {
+    build: () => compile2020('string_email', false),
+    buildErrors: () => compile2020('string_email', true),
+  },
+  'JSON_SCHEMA.int_bounded': {
+    build: () => compile2020('int_bounded', false),
+    buildErrors: () => compile2020('int_bounded', true),
+  },
+  'JSON_SCHEMA.string_pattern': {
+    build: () => compile2020('string_pattern', false),
+    buildErrors: () => compile2020('string_pattern', true),
+  },
+  'JSON_SCHEMA.multiple_of': {
+    build: () => compile2020('multiple_of', false),
+    buildErrors: () => compile2020('multiple_of', true),
+  },
+
+  // ── STRICT ──
+  // additionalProperties:false at every level — ajv's closedness, the direct
+  // counterpart to the count check the RunTypes column runs.
+  'STRICT.flat_required': {
+    build: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {id: {type: 'number'}, name: {type: 'string'}, active: {type: 'boolean'}},
+        required: ['id', 'name', 'active'],
+        additionalProperties: false,
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    buildErrors: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true, allErrors: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {id: {type: 'number'}, name: {type: 'string'}, active: {type: 'boolean'}},
+        required: ['id', 'name', 'active'],
+        additionalProperties: false,
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+  },
+  'STRICT.nested_required': {
+    build: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {
+          name: {type: 'string'},
+          inner: {
+            type: 'object',
+            properties: {x: {type: 'number'}, y: {type: 'string'}},
+            required: ['x', 'y'],
+            additionalProperties: false,
+          },
+        },
+        required: ['name', 'inner'],
+        additionalProperties: false,
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    buildErrors: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true, allErrors: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {
+          name: {type: 'string'},
+          inner: {
+            type: 'object',
+            properties: {x: {type: 'number'}, y: {type: 'string'}},
+            required: ['x', 'y'],
+            additionalProperties: false,
+          },
+        },
+        required: ['name', 'inner'],
+        additionalProperties: false,
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+  },
+  'STRICT.moltar_dto': {
+    build: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {
+          number: {type: 'number'},
+          negNumber: {type: 'number'},
+          maxNumber: {type: 'number'},
+          string: {type: 'string'},
+          longString: {type: 'string'},
+          boolean: {type: 'boolean'},
+          deeplyNested: {
+            type: 'object',
+            properties: {foo: {type: 'string'}, num: {type: 'number'}, bool: {type: 'boolean'}},
+            required: ['foo', 'num', 'bool'],
+            additionalProperties: false,
+          },
+        },
+        required: ['number', 'negNumber', 'maxNumber', 'string', 'longString', 'boolean', 'deeplyNested'],
+        additionalProperties: false,
+      });
+      return (value: unknown) => validate(value) === true;
+    },
+    buildErrors: () => {
+      const ajv = new Ajv({strict: false, allowUnionTypes: true, allErrors: true});
+      addFormats(ajv, {mode: 'full'});
+      const validate = ajv.compile({
+        type: 'object',
+        properties: {
+          number: {type: 'number'},
+          negNumber: {type: 'number'},
+          maxNumber: {type: 'number'},
+          string: {type: 'string'},
+          longString: {type: 'string'},
+          boolean: {type: 'boolean'},
+          deeplyNested: {
+            type: 'object',
+            properties: {foo: {type: 'string'}, num: {type: 'number'}, bool: {type: 'boolean'}},
+            required: ['foo', 'num', 'bool'],
+            additionalProperties: false,
+          },
+        },
+        required: ['number', 'negNumber', 'maxNumber', 'string', 'longString', 'boolean', 'deeplyNested'],
+        additionalProperties: false,
       });
       return (value: unknown) => validate(value) === true;
     },

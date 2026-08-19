@@ -14,8 +14,14 @@ the tsconfig outDir; requires a tsconfig; no stdio protocol.
 (tsc --noEmit-style).
 
 Flags:
-  --allow-unchecked-patterns
-    	silence the fail-closed FMT004 build error for format patterns whose mockSamples RE2 can't verify
+  --binary-sizing-bias dynamic
+    	binary dynamic cold-start size bias in [0,1]: 0 = tightest, 1 = most generous (default 0.8)
+  --binary-sizing-items int
+    	assumed element count for an unbounded collection in the binary cold-start estimate (default 100)
+  --binary-sizing-max-bytes int
+    	per-type cap on the binary cold-start estimate (default 65536)
+  --binary-sizing-string-bytes int
+    	assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)
   --cwd string
     	working directory (default: $PWD)
   --emit-mode string
@@ -26,10 +32,16 @@ Flags:
     	short-id length for type hashes (0 = default 7)
   --inline-mode string
     	child-inlining policy: default (unnamed compounds inline, named external) | allInternal
+  --js-runtime string
+    	JS runtime path the format-pattern checks run on (default: RT_JS_RUNTIME, then node, then bun from PATH; any node-compatible runtime works)
+  --marker-packages packages
+    	comma-separated packages additionally allowed to declare the marker types (InjectRunTypeId, CompTimeArgs, …); @ts-runtypes/core is always accepted
   --module-mode string
     	virtual-module grouping: default | allSingle | allModules
   --no-emit
     	report the RunType-family diagnostics without writing (tsc --noEmit-style): scan only, emit no .js and no cache modules
+  --no-marker-package-check
+    	match markers by type NAME alone, whatever package declared them (escape hatch; a local same-named type then drives rewrites too)
   --no-parallel-render
     	disable the parallel cache renders (parallel is the default)
   --no-parallel-scan
@@ -38,6 +50,10 @@ Flags:
     	force multi-threaded (the default), overriding a tsconfig singleThreaded:true
   --number-mode string
     	project-wide default for the validate numberMode option: isFinite (default) | typeof | notNaN
+  --pattern-sample-count int
+    	generated mockSamples per sample-less format pattern (default 100; 0 disables generation)
+  --pattern-sample-retries int
+    	per-sample draw multiplier for pattern sample generation (whole budget = count × retries; default 10)
   --pprof-cpu string
     	write a CPU profile to PATH (whole run)
   --pprof-heap string
@@ -48,14 +64,6 @@ Flags:
     	emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan
   --single-threaded
     	single-threaded mode (also disables the parallel scan + renders)
-  --size-bias dynamic
-    	binary dynamic cold-start size bias in [0,1]: 0 = tightest, 1 = most generous (default 0.8)
-  --size-items int
-    	assumed element count for an unbounded collection in the binary cold-start estimate (default 100)
-  --size-max-bytes int
-    	per-type cap on the binary cold-start estimate (default 65536)
-  --size-string-bytes int
-    	assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)
   --tsconfig string
     	tsconfig.json path (default: discover upward from --cwd, tsc-style)
 "
@@ -121,8 +129,14 @@ default), stdin (a {"sources":{…}} handshake line, one inferred Program), or o
 (no startup Program; the client drives setSources / scanFiles / dump).
 
 Flags:
-  --allow-unchecked-patterns
-    	silence the fail-closed FMT004 build error for format patterns whose mockSamples RE2 can't verify
+  --binary-sizing-bias dynamic
+    	binary dynamic cold-start size bias in [0,1]: 0 = tightest, 1 = most generous (default 0.8)
+  --binary-sizing-items int
+    	assumed element count for an unbounded collection in the binary cold-start estimate (default 100)
+  --binary-sizing-max-bytes int
+    	per-type cap on the binary cold-start estimate (default 65536)
+  --binary-sizing-string-bytes int
+    	assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)
   --cwd string
     	working directory (default: $PWD)
   --emit-mode string
@@ -143,8 +157,14 @@ Flags:
     	short-id length for type hashes (0 = default 7)
   --inline-mode string
     	child-inlining policy: default (unnamed compounds inline, named external) | allInternal
+  --js-runtime string
+    	JS runtime path the format-pattern checks run on (default: RT_JS_RUNTIME, then node, then bun from PATH; any node-compatible runtime works)
+  --marker-packages packages
+    	comma-separated packages additionally allowed to declare the marker types (InjectRunTypeId, CompTimeArgs, …); @ts-runtypes/core is always accepted
   --module-mode string
     	virtual-module grouping: default | allSingle | allModules
+  --no-marker-package-check
+    	match markers by type NAME alone, whatever package declared them (escape hatch; a local same-named type then drives rewrites too)
   --no-parallel-render
     	disable the parallel cache renders (parallel is the default)
   --no-parallel-scan
@@ -153,10 +173,16 @@ Flags:
     	force multi-threaded (the default), overriding a tsconfig singleThreaded:true
   --number-mode string
     	project-wide default for the validate numberMode option: isFinite (default) | typeof | notNaN
+  --omit-sources-content
+    	drop the original source from each 'go'-mode transform source map (the host fills it from its own copy)
   --out-json string
     	after stdin EOF, write the cache as JSON to PATH
   --out-modules string
     	after stdin EOF, write per-entry virtual modules to DIR
+  --pattern-sample-count int
+    	generated mockSamples per sample-less format pattern (default 100; 0 disables generation)
+  --pattern-sample-retries int
+    	per-sample draw multiplier for pattern sample generation (whole budget = count × retries; default 10)
   --pprof-cpu string
     	write a CPU profile to PATH (whole run)
   --pprof-heap string
@@ -167,16 +193,10 @@ Flags:
     	emit the structured pure-fn build report ON THE WIRE (Response.pureFnSites) on generate/scan
   --single-threaded
     	single-threaded mode (also disables the parallel scan + renders)
-  --size-bias dynamic
-    	binary dynamic cold-start size bias in [0,1]: 0 = tightest, 1 = most generous (default 0.8)
-  --size-items int
-    	assumed element count for an unbounded collection in the binary cold-start estimate (default 100)
-  --size-max-bytes int
-    	per-type cap on the binary cold-start estimate (default 65536)
-  --size-string-bytes int
-    	assumed UTF-8 byte length of an unbounded string in the binary cold-start estimate (default 32)
   --sources string
     	startup Program source: project | stdin | ops
+  --transform-relative
+    	transform rewrites injected rtmod: specifiers to paths relative to the output root (files mode); off keeps the virtual specifiers
   --tsconfig string
     	tsconfig.json path (default: discover upward from --cwd, tsc-style)
 "
@@ -192,6 +212,7 @@ Commands:
     serve       serve the resolver protocol on stdio (the bundler-plugin path)
     compile     tsc-like batch compile: emit .js + generated cache modules to disk (--no-emit: diagnostics only)
     enrich      scaffold / reconcile / check the enrichment mirror files (--no-emit: diagnostics only)
+    convert     rewrite type declarations between the three authoring forms
 
 Run  ts-runtypes <command> -h  for a command's own options.
 
@@ -205,8 +226,10 @@ Shared options (same meaning under every command):
     --number-mode MODE  validate numberMode default: isFinite (default) | typeof | notNaN
     --single-threaded / --no-single-threaded
     --no-parallel-scan / --no-parallel-render
-    --size-bias / --size-items / --size-string-bytes / --size-max-bytes
-    --allow-unchecked-patterns
+    --binary-sizing-bias / --binary-sizing-items / --binary-sizing-string-bytes / --binary-sizing-max-bytes
+    --js-runtime PATH   JS runtime the pattern checks run on (default: RT_JS_RUNTIME, then node, then bun from PATH)
+    --pattern-sample-count N    generated mockSamples per sample-less pattern (default 100; 0 disables)
+    --pattern-sample-retries N  per-sample draw multiplier for pattern generation (default 10)
     --pure-fn-report-wire / --pure-fn-report-file
     --pprof-cpu PATH / --pprof-heap PATH
     -h, --help          show help

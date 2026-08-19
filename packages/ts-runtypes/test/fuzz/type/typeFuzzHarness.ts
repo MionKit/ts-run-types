@@ -30,21 +30,52 @@ import {
   createMockDataFn,
 } from '@ts-runtypes/core';
 import {binarySizeEstimateFromTuple} from '../../../src/runtypes/entryTuple.ts';
+import type {BinarySizingOptions} from '../../../src/mocking/mockTypes.ts';
 import {ResolverClient, type ResolverClientOptions} from '../../../../ts-runtypes-devtools/src/resolver-client.ts';
 import {
-  RUNTYPES_DTS,
+  MARKER_PACKAGE_OVERLAY,
   evalEntryModules,
   instantiateRunTypes,
   BIN,
   hasBinary,
 } from '../../../../ts-runtypes-devtools/test/helpers/inline.ts';
 import {Severity, type Diagnostic, type Site} from '../../../../ts-runtypes-devtools/src/protocol.ts';
+import {readFileSync, readdirSync} from 'node:fs';
 import {renderGenerated, describeType, type GeneratedType} from '../core/typeGen.ts';
 
 export {hasBinary, BIN};
 
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
 const FIXTURE = 'g.ts';
+
+// The resolver's serve/ops mode builds its program from the setSources keys
+// alone — a pure virtual filesystem — so a fixture cannot import the shipped
+// sources off disk. This is a WORKAROUND for that, not a mechanism to build
+// on: read the real `src/` tree once and hand it over whole, so fixture
+// imports like `./src/formats/index.ts` resolve to the shipped sources.
+//
+// ⚠️ THE RULE: fixtures always use the real shipped types, imported — never
+// hand-write a stand-in. A hand copy does not fail when the shipped type
+// changes; it silently keeps testing the old shape, which is the one failure
+// mode a fuzz suite cannot afford. The few tolerated, pinned exceptions
+// (fixtures in scratch temp dirs where no import can resolve) are listed in
+// "Real types, never copies" in test/fuzz/README.md. (`src/` imports nothing
+// non-relative, so the graph closes with no further stubs.)
+const SRC_ROOT = path.resolve(__dirname, '../../../src');
+function readSrcTree(dir: string, prefix: string, into: Record<string, string>): void {
+  for (const entry of readdirSync(dir, {withFileTypes: true})) {
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) readSrcTree(abs, `${prefix}${entry.name}/`, into);
+    else if (entry.name.endsWith('.ts')) into[`src/${prefix}${entry.name}`] = readFileSync(abs, 'utf8');
+  }
+}
+/** Every `src/**` file keyed by its path under `src/`, for `setSources`. Read
+ *  once per process — the tree does not change mid-run. **/
+export const SRC_OVERLAY: Readonly<Record<string, string>> = (() => {
+  const overlay: Record<string, string> = {};
+  readSrcTree(SRC_ROOT, '', overlay);
+  return overlay;
+})();
 
 const ENCODER_TAGS = new Set(['jeCL', 'jeMU', 'jeDI']);
 const DECODER_TAGS = new Set(['jdST', 'jdPR']);
@@ -92,13 +123,19 @@ export interface CompiledType {
   reflectionTuple?: readonly unknown[];
 }
 
-/** Open a resolver client. `sizeOpts` forwards the `--size-*` estimator config so
- *  the baked cold-start estimate matches a size-lane run's value bounds. **/
-export function openClient(
-  sizeOpts?: Pick<ResolverClientOptions, 'sizeBias' | 'sizeItems' | 'sizeStringBytes' | 'sizeMaxBytes'>
-): ResolverClient {
+/** Open a resolver client. `sizing` forwards the `--binary-sizing-*` estimator
+ *  config so the baked cold-start estimate matches a size-lane run's value
+ *  bounds. Takes the RUNTIME `BinarySizingOptions` shape (the same object the
+ *  size lane hands createMockDataFn) and maps it onto the build-side flag
+ *  names, so one config literal still drives both ends of the oracle. **/
+export function openClient(sizing?: BinarySizingOptions): ResolverClient {
   if (!hasBinary()) throw new Error(`ts-runtypes binary not built: ${BIN}`);
-  return new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true, emitMode: 'both', ...sizeOpts});
+  const sizingArgs: Partial<ResolverClientOptions> = {};
+  if (sizing?.sizeBias !== undefined) sizingArgs.binarySizingBias = sizing.sizeBias;
+  if (sizing?.sizeItems !== undefined) sizingArgs.binarySizingItems = sizing.sizeItems;
+  if (sizing?.sizeStringBytes !== undefined) sizingArgs.binarySizingStringBytes = sizing.sizeStringBytes;
+  if (sizing?.sizeMaxBytes !== undefined) sizingArgs.binarySizingMaxBytes = sizing.sizeMaxBytes;
+  return new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true, emitMode: 'both', ...sizingArgs});
 }
 
 /** Render the full fixture: import block, named decls, `type T = root`, and one
@@ -148,7 +185,10 @@ export async function compileType(client: ResolverClient, gen: GeneratedType): P
 
   let resp;
   try {
-    await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, [FIXTURE]: source});
+    // The whole src/ tree rides along so the fixture preamble's `./src/...`
+    // imports (the SHIPPED format brands) resolve inside the resolver's
+    // virtual filesystem — no hand-written brand stand-ins (SRC_OVERLAY above).
+    await client.setSources({...SRC_OVERLAY, ...MARKER_PACKAGE_OVERLAY, [FIXTURE]: source});
     resp = await client.scanFiles([FIXTURE], {includeEntryModules: true});
   } catch (err) {
     return {...base, resolverError: errMsg(err)};

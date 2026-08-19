@@ -1,4 +1,6 @@
-// Wire types mirroring internal/protocol/protocol.go. The interfaces below are
+// Wire types mirroring the Go side: the reflection model in
+// internal/reflection/runtype.go (RunType and friends) and the wire envelope
+// in internal/protocol/protocol.go. The interfaces below are
 // hand-maintained (to keep the plugin dep-free); the ReflectionKind enum,
 // KIND_REF sentinel, and REFLECTION_SUB_KIND map are code-generated from the same
 // Go source (reflectionKind.generated.ts) so the kind/sub-kind discriminators can
@@ -11,7 +13,7 @@
 // graph.
 
 // ReflectionKind + KIND_REF + REFLECTION_SUB_KIND are GENERATED from
-// internal/protocol/{protocol,subkind}.go (the same source as @ts-runtypes/core's
+// internal/reflection/{runtype,subkind}.go (the same source as @ts-runtypes/core's
 // RunTypeKind / RunTypeSubKind), re-exported here so existing
 // `import {ReflectionKind} from './protocol.ts'` sites are unchanged.
 import {KIND_REF, ReflectionKind, REFLECTION_SUB_KIND, type ReflectionSubKind} from './go-generated/reflectionKind.generated.ts';
@@ -116,8 +118,11 @@ export interface RunType {
   // to materialise the full per-member struct in one pass.
   unionDiscriminators?: (RunType | null | undefined)[];
 
-  // surviving object-literal types from an intersection-collapse of a
-  // primitive with one or more brand objects (e.g. `string & {__brand}`).
+  // The OPEN metadata extension point: object-literal members surviving an
+  // intersection-collapse of a primitive with metadata objects (e.g.
+  // `string & {__brand}`, `number & {dbIndex: true}`). Carried untouched for
+  // consumers to read back via reflection; the engine never interprets it —
+  // formatAnnotation (below) is the CLOSED, engine-executed counterpart.
   // Each entry is a ref to an objectLiteral RunType. Mirrors deepkit's
   // TypeAnnotations.decorators.
   typeMeta?: RunType[];
@@ -129,7 +134,8 @@ export interface RunType {
   // structural id folds name + canonicalised params in, so two
   // distinct param sets produce two distinct cache entries while
   // equivalent param sets (regardless of object-literal key order)
-  // collapse to one.
+  // collapse to one. Recognition rides the unforgeable unique-symbol
+  // sentinels, so hand-written typeMeta objects can never trigger it.
   formatAnnotation?: FormatAnnotation;
 
   // enum
@@ -313,15 +319,13 @@ export interface FormatAnnotation {
 }
 
 export interface Request {
-  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile' | 'transform' | 'generate' | 'enrich';
-  // scanFiles only — the files to scan in this request. The response's
-  // sites cover every listed file (each tagged with .file); when the
-  // include* flags are set, runTypes / runTypeCacheSource are projected
-  // over these files only (NOT the cache's session-wide contents — use
-  // dump for that).
+  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'tsCompile' | 'transform' | 'generate' | 'enrich';
+  // The op's file input: the files to scan (scanFiles), rewrite (transform),
+  // or enrichment-check (enrich). The response's sites cover every listed file
+  // (each tagged with .file); when the include* flags are set, runTypes /
+  // runTypeCacheSource are projected over these files only (NOT the cache's
+  // session-wide contents — use dump for that).
   files?: string[];
-  // resolveId only — hash id of the RunType to look up in the cache.
-  id?: string;
   // setSources only — { relpath: source-text }.
   sources?: Record<string, string>;
   // scanFiles only — when set, the response includes a runTypes slice
@@ -355,10 +359,6 @@ export interface Request {
   // for the FE to apply itself. A per-request wire knob; the artifacts are
   // identical either way, so it never affects the disk cache.
   emitEdits?: boolean;
-  // transform only ('go' mode) — drop the original source from the map's
-  // sourcesContent (the heaviest single wire item). The bundler composes the
-  // chained map and fills original content itself, so it rarely needs our copy.
-  omitSourcesContent?: boolean;
   // enrich carries NO fields of its own beyond `files` (empty = whole program):
   // the wire carries the event, the session carries the config — families, i18n
   // locales, and the output root ride the spawn flags (--gen-dir / --enrich-*),
@@ -486,10 +486,6 @@ export interface Response {
   // via `this.warn(formatTscDiagnostic(d))` so VS Code's $tsc problem
   // matcher picks them up; the build never fails on these.
   diagnostics?: Diagnostic[];
-  // uncheckedPatterns carries the format patterns whose mockSamples RE2
-  // couldn't verify at build time, for the lint plugin to validate with the
-  // real regex engine. Present only on the lint lane (includeRtDiagnostics).
-  uncheckedPatterns?: UncheckedPattern[];
   // tsCompile only — wall-time (ms) of the embedded tsgo's bind +
   // typecheck + emit pass on the current source overlay. Bench
   // orchestrators record this alongside scanFiles latency to show the
@@ -536,21 +532,6 @@ export interface DiagnosticSite {
 
 export interface DiagnosticRelated extends DiagnosticSite {
   message: string;
-}
-
-// UncheckedPattern is one format `pattern` whose mockSamples the build-time
-// RE2 oracle couldn't verify (JS-only regex features like lookarounds /
-// backreferences), shipped on the lint-lane scan response so the lint
-// plugin can run the real `new RegExp(source, flags).test(sample)` over each
-// sample and report mismatches (as FMT001) at `site`. One entry per
-// (pattern, marker call site). Present only on the lint lane
-// (Request.includeRtDiagnostics); the build lane fails closed with FMT004
-// instead (unless allowUncheckedPatterns is set).
-export interface UncheckedPattern {
-  source: string;
-  flags?: string;
-  samples: string[];
-  site: DiagnosticSite;
 }
 
 // EnrichFile mirrors the Go-side protocol.EnrichFile — one computed enrichment

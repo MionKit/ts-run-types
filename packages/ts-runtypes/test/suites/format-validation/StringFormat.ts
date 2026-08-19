@@ -18,6 +18,14 @@ import {
 } from '@ts-runtypes/core';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
+// The content-keyword presets are ordinary string formats: the encodings
+// ride the anchored RFC 4648 pattern params (with baked mock pools),
+// JsonContent is a string-param parse-check family.
+type Base64String = TF.Base64;
+type Base32String = TF.Base32;
+type Base16String = TF.Base16;
+type JsonString = TF.JsonContent;
+
 // Custom patterns registered once at module load — the call sites the
 // Go scanner recovers {source, flags, mockSamples} from. Mirrors the
 // `registerFormatPattern` block in the old stringFormats.test.ts.
@@ -31,8 +39,18 @@ type Slug = TF.String<{pattern: typeof slug}>;
 const hex = registerFormatPattern({source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']});
 type Hex = TF.String<{pattern: typeof hex}>;
 
+// Sample-less inline pattern — the pattern_generated case: no mockSamples
+// anywhere, the build generates the pool from the regex.
+type Generated = TF.String<{pattern: {source: '^[a-d]{2}-[0-9]{2}$'; flags: 'u'}}>;
+
 const V4 = '9f1b8c2e-3d4a-4b5c-8d6e-1f2a3b4c5d6e'; // version nibble = 4
 const V7 = '018f1b8c-2e3d-7b5c-8d6e-1f2a3b4c5d6e'; // version nibble = 7
+const V1 = '9f1b8c2e-3d4a-1b5c-8d6e-1f2a3b4c5d6e'; // version nibble = 1
+// RFC 9562 §5.9 / §5.10 — the Nil and Max UUIDs are VALID UUIDs whose version
+// nibble (0 / f) names no version at all. They are the reason `format: 'uuid'`
+// cannot default to a pinned version: doing so would reject them.
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+const MAX_UUID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 
 export const STRING_FORMAT = {
   // ─────────────────────────── TF.String ───────────────────────
@@ -134,7 +152,7 @@ export const STRING_FORMAT = {
   string_length: {
     title: 'String length',
     description: 'stringFormat requiring an exact length that rejects anything not exactly `length` chars.',
-    validateNotes: 'Only length 4 passes (`abcd`); both 3 chars (`abc`) and 5 chars (`abcde`) fail with `val` 4 (`length`).',
+    validateNotes: ['Only length 4 passes (`abcd`); both 3 chars (`abc`) and 5 chars (`abcde`) fail with `val` 4 (`length`).'],
     validate: () => createValidateFn<TF.String<{length: 4}>>(),
     standardSchema: () => createStandardSchema<TF.String<{length: 4}>>(),
     validateReflect: () => {
@@ -257,8 +275,9 @@ export const STRING_FORMAT = {
   string_allowedChars_ignoreCase: {
     title: 'String allowedChars ignoreCase',
     description: 'stringFormat allowedChars with `ignoreCase` so both cases of the `abc` set are accepted.',
-    validateNotes:
+    validateNotes: [
       'Case-folded: `ABC` and `aAbBcC` pass even though only lowercase `abc` was listed. `abcd` fails with `val` `Invalid characters` (`d` not in the set).',
+    ],
     validate: () => createValidateFn<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     standardSchema: () => createStandardSchema<TF.String<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     validateReflect: () => {
@@ -297,8 +316,9 @@ export const STRING_FORMAT = {
   string_allowedChars_literal: {
     title: 'String allowedChars literal',
     description: 'stringFormat allowedChars where regex-special chars are matched literally so only `.` and `-` pass.',
-    validateNotes:
+    validateNotes: [
       'The set `.-` is treated as literal chars (NOT a regex range), so `...---` passes. `a` fails with `val` `Invalid characters`.',
+    ],
     validate: () => createValidateFn<TF.String<{allowedChars: {val: '.-'}}>>(),
     standardSchema: () => createStandardSchema<TF.String<{allowedChars: {val: '.-'}}>>(),
     validateReflect: () => {
@@ -335,8 +355,9 @@ export const STRING_FORMAT = {
   string_disallowedChars: {
     title: 'String disallowedChars',
     description: 'stringFormat blacklisting the `disallowedChars` set (`!@#`) so any occurrence rejects the string.',
-    validateNotes:
+    validateNotes: [
       'A string passes only if it contains none of `!`, `@`, `#`; `hello` passes. `hi!` and `a@b` each fail with `val` `Invalid characters`.',
+    ],
     validate: () => createValidateFn<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     standardSchema: () => createStandardSchema<TF.String<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
     validateReflect: () => {
@@ -421,8 +442,9 @@ export const STRING_FORMAT = {
   string_allowedValues_ignoreCase: {
     title: 'String allowedValues ignoreCase',
     description: 'stringFormat allowedValues with `ignoreCase` so the fixed set matches regardless of case.',
-    validateNotes:
+    validateNotes: [
       'Case-folded equality: `RED` and `Green` pass. `blue` (not in the `red`/`green` set) fails with `val` `Invalid value`.',
+    ],
     validate: () => createValidateFn<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     standardSchema: () => createStandardSchema<TF.String<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     validateReflect: () => {
@@ -463,8 +485,9 @@ export const STRING_FORMAT = {
   string_allowedValues_escaped: {
     title: 'String allowedValues literal',
     description: 'stringFormat allowedValues where regex-special chars in the set are matched literally.',
-    validateNotes:
+    validateNotes: [
       'Listed values `a.b` and `c+d` match literally (the `.` and `+` are not regex metacharacters), so they pass. `axb` and `ccd` each fail with `val` `Invalid value`.',
+    ],
     validate: () => createValidateFn<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     standardSchema: () => createStandardSchema<TF.String<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     validateReflect: () => {
@@ -504,8 +527,9 @@ export const STRING_FORMAT = {
   string_disallowedValues: {
     title: 'String disallowedValues',
     description: 'stringFormat blacklisting whole values (`admin`/`root`) so any other string passes.',
-    validateNotes:
+    validateNotes: [
       'A string passes unless it exactly equals a blacklisted value; `alice` passes. `admin` and `root` each fail with `val` `Invalid value`.',
+    ],
     validate: () => createValidateFn<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     standardSchema: () =>
       createStandardSchema<TF.String<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
@@ -555,8 +579,9 @@ export const STRING_FORMAT = {
   string_customErrorMessage: {
     title: 'String custom errorMessage',
     description: 'stringFormat allowedValues with a custom `errorMessage` that surfaces as the format error `val` on failure.',
-    validateNotes:
+    validateNotes: [
       '`a` and `b` pass. `c` fails with `val` `pick a or b` — the custom `errorMessage` replaces the default `Invalid value`.',
+    ],
     validate: () => createValidateFn<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     standardSchema: () => createStandardSchema<TF.String<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     validateReflect: () => {
@@ -641,8 +666,9 @@ export const STRING_FORMAT = {
   alphaNumeric: {
     title: 'AlphaNumeric',
     description: 'TF.AlphaNumeric (stringFormat with a baked letters+digits pattern) that rejects everything else.',
-    validateNotes:
+    validateNotes: [
       'Letters and digits pass (`abc123`, `ABC`, `123`); a hyphen (`a-b`) or space (`a b`) fails with `val` `Invalid pattern`.',
+    ],
     validate: () => createValidateFn<TF.AlphaNumeric>(),
     standardSchema: () => createStandardSchema<TF.AlphaNumeric>(),
     validateReflect: () => {
@@ -682,8 +708,9 @@ export const STRING_FORMAT = {
   numeric: {
     title: 'Numeric',
     description: 'TF.Numeric (stringFormat with a baked digits-only pattern) that rejects non-digit chars.',
-    validateNotes:
+    validateNotes: [
       'Only digit chars pass (`12345`, `007` — leading zeros allowed since it is a string). A decimal point (`12.3`) or letter (`12a`) fails with `val` `Invalid pattern`.',
+    ],
     validate: () => createValidateFn<TF.Numeric>(),
     standardSchema: () => createStandardSchema<TF.Numeric>(),
     validateReflect: () => {
@@ -723,8 +750,9 @@ export const STRING_FORMAT = {
   alpha_withLength: {
     title: 'Alpha with maxLength',
     description: 'TF.Alpha carrying a `maxLength` param that enforces letters-only AND an inclusive upper-length bound.',
-    validateNotes:
+    validateNotes: [
       '`abc` (3 letters) passes. `abcd` exceeds the bound and fails with `val` 3 (`maxLength`); `a1` is within length but the digit fails the pattern with `val` `Invalid pattern`.',
+    ],
     validate: () => createValidateFn<TF.Alpha<{maxLength: 3}>>(),
     standardSchema: () => createStandardSchema<TF.Alpha<{maxLength: 3}>>(),
     validateReflect: () => {
@@ -764,8 +792,9 @@ export const STRING_FORMAT = {
   lowercase_validate: {
     title: 'Lowercase',
     description: 'TF.Lowercase (transformer-only `lowercase` flag) that validate treats as a plain string.',
-    validateNotes:
+    validateNotes: [
       'The lowercase transform applies only via createFormatTransformFn, NOT validate — so ANY string passes regardless of case (`already lower` AND `HasUpper` pass). Only a non-string (42) fails, via the typeof gate.',
+    ],
     validate: () => createValidateFn<TF.Lowercase>(),
     standardSchema: () => createStandardSchema<TF.Lowercase>(),
     validateReflect: () => {
@@ -801,6 +830,48 @@ export const STRING_FORMAT = {
   },
 
   // ─────────────────────────────── UUID ───────────────────────────
+  uuid: {
+    title: 'UUID (any version)',
+    description:
+      'TF.UUID (format `uuid`, version `any`) — the version-agnostic UUID that JSON Schema `format: uuid` recovers; the version nibble is an ordinary hex digit.',
+    validateNotes: [
+      'Both a v4 and a v7 UUID pass; no version nibble is pinned.',
+      'A v1 UUID and the RFC 9562 Nil / Max UUIDs pass too: `any` checks the RFC string layout (36 chars, hyphens at 8/13/18/23, hex everywhere else) and reads the version nibble as an ordinary hex digit. This is what JSON Schema `format: uuid` means, so pinning a default version here would reject valid UUIDs.',
+      'Malformed input still fails: a non-UUID string, the empty string, a hyphen-stripped UUID, and a non-string (123) are all rejected.',
+    ],
+    validate: () => createValidateFn<TF.UUID>(),
+    standardSchema: () => createStandardSchema<TF.UUID>(),
+    validateReflect: () => {
+      const v: TF.UUID = V4;
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.UUID>(),
+    deserializeValidateReflect: () => {
+      const v: TF.UUID = V7;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.UUID = V4;
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.UUID>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.UUID = V4;
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.UUID = V4;
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.UUID>>(),
+    validateSchema: () => createValidateFn(TF.uuid()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.UUID>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.UUID>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.uuid()),
+    mockType: () => createMockDataFn<TF.UUID>(),
+    getSamples: () => ({valid: [V4, V7, V1, NIL_UUID, MAX_UUID], invalid: ['not-a-uuid', '', V4.replace(/-/g, ''), 123]}),
+    expectedFormatErrors: () => [{name: 'uuid', val: 'any'}, null, null, null],
+  },
   uuidv4: {
     title: 'UUID v4',
     description: 'TF.UUIDv4 (format `uuid`, version `4`) accepting only version-4 UUIDs and rejecting v7 and malformed input.',
@@ -886,6 +957,222 @@ export const STRING_FORMAT = {
     expectedFormatErrors: () => [{name: 'uuid', val: '7'}, null, null, null, null, null],
   },
 
+  // ────────────────────── Content keywords (JSON Schema) ──────────
+  base64: {
+    title: 'contentEncoding base64',
+    description:
+      'JSON Schema `contentEncoding: base64` — lowered to the anchored RFC 4648 pattern, so the check enforces the padded block shape exactly.',
+    validateNotes: [
+      'The empty string is valid base64 (zero blocks); bad padding (`QQ=`) and non-alphabet characters fail.',
+      'The recovered type is a plain string format; the wire never changes.',
+    ],
+    validate: () => createValidateFn<Base64String>(),
+    standardSchema: () => createStandardSchema<Base64String>(),
+    validateReflect: () => {
+      const v: Base64String = 'SGVsbG8=';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<Base64String>(),
+    deserializeValidateReflect: () => {
+      const v: Base64String = 'QQ==';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: Base64String = 'SGVsbG8=';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Base64String>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: Base64String = 'SGVsbG8=';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: Base64String = 'SGVsbG8=';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<Base64String>>(),
+    validateSchema: () =>
+      createValidateFn(
+        TF.string({
+          pattern: {
+            source: '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$',
+            flags: '',
+            mockSamples: ['', 'QQ==', 'QUJD', 'SGVsbG8='],
+          },
+        })
+      ),
+    getValidationErrors: () => createGetValidationErrorsFn<Base64String>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<Base64String>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrorsFn(
+        TF.string({
+          pattern: {
+            source: '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$',
+            flags: '',
+            mockSamples: ['', 'QQ==', 'QUJD', 'SGVsbG8='],
+          },
+        })
+      ),
+    mockType: () => createMockDataFn<Base64String>(),
+    getSamples: () => ({valid: ['', 'QQ==', 'QUJD', 'SGVsbG8='], invalid: ['QQ=', 'not base64!', 123]}),
+    expectedFormatErrors: () => [
+      {name: 'stringFormat', formatPathTail: 'pattern'},
+      {name: 'stringFormat', formatPathTail: 'pattern'},
+      null,
+    ],
+  },
+  base32: {
+    title: 'contentEncoding base32',
+    description: 'JSON Schema `contentEncoding: base32` — the anchored RFC 4648 base32 alphabet with exact `=` padding.',
+    validateNotes: ['Lowercase letters are outside the base32 alphabet; padding must complete an 8-character block.'],
+    validate: () => createValidateFn<Base32String>(),
+    standardSchema: () => createStandardSchema<Base32String>(),
+    validateReflect: () => {
+      const v: Base32String = 'MZXQ====';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<Base32String>(),
+    deserializeValidateReflect: () => {
+      const v: Base32String = 'MY======';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: Base32String = 'MZXQ====';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Base32String>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: Base32String = 'MZXQ====';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: Base32String = 'MZXQ====';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<Base32String>>(),
+    validateSchema: () =>
+      createValidateFn(
+        TF.string({
+          pattern: {
+            source: '^(?:[A-Z2-7]{8})*(?:[A-Z2-7]{2}={6}|[A-Z2-7]{4}={4}|[A-Z2-7]{5}={3}|[A-Z2-7]{7}=)?$',
+            flags: '',
+            mockSamples: ['', 'MY======', 'MZXQ===='],
+          },
+        })
+      ),
+    getValidationErrors: () => createGetValidationErrorsFn<Base32String>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<Base32String>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrorsFn(
+        TF.string({
+          pattern: {
+            source: '^(?:[A-Z2-7]{8})*(?:[A-Z2-7]{2}={6}|[A-Z2-7]{4}={4}|[A-Z2-7]{5}={3}|[A-Z2-7]{7}=)?$',
+            flags: '',
+            mockSamples: ['', 'MY======', 'MZXQ===='],
+          },
+        })
+      ),
+    mockType: () => createMockDataFn<Base32String>(),
+    getSamples: () => ({valid: ['', 'MY======', 'MZXQ===='], invalid: ['MY=====', 'abc', 123]}),
+    expectedFormatErrors: () => [
+      {name: 'stringFormat', formatPathTail: 'pattern'},
+      {name: 'stringFormat', formatPathTail: 'pattern'},
+      null,
+    ],
+  },
+  base16: {
+    title: 'contentEncoding base16',
+    description: 'JSON Schema `contentEncoding: base16` — hex pairs, either case, no padding.',
+    validateNotes: ['An odd number of hex digits fails (base16 encodes whole bytes).'],
+    validate: () => createValidateFn<Base16String>(),
+    standardSchema: () => createStandardSchema<Base16String>(),
+    validateReflect: () => {
+      const v: Base16String = 'DEADBEEF';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<Base16String>(),
+    deserializeValidateReflect: () => {
+      const v: Base16String = '48656C6C6F';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: Base16String = 'DEADBEEF';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Base16String>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: Base16String = 'DEADBEEF';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: Base16String = 'DEADBEEF';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<Base16String>>(),
+    validateSchema: () =>
+      createValidateFn(
+        TF.string({pattern: {source: '^(?:[0-9A-Fa-f]{2})*$', flags: '', mockSamples: ['', '48656C6C6F', 'DEADBEEF']}})
+      ),
+    getValidationErrors: () => createGetValidationErrorsFn<Base16String>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<Base16String>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrorsFn(
+        TF.string({pattern: {source: '^(?:[0-9A-Fa-f]{2})*$', flags: '', mockSamples: ['', '48656C6C6F', 'DEADBEEF']}})
+      ),
+    mockType: () => createMockDataFn<Base16String>(),
+    getSamples: () => ({valid: ['', 'deadbeef', 'DEADBEEF'], invalid: ['ABC', 'XY?!', 123]}),
+    expectedFormatErrors: () => [
+      {name: 'stringFormat', formatPathTail: 'pattern'},
+      {name: 'stringFormat', formatPathTail: 'pattern'},
+      null,
+    ],
+  },
+  json_content: {
+    title: 'contentMediaType application/json',
+    description:
+      'JSON Schema `contentMediaType: application/json` — the string must parse as JSON; it is an ordinary string param, checked by the stringFormat emitter alongside minLength.',
+    validateNotes: [
+      'Any JSON document text passes (objects, arrays, numbers, booleans, null, quoted strings); the empty string and truncated JSON fail.',
+    ],
+    validate: () => createValidateFn<JsonString>(),
+    standardSchema: () => createStandardSchema<JsonString>(),
+    validateReflect: () => {
+      const v: JsonString = '{}';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<JsonString>(),
+    deserializeValidateReflect: () => {
+      const v: JsonString = '[1,2]';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: JsonString = '{}';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<JsonString>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: JsonString = '{}';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: JsonString = '{}';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<JsonString>>(),
+    validateSchema: 'not-supported',
+    getValidationErrors: () => createGetValidationErrorsFn<JsonString>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<JsonString>>(),
+    getValidationErrorsSchema: 'not-supported',
+    mockType: () => createMockDataFn<JsonString>(),
+    getSamples: () => ({valid: ['{}', '[1,2]', '"text"', '7', 'true', 'null'], invalid: ['not json', '{', '', 123]}),
+    expectedFormatErrors: () => [
+      {name: 'stringFormat', val: 'application/json', formatPathTail: 'contentMediaType'},
+      {name: 'stringFormat', val: 'application/json', formatPathTail: 'contentMediaType'},
+      {name: 'stringFormat', val: 'application/json', formatPathTail: 'contentMediaType'},
+      null,
+    ],
+  },
+
   // ─────────────────────────────── Date ───────────────────────────
   date_iso: {
     title: 'String date ISO',
@@ -934,8 +1221,9 @@ export const STRING_FORMAT = {
   date_DMY: {
     title: 'String date DMY',
     description: 'TF.StringDate with the `DD-MM-YYYY` layout using day-first ordering plus calendar validity.',
-    validateNotes:
+    validateNotes: [
       'Layout is `DD-MM-YYYY` (format error `val` `DD-MM-YYYY`); `29-02-2024` passes. An ISO-ordered string (`2024-02-29`) fails the layout, and `31-04-2024` fails calendar validity (April has 30 days).',
+    ],
     validate: () => createValidateFn<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
     standardSchema: () => createStandardSchema<TF.StringDate<{format: 'DD-MM-YYYY'}>>(),
     validateReflect: () => {
@@ -975,8 +1263,9 @@ export const STRING_FORMAT = {
   date_YM: {
     title: 'String date YM',
     description: 'TF.StringDate with the `YYYY-MM` layout (year-month, no day component).',
-    validateNotes:
+    validateNotes: [
       'Layout is `YYYY-MM` (format error `val` `YYYY-MM`); `2024-02` passes. Month 13 (`2024-13`) fails, and supplying a day (`2024-02-29`) fails the layout.',
+    ],
     validate: () => createValidateFn<TF.StringDate<{format: 'YYYY-MM'}>>(),
     standardSchema: () => createStandardSchema<TF.StringDate<{format: 'YYYY-MM'}>>(),
     validateReflect: () => {
@@ -1016,8 +1305,9 @@ export const STRING_FORMAT = {
   date_MD: {
     title: 'String date MD',
     description: 'TF.StringDate with the `MM-DD` layout (month-day, no year component).',
-    validateNotes:
+    validateNotes: [
       'Layout is `MM-DD` (format error `val` `MM-DD`); `02-29` passes. Month 13 (`13-01`) fails, as does a day-overflow (`02-30`, February has no 30th).',
+    ],
     validate: () => createValidateFn<TF.StringDate<{format: 'MM-DD'}>>(),
     standardSchema: () => createStandardSchema<TF.StringDate<{format: 'MM-DD'}>>(),
     validateReflect: () => {
@@ -1057,8 +1347,9 @@ export const STRING_FORMAT = {
   date_minMax_absolute: {
     title: 'String date min/max',
     description: 'TF.StringDate with inclusive absolute `min`/`max` date bounds, accepting dates within [`min`, `max`].',
-    validateNotes:
+    validateNotes: [
       'Bounds `2020-01-01`..`2020-12-31` are inclusive — both endpoints pass. `2019-12-31` fails on `min` (formatPathTail `min`); `2021-01-01` fails on `max` (formatPathTail `max`).',
+    ],
     validate: () => createValidateFn<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     standardSchema: () => createStandardSchema<TF.StringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     validateReflect: () => {
@@ -1158,8 +1449,9 @@ export const STRING_FORMAT = {
   time_HHmmss: {
     title: 'String time HHmmss',
     description: 'TF.StringTime with the fixed `HH:mm:ss` layout (no tz, no milliseconds).',
-    validateNotes:
+    validateNotes: [
       '`23:59:59` passes. Out-of-range fields (`99:99:99`) fail with `val` `HH:mm:ss`; a missing seconds component (`23:59`) and hour 24 (`24:00:00`) are also rejected.',
+    ],
     validate: () => createValidateFn<TF.StringTime<{format: 'HH:mm:ss'}>>(),
     standardSchema: () => createStandardSchema<TF.StringTime<{format: 'HH:mm:ss'}>>(),
     validateReflect: () => {
@@ -1196,8 +1488,9 @@ export const STRING_FORMAT = {
   time_HHmmss_ms: {
     title: 'String time with ms',
     description: 'TF.StringTime with the `HH:mm:ss[.mmm]` layout where milliseconds are optional and capped at 3 digits.',
-    validateNotes:
+    validateNotes: [
       'Milliseconds are optional — both `12:30:45` and `12:30:45.999` pass. A 4-digit fraction (`12:30:45.9999`) exceeds the `.mmm` width and fails with `val` `HH:mm:ss[.mmm]`.',
+    ],
     validate: () => createValidateFn<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     standardSchema: () => createStandardSchema<TF.StringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
     validateReflect: () => {
@@ -1235,8 +1528,9 @@ export const STRING_FORMAT = {
     title: 'String time min/max',
     description:
       'TF.StringTime with inclusive absolute `min`/`max` time bounds (HH:mm, business hours), accepting times within [`min`, `max`].',
-    validateNotes:
+    validateNotes: [
       'Bounds `09:00`..`17:00` are inclusive — both endpoints pass. `08:59` fails on `min` (formatPathTail `min`); `17:01` fails on `max` (formatPathTail `max`).',
+    ],
     validate: () => createValidateFn<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     standardSchema: () => createStandardSchema<TF.StringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     validateReflect: () => {
@@ -1391,8 +1685,9 @@ export const STRING_FORMAT = {
   dateTime_minMax_absolute: {
     title: 'String dateTime min/max',
     description: 'TF.StringDateTime with inclusive absolute `min`/`max` datetime bounds, accepting values within [`min`, `max`].',
-    validateNotes:
+    validateNotes: [
       'Bounds `2020-01-01T00:00:00`..`2020-12-31T23:59:59` are inclusive — both endpoints pass. `2019-12-31T23:59:59` fails on `min` (formatPathTail `min`); `2021-01-01T00:00:00` fails on `max` (formatPathTail `max`).',
+    ],
     validate: () =>
       createValidateFn<
         TF.StringDateTime<{
@@ -1562,8 +1857,9 @@ export const STRING_FORMAT = {
     title: 'IPv4',
     description: 'TF.IPv4 (format `ip`, version 4) accepting dotted-quad IPv4 addresses only.',
     validateNotes: [
-      'Each octet must be 0–255; `192.168.0.1`, `0.0.0.0`, and `255.255.255.255` pass.',
-      'Out-of-range octets (`999.999.999.999`, `256.0.0.1`), a 3-octet address (`1.2.3`), and an IPv6 address (`::1`) all fail; the first failure carries `val` 4.',
+      'Each octet must be 0–255 in plain decimal; `192.168.0.1`, `0.0.0.0`, and `255.255.255.255` pass.',
+      'Out-of-range octets (`999.999.999.999`, `256.0.0.1`), a 3-octet address (`1.2.3`), an IPv6 address (`::1`), hex/empty octets (`0x7f.0.0.1`, `192.168..1`) and trailing whitespace all fail; the first failure carries `val` 4.',
+      'The hostname `localhost` is NOT an address, so it fails here; `TF.IPv4<{allowLocalHost: true}>` opts back into it.',
     ],
     validate: () => createValidateFn<TF.IPv4>(),
     standardSchema: () => createStandardSchema<TF.IPv4>(),
@@ -1597,9 +1893,53 @@ export const STRING_FORMAT = {
     mockType: () => createMockDataFn<TF.IPv4>(),
     getSamples: () => ({
       valid: ['192.168.0.1', '0.0.0.0', '255.255.255.255'],
-      invalid: ['999.999.999.999', '256.0.0.1', '1.2.3', '::1'],
+      invalid: ['999.999.999.999', '256.0.0.1', '1.2.3', '::1', 'localhost', '0x7f.0.0.1', '192.168..1', '192.168.0.1 '],
     }),
-    expectedFormatErrors: () => [{name: 'ip', val: 4}, null, null, null],
+    expectedFormatErrors: () => [{name: 'ip', val: 4}, null, null, null, null, null, null, null],
+  },
+  ipv4_localhost: {
+    title: 'IPv4 with localhost',
+    description:
+      'TF.IPv4<{allowLocalHost: true}> (format `ip`, version 4) opting back into the hostname `localhost` beside the dotted quad.',
+    validateNotes: [
+      'The opt-in widens the format by exactly one spelling: `localhost` passes here and fails under the default `TF.IPv4`.',
+      'It widens nothing else — a malformed address (`256.0.0.1`) and a near-miss hostname (`localhost.localdomain`) still fail with `val` 4.',
+    ],
+    validate: () => createValidateFn<TF.IPv4<{allowLocalHost: true}>>(),
+    standardSchema: () => createStandardSchema<TF.IPv4<{allowLocalHost: true}>>(),
+    validateReflect: () => {
+      const v: TF.IPv4<{allowLocalHost: true}> = 'localhost';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.IPv4<{allowLocalHost: true}>>(),
+    deserializeValidateReflect: () => {
+      const v: TF.IPv4<{allowLocalHost: true}> = 'localhost';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.IPv4<{allowLocalHost: true}> = 'localhost';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.IPv4<{allowLocalHost: true}>>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.IPv4<{allowLocalHost: true}> = 'localhost';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.IPv4<{allowLocalHost: true}> = 'localhost';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.IPv4<{allowLocalHost: true}>>>(),
+    validateSchema: () => createValidateFn(TF.ipv4({allowLocalHost: true})),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.IPv4<{allowLocalHost: true}>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.IPv4<{allowLocalHost: true}>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.ipv4({allowLocalHost: true})),
+    mockType: () => createMockDataFn<TF.IPv4<{allowLocalHost: true}>>(),
+    getSamples: () => ({
+      valid: ['localhost', '192.168.0.1', '127.0.0.1'],
+      invalid: ['256.0.0.1', 'localhost.localdomain', '::1'],
+    }),
+    expectedFormatErrors: () => [{name: 'ip', val: 4}, null, null],
   },
   ipv6: {
     title: 'IPv6',
@@ -1646,8 +1986,9 @@ export const STRING_FORMAT = {
   ip_any: {
     title: 'IP any',
     description: 'TF.IP (format `ip`, version `any`) accepting either an IPv4 or an IPv6 address.',
-    validateNotes:
+    validateNotes: [
       'Both `10.0.0.1` (v4) and `2001:db8::1` (v6) pass. A non-IP string (`definitely not an ip`) fails with `val` `any`.',
+    ],
     validate: () => createValidateFn<TF.IP>(),
     standardSchema: () => createStandardSchema<TF.IP>(),
     validateReflect: () => {
@@ -1684,8 +2025,9 @@ export const STRING_FORMAT = {
   ipv4_port: {
     title: 'IPv4 with port',
     description: 'TF.IPv4WithPort (format `ip`, version 4, port allowed) accepting `ipv4:port`.',
-    validateNotes:
+    validateNotes: [
       'The port must be in range; `192.168.0.1:8080` passes, while `192.168.0.1:70000` (port > 65535) fails with `val` 4.',
+    ],
     validate: () => createValidateFn<TF.IPv4WithPort>(),
     standardSchema: () => createStandardSchema<TF.IPv4WithPort>(),
     validateReflect: () => {
@@ -1722,8 +2064,9 @@ export const STRING_FORMAT = {
   ipv6_port: {
     title: 'IPv6 with port',
     description: 'TF.IPv6WithPort (format `ip`, version 6, port allowed) accepting bracketed `[ipv6]:port`.',
-    validateNotes:
+    validateNotes: [
       'The port must be in range; `[2001:db8::1]:443` passes, while `[2001:db8::1]:99999` (port > 65535) fails with `val` 6.',
+    ],
     validate: () => createValidateFn<TF.IPv6WithPort>(),
     standardSchema: () => createStandardSchema<TF.IPv6WithPort>(),
     validateReflect: () => {
@@ -1792,6 +2135,8 @@ export const STRING_FORMAT = {
     },
     validateDataOnly: () => createValidateFn<DataOnly<TF.Domain>>(),
     validateSchema: () => createValidateFn(TF.domain()),
+    // `format: 'hostname'` now lowers to TF.Hostname (a single label is a valid
+    // host name), not TF.Domain — so this brand has no schema spelling of its own.
     getValidationErrors: () => createGetValidationErrorsFn<TF.Domain>(),
     getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Domain>>(),
     getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.domain()),
@@ -1881,6 +2226,8 @@ export const STRING_FORMAT = {
     },
     validateDataOnly: () => createValidateFn<DataOnly<TF.Email>>(),
     validateSchema: () => createValidateFn(TF.email()),
+    // `format: 'email'` now lowers to TF.EmailAddress (the full RFC 5321
+    // grammar), not this everyday brand, so it has no schema spelling.
     getValidationErrors: () => createGetValidationErrorsFn<TF.Email>(),
     getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Email>>(),
     getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.email()),
@@ -2014,6 +2361,8 @@ export const STRING_FORMAT = {
     },
     validateDataOnly: () => createValidateFn<DataOnly<TF.Url>>(),
     validateSchema: () => createValidateFn(TF.url()),
+    // `format: 'uri'` now lowers to TF.Uri (RFC 3986, any scheme), not TF.Url —
+    // the narrow web-address brand has no schema spelling of its own.
     getValidationErrors: () => createGetValidationErrorsFn<TF.Url>(),
     getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Url>>(),
     getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.url()),
@@ -2027,8 +2376,9 @@ export const STRING_FORMAT = {
   urlHttp: {
     title: 'URL http',
     description: 'TF.UrlHttp (format `url`) restricting the scheme to `http` / `https`.',
-    validateNotes:
+    validateNotes: [
       'Both `https://example.com` and `http://example.com` pass; a non-http scheme (`ftp://example.com`) fails with `{name: url}` (no `val`).',
+    ],
     validate: () => createValidateFn<TF.UrlHttp>(),
     standardSchema: () => createStandardSchema<TF.UrlHttp>(),
     validateReflect: () => {
@@ -2065,8 +2415,9 @@ export const STRING_FORMAT = {
   urlFile: {
     title: 'URL file',
     description: 'TF.UrlFile (format `url`) restricting the scheme to `file:`.',
-    validateNotes:
+    validateNotes: [
       'A `file:///etc/hosts` URL passes; a non-file scheme (`https://example.com`) fails with `{name: url}` (no `val`).',
+    ],
     validate: () => createValidateFn<TF.UrlFile>(),
     standardSchema: () => createStandardSchema<TF.UrlFile>(),
     validateReflect: () => {
@@ -2168,12 +2519,497 @@ export const STRING_FORMAT = {
       {name: 'stringFormat', val: 'must be a slug'},
     ],
   },
+  json_pointer: {
+    title: 'JsonPointer',
+    description:
+      'TF.JsonPointer (format `stringFormat`) — RFC 6901 JSON pointer — the path syntax `$ref` and patch documents use.',
+    validateNotes: [
+      'The empty string is the whole document and is valid; `/store/book/0` walks in.',
+      '`~0` and `~1` are the escapes for `~` and `/`; a bare `~` or a path not starting with `/` fails.',
+    ],
+    validate: () => createValidateFn<TF.JsonPointer>(),
+    standardSchema: () => createStandardSchema<TF.JsonPointer>(),
+    validateReflect: () => {
+      const v: TF.JsonPointer = '';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.JsonPointer>(),
+    deserializeValidateReflect: () => {
+      const v: TF.JsonPointer = '';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.JsonPointer = '';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.JsonPointer>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.JsonPointer = '';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.JsonPointer = '';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.JsonPointer>>(),
+    validateSchema: () => createValidateFn(TF.jsonPointer()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.JsonPointer>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.JsonPointer>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.jsonPointer()),
+    mockType: () => createMockDataFn<TF.JsonPointer>(),
+    getSamples: () => ({
+      valid: ['', '/foo', '/foo/0', '/a~1b', '/c~0d'],
+      invalid: ['foo', '/~', '/a~2b', '#/foo'],
+    }),
+    expectedFormatErrors: () => [null, null, null, null],
+  },
+  relative_json_pointer: {
+    title: 'RelativeJsonPointer',
+    description:
+      'TF.RelativeJsonPointer (format `stringFormat`) — RFC 6901 relative JSON pointer — a hop count up the tree, then a pointer or `#`.',
+    validateNotes: [
+      '`0` is here, `1/foo` is one level up then into `foo`, `2#` is the key two levels up.',
+      'A leading zero on the hop count (`01`), a missing hop count, and `#` in the middle all fail.',
+    ],
+    validate: () => createValidateFn<TF.RelativeJsonPointer>(),
+    standardSchema: () => createStandardSchema<TF.RelativeJsonPointer>(),
+    validateReflect: () => {
+      const v: TF.RelativeJsonPointer = '0';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.RelativeJsonPointer>(),
+    deserializeValidateReflect: () => {
+      const v: TF.RelativeJsonPointer = '0';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.RelativeJsonPointer = '0';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.RelativeJsonPointer>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.RelativeJsonPointer = '0';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.RelativeJsonPointer = '0';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.RelativeJsonPointer>>(),
+    validateSchema: () => createValidateFn(TF.relativeJsonPointer()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.RelativeJsonPointer>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.RelativeJsonPointer>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.relativeJsonPointer()),
+    mockType: () => createMockDataFn<TF.RelativeJsonPointer>(),
+    getSamples: () => ({
+      valid: ['0', '1/foo', '2#', '0/a~1b'],
+      invalid: ['01', '/foo', '1#/foo', '-1/foo'],
+    }),
+    expectedFormatErrors: () => [null, null, null, null],
+  },
+  string_duration: {
+    title: 'StringDuration',
+    description:
+      'TF.StringDuration (format `stringFormat`) — RFC 3339 duration string — a LENGTH of time (`P4DT12H30M5S`), not an instant.',
+    validateNotes: [
+      'Components nest: a year may be followed by a month, a month by a day, never skipping, so `P1Y2M3D` passes and `P1Y2D` does not.',
+      'The week form stands alone (`P2W`), fractions are not allowed (`PT0.5S`), and this is deliberately stricter than the `now±P…` bound syntax.',
+    ],
+    validate: () => createValidateFn<TF.StringDuration>(),
+    standardSchema: () => createStandardSchema<TF.StringDuration>(),
+    validateReflect: () => {
+      const v: TF.StringDuration = 'P4DT12H30M5S';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.StringDuration>(),
+    deserializeValidateReflect: () => {
+      const v: TF.StringDuration = 'P4DT12H30M5S';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.StringDuration = 'P4DT12H30M5S';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.StringDuration>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.StringDuration = 'P4DT12H30M5S';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.StringDuration = 'P4DT12H30M5S';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.StringDuration>>(),
+    validateSchema: () => createValidateFn(TF.stringDuration()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.StringDuration>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.StringDuration>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.stringDuration()),
+    mockType: () => createMockDataFn<TF.StringDuration>(),
+    getSamples: () => ({
+      valid: ['P4DT12H30M5S', 'P1Y2M3D', 'PT1H30M', 'P2W', 'PT0S'],
+      invalid: ['P', 'PT', 'P1Y2D', 'PT1H2S', 'P1Y2W', 'PT0.5S', 'P1D '],
+    }),
+    expectedFormatErrors: () => [null, null, null, null, null, null, null],
+  },
+  uri: {
+    title: 'Uri',
+    description: 'TF.Uri (format `url`) — RFC 3986 URI — any scheme, not just the web ones `TF.Url` accepts.',
+    validateNotes: [
+      '`mailto:`, `urn:` and `tel:` are URIs and pass here while failing `TF.Url`, which is the narrow web-address form.',
+      'A scheme is required, so a relative reference like `../a` fails; use `TF.UriReference` for those.',
+    ],
+    validate: () => createValidateFn<TF.Uri>(),
+    standardSchema: () => createStandardSchema<TF.Uri>(),
+    validateReflect: () => {
+      const v: TF.Uri = 'https://example.com/path';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.Uri>(),
+    deserializeValidateReflect: () => {
+      const v: TF.Uri = 'https://example.com/path';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.Uri = 'https://example.com/path';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.Uri>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.Uri = 'https://example.com/path';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.Uri = 'https://example.com/path';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.Uri>>(),
+    validateSchema: () => createValidateFn(TF.uri()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.Uri>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Uri>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.uri()),
+    mockType: () => createMockDataFn<TF.Uri>(),
+    getSamples: () => ({
+      valid: ['https://example.com/path', 'mailto:ada@example.com', 'urn:isbn:0451450523', 'ftp://files.example.org/pub'],
+      invalid: ['../a', '//example.com', 'http://example.com/ä', '1http://example.com'],
+    }),
+    expectedFormatErrors: () => [null, null, null, null],
+  },
+  uri_reference: {
+    title: 'UriReference',
+    description: 'TF.UriReference (format `url`) — RFC 3986 URI reference — a URI, or a relative one resolved against a base.',
+    validateNotes: [
+      'Absolute URIs pass, and so do `/abs/path`, `../up` and a bare `#fragment`.',
+      'The character repertoire stays ASCII; a non-ASCII path fails (that is `TF.IriReference`).',
+    ],
+    validate: () => createValidateFn<TF.UriReference>(),
+    standardSchema: () => createStandardSchema<TF.UriReference>(),
+    validateReflect: () => {
+      const v: TF.UriReference = '/relative/path';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.UriReference>(),
+    deserializeValidateReflect: () => {
+      const v: TF.UriReference = '/relative/path';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.UriReference = '/relative/path';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.UriReference>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.UriReference = '/relative/path';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.UriReference = '/relative/path';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.UriReference>>(),
+    validateSchema: () => createValidateFn(TF.uriReference()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.UriReference>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.UriReference>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.uriReference()),
+    mockType: () => createMockDataFn<TF.UriReference>(),
+    getSamples: () => ({
+      valid: ['/relative/path', '../up', '#fragment', 'https://example.com'],
+      invalid: ['\\\\\\\\host\\\\share', 'http://example.com/ä', 'a b'],
+    }),
+    expectedFormatErrors: () => [null, null, null],
+  },
+  iri: {
+    title: 'Iri',
+    description: 'TF.Iri (format `url`) — RFC 3987 IRI — the same grammar as a URI with non-ASCII characters allowed.',
+    validateNotes: [
+      '`https://例え.テスト/ページ` passes here and fails `TF.Uri`, which is ASCII only.',
+      'A scheme is still required; relative forms belong to `TF.IriReference`.',
+    ],
+    validate: () => createValidateFn<TF.Iri>(),
+    standardSchema: () => createStandardSchema<TF.Iri>(),
+    validateReflect: () => {
+      const v: TF.Iri = 'https://example.com/päth';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.Iri>(),
+    deserializeValidateReflect: () => {
+      const v: TF.Iri = 'https://example.com/päth';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.Iri = 'https://example.com/päth';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.Iri>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.Iri = 'https://example.com/päth';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.Iri = 'https://example.com/päth';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.Iri>>(),
+    validateSchema: () => createValidateFn(TF.iri()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.Iri>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Iri>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.iri()),
+    mockType: () => createMockDataFn<TF.Iri>(),
+    getSamples: () => ({
+      valid: ['https://example.com/päth', 'https://例え.テスト/ページ', 'mailto:ada@example.com'],
+      invalid: ['../päth', 'http://example.com/a b', '1http://example.com'],
+    }),
+    expectedFormatErrors: () => [null, null, null],
+  },
+  iri_reference: {
+    title: 'IriReference',
+    description: 'TF.IriReference (format `url`) — RFC 3987 IRI reference — an IRI, or a relative one.',
+    validateNotes: [
+      'Absolute IRIs pass, and so do relative paths and fragments carrying non-ASCII characters.',
+      'Whitespace is still not a URI character, so `a b` fails.',
+    ],
+    validate: () => createValidateFn<TF.IriReference>(),
+    standardSchema: () => createStandardSchema<TF.IriReference>(),
+    validateReflect: () => {
+      const v: TF.IriReference = '/relative/päth';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.IriReference>(),
+    deserializeValidateReflect: () => {
+      const v: TF.IriReference = '/relative/päth';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.IriReference = '/relative/päth';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.IriReference>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.IriReference = '/relative/päth';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.IriReference = '/relative/päth';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.IriReference>>(),
+    validateSchema: () => createValidateFn(TF.iriReference()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.IriReference>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.IriReference>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.iriReference()),
+    mockType: () => createMockDataFn<TF.IriReference>(),
+    getSamples: () => ({
+      valid: ['/relative/päth', '#フラグ', 'https://例え.テスト'],
+      invalid: ['a b', '\\\\\\\\host\\\\share'],
+    }),
+    expectedFormatErrors: () => [null, null],
+  },
+  uri_template: {
+    title: 'UriTemplate',
+    description: 'TF.UriTemplate (format `url`) — RFC 6570 URI template — a URI with `{…}` expressions still to be filled in.',
+    validateNotes: [
+      '`http://example.com/search{?q,lang}` and `{/path*}` pass; the operators, prefix (`:3`) and explode (`*`) modifiers are all understood.',
+      'An unclosed or empty expression fails, as does a stray `}`.',
+    ],
+    validate: () => createValidateFn<TF.UriTemplate>(),
+    standardSchema: () => createStandardSchema<TF.UriTemplate>(),
+    validateReflect: () => {
+      const v: TF.UriTemplate = 'http://example.com/{id}';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.UriTemplate>(),
+    deserializeValidateReflect: () => {
+      const v: TF.UriTemplate = 'http://example.com/{id}';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.UriTemplate = 'http://example.com/{id}';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.UriTemplate>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.UriTemplate = 'http://example.com/{id}';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.UriTemplate = 'http://example.com/{id}';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.UriTemplate>>(),
+    validateSchema: () => createValidateFn(TF.uriTemplate()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.UriTemplate>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.UriTemplate>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.uriTemplate()),
+    mockType: () => createMockDataFn<TF.UriTemplate>(),
+    getSamples: () => ({
+      valid: ['http://example.com/{id}', 'http://example.com/~{username}/', 'http://example.com/search{?q,lang}', '{/path*}'],
+      invalid: ['http://example.com/{id', 'http://example.com/{}', 'http://example.com/}'],
+    }),
+    expectedFormatErrors: () => [null, null, null],
+  },
+  hostname: {
+    title: 'Hostname',
+    description:
+      'TF.Hostname (format `domain`) — RFC 1123 host name — labels of letters, digits and hyphens, a single label allowed.',
+    validateNotes: [
+      'A bare `localhost` or `db1` is a valid host name, which is where this differs from `TF.Domain` (that one wants a dotted name with a TLD).',
+      'A label may not start or end with a hyphen, may not exceed 63 characters, and the whole name may not exceed 253.',
+    ],
+    validate: () => createValidateFn<TF.Hostname>(),
+    standardSchema: () => createStandardSchema<TF.Hostname>(),
+    validateReflect: () => {
+      const v: TF.Hostname = 'example.com';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.Hostname>(),
+    deserializeValidateReflect: () => {
+      const v: TF.Hostname = 'example.com';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.Hostname = 'example.com';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.Hostname>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.Hostname = 'example.com';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.Hostname = 'example.com';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.Hostname>>(),
+    validateSchema: () => createValidateFn(TF.hostname()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.Hostname>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.Hostname>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.hostname()),
+    mockType: () => createMockDataFn<TF.Hostname>(),
+    getSamples: () => ({
+      valid: ['example.com', 'hostname', 'sub.example.co.uk', 'h0stn4me', 'a--b.com', 'xn--9n2bp8q.xn--9t4b11yi5a'],
+      invalid: ['-hostname', 'hostname-', 'host_name', '.example', 'example.', '', 'xn--X', 'xn--hello-zed'],
+    }),
+    expectedFormatErrors: () => [null, null, null, null, null, null, null, null],
+  },
+  idn_hostname: {
+    title: 'IdnHostname',
+    description:
+      'TF.IdnHostname (format `idn-hostname`) — an internationalized host name: labels in their own script, with the IDNA contextual and bidirectional rules.',
+    validateNotes: [
+      'A name written in its own script passes (`실례.테스트`), as does the punycode spelling of the same name.',
+      'The rules a pattern cannot express are enforced: an `xn--` label is decoded and must re-encode to itself, a contextual character is judged by its neighbours, and one right-to-left letter puts the whole name under the bidi rule.',
+    ],
+    validate: () => createValidateFn<TF.IdnHostname>(),
+    standardSchema: () => createStandardSchema<TF.IdnHostname>(),
+    validateReflect: () => {
+      const v: TF.IdnHostname = '실례.테스트';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<TF.IdnHostname>(),
+    deserializeValidateReflect: () => {
+      const v: TF.IdnHostname = '실례.테스트';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: TF.IdnHostname = '실례.테스트';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<TF.IdnHostname>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: TF.IdnHostname = '실례.테스트';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: TF.IdnHostname = '실례.테스트';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<TF.IdnHostname>>(),
+    validateSchema: () => createValidateFn(TF.idnHostname()),
+    getValidationErrors: () => createGetValidationErrorsFn<TF.IdnHostname>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<TF.IdnHostname>>(),
+    getValidationErrorsSchema: () => createGetValidationErrorsFn(TF.idnHostname()),
+    mockType: () => createMockDataFn<TF.IdnHostname>(),
+    getSamples: () => ({
+      valid: ['실례.테스트', 'example.com', 'l·l', 'ヲ・ァ'],
+      invalid: ['a·l', 'xn--X', 'א0٠', '-nope', ''],
+    }),
+    expectedFormatErrors: () => [null, null, null, null, null],
+  },
+  pattern_generated: {
+    title: 'Generated pattern samples',
+    description:
+      'stringFormat with a sample-less inline `pattern`: the build auto-generates its mockSamples from the regex (deterministic per pattern), so mocking works with nothing declared.',
+    validateNotes: [
+      'Matching ticket codes pass (`ab-12`, `cd-09`); a wrong letter range (`zz-12`), a short number (`ab-1`), capitals (`AB-12`), and the empty string fail with `val` `Invalid pattern`.',
+      'No mockSamples are declared anywhere: the mock lanes only work because the build generated the pool.',
+    ],
+    validate: () => createValidateFn<Generated>(),
+    standardSchema: () => createStandardSchema<Generated>(),
+    validateReflect: () => {
+      const v: Generated = 'ab-12';
+      return createValidateFn(v);
+    },
+    deserializeValidate: () => deserializeValidate<Generated>(),
+    deserializeValidateReflect: () => {
+      const v: Generated = 'ab-12';
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: () => {
+      const v: Generated = 'ab-12';
+      return createGetValidationErrorsFn(v);
+    },
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Generated>(),
+    deserializeGetValidationErrorsReflect: () => {
+      const v: Generated = 'ab-12';
+      return deserializeGetValidationErrors(v);
+    },
+    mockTypeReflect: () => {
+      const v: Generated = 'ab-12';
+      return createMockDataFn(v);
+    },
+    validateDataOnly: () => createValidateFn<DataOnly<Generated>>(),
+    // Value-first sample-less pattern: the same generated pool serves this
+    // form (identical {source, flags} params intern to the same node).
+    validateSchema: () => createValidateFn(TF.string({pattern: {source: '^[a-d]{2}-[0-9]{2}$', flags: 'u'}})),
+    getValidationErrors: () => createGetValidationErrorsFn<Generated>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrorsFn<DataOnly<Generated>>(),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrorsFn(TF.string({pattern: {source: '^[a-d]{2}-[0-9]{2}$', flags: 'u'}})),
+    mockType: () => createMockDataFn<Generated>(),
+    getSamples: () => ({valid: ['ab-12', 'cd-09'], invalid: ['zz-12', 'ab-1', 'AB-12', '']}),
+    expectedFormatErrors: () => [
+      {name: 'stringFormat', val: 'Invalid pattern'},
+      {name: 'stringFormat', val: 'Invalid pattern'},
+      {name: 'stringFormat', val: 'Invalid pattern'},
+      {name: 'stringFormat', val: 'Invalid pattern'},
+    ],
+  },
   pattern_hex: {
     title: 'Hex pattern',
     description:
       'stringFormat with a registered case-insensitive `pattern` (hex `^[0-9a-f]+$`, flag `i`) accepting hex digits in either case.',
-    validateNotes:
+    validateNotes: [
       'The `i` flag folds case, so both `0042` and `DEADbeef` pass. A non-hex string (`xyz`) and the empty string each fail with `val` `Invalid pattern`.',
+    ],
     validate: () => createValidateFn<Hex>(),
     standardSchema: () => createStandardSchema<Hex>(),
     validateReflect: () => {

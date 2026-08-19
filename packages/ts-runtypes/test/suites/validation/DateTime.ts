@@ -87,7 +87,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.Instant instance (instanceof).',
+    validateNotes: ['Must be a Temporal.Instant instance (instanceof).'],
     validate: () => createValidateFn<Temporal.Instant>(),
     standardSchema: () => createStandardSchema<Temporal.Instant>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.Instant>>(),
@@ -131,7 +131,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.ZonedDateTime instance (instanceof).',
+    validateNotes: ['Must be a Temporal.ZonedDateTime instance (instanceof).'],
     validate: () => createValidateFn<Temporal.ZonedDateTime>(),
     standardSchema: () => createStandardSchema<Temporal.ZonedDateTime>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.ZonedDateTime>>(),
@@ -175,7 +175,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.PlainDate instance (instanceof).',
+    validateNotes: ['Must be a Temporal.PlainDate instance (instanceof).'],
     validate: () => createValidateFn<Temporal.PlainDate>(),
     standardSchema: () => createStandardSchema<Temporal.PlainDate>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.PlainDate>>(),
@@ -219,7 +219,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.PlainTime instance (instanceof).',
+    validateNotes: ['Must be a Temporal.PlainTime instance (instanceof).'],
     validate: () => createValidateFn<Temporal.PlainTime>(),
     standardSchema: () => createStandardSchema<Temporal.PlainTime>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.PlainTime>>(),
@@ -263,7 +263,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.PlainDateTime instance (instanceof).',
+    validateNotes: ['Must be a Temporal.PlainDateTime instance (instanceof).'],
     validate: () => createValidateFn<Temporal.PlainDateTime>(),
     standardSchema: () => createStandardSchema<Temporal.PlainDateTime>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.PlainDateTime>>(),
@@ -307,7 +307,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.PlainYearMonth instance (instanceof).',
+    validateNotes: ['Must be a Temporal.PlainYearMonth instance (instanceof).'],
     validate: () => createValidateFn<Temporal.PlainYearMonth>(),
     standardSchema: () => createStandardSchema<Temporal.PlainYearMonth>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.PlainYearMonth>>(),
@@ -354,7 +354,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.PlainMonthDay instance (instanceof).',
+    validateNotes: ['Must be a Temporal.PlainMonthDay instance (instanceof).'],
     validate: () => createValidateFn<Temporal.PlainMonthDay>(),
     standardSchema: () => createStandardSchema<Temporal.PlainMonthDay>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.PlainMonthDay>>(),
@@ -398,7 +398,7 @@ export const DATETIME = {
     // Temporal types are validated by native identity; DataOnly's structural
     // object projection mangles them, so createValidateFn<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validateNotes: 'Must be a Temporal.Duration instance (instanceof).',
+    validateNotes: ['Must be a Temporal.Duration instance (instanceof).'],
     validate: () => createValidateFn<Temporal.Duration>(),
     standardSchema: () => createStandardSchema<Temporal.Duration>(),
     validateDataOnly: () => createValidateFn<DataOnly<Temporal.Duration>>(),

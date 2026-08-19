@@ -43,9 +43,21 @@ imports. Each competitor's [`cases.ts`](competitors/zod/cases.ts) is a **total**
 `Record<CaseKey, CaseEntry>`: every case key maps either to a lazy validator
 builder `() => (v) => boolean` **or** to the `NOT_SUPPORTED` sentinel. The
 `CaseKey` union is derived from the suite objects
-([`shared/cases/index.ts`](shared/cases/index.ts)), so **TypeScript fails the
-build if a competitor omits any case** — that is the "function or explicit
-not-supported, for every case" guarantee. There are no silent gaps.
+([`shared/cases/index.ts`](shared/cases/index.ts)), so a competitor that omits a
+case does not compile — that is the "function or explicit not-supported, for
+every case" guarantee.
+
+**That guarantee is enforced by `pnpm rtx bench typecheck`, not by the type
+annotation on its own.** The competitor builds are `vite build` / esbuild, which
+strip types without checking them, so for a long time nothing ever compiled these
+files and a dropped key was a silently absent column rather than an error (it
+happened: the whole `CIRCULAR_REFS` group went missing from
+`competitors/ts-runtypes/schemaCases.ts`). The verb runs each competitor's
+`tsconfig.json` through the compiler in its own baked `node_modules` inside the
+image, and CI runs it on every PR that touches `container/**` or `scripts/**`.
+`shared/` is checked along with them: every competitor project `include`s
+`../../shared`. If you add a first-party file to a competitor dir, add it to that
+project's `include` too — the gate only covers what the project compiles.
 
 The runner ([`shared/harness/runner.ts`](shared/harness/runner.ts)) builds each
 validator, then checks correctness against the case's valid/invalid samples and
@@ -130,6 +142,7 @@ pnpm rtx bench typecost        # compile-time: per-competitor TS type-instantiat
 pnpm rtx bench serialization   # ts-runtypes round-trip serialization bench (+ formats), IN-CONTAINER
 pnpm rtx bench --website         # ONE command: ALL website benchmark data (validation + typecost + serialization)
 pnpm rtx bench smoke           # quick: build every competitor's dist (no run)
+pnpm rtx bench typecheck       # quickest: compile every competitor project (the totality gate; also what CI runs)
 # --- image publishing (maintainer); all delegate to scripts/container/image.mjs ---
 pnpm rtx container build-image     # build the shared website+benchmark image locally
 pnpm rtx container login           # log in to GHCR (needs a PAT; see SETUP.md)
@@ -155,6 +168,24 @@ the bind-mounted marker package, plugin and Go binary) plus a bind-mounted Linux
 build of the source-body extractor (`bin/extract-fn-bodies-linux-<arch>`, so no Go
 toolchain is needed in-container), and writes `serialization` +
 `serialization-formats` straight into `container/website/public/bench-data`.
+
+Two things this stage needs that the other lanes don't, because it loads the
+**marker package's own test program** rather than a competitor project:
+
+- **The repo-root tsconfig is mounted too.** The marker package is bound at
+  `<competitor>/node_modules/@ts-runtypes/core` — a segment deeper than
+  `packages/ts-runtypes` sits in the repo — while its `tsconfig.json` extends the
+  repo-root one, so `../../tsconfig.json` lands on `node_modules/` and finds
+  nothing. `bench.mjs` mounts the real root config at that path (not a copy, so
+  it can't drift), and the suite compiles under exactly the options it does on
+  the host. If the `extends` chain ever grows a link, that mount stops being
+  enough — the contract test walks the chain and says so.
+- **`failOnError: false`.** `buildStart` scans everything the tsconfig includes,
+  alwaysThrow suites included, and those deliberately hold Error-severity types.
+  Same opt-out, same reason, as `packages/ts-runtypes/vitest.config.ts`.
+
+Both are pinned by `packages/ts-runtypes-devtools/test/repo-contracts.test.ts`;
+each broke a website deploy after landing green in every other lane.
 
 **`bench:website`** is the single command that regenerates **all** benchmark data
 the docs site renders — runtime validation + typecost + `capture-env` +
@@ -198,7 +229,7 @@ per-competitor from each competitor's own files:
 
 - **ts-go (type)** — `competitors/ts-runtypes/cases.ts` `createValidateFn<TYPE>()` type arg.
 - **typia** — `competitors/typia/cases.ts` `typia.createIs<TYPE>()` type arg (format suites use typia tag intersections, e.g. `string & tags.MaxLength<5>`).
-- **ts-go (schema)** — `competitors/ts-runtypes/schemaCases.ts` `createValidateFn(EXPR)` arg.
+- **ts-go (builder)** — `competitors/ts-runtypes/schemaCases.ts` `createValidateFn(EXPR)` arg.
 - **zod / typebox** — `competitors/<name>/cases.ts` schema expressions.
 - **ajv** — none (JSON Schema has no static type inference).
 
@@ -211,7 +242,7 @@ subset of cases each supports.
 ```
 ts-go(type)      ~4 instantiations/case     # writing the type is ~free
 typebox        ~219 /case
-ts-go(schema)  ~546 /case
+ts-go(builder) ~546 /case
 zod            ~619 /case
 ```
 (apples-to-apples averages over the cases all forms support; run `bench:typecost`
@@ -332,7 +363,8 @@ aggregate.mjs           results/*.json → comparison table + coverage; sets the
 
 Edit the relevant `competitors/<name>/cases.ts`: change a `NOT_SUPPORTED` entry to
 a builder `() => { const s = <schema>; return (v) => <validate>(v, s); }` (the
-`CaseKey` union catches typo'd keys at compile time). Run `pnpm rtx bench --one
+`CaseKey` union catches typo'd keys, and `pnpm rtx bench typecheck` is what
+compiles it). Run `pnpm rtx bench --one
 <name>` with `RT_BENCH_NO_TIMING=1` and fix any reported mismatch — or downgrade it
 back to `NOT_SUPPORTED` (with a one-line reason) when the library genuinely
 diverges from RunTypes' semantics. To add a whole new competitor, copy a
@@ -354,7 +386,7 @@ pnpm rtx bench audit        # build + audit-run every competitor, then aggregate
 ```
 
 Tooling lives in [`_audit/`](_audit/); the committed write-up is
-[`docs/cross-library-validation-alignment-report.md`](../docs/cross-library-validation-alignment-report.md).
+[`docs/cross-library-validation-alignment-report.md`](../../docs/cross-library-validation-alignment-report.md).
 The audit also feeds the website's **Correctness** benchmark page (an `alignment` bench
 in `scripts/website/bench-data/gen-docs.mjs`); `pnpm rtx bench --website` runs the audit so that page's
 data regenerates with the rest.

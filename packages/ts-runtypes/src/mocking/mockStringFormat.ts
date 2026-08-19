@@ -48,11 +48,11 @@ function mockStringFormat(annotation: FormatAnnotation, random: MockRandom = nat
     case 'ip':
       return mockIp(params as Partial<IPParams>, random);
     case 'domain':
-      return mockDomain(params as DomainParams, random);
+      return lengthFiltered(params, () => mockDomain(params as DomainParams, random));
     case 'email':
-      return mockEmail(params as EmailParams, random);
+      return lengthFiltered(params, () => mockEmail(params as EmailParams, random));
     case 'url':
-      return mockUrl(params as UrlParams, random);
+      return lengthFiltered(params, () => mockUrl(params as UrlParams, random));
     default:
       return undefined;
   }
@@ -78,12 +78,22 @@ function mockStringParams(params: StringParams, random: MockRandom): string {
     random
   );
   if (sample !== undefined) return sample;
+  // `contentMediaType` needs a floor: a random string is not JSON, and a mock
+  // must satisfy its own validator. The shipped JsonContent aliases carry a
+  // sample pool, so this only catches a hand-written
+  // `String<{contentMediaType: 'application/json'}>` — for which the emptiest
+  // valid document is the honest answer.
+  if (params.contentMediaType === 'application/json') {
+    return params.contentEncoding === 'base64' ? 'e30=' : '{}';
+  }
   const charSet = params.allowedChars?.val ?? asCharString(params.disallowedChars?.mockSamples);
   if (charSet) return randomStringFrom(charSet, Math.max(1, pickMockLength(params, random)), random);
   if (params.pattern !== undefined) {
     throw new Error(
-      'StringFormat: a `pattern` requires `mockSamples` compatible with the length bounds to mock — ' +
-        'none provided, or every sample violates length/minLength/maxLength.'
+      'StringFormat: a `pattern` needs `mockSamples` compatible with the length bounds to mock — ' +
+        'none survived (every sample violates length/minLength/maxLength), or none exist. The build ' +
+        'auto-generates them from the regex; building without the plugin/CLI (or with patternSampleCount 0) ' +
+        'requires declaring mockSamples explicitly.'
     );
   }
   return randomString(pickMockLength(params, random), random);
@@ -156,8 +166,13 @@ function randomString(length: number, random: MockRandom): string {
 
 // ─────────────────────────────── UUID ───────────────────────────────
 
+// The version-agnostic `'any'` never leaves the generator guessing: a mock only
+// has to produce ONE value the validator accepts, and every v4 UUID is a valid
+// `'any'` UUID. So the generator narrows (always v4) exactly where the validator
+// stays open (any RFC 9562 layout) — the safe direction, since mock ⊆ valid.
+// Only `'7'` needs its own generator, because a v4 would fail a v4-pinned check.
 function mockUuid(params: Partial<UUIDParams>, random: MockRandom): string {
-  return (params.version ?? '4') === '7' ? random.uuidV7() : random.uuidV4();
+  return params.version === '7' ? random.uuidV7() : random.uuidV4();
 }
 
 // Date / Time / DateTime mocking lives in ./mockDateTimeBounds.ts — it must
@@ -173,18 +188,20 @@ function mockIp(params: Partial<IPParams>, random: MockRandom): string {
 }
 
 function mockIpV4(params: Partial<IPParams>, random: MockRandom): string {
-  // '127:0:0:1' is a valid v4 loopback only WITHOUT a port — the allowPort
-  // address parser splits on ':' and rejects >2 segments — so when ports
-  // are allowed the loopback is emitted as 'localhost' (the colon-free form).
+  // Only reachable with allowLocalHost — the hostname is not an address, so a
+  // format that has not opted in must never see it in its mock pool. It stays
+  // valid with a port: the allowPort parser splits the port off first.
   if (params.allowLocalHost && random.float() > 0.8) {
-    return params.allowPort ? 'localhost' : random.float() > 0.5 ? 'localhost' : '127:0:0:1';
+    return params.allowPort ? `localhost:${randomPort(random)}` : 'localhost';
   }
   const address = Array.from({length: 4}, () => random.int(0, 255)).join('.');
   return params.allowPort ? `${address}:${randomPort(random)}` : address;
 }
 
 function mockIpV6(params: Partial<IPParams>, random: MockRandom): string {
-  if (params.allowLocalHost && random.float() > 0.8) {
+  // The loopback ADDRESS needs no opt-in (allowLocalHost covers the hostname
+  // spelling only), so it stays in the pool for every v6 format.
+  if (random.float() > 0.8) {
     const loopback = random.float() > 0.5 ? '0:0:0:0:0:0:0:1' : '::1';
     // The allowPort v6 parser requires the bracketed `[addr]` (optionally
     // `[addr]:port`) form — a bare address fails to match.
@@ -227,6 +244,30 @@ function mockDomain(params: DomainParams, random: MockRandom): string {
 function domainPartSamples(part: {mockSamples?: Samples; pattern?: unknown} | undefined): readonly string[] | undefined {
   if (!part) return undefined;
   return toSampleList(part.mockSamples) ?? patternSampleList(asPattern(part.pattern));
+}
+
+// Named-family draws come from pattern sample pools that predate any
+// schema-sibling length bounds (the JSON Schema door REPLACES the brand's
+// default bounds with the document's) — filter the draw against params
+// minLength / maxLength so validate(mock()) holds. Bounds no pool entry
+// satisfies are an authoring problem the mock must surface, not paper
+// over: loud exhaustion after the standard attempt budget.
+function lengthFiltered(params: object, draw: () => string): string {
+  const {minLength, maxLength} = params as {minLength?: number; maxLength?: number};
+  if (minLength === undefined && maxLength === undefined) return draw();
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const candidate = draw();
+    // Code points, matching the emitted validator's bounds (JSON Schema's
+    // rule): a draw carrying an astral character must not be filtered out over
+    // a `.length` the validator never looks at.
+    const size = [...candidate].length;
+    if ((minLength === undefined || size >= minLength) && (maxLength === undefined || size <= maxLength)) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    'Cannot mock format: no sample satisfied the minLength/maxLength bounds after 32 attempts — widen the bounds or provide mockSamples that fit.'
+  );
 }
 
 function mockEmail(params: EmailParams, random: MockRandom): string {

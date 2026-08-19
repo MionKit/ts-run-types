@@ -3645,4 +3645,203 @@ export const cases: CompetitorCases = {
       };
     },
   },
+  'REALWORLD.toBeChecked': {
+    build: () => {
+      const schema = Type.Object({
+        number: Type.Number(),
+        negNumber: Type.Number(),
+        maxNumber: Type.Number(),
+        string: Type.String(),
+        longString: Type.String(),
+        boolean: Type.Boolean(),
+        deeplyNested: Type.Object({foo: Type.String(), num: Type.Number(), bool: Type.Boolean()}),
+      });
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Object({
+        number: Type.Number(),
+        negNumber: Type.Number(),
+        maxNumber: Type.Number(),
+        string: Type.String(),
+        longString: Type.String(),
+        boolean: Type.Boolean(),
+        deeplyNested: Type.Object({foo: Type.String(), num: Type.Number(), bool: Type.Boolean()}),
+      });
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+
+  // ── JSON_SCHEMA ──
+  // TypeBox has no runtime JSON Schema INPUT door (TypeCompiler dispatches on
+  // TypeBox's own [Kind] symbol, which a plain document does not carry), so
+  // these entries state the same CONSTRAINT in TypeBox's own dialect — which is
+  // mostly a direct spelling, because TypeBox schemas ARE JSON Schema. One
+  // keyword (propertyNames) is accepted into the schema object but never
+  // compiled into a check, so it opts out rather than report a validator that
+  // passes everything (verified by compiling and running it).
+  'JSON_SCHEMA.property_names': NOT_SUPPORTED, // propertyNames is carried in the schema but never compiled into a check
+  'JSON_SCHEMA.contains_count': {
+    build: () => {
+      const schema = Type.Array(Type.Number(), {contains: Type.Number({minimum: 10}), minContains: 2});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Array(Type.Number(), {contains: Type.Number({minimum: 10}), minContains: 2});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'JSON_SCHEMA.unique_items': {
+    build: () => {
+      const schema = Type.Array(Type.Number(), {uniqueItems: true});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Array(Type.Number(), {uniqueItems: true});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'JSON_SCHEMA.object_size': {
+    build: () => {
+      const schema = Type.Record(Type.String(), Type.Number(), {minProperties: 1, maxProperties: 3});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Record(Type.String(), Type.Number(), {minProperties: 1, maxProperties: 3});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'JSON_SCHEMA.string_email': {
+    build: () => {
+      const schema = Type.String({
+        pattern: '^[a-zA-Z0-9.+_-]+@([a-zA-Z0-9]{2,}([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?[.])+[a-zA-Z]{2,}$',
+      });
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.String({
+        pattern: '^[a-zA-Z0-9.+_-]+@([a-zA-Z0-9]{2,}([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?[.])+[a-zA-Z]{2,}$',
+      });
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'JSON_SCHEMA.int_bounded': {
+    build: () => {
+      const schema = Type.Integer({minimum: 0, maximum: 130});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Integer({minimum: 0, maximum: 130});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'JSON_SCHEMA.string_pattern': {
+    build: () => {
+      const schema = Type.String({pattern: '^[a-z][a-z0-9-]*$'});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.String({pattern: '^[a-z][a-z0-9-]*$'});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'JSON_SCHEMA.multiple_of': {
+    build: () => {
+      const schema = Type.Number({multipleOf: 5});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Number({multipleOf: 5});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+
+  // ── STRICT ──
+  // additionalProperties:false at EVERY level — the nested object must be closed
+  // too, or the nested-extra-key sample would be accepted.
+  'STRICT.flat_required': {
+    build: () => {
+      const schema = Type.Object({id: Type.Number(), name: Type.String(), active: Type.Boolean()}, {additionalProperties: false});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Object({id: Type.Number(), name: Type.String(), active: Type.Boolean()}, {additionalProperties: false});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'STRICT.nested_required': {
+    build: () => {
+      const schema = Type.Object({name: Type.String(), inner: Type.Object({x: Type.Number(), y: Type.String()}, {additionalProperties: false})}, {additionalProperties: false});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Object({name: Type.String(), inner: Type.Object({x: Type.Number(), y: Type.String()}, {additionalProperties: false})}, {additionalProperties: false});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
+  'STRICT.moltar_dto': {
+    build: () => {
+      const schema = Type.Object({number: Type.Number(), negNumber: Type.Number(), maxNumber: Type.Number(), string: Type.String(), longString: Type.String(), boolean: Type.Boolean(), deeplyNested: Type.Object({foo: Type.String(), num: Type.Number(), bool: Type.Boolean()}, {additionalProperties: false})}, {additionalProperties: false});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => check.Check(value);
+    },
+    buildErrors: () => {
+      const schema = Type.Object({number: Type.Number(), negNumber: Type.Number(), maxNumber: Type.Number(), string: Type.String(), longString: Type.String(), boolean: Type.Boolean(), deeplyNested: Type.Object({foo: Type.String(), num: Type.Number(), bool: Type.Boolean()}, {additionalProperties: false})}, {additionalProperties: false});
+      const check = TypeCompiler.Compile(schema);
+      return (value: unknown) => {
+        for (const _ of check.Errors(value)) return false;
+        return true;
+      };
+    },
+  },
 };

@@ -460,9 +460,9 @@ const noopToBinary = (_v: unknown, Ser: unknown) => Ser;
 const noopFromBinary = (ret: unknown) => ret;
 
 const valueArgs = () => ({vλl: 'v'}) as CompiledFnArgs;
-const valueDefaults = () => ({vλl: undefined}) as unknown as CompiledFnArgs;
+const valueDefaults = (): CompiledFnArgs => ({vλl: ''});
 const errorArgs = () => ({vλl: 'v', pλth: 'pth', εrr: 'er'}) as CompiledFnArgs;
-const errorDefaults = () => ({vλl: undefined, pλth: [], εrr: []}) as unknown as CompiledFnArgs;
+const errorDefaults = (): CompiledFnArgs => ({vλl: '', pλth: '[]', εrr: '[]'});
 
 const valueShaped = (fnID: string, noop: AnyFn): FamilyMeta => ({fnID, args: valueArgs, defaultParamValues: valueDefaults, noop});
 const errorShaped = (fnID: string): FamilyMeta => ({fnID, args: errorArgs, defaultParamValues: errorDefaults, noop: noopErrors});
@@ -492,7 +492,7 @@ const familyMeta: Record<string, FamilyMeta> = {
   huk: {
     fnID: 'huk',
     args: () => ({vλl: 'v', θpts: 'opts'}) as CompiledFnArgs,
-    defaultParamValues: () => ({vλl: undefined, θpts: {}}) as unknown as CompiledFnArgs,
+    defaultParamValues: (): CompiledFnArgs => ({vλl: '', θpts: '{}'}),
     noop: noopFalse,
   },
   ces: valueShaped('ces', noopIdentity),
@@ -501,16 +501,19 @@ const familyMeta: Record<string, FamilyMeta> = {
   tb: {
     fnID: 'tb',
     args: () => ({vλl: 'v', sεr: 'Ser'}) as CompiledFnArgs,
-    defaultParamValues: () => ({vλl: undefined, sεr: undefined}) as unknown as CompiledFnArgs,
+    defaultParamValues: (): CompiledFnArgs => ({vλl: '', sεr: ''}),
     noop: noopToBinary,
   },
   fb: {
     fnID: 'fb',
     args: () => ({vλl: 'ret', dεs: 'Des'}) as CompiledFnArgs,
-    defaultParamValues: () => ({vλl: undefined, dεs: undefined}) as unknown as CompiledFnArgs,
+    defaultParamValues: (): CompiledFnArgs => ({vλl: '', dεs: ''}),
     noop: noopFromBinary,
   },
   fmt: valueShaped('fmt', noopIdentity),
+  // jsonSchema documents: the fn RETURNS the document (its `v` arg is unused);
+  // a noop entry (never emitted today) would honestly say "any value".
+  jsc: valueShaped('jsc', () => ({})),
   // JSON composites — encoder tags host on pj metadata, decoder tags on rj,
   // but their noop is NATIVE JSON (see the comment above): an all-elided
   // encoder body is `return JSON.stringify(v)`, an all-elided decoder body is
@@ -745,25 +748,25 @@ function registerPureFnTuple(utils: RTUtils, tuple: PureFnTuple): boolean {
 export function resolveEntryTupleFn<F extends AnyFn>(
   fnName: string,
   identityFn: F,
-  schemaId: string | undefined,
+  runTypeId: string | undefined,
   injected: unknown
 ): F {
   const utils = getRTUtils();
   if (isMissingTuple(injected)) return identityFn;
   if (!isEntryTuple(injected)) {
-    if (schemaId === undefined) {
+    if (runTypeId === undefined) {
       throw new Error(
         `${fnName}(): no id injected. ts-runtypes-devtools must be active for ${fnName} to dispatch to a precompiled factory.`
       );
     }
     // Schema-form without an injected tuple (plugin inactive): the schema
     // still names a runtype; degrade to the identity fallback if registered.
-    if (utils.hasRunType(schemaId)) return identityFn;
-    throw new Error(`${fnName}(): no RTCompiledFn entry for schema id "${schemaId}" in rtUtils.`);
+    if (utils.hasRunType(runTypeId)) return identityFn;
+    throw new Error(`${fnName}(): no RTCompiledFn entry for run-type id "${runTypeId}" in rtUtils.`);
   }
   initFromTuple(injected);
   let key = entryTupleKey(injected);
-  if (schemaId !== undefined) key = key.slice(0, FN_HASH_LEN) + '_' + schemaId;
+  if (runTypeId !== undefined) key = key.slice(0, FN_HASH_LEN) + '_' + runTypeId;
   const typeId = key.slice(FN_HASH_LEN + 1);
   const entry = utils.getRT(key);
   // The circular-reference guard is now a COMPILE-TIME option: `{rejectCircularRefs:

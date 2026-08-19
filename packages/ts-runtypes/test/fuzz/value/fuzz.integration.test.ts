@@ -10,7 +10,7 @@
 
 import * as TF from '@ts-runtypes/core/formats';
 import {describe, it, expect} from 'vitest';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {
   createMockDataFn,
   createValidateFn,
@@ -21,6 +21,8 @@ import {
   createBinaryDecoderFn,
 } from '@ts-runtypes/core';
 import {runFuzz, runFuzzForDuration} from './fuzzRunner.ts';
+import {entrySeed} from '../core/fuzzPolicy.ts';
+import {soakTestTimeout, pathologyReport} from '../core/soakBudget.ts';
 import type {FuzzTarget} from './fuzzOracle.ts';
 
 const targets: FuzzTarget[] = [];
@@ -59,7 +61,7 @@ const targets: FuzzTarget[] = [];
 
 // --- target: tuple of mixed primitives ---
 {
-  const schema = RT.tuple([TF.string(), TF.number(), RT.boolean()]);
+  const schema = RT.tuple({required: [TF.string(), TF.number(), RT.boolean()]});
   targets.push({
     title: 'Tuple',
     schema,
@@ -123,7 +125,7 @@ const targets: FuzzTarget[] = [];
 
 describe('fuzz / integration — oracle sweep over compiled functions', () => {
   it('finds no oracle violations across all targets', () => {
-    const report = runFuzz(targets, {seed: 0xc0ffee, iterations: 100});
+    const report = runFuzz(targets, {seed: entrySeed('value'), iterations: 100});
     if (report.violations.length > 0) {
       const summary = report.violations
         .slice(0, 25)
@@ -144,12 +146,13 @@ describe('fuzz / integration — oracle sweep over compiled functions', () => {
   it.runIf(soakMs > 0)(
     'soak — fuzz continuously and log all findings',
     () => {
-      const report = runFuzzForDuration(targets, soakMs, {seed: Number(process.env.RT_FUZZ_SEED ?? 1)}, (v) => {
+      const report = runFuzzForDuration(targets, soakMs, {seed: entrySeed('value')}, (v) => {
         console.error(`[fuzz][${v.oracle}/${v.phase}] ${v.target} (seed=${v.seed}): ${v.message}\n    value=${v.value}`);
       });
       console.error(`[fuzz] soak finished: ${report.runs} runs, ${report.violations.length} violation(s)`);
+      expect(pathologyReport(report.slowestIterationMs, report.slowestIterationRound)).toBeNull();
       expect(report.violations).toHaveLength(0);
     },
-    soakMs + 30_000
+    soakTestTimeout(soakMs)
   );
 });

@@ -9,8 +9,9 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-runtypes/internal/cachegen/runtype"
+	"github.com/mionkit/ts-runtypes/internal/compiler/marker"
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // Resolved is the result of resolving a named type in a file: the canonical
@@ -18,10 +19,10 @@ import (
 // follow KindRef sentinels (child slots ride as `{kind:-1, id}` refs).
 type Resolved struct {
 	// Node is the canonical full RunType for the named type (not a ref).
-	Node *protocol.RunType
+	Node *reflection.RunType
 	// Resolve looks up a KindRef's canonical node by id — pass this as the
 	// skeleton / closure emitters' resolve arg.
-	Resolve func(id string) *protocol.RunType
+	Resolve func(id string) *reflection.RunType
 	// DeclFiles maps a named type's RunType.ID to the absolute path of its
 	// declaration source file (followed through re-exports/aliases to the
 	// original). Populated by ResolveTypeRaw (the closure path needs it to split
@@ -34,7 +35,7 @@ type Resolved struct {
 // Program plus the resolver's checker + runtype cache and an absolute source
 // path, it finds the type alias / interface / class declaration named
 // typeName, asks the checker for its declared type, and projects it through
-// the cache to a canonical *protocol.RunType. The returned Resolve closure
+// the cache to a canonical *reflection.RunType. The returned Resolve closure
 // (cache.NodeByID) lets the emit walkers follow ref sentinels in the
 // child slots.
 //
@@ -257,11 +258,11 @@ func ProjectType(cache *runtype.Cache, tsType *checker.Type) *Resolved {
 // enrichment walkers were authored against. seen guards genuine cycles: a node
 // already on the current path keeps its ref form (Kind == KindRef), which the
 // walkers' own deref re-follows at emit time.
-func inlineNode(rt *protocol.RunType, resolve func(id string) *protocol.RunType, seen map[string]bool) *protocol.RunType {
+func inlineNode(rt *reflection.RunType, resolve func(id string) *reflection.RunType, seen map[string]bool) *reflection.RunType {
 	if rt == nil {
 		return nil
 	}
-	if rt.Kind == protocol.KindRef {
+	if rt.Kind == reflection.KindRef {
 		canonical := resolve(rt.ID)
 		if canonical == nil || seen[rt.ID] {
 			return rt
@@ -270,7 +271,7 @@ func inlineNode(rt *protocol.RunType, resolve func(id string) *protocol.RunType,
 	}
 	if rt.ID != "" {
 		if seen[rt.ID] {
-			return protocol.NewRef(rt.ID)
+			return reflection.NewRef(rt.ID)
 		}
 		seen[rt.ID] = true
 		defer delete(seen, rt.ID)
@@ -291,15 +292,87 @@ func inlineNode(rt *protocol.RunType, resolve func(id string) *protocol.RunType,
 	return &clone
 }
 
-func inlineSlice(in []*protocol.RunType, resolve func(id string) *protocol.RunType, seen map[string]bool) []*protocol.RunType {
+func inlineSlice(in []*reflection.RunType, resolve func(id string) *reflection.RunType, seen map[string]bool) []*reflection.RunType {
 	if in == nil {
 		return nil
 	}
-	out := make([]*protocol.RunType, len(in))
+	out := make([]*reflection.RunType, len(in))
 	for i, child := range in {
 		out[i] = inlineNode(child, resolve, seen)
 	}
 	return out
+}
+
+// UnresolvedNameRefs walks the WRITTEN type syntax of typeName's declaration
+// in absPath and returns the entity names of every type reference that
+// resolved to the checker's ERROR type — `any` the author never wrote (a
+// typo, missing dependency types, an ambient declaration outside the
+// program). Enrichment twin of the resolver's MKR013 guard: a mirror
+// scaffolded from such a declaration would silently miss the degraded
+// members, so callers refuse (Plan, the CLI/parity contract) or skip
+// (PlanMany, the transient-edit daemon sync) when the list is non-empty. A
+// written `any`, and a resolved `type Loose = any`, are the true `any`
+// intrinsic and never listed. Returns nil when the declaration is absent —
+// the resolve path reports that case itself.
+func UnresolvedNameRefs(prog *program.Program, typeChecker *checker.Checker, absPath, typeName string) []string {
+	if prog == nil || typeChecker == nil {
+		return nil
+	}
+	sourceFile := prog.SourceFile(absPath)
+	if sourceFile == nil {
+		return nil
+	}
+	nameNode := findTypeNameNode(sourceFile, typeName)
+	if nameNode == nil || nameNode.Parent == nil {
+		return nil
+	}
+	var names []string
+	var walk func(node *ast.Node) bool
+	walk = func(node *ast.Node) bool {
+		if node == nil {
+			return false
+		}
+		if ast.IsTypeReferenceNode(node) {
+			refType := checker.Checker_getTypeFromTypeNode(typeChecker, node)
+			if marker.IsErrorLikeAny(refType) {
+				if name, ok := writtenEntityName(node); ok {
+					names = append(names, name)
+				}
+			}
+		}
+		node.ForEachChild(walk)
+		return false
+	}
+	nameNode.Parent.ForEachChild(walk)
+	return names
+}
+
+// writtenEntityName renders a TypeReference's written entity name (`Name` or
+// `Ns.Nested.Name`) for the refusal message.
+func writtenEntityName(typeRefNode *ast.Node) (string, bool) {
+	typeRef := typeRefNode.AsTypeReferenceNode()
+	if typeRef == nil || typeRef.TypeName == nil {
+		return "", false
+	}
+	var render func(entity *ast.Node) (string, bool)
+	render = func(entity *ast.Node) (string, bool) {
+		if entity == nil {
+			return "", false
+		}
+		if entity.Kind == ast.KindIdentifier {
+			return entity.Text(), true
+		}
+		if ast.IsQualifiedName(entity) {
+			qualified := entity.AsQualifiedName()
+			left, leftOk := render(qualified.Left)
+			right, rightOk := render(qualified.Right)
+			if leftOk && rightOk {
+				return left + "." + right, true
+			}
+		}
+		return "", false
+	}
+	return render(typeRef.TypeName)
 }
 
 // findTypeNameNode walks the source file's top-level statements for a type

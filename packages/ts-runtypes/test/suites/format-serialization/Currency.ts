@@ -13,7 +13,7 @@ export const CURRENCY = {
     title: 'Currency amount (float64)',
     description:
       'JSON + binary (de)serialization of an unconstrained TF.Currency; no integer bounds, so binary rides the base 8-byte float64 arm while JSON writes the plain number.',
-    serializeNotes: 'The isCurrency mark never touches the wire — values serialize exactly like the equivalent plain number.',
+    serializeNotes: ['The isCurrency mark never touches the wire — values serialize exactly like the equivalent plain number.'],
     mutateEncoder: () => createJsonEncoderFn<TF.Currency>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoderFn<TF.Currency>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoderFn<TF.Currency>(undefined, {strategy: 'direct'}),
@@ -34,8 +34,9 @@ export const CURRENCY = {
     title: 'Currency minor units (uint16)',
     description:
       'JSON + binary (de)serialization of TF.Currency<{integer:true; min:0; max:65535}> (cents); the uint16 bounds select the 2-byte binary encoding via the shared number-format ladder.',
-    serializeNotes:
+    serializeNotes: [
       'Format-aware binary width: the [0, 65535] integer bounds pin every value to 2 bytes (getBinaryByteSizes [2,2,2]); JSON is lossless plain-number text.',
+    ],
     mutateEncoder: () => createJsonEncoderFn<TF.Currency<{integer: true; min: 0; max: 65535}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoderFn<TF.Currency<{integer: true; min: 0; max: 65535}>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoderFn<TF.Currency<{integer: true; min: 0; max: 65535}>>(undefined, {strategy: 'direct'}),

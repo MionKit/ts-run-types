@@ -1,4 +1,5 @@
 import {beforeAll, describe, expect, it} from 'vitest';
+import {RunTypeKind} from '@ts-runtypes/core';
 import {
   factoryCall,
   factoryImport,
@@ -9,8 +10,9 @@ import {
   setResolver,
   transformedSource,
   versions,
+  type RunTypeTreeNode,
 } from '../../../../container/website/app/playground/index.ts';
-import {assetsBuilt, loadNodeResolver} from './nodeResolver.ts';
+import {assetsBuilt, installSidecarHook, loadNodeResolver} from './nodeResolver.ts';
 
 // End-to-end engine tests: each resolves <factory><MyType>() via the real WASM
 // resolver, links the emitted entry modules in-process, hands the tuple to the
@@ -46,9 +48,9 @@ describe('surrounding-code templating', () => {
     );
   });
 
-  it('factoryCall renders the value-first (schema) call, injecting after the schema', () => {
-    expect(factoryCall('createValidateFn', 'validate', 'schema')).toBe('const validate = createValidateFn(MyType);');
-    expect(factoryCall('createValidateFn', 'validate', 'schema', '__rt_a1b_Xk7')).toBe(
+  it('factoryCall renders the builder call, injecting after the run-type', () => {
+    expect(factoryCall('createValidateFn', 'validate', 'builder')).toBe('const validate = createValidateFn(MyType);');
+    expect(factoryCall('createValidateFn', 'validate', 'builder', '__rt_a1b_Xk7')).toBe(
       'const validate = createValidateFn(MyType, __rt_a1b_Xk7);'
     );
   });
@@ -144,6 +146,57 @@ describeIf('playground engine (WASM, live execution)', () => {
     if (res.kind !== 'graph') throw new Error('expected graph result');
     expect(res.rootId).toBeTruthy();
     expect(res.runTypes.length).toBeGreaterThan(0);
+    // The root is the LIVE reflected node, not a row of the flat wire dump.
+    expect(res.root?.id).toBe(res.rootId);
+    expect(res.root?.children).toBeInstanceOf(Array);
+  });
+
+  // Regression: the graph op used to hand back the resolver's flat wire dump,
+  // whose child slots are `{id, kind: -1}` ref sentinels, making the runtime look
+  // like a table of ids to look up. It is a knotted object graph, and the
+  // playground now shows it as one — descending from the root, children inlined.
+  it('graph output descends from the root with the CHILD NODES inlined, never refs', async () => {
+    const res = await run('graph', TYPE);
+    if (res.kind !== 'graph' || !res.tree) throw new Error('expected graph result');
+
+    // No ref sentinel survives anywhere in the projection.
+    expect(JSON.stringify(res.tree)).not.toContain('"kind":-1');
+
+    expect(res.tree.id).toBe(res.rootId);
+    const members = res.tree.children as RunTypeTreeNode[];
+    expect(members.map((member) => member.name)).toEqual(['id', 'name', 'tags', 'active']);
+
+    // Each member carries its actual child node, so reading its kind needs no
+    // second lookup by id.
+    const byName = (name: string) => members.find((member) => member.name === name) as RunTypeTreeNode;
+    const nameChild = byName('name').child as RunTypeTreeNode;
+    expect(nameChild.kind).toBe(RunTypeKind.string);
+    // `family` is build-time-only classification (protocol.Family, for the Go
+    // compiler's inline-vs-call decision) — the runtime node never carries it,
+    // so it is absent here where the flat wire dump showed it.
+    expect(nameChild.family).toBeUndefined();
+
+    // Two hops: `tags: string[]` → array → element, all inlined.
+    const element = (byName('tags').child as RunTypeTreeNode).child as RunTypeTreeNode;
+    expect(element.kind).toBe(RunTypeKind.string);
+    // Structural sharing prints in full at each use (same node, inlined twice).
+    expect(element).toEqual(nameChild);
+  });
+
+  it('graph output marks a genuine cycle as the only reference', async () => {
+    const recursive = `type MyType = { id: number; children: MyType[] };`;
+    const res = await run('graph', recursive);
+    if (res.kind !== 'graph' || !res.tree) throw new Error('expected graph result');
+
+    const members = res.tree.children as RunTypeTreeNode[];
+    const children = members.find((member) => member.name === 'children') as RunTypeTreeNode;
+    // `children: MyType[]` → array → element, which is the root again: a real
+    // reference cycle, so it renders as a marker rather than inlining forever.
+    const element = (children.child as RunTypeTreeNode).child as RunTypeTreeNode;
+    expect(element.circular).toBe(true);
+    expect(element.id).toBe(res.rootId);
+    // The back-edge is the ONLY marker — every other slot is inlined.
+    expect(JSON.stringify(res.tree).match(/"circular":true/g)).toHaveLength(1);
   });
 
   it('generatedCache returns the runtype cache module for getRunType', async () => {
@@ -158,6 +211,23 @@ describeIf('playground engine (WASM, live execution)', () => {
     const m = await mock(TYPE);
     expect(m.value).toBeTypeOf('object');
     const ok = await run('validate', TYPE, m.value);
+    if (ok.kind !== 'predicate') throw new Error('expected predicate result');
+    expect(ok.value).toBe(true);
+  });
+
+  // The WASM engine has no node sidecar; the __tsRunTypesJsEngine host hook
+  // (the sidecar bundle's IIFE build, loaded by the browser playground and by
+  // loadNodeResolver here) IS its JS engine. A pattern with NO declared
+  // mockSamples only mocks if generation ran through that hook — pinning the
+  // browser-parity lane end-to-end under the real WASM module.
+  it('sample-less pattern mockSamples generate in WASM via the sidecar hook', async () => {
+    expect(installSidecarHook()).toBe(true);
+    const patternType = `import type * as TF from '@ts-runtypes/core/formats';
+type MyType = { code: TF.String<{pattern: {source: '^[a-z]{3}-[0-9]{2}$'; flags: ''}}> };`;
+    const m = await mock(patternType);
+    const value = m.value as {code: string};
+    expect(value.code).toMatch(/^[a-z]{3}-[0-9]{2}$/);
+    const ok = await run('validate', patternType, m.value);
     if (ok.kind !== 'predicate') throw new Error('expected predicate result');
     expect(ok.value).toBe(true);
   });
@@ -188,7 +258,7 @@ describeIf('playground engine (WASM, live execution)', () => {
   });
 
   it('mockInvalid works in the value-first schema form (mode: schema)', async () => {
-    const schema = `import * as RT from '@ts-runtypes/core/schema';
+    const schema = `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
@@ -197,8 +267,8 @@ const MyType = RT.object({
       tags: RT.array(TF.string()),
       active: RT.boolean(),
     });`;
-    const m = await mockInvalid(schema, undefined, 'schema');
-    const res = await run('validate', schema, m.value, undefined, 'schema');
+    const m = await mockInvalid(schema, undefined, 'builder');
+    const res = await run('validate', schema, m.value, undefined, 'builder');
     if (res.kind !== 'predicate') throw new Error('expected predicate result');
     expect(res.value).toBe(false);
   });
@@ -276,17 +346,17 @@ type MyType = { outer: Inner };`;
   });
 
   it('transformedSource injects the id after the schema in the value-first form (mode: schema)', async () => {
-    const schema = `import * as RT from '@ts-runtypes/core/schema';
+    const schema = `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 const MyType = RT.object({id: TF.number(), name: TF.string()});`;
-    const code = await transformedSource('createJsonEncoderFn', 'toJson', schema, undefined, 'schema');
+    const code = await transformedSource('createJsonEncoderFn', 'toJson', schema, undefined, 'builder');
     expect(code).toMatch(/^import \{__rt_[A-Za-z0-9_]+} from 'rtmod:\/.+';/m);
     expect(code).toMatch(/const toJson = createJsonEncoderFn\(MyType, __rt_[A-Za-z0-9_]+\);/);
   });
 
   it('handles a circular (recursive) type in both type and schema forms', async () => {
     const typeForm = `type MyType = { id: number; name: string; children: MyType[] };`;
-    const schemaForm = `import * as RT from '@ts-runtypes/core/schema';
+    const builderForm = `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 const MyType = RT.circular(RT.object({ id: TF.number(), name: TF.string(), children: RT.array(RT.self()) }));`;
     const tree = {id: 1, name: 'root', children: [{id: 2, name: 'leaf', children: []}]};
@@ -294,7 +364,7 @@ const MyType = RT.circular(RT.object({ id: TF.number(), name: TF.string(), child
 
     for (const [code, mode] of [
       [typeForm, 'type'],
-      [schemaForm, 'schema'],
+      [builderForm, 'builder'],
     ] as const) {
       const graph = await run('graph', code, undefined, undefined, mode);
       if (graph.kind !== 'graph') throw new Error('expected graph result');
@@ -309,7 +379,7 @@ const MyType = RT.circular(RT.object({ id: TF.number(), name: TF.string(), child
   });
 
   it('runs the value-first schema form (mode: schema)', async () => {
-    const schema = `import * as RT from '@ts-runtypes/core/schema';
+    const schema = `import * as RT from '@ts-runtypes/core/builders';
 import * as TF from '@ts-runtypes/core/formats';
 
 const MyType = RT.object({
@@ -318,10 +388,10 @@ const MyType = RT.object({
       tags: RT.array(TF.string()),
       active: RT.boolean(),
     });`;
-    const ok = await run('validate', schema, VALID, undefined, 'schema');
+    const ok = await run('validate', schema, VALID, undefined, 'builder');
     if (ok.kind !== 'predicate') throw new Error('expected predicate result');
     expect(ok.value).toBe(true);
-    const bad = await run('validate', schema, INVALID, undefined, 'schema');
+    const bad = await run('validate', schema, INVALID, undefined, 'builder');
     if (bad.kind !== 'predicate') throw new Error('expected predicate result');
     expect(bad.value).toBe(false);
   });

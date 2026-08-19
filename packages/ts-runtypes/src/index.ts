@@ -5,6 +5,7 @@ export {
   type InjectPureFnHash,
   type CompTimeArgs,
   type CompTimeFnArgs,
+  type CompTimeHints,
   type PureFunction,
   type PureFunctionFactory,
   getRunTypeId,
@@ -43,7 +44,12 @@ export {type RunType} from './runtypes/types.ts';
 // Exported after getRTUtils so the registry is initialised first.
 export {getRunType} from './getRunType.ts';
 export {type DataOnly} from './runtypes/dataOnly.ts';
-export {type InferType} from './schema/static.ts';
+export {type StripRunTypeMeta, type JsonValue} from './runtypes/stripRunTypeMeta.ts';
+// `JSONShape<T>` — the RunTypes JSON wire twin of `DataOnly<T>` (what
+// createJsonEncoderFn writes / createJsonDecoderFn reads). Annotation-grade:
+// never reflect it.
+export {type JSONShape} from './runtypes/jsonShape.ts';
+export {type InferType, type AnyOf} from './builders/static.ts';
 
 // AI enrichment — type-keyed, committed maps validated against `T` at scan time
 // (see docs/AI_ENRICHMENT.md). `FriendlyText<T>` combines labels + error
@@ -267,7 +273,22 @@ export {
   type StandardSchemaTypes,
   type StandardSchemaInferInput,
   type StandardSchemaInferOutput,
+  type StandardJSONSchemaV1,
+  type StandardJSONSchemaProps,
+  type StandardJSONSchemaConverter,
+  type StandardJSONSchemaOptions,
 } from './standard/spec.ts';
+// StandardJSONSchemaV1 — the schema-document half: `createJsonSchemaFn<T>()`
+// returns the per-type JSON Schema document fn, and createStandardSchema's
+// `~standard.jsonSchema` converter serves the same document.
+export {createJsonSchemaFn, type JsonSchemaFn} from './standard/createJsonSchemaFn.ts';
+export {
+  stripDialect,
+  buildJsonSchemaConverter,
+  JSON_SCHEMA_TARGET,
+  JSON_SCHEMA_DIALECT_KEYWORDS,
+  type JsonSchemaDocFn,
+} from './standard/jsonSchemaDoc.ts';
 
 // Circular-reference guard for the live-object families (validate /
 // getValidationErrors / jsonEncode / binaryEncode). Armed per call with the

@@ -1,3 +1,5 @@
+import type {__rtFormatName, __rtContains, __rtPatternProps, __rtPropNames} from './sentinelKeys.ts';
+
 /* ########
  * 2024 ma-jerez
  * Author: Ma-jerez
@@ -26,8 +28,7 @@
  *  (`name` / `message`) is not guarded — it is always serialized, and
  *  `DataOnly<Error>` correctly lists it. (A `@nonEnumerable` tag on a REQUIRED
  *  property is a no-op — the property serializes unconditionally — and the `NE`
- *  lint rule flags it; make it optional for the tag to take effect.) See
- *  docs/done/runtime-enumerability-checks-for-global-props.md.
+ *  lint rule flags it; make it optional for the tag to take effect.)
  *
  *  This lives in its own module because it is load-bearing and exhaustively
  *  tested: every branch has a correctness + instantiation-budget case in
@@ -67,8 +68,7 @@ export interface DataOnlyNativeExtra {}
  *     neither kept verbatim nor stripped. **/
 type DataOnlyNative = Date | RegExp | DataOnlyNativeExtra[keyof DataOnlyNativeExtra];
 
-/** Kinds the AOT validator treats as NON-DATA and strips (docs/UNSUPPORTED-KINDS.md
- *  "the unsupported set"):
+/** Kinds the AOT validator treats as NON-DATA and strips (the unsupported set):
  *   - `symbol` — runtime identity, not round-trippable;
  *   - any callable / constructable value (function, method, class value);
  *   - `Promise` / thenables — `validate` validates inbound public-API *data*,
@@ -117,7 +117,7 @@ type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 /** The data-only projection of `T` — the exact shape `createValidateFn<T>()` /
  *  `createGetValidationErrorsFn<T>()` validate. It walks `T` and DROPS every member the
  *  AOT emitter treats as non-data (see CLAUDE.md "validate contract — serializable
- *  data only" + docs/UNSUPPORTED-KINDS.md):
+ *  data only"):
  *   - `DataOnlyStripped` kinds (symbol / function / constructor / promise /
  *     non-serialisable built-ins / `never`) → `never`;
  *   - primitives, `Date`/`RegExp` (+ augmented Temporal), and `Map`/`Set` →
@@ -168,39 +168,71 @@ export type DataOnly<T, Depth extends number = 8> = Depth extends 0
       ? never // symbol / fn / ctor / thenable — strip
       : T extends string | number | boolean | bigint | null | undefined | DataOnlyNative
         ? T // primitive / native (+ Temporal) — keep verbatim
-        : // Map / Set keep the COLLECTION but PROJECT keys & values: the validator
-          // iterates and checks each child against its data-only schema (and a
-          // decoder rebuilds children from JSON/bytes), so a value's methods /
-          // Promises / non-data members are gone. SEPARATE non-`infer` gates for
-          // `ReadonlyMap` and `ReadonlySet`: the cheap `<any, any>` check filters
-          // out non-collections, and a Set never pays a wasted `ReadonlyMap` *infer*
-          // (nor a Map a wasted `ReadonlySet` infer). The `infer` runs only once
-          // the gate has confirmed the kind; the inner `Map`/`Set` test preserves
-          // the mutable-vs-readonly variant.
-          T extends ReadonlyMap<any, any>
-          ? T extends ReadonlyMap<infer K, infer V>
-            ? T extends Map<any, any>
-              ? Map<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
-              : ReadonlyMap<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
-            : never // unreachable — gate guarantees a Map
-          : T extends ReadonlySet<any>
-            ? T extends ReadonlySet<infer U>
-              ? T extends Set<any>
-                ? Set<DataOnly<U, _DataOnlyDepth[Depth]>>
-                : ReadonlySet<DataOnly<U, _DataOnlyDepth[Depth]>>
-              : never // unreachable — gate guarantees a Set
-            : T extends readonly unknown[]
-              ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
-              : T extends object
-                ? object extends T
-                  ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
-                  : {
-                      // plain object — drop symbol keys + never-valued (⊇ method) props
-                      [K in keyof T as K extends symbol
-                        ? never
-                        : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
-                          ? never
-                          : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
-                    }
-                : T;
+        : DataOnlySentinelKept<T> extends true
+          ? T // sentinel-branded container (format brand / child-schema slot) — keep verbatim, exactly like a branded primitive: mapping over the intersection would mangle the brand (and hand the checker an array-like with no reference target)
+          : DataOnlyLadder<T, Depth>;
+// Sentinel detection must survive a string INDEX SIGNATURE base (a record's
+// keyof absorbs the literal sentinel keys, and indexing a record at any key
+// returns the value type), so each probe filters on the sentinel's VALUE
+// SHAPE: a proper string-literal for the brand name, the rt$-keyed spec for
+// patternProperties, the string-family child for propertyNames, the
+// rt$child spec for contains. A record whose declared
+// value type happens to match a filter is kept verbatim — harmless, those
+// value shapes are inherently clean data.
+type DataOnlySentinelKeys = typeof __rtFormatName | typeof __rtContains | typeof __rtPatternProps | typeof __rtPropNames;
+// The common path (every plain object / array / tuple in every DataOnly
+// walk) pays ONE Extract + ONE index-signature check: a literal sentinel
+// key in keyof T is definitive (the __rt namespace is reserved), and only
+// a string-index base — whose keyof ABSORBS the literal keys — needs the
+// per-sentinel shape probes.
+type DataOnlySentinelKept<T> =
+  Extract<keyof T, DataOnlySentinelKeys> extends never ? (string extends keyof T ? DataOnlyRecordSentinelKept<T> : false) : true;
+type DataOnlySentinelProbe<X, Shape> = [X] extends [never] ? false : X extends Shape ? true : false;
+type DataOnlyProperStringLiteral<X> = [X] extends [never] ? false : string extends X ? false : X extends string ? true : false;
+// Record probes: indexing a record at any key returns the VALUE type, so
+// each probe filters on the sentinel's value shape; false positives are
+// limited to inherently-clean value shapes (a proper string literal, the
+// rt$value spec, a string-family child).
+type DataOnlyRecordSentinelKept<T> = true extends
+  | DataOnlyProperStringLiteral<NonNullable<T[typeof __rtFormatName & keyof T]>>
+  | DataOnlySentinelProbe<NonNullable<T[typeof __rtPatternProps & keyof T]>, Record<string, {rt$value: unknown}>>
+  | DataOnlySentinelProbe<NonNullable<T[typeof __rtPropNames & keyof T]>, string>
+  ? true
+  : false;
+type DataOnlyLadder<T, Depth extends number> =
+  // Map / Set keep the COLLECTION but PROJECT keys & values: the validator
+  // iterates and checks each child against its data-only schema (and a
+  // decoder rebuilds children from JSON/bytes), so a value's methods /
+  // Promises / non-data members are gone. SEPARATE non-`infer` gates for
+  // `ReadonlyMap` and `ReadonlySet`: the cheap `<any, any>` check filters
+  // out non-collections, and a Set never pays a wasted `ReadonlyMap` *infer*
+  // (nor a Map a wasted `ReadonlySet` infer). The `infer` runs only once
+  // the gate has confirmed the kind; the inner `Map`/`Set` test preserves
+  // the mutable-vs-readonly variant.
+  T extends ReadonlyMap<any, any>
+    ? T extends ReadonlyMap<infer K, infer V>
+      ? T extends Map<any, any>
+        ? Map<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
+        : ReadonlyMap<DataOnly<K, _DataOnlyDepth[Depth]>, DataOnly<V, _DataOnlyDepth[Depth]>>
+      : never // unreachable — gate guarantees a Map
+    : T extends ReadonlySet<any>
+      ? T extends ReadonlySet<infer U>
+        ? T extends Set<any>
+          ? Set<DataOnly<U, _DataOnlyDepth[Depth]>>
+          : ReadonlySet<DataOnly<U, _DataOnlyDepth[Depth]>>
+        : never // unreachable — gate guarantees a Set
+      : T extends readonly unknown[]
+        ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
+        : T extends object
+          ? object extends T
+            ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
+            : {
+                // plain object — drop symbol keys + never-valued (⊇ method) props
+                [K in keyof T as K extends symbol
+                  ? never
+                  : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
+                    ? never
+                    : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
+              }
+          : T;
 // #endregion dataonly-extract

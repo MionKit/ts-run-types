@@ -11,6 +11,32 @@ expected answer.
 This README is the developer map: what each oracle promises, what's in each
 directory, how a run is wired, and how to reproduce a finding.
 
+## ⚠️ Real types, never copies
+
+**Fuzz fixtures always use the REAL shipped types — imported — wherever an
+import can resolve.** The resolver harnesses hand the whole `src/` tree to the
+resolver's virtual filesystem (`SRC_OVERLAY` in `type/typeFuzzHarness.ts`)
+precisely so that fixtures can write `import type * as TF from
+'./src/formats/index.ts'` and reference `TF.UUID`,
+`TF.FormattedArray<…>` etc. directly. A hand-written copy of a shipped type
+does not fail when the shipped type changes — it silently keeps testing the
+old shape, which is the one failure mode a fuzz suite cannot afford (a copied
+`email` leaf once drifted into 7 false soak findings before anyone noticed).
+
+Restating a type is a RARE, documented exception, allowed only where an import
+physically cannot resolve (fixtures written into scratch temp dirs with no
+ts-runtypes install), and every such exception MUST carry a pin test that
+compares the restated spelling against the shipped type by structural id, so
+drift fails loudly. The full list today: `FUZZ_FORMAT_SCRATCH_PREAMBLE`
+(typeGen.ts, pinned by `enrich/scratchFormatPreamble.test.ts`) and
+`i18nModel.ts`'s inline spellings (pinned by
+`enrich/i18nInlineSpelling.test.ts`). The marker module itself needs no
+stand-in at all: `MARKER_PACKAGE_OVERLAY` (ts-runtypes-devtools helpers)
+serves the REAL package's package.json + built dist .d.ts tree as virtual
+node_modules, so `@ts-runtypes/core` resolves the way a consumer install
+does. Before adding a third restatement, exhaust every way to import the
+real thing first.
+
 ## Why oracles, not examples
 
 A unit test asserts `validate(x) === true` for one hand-chosen `x`. A fuzz
@@ -31,6 +57,7 @@ test/fuzz/
 ├── roundtrip/                   # one type, every codec strategy must agree (RT-*)
 ├── type/                        # fuzz the TYPE itself                    (TR1–TR4 + O*)
 ├── binary/                      # binary encoder size-estimation / buffer growth (O-SIZE-*)
+├── cloning/                     # exact-shape clone vs a reference interpreter (O15–O17)
 └── enrich/                      # model-based (stateful sequence) fuzzers  (R*, T*, NL/RC/CB…)
 ```
 
@@ -182,6 +209,34 @@ must fit the pre-sized buffer with no resize; an **oversized** negative control
   `binaryDynamicGrow` + `binaryEncoderResize` (the grow-in-place path — the
   buffer-overflow / adaptive-history regressions), `binaryIndexSig.smoke` (F1).
 
+### `cloning/` — the compiled clone vs a reference interpreter
+
+Targets `createCloneExactShapeFn<T>()`. The strong oracle is **differential**:
+a naive reference interpreter walks the reflected RunType graph and the
+compiled clone must agree with it on every conforming value. Three input
+streams per target: a **valid** mock, an **extras** mutation (the same mock
+decorated with undeclared keys, so the value stays valid while the clone must
+strip every one), and type-blind **junk** for robustness only.
+
+- `cloneOracle.ts` — **O15** clone-reference (`deepEqual(clone(v), referenceClone(schema, v))`),
+  **O16** clone-isolation (the input still deep-equals its pre-clone snapshot,
+  the clone shares no mutable object reference with it, and an object-typed
+  root keeps the input root's prototype), **O17** clone-consistency
+  (`validate(clone(v))` holds and `clone(clone(v))` is stable).
+- `referenceClone.ts` — the reference interpreter: mirrors the Go emitter's
+  per-kind arms in
+  [`clone_exact_shape.go`](../../../../ts-go-runtypes/internal/cachegen/typefunctions/clone_exact_shape.go)
+  one-for-one, trading every output-shape decision for the dumbest possible
+  implementation (no caching, no fastpaths) so a disagreement is eyeballable.
+- `extrasValue.ts` — the clone-fuzz twin of `invalidValue.ts`: injects 1–3
+  `__fz_extra_<n>` keys at plain-object positions of a deep copy. Same
+  one-directional soundness contract — when it returns a value, `validate<T>`
+  must still be true AND a correct clone must drop every injected key, so the
+  walker stays deliberately conservative.
+- `cloneFuzzRunner.ts` — pure data-in/report-out driver under seeded
+  `Math.random`, so a violation replays from its `seed`.
+- Tests: `cloneFuzz.integration` (the soak, `RT_FUZZ_CLONE_SOAK_MS`).
+
 ### `enrich/` — model-based (stateful) fuzzers
 
 Three **sequence** fuzzers: instead of one input, they feed a _sequence_ of
@@ -219,30 +274,50 @@ The `rtx` front door builds the binary first, then runs the suite:
 
 ```bash
 pnpm rtx core fuzz <suite> [--soak]
-#   suite ∈  unit | value | types | enrich | i18n | typemod | race | all
+#   suite ∈  unit | value | types | nondata | roundtrip | size | cloning |
+#            enrich | i18n | typemod | race | sidecar | patterngen | convert | convertcli | all
 #   --soak   swaps the fixed batch for the long soak knobs (see rt.mjs FUZZ table)
 ```
 
 - `unit` runs the pure-TS core tests via `vitest.fuzz-unit.config.ts` (no
   binary).
-- `value` / `types` / `enrich` / `i18n` / `typemod` each run one integration
-  file; `--soak` turns up its iteration/duration env.
+- `value` / `types` / `cloning` / `enrich` / `i18n` / `typemod` each run one
+  integration file; `--soak` turns up its iteration/duration env.
 - `race` is the only path that sets `RT_FUZZ_RACE=1`.
 - `all` is a quick trio (`fuzz.integration`, `typeFuzz.integration`,
   `binaryEncoderResize`).
 
 `pnpm test` alone already runs every fixed-iteration batch (roundtrip, binary
-size, non-data, and the smoke/gate tests included). The **roundtrip** and
-**binary-size** soaks aren't wired into `rtx core fuzz`; run them directly:
+size, non-data, and the smoke/gate tests included), and `go test ./internal/...`
+runs the Go-side `convert` sweep. So `rtx core fuzz` is not what makes a lane
+run — it is the **soak / replay** front door, and `race` is the only lane it
+gates (nothing else sets `RT_FUZZ_RACE=1`).
 
-```bash
-RT_FUZZ_ROUNDTRIP_SOAK_MS=120000 pnpm exec vitest run allStrategyRoundtrip.integration
-RT_FUZZ_SIZE_SOAK_MS=120000      pnpm exec vitest run binarySizeEstimate.integration
-```
+The soak budgets themselves run in CI in the **`fuzz-soak` job** of
+[release-gate.yml](../../../../.github/workflows/release-gate.yml) — one runner
+per lane, on release PRs, on the push to `prod`, and on demand via
+`gh workflow run release-gate.yml --ref <branch>`. That job seeds each lane from
+the run id and echoes the value, so a CI finding replays verbatim. Nowhere else
+runs a soak: the per-PR lanes all use their (small) defaults.
 
 ## Reproducing a finding
 
-Every violation is logged with the seed that produced it. To replay:
+Every lane derives its **entry seed from the package version** (`version.json`),
+folded with the lane name, and prints it. No lane carries a pinned seed. That
+makes a run reproducible within a release (a red build replays exactly, a green
+one stays green) while every version bump rotates the ground the lanes explore.
+`RT_FUZZ_SEED` overrides it everywhere.
+
+The seed is printed at lane start, so a failing run carries its own replay
+instructions:
+
+```
+[types-fuzz] seed 0xae14e729 from version 0.12.0 — replay: RT_FUZZ_SEED=0xae14e729 pnpm rtx core fuzz types
+```
+
+Vitest only surfaces that line when the test fails, which is exactly when it is
+needed. Every violation is ALSO logged with the per-iteration seed that produced
+it. To replay:
 
 - **Stateless fuzzers** (value / roundtrip / type / binary): set the base seed
   and a short soak so the runner re-derives the same stream, e.g.
@@ -259,6 +334,26 @@ Then fix the bug and **pin it**: add the minimal repro to
 why a feature can change and we still trust thousands of strange inputs keep
 behaving.
 
+## Running a soak round
+
+A **round** is every lane that has a `--soak` budget, run on one fresh seed. Two
+places do it:
+
+- `pnpm rtx core fuzz <lane> --soak` locally. Set `RT_FUZZ_SEED` to explore
+  ground the current version does not reach, since an unset seed is derived from
+  the version and so is the same every run within a release. Lanes cannot run
+  concurrently (each invocation rebuilds the binary), so a full round is
+  sequential.
+- The **fuzz-soak** workflow, run by hand from the Actions tab or
+  `gh workflow run fuzz-soak.yml`. Twelve lanes in parallel, a fresh seed derived
+  from the run id, and a `lane` / `seed` pair of inputs so one finding replays on
+  one runner. The release gate runs the same twelve lanes on every prod PR.
+
+Rounds are worth running between releases, not only when a release forces one:
+these budgets are the only place the lanes explore new ground, so skipping them
+banks up findings until the worst possible moment
+([drain-fuzz-soak-backlog](../../../../docs/done/drain-fuzz-soak-backlog.md)).
+
 ## Environment variables
 
 The authoritative list is the `REGISTRY` in
@@ -267,10 +362,11 @@ all fuzz knobs are `dev`-scoped with sensible defaults.
 
 | Variable                                                                     | Effect                                                                  |
 | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `RT_FUZZ_SEED`                                                               | Base PRNG seed for a soak/replay run (per-fuzzer default)               |
+| `RT_FUZZ_SEED`                                                               | Entry seed for ANY run; unset derives one from the package version      |
 | `RT_FUZZ_SOAK_MS`                                                            | value fuzz soak duration (ms)                                           |
 | `RT_FUZZ_TYPES_SOAK_MS`                                                      | type fuzz soak duration (ms)                                            |
 | `RT_FUZZ_NONDATA_SOAK_MS`                                                    | non-data type fuzz soak duration (ms)                                   |
+| `RT_FUZZ_CLONE_SOAK_MS`                                                      | clone fuzz soak duration (ms)                                           |
 | `RT_FUZZ_ROUNDTRIP_SOAK_MS`                                                  | round-trip fuzz soak duration (ms)                                      |
 | `RT_FUZZ_SIZE_SOAK_MS`                                                       | binary-size fuzz soak duration (ms)                                     |
 | `RT_FUZZ_ENRICH_SEQUENCES` / `_MAXCMDS` / `_REPLAY`                          | enrich fuzz: sequence count / commands per sequence / replay one seed   |
@@ -288,6 +384,7 @@ Grouped by mode.
 | type (build tier)         | **TR1** resolver-clean · **TR2** every-site-resolved · **TR3** every-module-evaluates · **TR4** every-factory-materialises                                                                                                                                           |
 | roundtrip                 | **RT-VALIDATE** · **RT-AGREE** · **RT-STABLE** · **RT-FAILAGREE** · **RT-NATIVE** · **RT-THROW**                                                                                                                                                                     |
 | binary size               | **O-SIZE-NOGROW** · **O-SIZE-ROUNDTRIP** · **O-SIZE-GREW**                                                                                                                                                                                                           |
+| cloning                   | **O15** clone-reference · **O16** clone-isolation · **O17** clone-consistency                                                                                                                                                                                        |
 | enrich (model)            | **R1/R2/R3/R5/R6/R7a/R8/R10**                                                                                                                                                                                                                                        |
 | i18n (model)              | **T1/T2/T3/T4/T5/T6/T7/T10**                                                                                                                                                                                                                                         |
 | type-mod (model)          | **NL** nothing-lost · **RC** rename-carry · **CB** content-blind · **R6** convergence · **R10** totality · **P** parse-safety                                                                                                                                        |

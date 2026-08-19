@@ -5,6 +5,13 @@ name: prod · release gate
 #   build         - the full main gate (Go suite + gofmt/vet, JS suite incl. fuzz,
 #                   lint, typecheck, format) on Linux, then build every package + the
 #                   7-platform binary matrix and pack the tarballs.
+#   converted-suites - the whole suite tree rewritten into the value forms by
+#                   `ts-runtypes convert` and run against the same assertions.
+#   fuzz-soak     - the SOAK budgets of every fuzz lane, one runner each. The
+#                   suites above run these lanes at their tiny defaults (the
+#                   convert sweep at 6 iterations, its CLI twin at 5); this is
+#                   the only place the `--soak` budgets in rtx's FUZZ registry
+#                   ever execute, and the only place the seed varies.
 #   e2e           - install the PUBLISHED packages from a local verdaccio and run
 #                   the consumer suite, one full run per OS, plus a cheap
 #                   binary-exec sanity check for the Linux side-arches.
@@ -53,6 +60,12 @@ jobs:
       - id: version
         shell: bash
         run: echo "version=$(node -p "require('./version.json').version")" >> "$GITHUB_OUTPUT"
+      # The Go suites read the built marker dist (real-package overlay +
+      # fixture tsconfig paths); pnpm test's pretest builds everything too,
+      # but the Go suite runs first — check:builds is staleness-safe and makes
+      # the later pretest a no-op.
+      - name: Build the resolver + dists (marker dist read by the Go suite)
+        run: pnpm run check:builds
       - name: Go test suite
         working-directory: ts-go-runtypes
         run: go test ./internal/...
@@ -96,6 +109,102 @@ jobs:
           # Long enough that a slow `release` environment approval on the publish
           # side can still download the exact bytes the e2e validated.
           retention-days: 14
+
+  # ── converted-suites: the suite tree, in the value forms ──────────────────
+  # `pnpm rtx core converted-suites` converts packages/ts-runtypes/test/suites/
+  # into one tree per target, runs vitest over them and removes them again. The
+  # assertions are identical to the originals, so a failure here means the
+  # CONVERSION changed behaviour — it cannot mean anything else.
+  #
+  # Not in ci.yml: this converts and type-checks 205 files twice over, which is
+  # not a per-PR cost. Here it rides the pre-publish gate, where the question
+  # "do the three notations still agree?" is exactly what wants answering.
+  converted-suites:
+    name: suite tree in the value forms
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      # The command spawns bin/ts-runtypes and the vitest project reads both
+      # dists; a build failure should read as a build failure, not a conversion one.
+      - name: Build the resolver + dists
+        run: pnpm run check:builds
+      - name: Convert the suites, run them, remove the trees
+        run: pnpm rtx core converted-suites
+
+  # ── fuzz-soak: the lanes at their SOAK budgets, one runner per lane ────────
+  # Every fuzz lane already runs under `go test ./internal/...` or
+  # `vitest run test/fuzz` — in `build` above and in ci.yml — but only at its
+  # DEFAULT budget, which for the randomized sweeps is close to decorative (the
+  # convert sweep draws 6 declarations, its CLI twin 5). The `--soak` budgets
+  # live in rtx's FUZZ registry (scripts/rt.mjs) and, until this job existed,
+  # nothing ever ran them: no workflow has a `schedule:`, so they only executed
+  # when a human typed the command. This job is still the RELEASE half of that;
+  # fuzz-soak.yml is the other half, running the same twelve lanes on demand for
+  # the cost of twelve short jobs instead of the whole gate, so findings can be
+  # drained between releases rather than piling up against one.
+  #
+  # Deliberately NOT in ci.yml: that runs on every PR and would pay this on
+  # every push. Here it rides the release gate, whose `workflow_dispatch` also
+  # makes the whole gate runnable by hand on any branch (`gh workflow run
+  # release-gate.yml --ref <branch>`).
+  #
+  # One job per lane (not one job running all of them) so the wall clock is the
+  # SLOWEST lane rather than their sum, and `fail-fast: false` so one lane's
+  # finding never hides another's. Lanes are named literally: a new entry in the
+  # FUZZ registry does not soak here until it is added to this list, which is
+  # the intended trade — a soak budget is a wall-clock commitment, not a default.
+  # What IS pinned is that this list matches fuzz-soak.yml's and that every lane
+  # named here exists in the registry (fuzz-lane-contracts.test.ts), so the
+  # deliberate opt-in cannot decay into a dead lane name.
+  fuzz-soak:
+    name: fuzz soak · ${{ matrix.lane }}
+    runs-on: ubuntu-latest
+    # A soak that overruns is a finding too (docs/done/soak-single-iteration-pathology.md),
+    # so bound the job rather than letting a wedged lane hold the gate open.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every lane rtx gives a `soak` budget. `unit` / `sidecar` / `patterngen`
+        # have none (they are fixed-size by construction) and `all` is a
+        # composite of lanes already listed, so none of them appear.
+        lane:
+          - value
+          - types
+          - nondata
+          - roundtrip
+          - size
+          - cloning
+          - enrich
+          - i18n
+          - typemod
+          - race
+          - convert
+          - convertcli
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/bootstrap
+      # rtx builds what a lane needs itself, but doing it as its own step keeps a
+      # build failure legible as a build failure rather than a soak failure.
+      - name: Build the resolver + dists (convertcli spawns the binary)
+        run: pnpm run check:builds
+      - name: Soak ${{ matrix.lane }}
+        env:
+          # The lanes pin a FIXED default seed, so repeat runs re-explore the
+          # same ground. Deriving it from the run id gives every gate new
+          # coverage; it is echoed first so a finding replays verbatim. This does
+          # mean the gate can go red on a latent bug the release did not
+          # introduce — which is the point of a pre-release soak.
+          RT_FUZZ_SEED: ${{ github.run_id }}
+        run: |
+          echo "replay this run: RT_FUZZ_SEED=$RT_FUZZ_SEED pnpm rtx core fuzz ${{ matrix.lane }} --soak"
+          pnpm rtx core fuzz ${{ matrix.lane }} --soak
 
   e2e:
     name: e2e ${{ matrix.pkg }}
@@ -188,8 +297,11 @@ jobs:
           tar -xzf tarballs/ts-runtypes-binary-${{ matrix.pkg }}-*.tgz -C bin-rt --strip-components=2 package/lib/ts-runtypes
           # Static CGO-free binary runs on a minimal image; --version proves it
           # executes on this arch and prints the embedded version + tsgo revision.
+          # alpine, not debian: the linux-arm package is GOARM=6 and alpine still
+          # publishes a real linux/arm/v6 variant — bookworm-slim's manifest now
+          # carries only arm/v7 + arm64/v8, so an arm/v6 pull no longer resolves.
           docker run --rm --platform ${{ matrix.platform }} \
-            -v "$PWD/bin-rt:/rt" debian:bookworm-slim /rt/ts-runtypes --version
+            -v "$PWD/bin-rt:/rt" alpine:3 /rt/ts-runtypes --version
 
   benchmarks:
     name: validation + type-cost benchmarks (podman)
@@ -217,8 +329,16 @@ jobs:
           # Auth all GHCR pulls with the PAT (via `secrets: inherit`); it falls back
           # to GITHUB_TOKEN when absent (fork PRs) - tsrt-website is readable either way.
           password: ${{ secrets.GHCR_PAT }}
-      - name: Run the benchmark (build + run, in the container)
+      - name: Run the benchmark (build + run under node AND bun, in the container)
         run: pnpm rtx bench
+      # Report-only on a SHARED GitHub runner: throughput ratios here are too noisy to
+      # gate a release on, and a flaky release gate is one people learn to bypass. The
+      # hard, noise-free half of this (did the per-engine branch actually fire on each
+      # runtime) is already asserted inside `pnpm rtx bench` by checkEngineBranch.
+      - name: Engine-branch throughput report (counter inversion, node + bun)
+        env:
+          RT_BENCH_ENGINE_ASSERT: '0'
+        run: pnpm rtx bench engine-check
       - name: Type-checking cost (TS type instantiations)
         run: pnpm rtx bench typecost
 

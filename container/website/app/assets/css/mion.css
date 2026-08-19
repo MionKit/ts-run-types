@@ -100,10 +100,6 @@ h2[data-slot='title'] {
   color: var(--color-green-400);
 }
 
-.home-features a {
-  color: var(--ui-text-highlighted);
-}
-
 .home-features .stylish-list {
   display: flex;
   width: fit-content;
@@ -155,7 +151,7 @@ h2[data-slot='title'] {
   }
 }
 
-/* AI section — animated gradient title (mirrors the card-heading flow) + a
+/* AI section: animated gradient title (mirrors the card-heading flow) + a
    sparkles icon that flows with the same green→blue gradient. The
    `-webkit-text-fill-color: transparent` overrides the green-500 section-title
    color above, so this one title keeps its gradient. */
@@ -190,7 +186,7 @@ h2[data-slot='title'] {
   margin-right: 0.45rem;
 }
 
-/* AI section — second row: a centered "how it works" heading + intro sitting
+/* AI section: second row: a centered "how it works" heading + intro sitting
    above the three step tiles. */
 .ai-steps-head {
   text-align: center;
@@ -222,7 +218,13 @@ h2[data-slot='title'] {
   margin-top: 1.5rem;
 }
 
-/* The three step tiles — a row of rounded, slightly-darker tiles reusing the
+/* "Experimental" pill under the AI section title */
+.ai-experimental {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+/* The three step tiles: a row of rounded, slightly-darker tiles reusing the
    StatTiles treatment (border + radius + text-muted 6% wash), each led by a
    gradient step number. */
 /* three tiles in a row spanning the full content width; stacks on narrow screens. */
@@ -290,7 +292,7 @@ h2[data-slot='title'] {
   color: var(--ui-text-dimmed);
 }
 
-/* Home "Two ways to describe a shape" — type-first vs schema-first, side by side.
+/* Home "Two ways to describe a shape", type-first vs builder, side by side.
    Two single-tab code-groups in a 2-col grid; min-width:0 lets each code block
    wrap inside its column instead of forcing the grid wider. Stacks when narrow. */
 .rt-define-cols {
@@ -325,7 +327,21 @@ h2[data-slot='title'] {
   }
 }
 
-/* Home feature row — a card (gradient h3 + blurb) beside a code block, in either
+/* Three-up variant, for the pages that show all three authoring forms
+   (type / schema / JSON Schema) at once. Opt-in modifier rather than a wider
+   base class: the plain two-column grid is still what most pages want. Drops
+   straight to one column, since a 3-col grid at 2 columns orphans the third. */
+.rt-define-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .rt-define-cols-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Home feature row: a card (gradient h3 + blurb) beside a code block, in either
    order, both stretched to equal height. Reused by "One object" (card | code) and
    "Reflection" (code | card). "One object" adds a 4-up snippet grid below it. */
 .rt-feature-row {
@@ -419,6 +435,35 @@ h2[data-slot='title'] {
   animation: gradient-flow 12s linear infinite;
 }
 
+/* Section-level titles inside an enclosed row read at the same size as the
+   feature-card h3 ("The whole toolbelt, in one box"). The per-column code
+   labels of the JSON row keep the small size, so the row still has a
+   hierarchy. */
+.rt-object-fns > .rt-row-intro h3,
+.rt-object-fns.rt-section-titles > .rt-object-fn > h3 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+}
+
+/* Column labels inside an enclosed row (h4, one step under the row's h3 title).
+   They name a code block rather than a section, so they read as plain
+   highlighted text: no gradient, and the auto heading anchor is neutralised so
+   they never look or behave like a link. */
+.rt-object-fns h4 {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ui-text-highlighted);
+}
+
+.rt-object-fns h4 a {
+  color: inherit;
+  text-decoration: none;
+  pointer-events: none;
+}
+
 .rt-object-fns > * > div {
   flex: 1;
   display: flex;
@@ -437,6 +482,32 @@ h2[data-slot='title'] {
   line-height: 1.55;
 }
 
+/* two enclosed rows back to back need an explicit gap (the boxes themselves
+   carry no vertical margin) */
+.rt-object-fns + .rt-object-fns {
+  margin-top: 1rem;
+}
+
+/* full-width intro cell inside the enclosed row (title + prose spanning both
+   snippet columns, used by the JSON roundtrip row) */
+.rt-object-fns > .rt-row-intro {
+  grid-column: 1 / -1;
+}
+
+/* The closing link line: a plain paragraph written straight into the row (not
+   in a cell), so it is a real <p> like every other link in the section. It
+   spans both columns, and `display: block` keeps it out of the cell rule's
+   flex treatment, which would blockify the link to the full width. */
+.rt-object-fns > p {
+  grid-column: 1 / -1;
+  display: block;
+}
+
+.rt-object-fns > .rt-row-intro p {
+  margin: 0 0 0.5rem;
+  color: var(--ui-text-muted);
+}
+
 @media (max-width: 760px) {
   .rt-feature-row,
   .rt-object-fns {
@@ -444,7 +515,7 @@ h2[data-slot='title'] {
   }
 }
 
-/* Home "One object, Every function" — the split cards (the toolbelt card and
+/* Home "One object, Every function": the split cards (the toolbelt card and
    the Standard Schema card). Each is one ::card wrapping a code | pitch split.
    The cards keep their natural vertical margin so the gap is consistent between
    every block in the section (card -> four-snippet grid -> card). */
@@ -500,7 +571,7 @@ h2[data-slot='title'] {
   }
 }
 
-/* Home "Tree-shaken to the bone" — two rows: the pitch (card) spans the full
+/* Home "Tree-shaken to the bone": two rows: the pitch (card) spans the full
    width on top, then three code panels below (source, transformed, generated
    module), one per column. Equal height; code panels flex-fill like the other
    home grids. */
@@ -552,7 +623,7 @@ h2[data-slot='title'] {
   justify-content: flex-start;
 }
 
-/* Card footer link — margin-top:auto absorbs the slack in the flex-column card
+/* Card footer link: margin-top:auto absorbs the slack in the flex-column card
    so the link sits at the very bottom; footers across columns then line up,
    regardless of how much content sits above them. */
 .rt-card-footer {
@@ -573,7 +644,7 @@ h2[data-slot='title'] {
   flex-direction: column;
 }
 
-/* Toolbelt + AI-artifact cards — icon and title share one row; the title borrows
+/* Toolbelt + AI-artifact cards: icon and title share one row; the title borrows
    the feature-card h3 gradient (animated green→blue) at a smaller size. */
 .home-toolbelt .group > span.iconify,
 .ai-artifacts .group > span.iconify {
@@ -592,7 +663,7 @@ h2[data-slot='title'] {
   line-height: 1.2;
 }
 
-/* "All Special Markers" cards (guide markers page) — gradient title over the
+/* "All Special Markers" cards (guide markers page), gradient title over the
    marker's code block. */
 .rt-markers .group > p {
   margin: 0 0 0.5rem;
@@ -608,8 +679,8 @@ h2[data-slot='title'] {
   }
 }
 
-/* Home "Formats baked into your types" — three columns: the pitch (card with a
-   Temporal tile pinned to its bottom), the type-first example, the schema-first
+/* Home "Formats baked into your types": three columns: the pitch (card with a
+   Temporal tile pinned to its bottom), the type-first example, the builder
    example. Equal height; code panels flex-fill. */
 .rt-formats-cols {
   display: grid;
@@ -684,7 +755,7 @@ h2[data-slot='title'] {
 /* ── Per-section page width + TOC ───────────────────────────────────────────
    `<body>` is tagged by app/plugins/section-class.ts: `rt-wide-page` on
    Introduction + Guide, `rt-flush-page` on Benchmarks. The doc layout
-   nests a 10-col grid — content (`col-span-8`) beside a right-hand TOC rail
+   nests a 10-col grid: content (`col-span-8`) beside a right-hand TOC rail
    (`col-span-2`, a <div>; the left nav is an <aside>, so it's untouched). On
    both sections we collapse that inner grid to a block so content reclaims the
    rail, and hide the (already `toc:false`-emptied) rail. Wide pages additionally
@@ -706,14 +777,14 @@ body.rt-flush-page [class~='lg:grid-cols-10'] > div[class~='lg:col-span-2'] {
 
 /* Wide pages (Introduction + Guide): collapse the content/TOC grid to a block so
    content reclaims the freed rail and runs the full width of the column. Flush pages
-   (Benchmarks) keep the grid, so content stays at its normal width — no TOC,
+   (Benchmarks) keep the grid, so content stays at its normal width, no TOC,
    but not widened. No container bump either way, so the header, sidebar and content
    left edges stay aligned across every page. */
 body.rt-wide-page [class~='lg:grid-cols-10']:has(> div[class~='lg:col-span-2']) {
   display: block;
 }
 
-/* ── Benchmark surfaces — theme-aware ────────────────────────────────────────
+/* ── Benchmark surfaces: theme-aware ────────────────────────────────────────
    The benchmark tables + hover panels were a fixed dark "terminal". These
    vars let the surrounding chrome flip with the color mode (text already rides
    the theme-aware `--ui-*` tokens; code blocks carry Shiki's own dual-theme
@@ -794,19 +865,28 @@ body.rt-wide-page [class~='lg:grid-cols-10']:has(> div[class~='lg:col-span-2']) 
   font-weight: 700;
 }
 
-/* Serialization bench page — compact "what each column is" cards. Docus renders
-   each card as .group with the title in a <p> and the body in the following
-   <div> (see the Nuxt UI Card slots). Primary-colour title, smaller caption body. */
-.rt-bench-strategies .group > p {
-  color: var(--ui-primary);
-  font-size: 1.1rem;
-  font-weight: 700;
+/* "Experimental" pill ────────────────────────────────────────────────────────
+   Small amber badge for features whose surface may still change (currently
+   JSON Schema input). Used inline in content markdown as
+   [Experimental]{.rt-badge-experimental}. */
+.rt-badge-experimental {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   line-height: 1.2;
-  margin: 0 0 0.35rem;
+  white-space: nowrap;
+  color: #d9a13d;
+  border: 1px solid color-mix(in srgb, #d9a13d 45%, transparent);
+  background: color-mix(in srgb, #d9a13d 10%, transparent);
 }
 
-.rt-bench-strategies .group > div {
-  font-size: 0.8rem;
-  line-height: 1.35;
-  color: var(--ui-text-muted, var(--color-gray-400));
+:root.light .rt-badge-experimental {
+  color: #9a6b17;
+  border-color: color-mix(in srgb, #9a6b17 45%, transparent);
+  background: color-mix(in srgb, #9a6b17 8%, transparent);
 }
+

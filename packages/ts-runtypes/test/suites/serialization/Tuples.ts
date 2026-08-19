@@ -1,6 +1,6 @@
 import * as TF from '@ts-runtypes/core/formats';
 import {createBinaryDecoderFn, createBinaryEncoderFn, createJsonDecoderFn, createJsonEncoderFn} from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import type {SerializationCase} from './types.ts';
 
 export const TUPLES = {
@@ -20,16 +20,20 @@ export const TUPLES = {
     binaryEncoder: () => createBinaryEncoderFn<[Date, number, string, null, string[], bigint]>(),
     binaryDecoder: () => createBinaryDecoderFn<[Date, number, string, null, string[], bigint]>(),
     schemaEncoder: () =>
-      createJsonEncoderFn(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+      createJsonEncoderFn(
+        RT.tuple({required: [TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()]})
+      ),
     schemaDecoder: () =>
-      createJsonDecoderFn(RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])),
+      createJsonDecoderFn(
+        RT.tuple({required: [TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()]})
+      ),
     schemaBinaryEncoder: () =>
       createBinaryEncoderFn(
-        RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])
+        RT.tuple({required: [TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()]})
       ),
     schemaBinaryDecoder: () =>
       createBinaryDecoderFn(
-        RT.tuple([TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()])
+        RT.tuple({required: [TF.date(), TF.number(), TF.string(), RT.literal(null), RT.array(TF.string()), TF.bigInt()]})
       ),
     getTestData: () => ({
       values: [[new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
@@ -50,10 +54,14 @@ export const TUPLES = {
     compactDecoder: () => createJsonDecoderFn<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoderFn<[number, bigint?, boolean?, number?]>(),
     binaryDecoder: () => createBinaryDecoderFn<[number, bigint?, boolean?, number?]>(),
-    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
-    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number()], [TF.bigInt(), RT.boolean(), TF.number()])),
+    schemaEncoder: () =>
+      createJsonEncoderFn(RT.tuple({required: [TF.number()], optional: [TF.bigInt(), RT.boolean(), TF.number()]})),
+    schemaDecoder: () =>
+      createJsonDecoderFn(RT.tuple({required: [TF.number()], optional: [TF.bigInt(), RT.boolean(), TF.number()]})),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoderFn(RT.tuple({required: [TF.number()], optional: [TF.bigInt(), RT.boolean(), TF.number()]})),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoderFn(RT.tuple({required: [TF.number()], optional: [TF.bigInt(), RT.boolean(), TF.number()]})),
     getTestData: () => ({
       values: [
         [3, undefined, true, 4],
@@ -77,10 +85,10 @@ export const TUPLES = {
     compactDecoder: () => createJsonDecoderFn<[number, ...bigint[]]>(undefined, {strategy: 'compact'}),
     binaryEncoder: () => createBinaryEncoderFn<[number, ...bigint[]]>(),
     binaryDecoder: () => createBinaryDecoderFn<[number, ...bigint[]]>(),
-    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number()], TF.bigInt())),
-    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number()], TF.bigInt())),
-    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number()], TF.bigInt())),
-    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number()], TF.bigInt())),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple({required: [TF.number()], rest: TF.bigInt()})),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple({required: [TF.number()], rest: TF.bigInt()})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple({required: [TF.number()], rest: TF.bigInt()})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple({required: [TF.number()], rest: TF.bigInt()})),
     getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
   },
   tuple_with_non_serializable: {
@@ -99,10 +107,10 @@ export const TUPLES = {
     // Expressible value-first (mirrors validation TUPLE.tuple_with_non_serializable),
     // but a function-typed tuple slot resolves the same alwaysThrow factory — each
     // thunk throws like the type-first form (factoryThrows below); adapter asserts it.
-    schemaEncoder: () => createJsonEncoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
-    schemaDecoder: () => createJsonDecoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
-    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
-    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple([TF.number(), RT.func([], RT.any())])),
+    schemaEncoder: () => createJsonEncoderFn(RT.tuple({required: [TF.number(), RT.func({ret: RT.any()})]})),
+    schemaDecoder: () => createJsonDecoderFn(RT.tuple({required: [TF.number(), RT.func({ret: RT.any()})]})),
+    schemaBinaryEncoder: () => createBinaryEncoderFn(RT.tuple({required: [TF.number(), RT.func({ret: RT.any()})]})),
+    schemaBinaryDecoder: () => createBinaryDecoderFn(RT.tuple({required: [TF.number(), RT.func({ret: RT.any()})]})),
     factoryThrows: true,
     getTestData: () => ({values: []}),
   },
@@ -149,7 +157,7 @@ export const TUPLES = {
       return createBinaryDecoderFn<TupleCircular>();
     },
     // A ROOT-level recursive tuple can't be authored value-first — `circular(self =>
-    // tuple([...], [self]))` hits TS2589 (TS can't build a recursive tuple type via
+    // tuple({required: [...], optional: [self]}))` hits TS2589 (TS can't build a recursive tuple type via
     // the mapping). Covered type-first here; the object→tuple cycle is covered
     // value-first by interface_circular_tuple. Mirrors validation TUPLE.tuple_circular.
     schemaEncoder: 'not-supported',
@@ -247,13 +255,21 @@ export const TUPLES = {
       return createBinaryDecoderFn<ICircularTuple>();
     },
     schemaEncoder: () =>
-      createJsonEncoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createJsonEncoderFn(
+        RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple({required: [TF.string(), RT.self()]}))}))
+      ),
     schemaDecoder: () =>
-      createJsonDecoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createJsonDecoderFn(
+        RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple({required: [TF.string(), RT.self()]}))}))
+      ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createBinaryEncoderFn(
+        RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple({required: [TF.string(), RT.self()]}))}))
+      ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoderFn(RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple([TF.string(), RT.self()]))}))),
+      createBinaryDecoderFn(
+        RT.circular(RT.object({name: TF.string(), parent: RT.optional(RT.tuple({required: [TF.string(), RT.self()]}))}))
+      ),
     getTestData: () => {
       interface ICircularTuple {
         name: string;

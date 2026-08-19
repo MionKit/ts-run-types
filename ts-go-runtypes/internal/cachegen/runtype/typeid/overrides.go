@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/typescript-go/shim/checker"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // OverrideStructuralKey returns a canonical, family-order-independent suffix
@@ -72,15 +72,34 @@ func (computer *Computer) OverridesForBaseKey(baseKey string) map[string]string 
 // holds the FINAL, self-folded key, and from which the base cannot be safely
 // recovered because a child's `|cfn:` suffix is embedded in this node's base).
 // Children it walks ARE served from the cache as their final keys.
+//
+// Cyclic targets key by the block's PURE canonical emission (suffix-free), and
+// an entry container remaps through the alias table's pure spelling — so the
+// override fold pass and the stamp pass (both cold BaseStructuralKey walks)
+// stay entry-point-independent exactly like the hashed ids. Acyclic keys are
+// byte-identical to the pre-canonicalization spelling.
 func (computer *Computer) BaseStructuralKey(tsType *checker.Type) string {
 	if tsType == nil {
-		return strconv.Itoa(int(protocol.KindNever))
+		return strconv.Itoa(int(reflection.KindNever))
 	}
 	if index := computer.stackIndex(tsType); index >= 0 {
 		return computer.cycleRef(tsType, index)
 	}
-	computer.stack = append(computer.stack, tsType)
+	// Same frame discipline as Compute (all parallel slices); the result is
+	// deliberately never cached — the base key omits this node's own override
+	// suffix, so a cache entry here would shadow the final key.
+	computer.pushFrame(tsType)
 	base := computer.dispatch(tsType)
-	computer.stack = computer.stack[:len(computer.stack)-1]
+	cacheable, wasTarget, mark := computer.popFrame()
+	if !cacheable {
+		computer.pending = append(computer.pending, tsType)
+		return base
+	}
+	if wasTarget && !computer.depthExceeded {
+		return computer.canonicalizeCluster(tsType, mark, base).pure
+	}
+	if entry, ok := computer.alias[base]; ok {
+		return entry.pure
+	}
 	return base
 }

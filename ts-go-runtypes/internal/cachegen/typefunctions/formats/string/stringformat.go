@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-runtypes/internal/cachegen/typefunctions/formats"
-	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 // stringFormatEmitter implements the format with name "stringFormat" —
@@ -40,14 +40,14 @@ func (stringFormatEmitter) Name() string {
 	return formatName
 }
 
-func (stringFormatEmitter) Kind() protocol.ReflectionKind {
-	return protocol.KindString
+func (stringFormatEmitter) Kind() reflection.ReflectionKind {
+	return reflection.KindString
 }
 
 // EmitValidateCheck returns the AND of every active format predicate.
 // Returns "" when no params constrain the value — the host emitter then
 // keeps its base-kind check as the only validator.
-func (stringFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (stringFormatEmitter) EmitValidateCheck(annotation *reflection.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -65,12 +65,50 @@ func (stringFormatEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotati
 // Shared by the stringFormat emitter and the domain/email decomposition
 // sub-checks (each name/tld/localPart part is validated as a sub-format
 // over its own variable).
+// contentMediaTypeJSON is the one media type the parse check understands.
+// JSON Schema's `contentMediaType` is open-ended; anything else is accepted and
+// ignored (it describes the payload, it does not constrain the string).
+const contentMediaTypeJSON = "application/json"
+
+// jsonParseCheck builds the content predicate: JSON.parse on the raw string, or
+// on the base64-decoded bytes when `contentEncoding` says the string is encoded
+// (2020-12: contentMediaType describes the DECODED content). `atob` throws on
+// malformed base64 and the try/catch turns that into `false`, so the decode step
+// doubles as the encoding check. Absorbed from the former standalone
+// `jsonContent` format: contentMediaType is an ordinary string keyword, so it
+// belongs on the string emitter next to minLength rather than in a format of its
+// own.
+func jsonParseCheck(params map[string]any, vλl string) string {
+	decoded := vλl
+	if encoding, _ := params["contentEncoding"].(string); encoding == "base64" {
+		decoded = "atob(" + vλl + ")"
+	}
+	return "((s) => {try {JSON.parse(" + strings.Replace(decoded, vλl, "s", 1) + ");return true;} catch {return false;}})(" + vλl + ")"
+}
+
+// wantsJSONContent reports whether the params ask for the JSON parse check.
+func wantsJSONContent(params map[string]any) bool {
+	mediaType, _ := params["contentMediaType"].(string)
+	return mediaType == contentMediaTypeJSON
+}
+
 func stringConditions(ctx formats.EmitContext, params map[string]any, vλl string) []string {
 	// Build-time mockSample validation against the statically checkable
 	// sibling bounds (length + char/value ops); independent of whether a
 	// pattern is present.
 	validateSampleBounds(ctx, params)
-	conditions := lengthConditions(params, vλl)
+	var conditions []string
+	// The content check leads, matching the order the former jsonContent
+	// emitter produced: parse first, then the sibling string keywords.
+	if wantsJSONContent(params) {
+		conditions = append(conditions, jsonParseCheck(params, vλl))
+	}
+	conditions = append(conditions, lengthConditions(params, vλl, ctx)...)
+	// `isRegex` routes to the pure-fn engine: whether a string COMPILES as a
+	// regular expression is not something a pattern can ask.
+	if isRegex, _ := params["isRegex"].(bool); isRegex {
+		conditions = append(conditions, pureFnAlias(ctx, "isEcmaRegex")+"("+vλl+")")
+	}
 	// `pattern` adds a regex test (and triggers build-time mockSample
 	// validation). Backs FormatAlpha / FormatNumeric and any user
 	// FormatString carrying a registerFormatPattern result.
@@ -96,16 +134,34 @@ func stringConditions(ctx formats.EmitContext, params map[string]any, vλl strin
 // lengthConditions returns the JS boolean expressions for whichever of
 // maxLength / minLength / length are set. Shared by the stringFormat
 // emitter and the named-pattern (domain/email/url) emitters.
-func lengthConditions(params map[string]any, vλl string) []string {
+//
+// The bounds count CODE POINTS (JSON Schema's rule, and what a reader means by
+// "two characters"): '💩💩' is two code points with a `.length` of 4. The count
+// is bracketed by `.length` on both sides — never greater (a code point is one
+// or two units), never less than half (a pair is at most two units) — so a
+// plain `.length` decides everything outside the band [N, 2N] and only a value
+// whose `.length` lands inside it pays for the exact count:
+//
+//	maxLength → `.length <= N` proves it fits, `.length > 2N` proves it doesn't
+//	minLength → `.length < N` proves it misses, `.length >= 2N` proves it doesn't
+//	length    → `.length` outside [N, 2N] can't count to exactly N
+func lengthConditions(params map[string]any, vλl string, ctx formats.EmitContext) []string {
 	var conditions []string
+	codePointLength := func() string { return pureFnAlias(ctx, "codePointLength") + "(" + vλl + ")" }
 	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok {
-		conditions = append(conditions, vλl+".length <= "+formats.FormatNumber(value))
+		bound := formats.FormatNumber(value)
+		doubled := formats.FormatNumber(2 * value)
+		conditions = append(conditions, "("+vλl+".length <= "+bound+" || ("+vλl+".length <= "+doubled+" && "+codePointLength()+" <= "+bound+"))")
 	}
 	if value, ok := formats.ReadNumberParam(params, "minLength"); ok {
-		conditions = append(conditions, vλl+".length >= "+formats.FormatNumber(value))
+		bound := formats.FormatNumber(value)
+		doubled := formats.FormatNumber(2 * value)
+		conditions = append(conditions, "("+vλl+".length >= "+bound+" && ("+vλl+".length >= "+doubled+" || "+codePointLength()+" >= "+bound+"))")
 	}
 	if value, ok := formats.ReadNumberParam(params, "length"); ok {
-		conditions = append(conditions, vλl+".length === "+formats.FormatNumber(value))
+		bound := formats.FormatNumber(value)
+		doubled := formats.FormatNumber(2 * value)
+		conditions = append(conditions, "("+vλl+".length >= "+bound+" && "+vλl+".length <= "+doubled+" && "+codePointLength()+" === "+bound+")")
 	}
 	return conditions
 }
@@ -185,19 +241,35 @@ func valuesSource(vals []string) string {
 // lengthErrorStatements returns the `if (fail) pf_formatErr(...)`
 // statements for whichever length bounds are set. fmtName tags the
 // emitted format error (stringFormat / domain / email / url …).
+// The failure conditions are the negation of lengthConditions, and keep the
+// same `.length` short-circuit: a string can only be too long once `.length`
+// exceeds the bound, so the exact code-point count is asked for solely to
+// confirm it.
 func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl, pathExpr, errorsArr, fmtName string) []string {
 	var statements []string
-	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok {
+	if isRegex, _ := params["isRegex"].(bool); isRegex {
 		statements = append(statements,
-			"if ("+vλl+".length > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "maxLength", formats.FormatNumber(value)))
+			"if (!"+pureFnAlias(ctx, "isEcmaRegex")+"("+vλl+")) "+
+				formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "isRegex", "true"))
+	}
+	codePointLength := pureFnAlias(ctx, "codePointLength") + "(" + vλl + ")"
+	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok {
+		bound := formats.FormatNumber(value)
+		doubled := formats.FormatNumber(2 * value)
+		statements = append(statements,
+			"if ("+vλl+".length > "+bound+" && ("+vλl+".length > "+doubled+" || "+codePointLength+" > "+bound+")) "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "maxLength", bound))
 	}
 	if value, ok := formats.ReadNumberParam(params, "minLength"); ok {
+		bound := formats.FormatNumber(value)
+		doubled := formats.FormatNumber(2 * value)
 		statements = append(statements,
-			"if ("+vλl+".length < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "minLength", formats.FormatNumber(value)))
+			"if ("+vλl+".length < "+bound+" || ("+vλl+".length < "+doubled+" && "+codePointLength+" < "+bound+")) "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "minLength", bound))
 	}
 	if value, ok := formats.ReadNumberParam(params, "length"); ok {
+		bound := formats.FormatNumber(value)
+		doubled := formats.FormatNumber(2 * value)
 		statements = append(statements,
-			"if ("+vλl+".length !== "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "length", formats.FormatNumber(value)))
+			"if ("+vλl+".length < "+bound+" || "+vλl+".length > "+doubled+" || "+codePointLength+" !== "+bound+") "+formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "length", bound))
 	}
 	return statements
 }
@@ -211,7 +283,7 @@ func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 // Matches the emitIsTypeErrors output (modulo the wrapper-shape
 // param unwrap) so the JS-side runtime sees the same diagnostics
 // regardless of which compiler produced the validator.
-func (stringFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (stringFormatEmitter) EmitValidationErrorsCheck(annotation *reflection.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -230,7 +302,13 @@ func (stringFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 // the emitted format error so domain/email decomposition can reuse this
 // over their own variable + sub-params.
 func stringErrorStatements(ctx formats.EmitContext, params map[string]any, vλl, pathExpr, errorsArr, fmtName string) []string {
-	statements := lengthErrorStatements(ctx, params, vλl, pathExpr, errorsArr, fmtName)
+	var statements []string
+	if wantsJSONContent(params) {
+		statements = append(statements,
+			"if (!("+jsonParseCheck(params, vλl)+")) "+
+				formats.FormatErrCall(pathExpr, errorsArr, "string", fmtName, "contentMediaType", strconv.Quote(contentMediaTypeJSON)))
+	}
+	statements = append(statements, lengthErrorStatements(ctx, params, vλl, pathExpr, errorsArr, fmtName)...)
 	if source, flags, ok := recoverPattern(params); ok {
 		test := emitPatternTest(ctx, source, flags, vλl)
 		statements = append(statements,
@@ -264,7 +342,7 @@ func stringErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 // operations in order (stringFormat.runtype.ts:44-51): trim,
 // replace, replaceAll, lowercase, uppercase, capitalize. Returns "" when
 // none are set (identity).
-func (stringFormatEmitter) EmitFormatTransform(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+func (stringFormatEmitter) EmitFormatTransform(annotation *reflection.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -324,7 +402,7 @@ func boolParam(params map[string]any, key string) bool {
 // mutual-exclusivity, bound ordering, value-set caps, single-complex-param,
 // and the disallowed* mockSamples requirement. Returns one message per
 // violation (surfaced as CodeFMTInvalidParams).
-func (stringFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+func (stringFormatEmitter) ValidateParams(annotation *reflection.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
 	}

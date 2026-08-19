@@ -33,12 +33,12 @@
 //   P   parse-safety a failed corruption reconcile leaves the mirror byte-identical
 // Type-RENAME ops (renameRoot / renameDecl / renameRootReshaped) run in the default
 // lane now that the const-level graph-parity matcher carries rename + reshape; the
-// root-rename carry is asserted by RC (docs/done/reconcile-rename-detection.md).
+// root-rename carry is asserted by RC.
 
 import {existsSync} from 'node:fs';
 import {makeFixture, setSource, editMirror, readMirrors, type ReconcileFixture} from '../../util/enrichReconcile.ts';
 import {withSeededRandom, mixSeed} from '../core/seededRng.ts';
-import {genType, type GenOptions} from '../core/typeGen.ts';
+import {genType, SCRATCH_FORMAT_LEAVES, type GenOptions} from '../core/typeGen.ts';
 import {modifyType, renderRootedSource, rootGeneratedType, type RootedType} from './typeModify.ts';
 import {scaffold, update, isControlled, type CliResult} from './enrichCli.ts';
 
@@ -51,6 +51,9 @@ const MOD_GEN_OPTIONS: GenOptions = {
   nonDataTypes: false,
   weirdKeys: true,
   named: true,
+  // Scratch-dir fixtures carry the import-free preamble, which only spells
+  // the param brands (see typeModify.renderRootedSource).
+  formatLeafPool: SCRATCH_FORMAT_LEAVES,
 };
 
 // Fraction of steps that fire a mid-edit source CORRUPTION (truncate a literal, drop
@@ -308,8 +311,7 @@ export function runOneModSequence(seed: number, maxSteps: number): ModSequenceRe
         // so a self-referencing field's element type "changes" and correctly
         // re-scaffolds; a nominal enum rename carries via the referential signal but
         // is asserted by Go tests, not here). Those are covered by NL (nothing lost,
-        // carcass preserves it), not asserted as a live carry — see
-        // docs/done/reconcile-nominal-rename-carry.md.
+        // carcass preserves it), not asserted as a live carry.
         if (result.op.startsWith('renameRoot')) {
           const liveBefore = liveSentinels(before, sentinels);
           const liveAfter = liveSentinels(after, sentinels);

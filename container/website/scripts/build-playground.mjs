@@ -1,4 +1,4 @@
-// build-playground.mjs — host-side prebuild of the static assets the docs site's
+// build-playground.mjs: host-side prebuild of the static assets the docs site's
 // <RuntypesPlayground> Vue component fetches from /playground-app/:
 //
 //   public/playground-app/ts-runtypes.wasm.gz   the resolver compiled to wasm (gz)
@@ -20,6 +20,7 @@ import {cpSync, copyFileSync, existsSync, globSync, mkdirSync, readdirSync, read
 import {join} from 'node:path';
 import {GO_ROOT, loadEnv, REPO_ROOT} from '../../../scripts/lib/env.mjs';
 import {capture, die, note, reportCliError, run, warn, which} from '../../../scripts/lib/proc.mjs';
+import {readWasmStamp, wasmInputsDigest} from '../../../scripts/website/playground-wasm-inputs.mjs';
 
 const WEBSITE_DIR = join(REPO_ROOT, 'container/website');
 const CACHE_DIR = join(REPO_ROOT, '.cache/rt-wasm');
@@ -27,6 +28,7 @@ const RAW_WASM = join(CACHE_DIR, 'ts-runtypes.wasm');
 const RAW_GZ = join(CACHE_DIR, 'ts-runtypes.wasm.gz');
 const WASM_EXEC = join(CACHE_DIR, 'wasm_exec.js');
 const SOURCES_JSON = join(CACHE_DIR, 'runtypes-sources.json');
+const SIDECAR_HOOK = join(CACHE_DIR, 'sidecar-hook.js');
 const STAMP = join(CACHE_DIR, '.wasm-stamp');
 const OUT_DIR = join(WEBSITE_DIR, 'public/playground-app');
 // The compiled DIST (not src) is vendored INTO the site (git-ignored, re-synced on
@@ -34,9 +36,8 @@ const OUT_DIR = join(WEBSITE_DIR, 'public/playground-app');
 const VENDOR_DIR = join(WEBSITE_DIR, 'app/playground/.vendor/ts-runtypes-dist');
 
 const WASM_PKG = './cmd/ts-runtypes-wasm';
-// Every Go input the wasm links; if none is newer than the stamp, tier 1 short-circuits.
-// Repo-relative under the Go tree (anyNewer joins each with REPO_ROOT).
-const WASM_INPUTS = ['ts-go-runtypes/cmd/ts-runtypes-wasm', 'ts-go-runtypes/internal', 'ts-go-runtypes/go.mod', 'ts-go-runtypes/go.sum'];
+// The Go inputs the wasm links live in scripts/website/playground-wasm-inputs.mjs,
+// shared with the test loader so both gates agree on what an input is.
 // The source overlay tracks only the marker package's src.
 const SOURCES_INPUT = 'packages/ts-runtypes/src';
 
@@ -68,8 +69,12 @@ function findWasmExecSrc() {
 
 // ── WASM: two-tier staleness gate (rebuilds the raw .wasm only on real change) ──
 
-// Tier 1 (cheap): missing wasm/stamp, or any Go input newer than the stamp.
-const wasmMaybeStale = () => !existsSync(RAW_WASM) || !existsSync(STAMP) || anyNewer(WASM_INPUTS, mtime(STAMP));
+// Tier 1 (~60ms): missing wasm, or the digest recorded beside it no longer
+// matches the Go tree. Content rather than mtimes, because a stale cache copied
+// into a worktree can carry a stamp NEWER than the checkout it no longer matches;
+// an mtime compare calls that fresh and hands the tests dead code.
+const stampWasm = () => writeFileSync(STAMP, `${wasmInputsDigest(REPO_ROOT)}\n`);
+const wasmMaybeStale = () => !existsSync(RAW_WASM) || readWasmStamp(STAMP) !== wasmInputsDigest(REPO_ROOT);
 
 // sameAsDisk: would the freshly built wasm ship identically to what's on disk?
 // Plain `go` output isn't byte-stable across builds but its buildid is, so compare buildids.
@@ -82,7 +87,7 @@ function sameAsDisk(builtPath, diskPath) {
 // Returns true when the raw wasm bytes changed (so derived artifacts must refresh).
 function buildWasmIfStale() {
   if (!wasmMaybeStale()) {
-    note('wasm up to date (no Go input newer than the stamp)');
+    note('wasm up to date (Go inputs digest matches the stamp)');
     return false;
   }
   if (!which('go')) {
@@ -97,14 +102,15 @@ function buildWasmIfStale() {
     const built = run('go', ['build', '-o', tmp, WASM_PKG], {cwd: GO_ROOT, env: {GOOS: 'js', GOARCH: 'wasm'}});
     if (built !== 0) die('==> ERROR: wasm build failed.');
     if (existsSync(RAW_WASM) && sameAsDisk(tmp, RAW_WASM)) {
-      // False-alarm mtime (touch / checkout): bytes are identical. Quiet tier 1 for
-      // next time by bumping the STAMP only; skip the expensive gzip + wasm_exec copy.
-      touch(STAMP);
+      // Inputs changed but the compiler produced the same bytes (comments, tests,
+      // testdata). Record the new digest so tier 1 is quiet next time; skip the
+      // expensive gzip + wasm_exec copy.
+      stampWasm();
       note('wasm unchanged - skipped gzip');
       return false;
     }
     renameSync(tmp, RAW_WASM);
-    touch(STAMP);
+    stampWasm();
     note('wasm rebuilt');
     return true;
   } finally {
@@ -131,7 +137,7 @@ function ensureWasmDerived() {
     return false;
   }
   if (!existsSync(RAW_GZ) || mtime(RAW_WASM) > mtime(RAW_GZ)) {
-    // zlib gzip (browser inflates via DecompressionStream) — no external `gzip`.
+    // zlib gzip (browser inflates via DecompressionStream): no external `gzip`.
     note('gzip the wasm (browser inflates via DecompressionStream) ...');
     writeFileSync(RAW_GZ, gzipSync(readFileSync(RAW_WASM), {level: 9}));
     changed = true;
@@ -162,6 +168,42 @@ function buildSourcesIfStale() {
   return true;
 }
 
+// ── Sidecar hook: the playground's JS engine for pattern generation ──────────
+
+// The resolver WASM routes pattern validation + mockSample generation through
+// the __tsRunTypesJsEngine host hook when it is installed (jsengine/wasm.go).
+// The hook is the sidecar package's IIFE build (dist/sidecar-hook.js); loaded
+// as a classic script before the WASM instantiates, the playground generates
+// the SAME deterministic samples a native build does. Missing hook = the page
+// still works, generation degrades to the declare-mockSamples diagnostic.
+const SIDECAR_PKG_DIR = 'packages/ts-runtypes-go-be-sidecar';
+const SIDECAR_HOOK_BUILT = join(REPO_ROOT, SIDECAR_PKG_DIR, 'dist/sidecar-hook.js');
+
+function buildSidecarHookIfStale() {
+  const inputs = [`${SIDECAR_PKG_DIR}/src`, `${SIDECAR_PKG_DIR}/vite.config.ts`, `${SIDECAR_PKG_DIR}/vite.hook.config.ts`];
+  if (existsSync(SIDECAR_HOOK) && !anyNewer(inputs, mtime(SIDECAR_HOOK))) {
+    note('sidecar hook up to date');
+    return false;
+  }
+  if (!which('pnpm')) {
+    warn('pnpm not found - skipping sidecar hook build (playground pattern generation will degrade)');
+    return false;
+  }
+  note('building the sidecar hook (playground JS engine) ...');
+  // gen-sidecar-js runs the package build (both vite configs) AND refreshes
+  // the committed Go bundle: one command, no way for the two to drift.
+  if (run('node', [join(REPO_ROOT, 'scripts/core/gen-sidecar-js.mjs')]) !== 0) {
+    warn('sidecar hook build failed - playground pattern generation will degrade');
+    return false;
+  }
+  if (!existsSync(SIDECAR_HOOK_BUILT)) {
+    warn(`sidecar hook build produced no ${SIDECAR_HOOK_BUILT}`);
+    return false;
+  }
+  copyFileSync(SIDECAR_HOOK_BUILT, SIDECAR_HOOK);
+  return true;
+}
+
 // ── Vendor the ts-runtypes runtime dist into the site (in-project) ────────────
 
 function vendorRuntimeIfStale() {
@@ -176,7 +218,7 @@ function vendorRuntimeIfStale() {
     return false;
   }
   // Re-sync only when a dist file is newer than the vendor dir's stamp (cp preserves
-  // mtimes, so the DIR mtime — set by touch after each sync — is the anchor).
+  // mtimes, so the DIR mtime (set by touch after each sync)is the anchor).
   if (existsSync(VENDOR_DIR) && !anyNewerAbs(distSrc, mtime(VENDOR_DIR))) {
     note('ts-runtypes runtime vendor up to date');
     return false;
@@ -205,6 +247,7 @@ function stage() {
     [RAW_GZ, join(OUT_DIR, 'ts-runtypes.wasm.gz')],
     [WASM_EXEC, join(OUT_DIR, 'wasm_exec.js')],
     [SOURCES_JSON, join(OUT_DIR, 'runtypes-sources.json')],
+    [SIDECAR_HOOK, join(OUT_DIR, 'sidecar-hook.js')],
   ]) {
     if (!existsSync(src)) {
       warn(`missing ${src} - the /playground page will not load until it is built`);
@@ -220,9 +263,10 @@ export function main() {
   const wasmChanged = buildWasmIfStale();
   const derivedChanged = ensureWasmDerived();
   const sourcesChanged = buildSourcesIfStale();
+  const hookChanged = buildSidecarHookIfStale();
   const vendorChanged = vendorRuntimeIfStale();
   stage();
-  if (wasmChanged || derivedChanged || sourcesChanged || vendorChanged) note(`staged playground assets -> ${OUT_DIR}`);
+  if (wasmChanged || derivedChanged || sourcesChanged || hookChanged || vendorChanged) note(`staged playground assets -> ${OUT_DIR}`);
   else note(`playground assets already fresh -> ${OUT_DIR}`);
   for (const entry of readdirSync(OUT_DIR)) console.log(`  ${entry}`);
 }

@@ -46,13 +46,15 @@ export interface ResolverClientOptions {
   // via `new Function`), 'functions' (live factory only, code derived lazily),
   // or 'both' (code string + live factory). Defaults to 'code' when omitted.
   emitMode?: 'code' | 'functions' | 'both';
-  // Forwarded as --size-bias / --size-items / --size-string-bytes /
-  // --size-max-bytes. Tune the binary `dynamic` cold-start buffer estimate;
-  // omitted values fall through to the binary defaults (0.8 / 100 / 32 / 65536).
-  sizeBias?: number;
-  sizeItems?: number;
-  sizeStringBytes?: number;
-  sizeMaxBytes?: number;
+  // Forwarded as --binary-sizing-bias / --binary-sizing-items /
+  // --binary-sizing-string-bytes / --binary-sizing-max-bytes (field names mirror
+  // the flags, for greppability). Tune the binary `dynamic` cold-start buffer
+  // estimate; omitted values fall through to the binary defaults
+  // (0.8 / 100 / 32 / 65536).
+  binarySizingBias?: number;
+  binarySizingItems?: number;
+  binarySizingStringBytes?: number;
+  binarySizingMaxBytes?: number;
   // Forwarded as --number-mode. Project-wide default for the validate
   // `numberMode` option: 'isFinite' (default) / 'typeof' / 'notNaN'. A
   // per-call-site numberMode overrides it.
@@ -85,12 +87,26 @@ export interface ResolverClientOptions {
   // names (undefined = the binary default, 7). The build lane forwards the
   // bundler/tsconfig value; the lint lane never sets it.
   hashLength?: number;
-  // Forwarded as --allow-unchecked-patterns: silence the fail-closed
-  // FMT004 build error for format patterns whose mockSamples RE2 can't verify
-  // (JS-only regex features). Build-lane only — asserts the ts-runtypes lint
-  // plugin, which runs the real RegExp, owns that check. Undefined leaves the
-  // binary default (off).
-  allowUncheckedPatterns?: boolean;
+  // Forwarded as --pattern-sample-count: generated mockSamples per
+  // sample-less format pattern (undefined = the binary default, 100;
+  // 0 disables generation).
+  patternSampleCount?: number;
+  // Forwarded as --pattern-sample-retries: the per-sample draw multiplier
+  // for pattern sample generation (undefined = the binary default, 10).
+  patternSampleRetries?: number;
+  // Extra packages allowed to declare the marker types, forwarded as
+  // --marker-packages at spawn. Session config, not a per-request field: the
+  // resolver folds it into its marker options once when the Program is built,
+  // so it must ride the argv the client replays on respawn.
+  markerPackages?: string[];
+  // false forwards --no-marker-package-check, matching markers on type name
+  // alone. Undefined/true leaves the package gate on (the default).
+  markerPackageCheck?: boolean;
+  // Forwarded as --js-runtime: the node/bun path the resolver runs
+  // format-pattern checks on. buildResolverArgs defaults it to THIS
+  // process's own execPath (the plugin/linter already runs inside a JS
+  // runtime), so every lane has an engine with zero configuration.
+  jsRuntime?: string;
   // Pure-fn build report. `pureFnReportWire` forwards --pure-fn-report-wire
   // (populate Response.pureFnSites on generate/scan for the in-process callback);
   // `pureFnReportFile` additionally forwards --pure-fn-report-file (write the
@@ -101,10 +117,25 @@ export interface ResolverClientOptions {
   pureFnReportWire?: boolean;
   pureFnReportFile?: boolean;
   // Forwarded as --gen-dir: the explicit RunTypes output-root override (the
-  // plugin's own genDir option, absolute). Session config — OpEnrich resolves
-  // its mirror root from it (flag > tsconfig genDir > inferred); undefined lets
-  // the Go side resolve from tsconfig / inference.
+  // plugin's own genDir option, absolute). Session config — EVERY op that needs
+  // the root (generate, transform, enrich) resolves it the same way
+  // (flag > tsconfig genDir > inferred <srcDir>/__runtypes); undefined lets the
+  // Go side resolve from tsconfig / inference and echo the result back on
+  // GenerateResult.outDir.
   genDir?: string;
+  // Forwarded as --transform-relative: transform rewrites the injected import
+  // block's `rtmod:` specifiers to paths relative to the resolved output root
+  // (files mode). The bundler plugin always sets it; the virtual-module lanes
+  // (batchcompile pass 1, the transform-wire bench, the inline test lane) leave
+  // it off. Session config because every consumer is session-homogeneous.
+  transformRelative?: boolean;
+  // Forwarded as --omit-sources-content: drop the embedded original source from
+  // each 'go'-mode transform source map (the heaviest single wire item). Mirrors
+  // the immutable plugin option `sourcesContent: false`, which is why it is a
+  // spawn flag rather than a per-call argument. A pure wire trim — no artifact
+  // changes, and transforms are never disk-cached, so it is not a fingerprint
+  // input.
+  omitSourcesContent?: boolean;
   // Enrichment session config, forwarded as --enrich-friendly / --enrich-mock /
   // --enrich-i18n / --enrich-locales / --enrich-source-locale. The wire's enrich
   // op carries only `files`; these spawn flags select the families OpEnrich
@@ -272,9 +303,6 @@ export interface ScanFilesResult {
   runTypes?: RunType[];
   entryModules?: Record<string, string>;
   diagnostics?: import('./protocol.ts').Diagnostic[];
-  // Lint lane only (includeRtDiagnostics): format patterns RE2 couldn't
-  // verify, for the lint plugin to validate with the real regex engine.
-  uncheckedPatterns?: import('./protocol.ts').UncheckedPattern[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
   addedValidate?: boolean;
@@ -350,8 +378,8 @@ export interface EnrichResult {
 // without caring which transport is in use.
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
-  transform(files: string[], outDir?: string, opts?: TransformOptions): Promise<TransformFilesResult>;
-  generate(outDir?: string): Promise<GenerateResult>;
+  transform(files: string[], opts?: TransformOptions): Promise<TransformFilesResult>;
+  generate(): Promise<GenerateResult>;
   enrich(files: string[]): Promise<EnrichResult>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
@@ -361,14 +389,15 @@ export interface ResolverConnection {
   close(): void;
 }
 
-// TransformOptions selects the transform wire mode. `emitEdits: true` is
-// 'edits' mode — each TransformResult carries importBlock + edits + sourceHash
-// for the FE to apply itself; omitted (or false) is 'go' mode (full code + map).
-// `omitSourcesContent` is a 'go'-mode wire trim (drop the embedded original
-// source from the map); no effect in 'edits' mode.
+// TransformOptions selects the transform wire mode, the one genuinely
+// per-request transform knob: `emitEdits: true` is 'edits' mode — each
+// TransformResult carries importBlock + edits + sourceHash for the FE to apply
+// itself; omitted (or false) is 'go' mode (full code + map). A session can
+// degrade from edits to go mid-flight (source-hash drift, applier throw), which
+// is why this stays on the wire. The output root, files-mode relativization and
+// the source-map trim are all spawn config (ResolverClientOptions).
 export interface TransformOptions {
   emitEdits?: boolean;
-  omitSourcesContent?: boolean;
 }
 
 // Mixed-in ops implementation shared between the two clients. Inheritance
@@ -401,7 +430,6 @@ abstract class ResolverClientBase implements ResolverConnection {
       runTypes: resp.runTypes,
       entryModules: resp.entryModules,
       diagnostics: resp.diagnostics,
-      uncheckedPatterns: resp.uncheckedPatterns,
       addedRunTypes: resp.addedRunTypes,
       addedValidate: resp.addedValidate,
       addedValidationErrors: resp.addedValidationErrors,
@@ -428,12 +456,10 @@ abstract class ResolverClientBase implements ResolverConnection {
   // map per file. In 'edits' mode (opts.emitEdits) it instead returns the raw
   // edit list (importBlock + edits + sourceHash) for the FE applier — a lighter
   // wire. Either way the plugin drives HMR off the same added* signals.
-  async transform(files: string[], outDir?: string, opts: TransformOptions = {}): Promise<TransformFilesResult> {
+  async transform(files: string[], opts: TransformOptions = {}): Promise<TransformFilesResult> {
     if (files.length === 0) throw new Error('transform: files must be non-empty');
     const req: Request = {op: 'transform', files};
-    if (outDir) req.outDir = outDir;
     if (opts.emitEdits) req.emitEdits = true;
-    if (opts.omitSourcesContent) req.omitSourcesContent = true;
     const resp = await this.send(req);
     if (resp.error) throw new Error(`transform [${files.join(', ')}]: ${resp.error}`);
     return {
@@ -450,17 +476,17 @@ abstract class ResolverClientBase implements ResolverConnection {
   // and WRITES it under <outDir>/types/ (write-only-on-change, relativized
   // inter-module imports, stale-file GC), returning the live manifest of
   // module basenames plus the output root it wrote to. The files-mode
-  // replacement for the virtual-module load path. Pass an empty outDir to let
-  // the resolver infer <srcDir>/__runtypes from the tsconfig; the resolved path
-  // comes back in `outDir`.
-  async generate(outDir?: string): Promise<GenerateResult> {
-    const req: Request = {op: 'generate'};
-    if (outDir) req.outDir = outDir;
-    const resp = await this.send(req);
+  // replacement for the virtual-module load path. The root is SESSION config
+  // (the `genDir` spawn option, else the tsconfig genDir, else the resolver's
+  // <srcDir>/__runtypes inference); the resolved absolute path always comes
+  // back in `outDir` so a dependency-free host can adopt an inference it
+  // cannot compute for itself.
+  async generate(): Promise<GenerateResult> {
+    const resp = await this.send({op: 'generate'});
     if (resp.error) throw new Error(`generate: ${resp.error}`);
     return {
       modules: resp.generated ?? [],
-      outDir: resp.outDir ?? outDir ?? '',
+      outDir: resp.outDir ?? '',
       siteFiles: resp.siteFiles ?? [],
       diagnostics: resp.diagnostics,
       pureFnSites: resp.pureFnSites,
@@ -542,10 +568,10 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   // cacheDir is NOT a CLI arg — it rides the child's RT_CACHE_DIR env var
   // (set by ResolverClient's spawn) so parallel spawns stay isolated.
   if (opts.emitMode) args.push('--emit-mode', opts.emitMode);
-  if (opts.sizeBias !== undefined) args.push('--size-bias', String(opts.sizeBias));
-  if (opts.sizeItems !== undefined) args.push('--size-items', String(opts.sizeItems));
-  if (opts.sizeStringBytes !== undefined) args.push('--size-string-bytes', String(opts.sizeStringBytes));
-  if (opts.sizeMaxBytes !== undefined) args.push('--size-max-bytes', String(opts.sizeMaxBytes));
+  if (opts.binarySizingBias !== undefined) args.push('--binary-sizing-bias', String(opts.binarySizingBias));
+  if (opts.binarySizingItems !== undefined) args.push('--binary-sizing-items', String(opts.binarySizingItems));
+  if (opts.binarySizingStringBytes !== undefined) args.push('--binary-sizing-string-bytes', String(opts.binarySizingStringBytes));
+  if (opts.binarySizingMaxBytes !== undefined) args.push('--binary-sizing-max-bytes', String(opts.binarySizingMaxBytes));
   if (opts.numberMode) args.push('--number-mode', opts.numberMode);
   if (opts.parallelScan === false) args.push('--no-parallel-scan');
   if (opts.parallelRender === false) args.push('--no-parallel-render');
@@ -554,14 +580,21 @@ export function buildResolverArgs(cwd: string, tsconfigPath: string, opts: Resol
   if (opts.singleThreaded === true) args.push('--single-threaded');
   else if (opts.singleThreaded === false) args.push('--no-single-threaded');
   if (opts.hashLength !== undefined) args.push('--hash-length', String(opts.hashLength));
-  // Build-lane only. The lint worker never forwards it: the lint lane always
-  // validates the samples (with the real RegExp) regardless of the flag.
-  if (opts.allowUncheckedPatterns) args.push('--allow-unchecked-patterns');
+  if (opts.patternSampleCount !== undefined) args.push('--pattern-sample-count', String(opts.patternSampleCount));
+  if (opts.patternSampleRetries !== undefined) args.push('--pattern-sample-retries', String(opts.patternSampleRetries));
+  if (opts.markerPackages?.length) args.push('--marker-packages', opts.markerPackages.join(','));
+  if (opts.markerPackageCheck === false) args.push('--no-marker-package-check');
+  // Always passed: the resolver's format-pattern checks run on a real JS
+  // engine, and THIS process is one — its own execPath is the zero-config
+  // default for every lane (build + lint). An explicit option pins another.
+  args.push('--js-runtime', opts.jsRuntime ?? process.execPath);
   if (opts.pureFnReportWire) args.push('--pure-fn-report-wire');
   if (opts.pureFnReportFile) args.push('--pure-fn-report-file');
   // Session config the wire deliberately does not carry: the output-root
   // override and the OpEnrich family / i18n selection.
   if (opts.genDir) args.push('--gen-dir', opts.genDir);
+  if (opts.transformRelative) args.push('--transform-relative');
+  if (opts.omitSourcesContent) args.push('--omit-sources-content');
   if (opts.enrichFriendly) args.push('--enrich-friendly');
   if (opts.enrichMock) args.push('--enrich-mock');
   if (opts.enrichI18n) args.push('--enrich-i18n');

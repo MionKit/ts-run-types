@@ -8,6 +8,7 @@ import (
 	"github.com/mionkit/ts-runtypes/internal/compiler/program"
 	"github.com/mionkit/ts-runtypes/internal/compiler/resolver"
 	"github.com/mionkit/ts-runtypes/internal/protocol"
+	"github.com/mionkit/ts-runtypes/internal/reflection"
 )
 
 const runtypesDTS = `declare module '@ts-runtypes/core' {
@@ -45,7 +46,7 @@ func inlineResolver(t *testing.T, code string) *resolver.Session {
 
 // rootFor scans test.ts and returns the RunType node for the first
 // (and only) call site.
-func rootFor(t *testing.T, code string) (*resolver.Session, *protocol.RunType) {
+func rootFor(t *testing.T, code string) (*resolver.Session, *reflection.RunType) {
 	t.Helper()
 	res := inlineResolver(t, code)
 	scanResp := res.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
@@ -78,10 +79,10 @@ getRunTypeId<Map<string, number>>();
 	if dateNode.ID == mapNode.ID {
 		t.Fatalf("expected Date and Map to have distinct ids, both got %q", dateNode.ID)
 	}
-	if dateNode.SubKind != protocol.SubKindDate {
+	if dateNode.SubKind != reflection.SubKindDate {
 		t.Fatalf("Date: expected SubKindDate, got %d", dateNode.SubKind)
 	}
-	if mapNode.SubKind != protocol.SubKindMap {
+	if mapNode.SubKind != reflection.SubKindMap {
 		t.Fatalf("Map: expected SubKindMap, got %d", mapNode.SubKind)
 	}
 }
@@ -102,7 +103,7 @@ getRunTypeId<ErrorShape>();
 	if errorNode.ID == plainNode.ID {
 		t.Fatalf("non-serializable Error must not share id with a plain object literal of same shape")
 	}
-	if errorNode.SubKind != protocol.SubKindNonSerializable {
+	if errorNode.SubKind != reflection.SubKindNonSerializable {
 		t.Fatalf("Error: expected SubKindNonSerializable, got %d", errorNode.SubKind)
 	}
 }
@@ -182,5 +183,98 @@ getRunTypeId<Map<string, number>>();
 `)
 	if mapNode.ID == "" || strings.ContainsAny(mapNode.ID, "{}[]:") {
 		t.Fatalf("hash id %q is not identifier-safe", mapNode.ID)
+	}
+}
+
+// TestStructural_NonSerializableStableAcrossSpellings — a non-serialisable
+// global's id is its CONSTRUCTOR, so every spelling of the same type shares
+// one cache entry. The id used to be built from the lib member surface
+// instead, and a typed array's `subarray()` returns its own type: whether the
+// checker handed the walk the SAME type pointer (a cycle token) or a fresh
+// instantiation (one more unrolled level) depended on how the type was
+// reached, so these four spellings produced two different ids.
+func TestStructural_NonSerializableStableAcrossSpellings(t *testing.T) {
+	_, bare := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+getRunTypeId<Uint8Array>();
+`)
+	_, viaTypeof := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+declare const bytes: Uint8Array;
+getRunTypeId<typeof bytes>();
+`)
+	_, explicitArgs := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+getRunTypeId<Uint8Array<ArrayBuffer | SharedArrayBuffer>>();
+`)
+	_, inAnAlias := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+type Bytes = Uint8Array;
+getRunTypeId<Bytes>();
+`)
+	for _, spelled := range []struct {
+		label string
+		node  *reflection.RunType
+	}{{"typeof a variable", viaTypeof}, {"explicit default arguments", explicitArgs}, {"through an alias", inAnAlias}} {
+		if spelled.node.ID != bare.ID {
+			t.Errorf("Uint8Array spelled %s must share the bare id: %q vs %q", spelled.label, spelled.node.ID, bare.ID)
+		}
+	}
+	if bare.SubKind != reflection.SubKindNonSerializable {
+		t.Fatalf("Uint8Array: expected SubKindNonSerializable, got %d", bare.SubKind)
+	}
+}
+
+// TestStructural_NonSerializableFormEquivalence — the reflection call shape
+// reaches the type through the VALUE, the one spelling most likely to hand
+// the walk a differently-interned checker type. It must land on the same
+// entry as the static form (marker coverage rule: paired call shapes, and
+// this is the suite's hash-equivalence pin for the non-serialisable set).
+func TestStructural_NonSerializableFormEquivalence(t *testing.T) {
+	_, static := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+getRunTypeId<Uint8Array>();
+`)
+	_, reflected := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+const bytes: Uint8Array = new Uint8Array(4);
+getRunTypeId(bytes);
+`)
+	if static.ID != reflected.ID {
+		t.Fatalf("getRunTypeId<Uint8Array>() and getRunTypeId(value) must share an id: %q vs %q", static.ID, reflected.ID)
+	}
+}
+
+// TestStructural_NonSerializableDistinctByName — dropping the member walk
+// must not blur the set together. `Error` and `EvalError` are structurally
+// identical interfaces, so the member walk actually gave them ONE shared id;
+// keying on the constructor name is what tells them apart.
+func TestStructural_NonSerializableDistinctByName(t *testing.T) {
+	ids := map[string]string{}
+	for _, typeName := range []string{"Error", "EvalError", "TypeError", "Uint8Array", "Int8Array", "DataView", "ArrayBuffer"} {
+		_, node := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+getRunTypeId<`+typeName+`>();
+`)
+		for otherName, otherID := range ids {
+			if otherID == node.ID {
+				t.Errorf("%s and %s must not share a cache entry, both got %q", typeName, otherName, node.ID)
+			}
+		}
+		ids[typeName] = node.ID
+	}
+}
+
+// TestStructural_NonSerializableDistinctByArguments — type arguments stay in
+// the id, in lockstep with projectClass (which keeps them in Arguments). The
+// converter reads those arguments back out of the cached node to print the
+// escape, so two instantiations sharing an entry would print one's arguments
+// for the other. Joined POSITIONALLY, not sorted, so swapping two arguments
+// changes the id.
+func TestStructural_NonSerializableDistinctByArguments(t *testing.T) {
+	idFor := func(typeText string) string {
+		_, node := rootFor(t, `import {getRunTypeId} from '@ts-runtypes/core';
+getRunTypeId<`+typeText+`>();
+`)
+		return node.ID
+	}
+	if idFor("Uint8Array<ArrayBuffer>") == idFor("Uint8Array<SharedArrayBuffer>") {
+		t.Errorf("a typed array's buffer argument must reach the id")
+	}
+	if idFor("Generator<string, number>") == idFor("Generator<number, string>") {
+		t.Errorf("type arguments are positional — swapping them must change the id")
 	}
 }

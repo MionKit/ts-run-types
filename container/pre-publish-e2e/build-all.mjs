@@ -50,9 +50,11 @@ function rtOptions(appDir) {
 
 const isCore = (request) => CORE_EXTERNAL.test(request);
 
-// ── the six apps ────────────────────────────────────────────────────────────
+// ── the apps: six bundler adapters over seven builds ────────────────────────
 // build-vite carries the FULL feature matrix (imports the shared index); every
-// light smoke imports apps/shared/src/minimal.ts.
+// light smoke imports apps/shared/src/minimal.ts. smoke-source is the seventh
+// build but not a seventh bundler — it reuses the esbuild adapter to cover a
+// different resolution mode.
 const APP_LIST = [
   {name: 'build-vite', adapter: 'vite'},
   {name: 'smoke-esbuild', adapter: 'esbuild'},
@@ -63,7 +65,7 @@ const APP_LIST = [
   // Source-first consumer: customConditions:["source"] makes @ts-runtypes/core
   // resolve to its published src/, so the plugin's scan walks the library's own
   // internals. Guards the first-party diagnostic scoping — without it the build
-  // halts on the library's own CTA001/CTA003 (docs/done/scan-diagnostics-marker-own-source.md).
+  // halts on the library's own CTA001/CTA003.
   {name: 'smoke-source', adapter: 'esbuild'},
 ];
 

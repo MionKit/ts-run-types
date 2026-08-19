@@ -7,14 +7,14 @@ import {
   createStandardSchema,
   type DataOnly,
 } from '@ts-runtypes/core';
-import * as RT from '@ts-runtypes/core/schema';
+import * as RT from '@ts-runtypes/core/builders';
 import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const ATOMIC = {
   any: {
     title: 'Any',
     description: 'The `any` keyword produces a no-op validator that accepts every value.',
-    validateNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
+    validateNotes: ['No-op validator — every value passes. Equivalent to `() => true`.'],
     validate: () => createValidateFn<any>(),
     standardSchema: () => createStandardSchema<any>(),
     validateDataOnly: () => createValidateFn<DataOnly<any>>(),
@@ -56,8 +56,9 @@ export const ATOMIC = {
     title: 'BigInt',
     description:
       'The `bigint` primitive uses a strict typeof gate, so plain numbers including Infinity and -Infinity are rejected.',
-    validateNotes:
+    validateNotes: [
       'Strict `typeof === "bigint"`. Plain `number` values (including `Infinity` / `-Infinity`) are rejected — `42` is not `42n`.',
+    ],
     validate: () => createValidateFn<bigint>(),
     standardSchema: () => createStandardSchema<bigint>(),
     // One hand-authored Standard Schema expectation per file. Every other case
@@ -223,7 +224,7 @@ export const ATOMIC = {
     // while the type-first `createValidateFn<Color>()` is the named `KindEnum`: they
     // validate identically but are structurally distinct by design (a value-first
     // builder can't reconstruct the nominal enum's member-name metadata). See the
-    // enum builder doc in src/schema/atomic.ts.
+    // enum builder doc in src/builders/atomic.ts.
     idDivergent: true,
     validate: () => {
       enum Color {
@@ -508,7 +509,7 @@ export const ATOMIC = {
   literal_1n: {
     title: 'BigInt literal',
     description: 'The bigint literal type `1n` is matched by strict `===`, so the number 1 fails.',
-    validateNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
+    validateNotes: ['Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.'],
     validate: () => createValidateFn<1n>(),
     standardSchema: () => createStandardSchema<1n>(),
     validateDataOnly: () => createValidateFn<DataOnly<1n>>(),
@@ -556,8 +557,9 @@ export const ATOMIC = {
     dataOnlyDivergent: true,
     description:
       'A symbol literal is matched by its `description` rather than unique-symbol identity, per the reference semantics.',
-    validateNotes:
+    validateNotes: [
       'TS DIVERGENCE: Symbol literal types are matched by `description`, not by unique-symbol identity. A different `Symbol("hello")` instance with the same description WILL satisfy the type. Strict TS treats each `typeof sym` as a unique-symbol referring to that exact value.',
+    ],
     validate: () => {
       const sym = Symbol('hello');
       return createValidateFn<typeof sym>();
@@ -947,8 +949,9 @@ export const ATOMIC = {
   symbol: {
     title: 'Symbol',
     description: 'The bare `symbol` primitive is unsupported at root, so the factory throws on first call.',
-    validateNotes:
-      'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes VL002 / VE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
+    validateNotes: [
+      'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes VL002 / VE002 / IS002), and the very first `createXxx<symbol>()` call throws.',
+    ],
     validate: () => createValidateFn<symbol>(),
     standardSchema: () => createStandardSchema<symbol>(),
     validateDataOnly: () => createValidateFn<DataOnly<symbol>>(),
@@ -988,7 +991,7 @@ export const ATOMIC = {
   undefined: {
     title: 'Undefined',
     description: 'A strict `=== undefined` check treats undefined as distinct from null and other falsy values.',
-    validateNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
+    validateNotes: ['Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.'],
     validate: () => createValidateFn<undefined>(),
     standardSchema: () => createStandardSchema<undefined>(),
     validateDataOnly: () => createValidateFn<DataOnly<undefined>>(),
@@ -1038,8 +1041,9 @@ export const ATOMIC = {
   void: {
     title: 'Void',
     description: 'The `void` type validates like undefined, accepting undefined and a bare function return but rejecting null.',
-    validateNotes:
+    validateNotes: [
       'TS DIVERGENCE: `void` validates like `undefined` — it accepts `undefined` (and a bare `(): void => {}` return) but rejects `null`, unlike a `null | undefined` type.',
+    ],
     validate: () => createValidateFn<void>(),
     standardSchema: () => createStandardSchema<void>(),
     validateDataOnly: () => createValidateFn<DataOnly<void>>(),
@@ -1183,8 +1187,9 @@ export const ATOMIC = {
   literal_regexp_noLiterals: {
     title: 'RegExp literal noLiterals',
     description: 'With `{noLiterals: true}` the RegExp literal degrades to `RegExp`, using an instanceof check.',
-    validateNotes:
+    validateNotes: [
       '`{noLiterals: true}` degrades the literal to its base type `RegExp`. Any RegExp instance passes (constructor form `new RegExp(...)` included); source + flags are no longer matched.',
+    ],
     validate: () => {
       const reg = /abc/i;
       return createValidateFn<typeof reg>(undefined, {noLiterals: true});
@@ -1304,8 +1309,9 @@ export const ATOMIC = {
   literal_1n_noLiterals: {
     title: 'BigInt literal noLiterals',
     description: 'With `{noLiterals: true}` the bigint literal degrades to `bigint`, using a typeof check.',
-    validateNotes:
+    validateNotes: [
       '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
+    ],
     validate: () => createValidateFn<1n>(undefined, {noLiterals: true}),
     standardSchema: () => createStandardSchema<1n>(undefined, {noLiterals: true}),
     validateDataOnly: () => createValidateFn<DataOnly<1n>>(undefined, {noLiterals: true}),
@@ -1349,8 +1355,9 @@ export const ATOMIC = {
   literal_symbol_noLiterals: {
     title: 'Symbol literal noLiterals',
     description: 'With `{noLiterals: true}` the symbol literal degrades to bare symbol, which is unsupported at root.',
-    validateNotes:
+    validateNotes: [
       '`{noLiterals: true}` degrades the literal to its base type `symbol`, which is unsupported at root (see the `symbol` case above). The factory is rendered as alwaysThrow; the first `createXxx<typeof sym>()` call throws.',
+    ],
     validate: () => {
       const sym = Symbol('hello');
       return createValidateFn<typeof sym>(undefined, {noLiterals: true});

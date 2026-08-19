@@ -11,7 +11,7 @@ import {fileURLToPath} from 'node:url';
 import {ResolverClient} from '../src/resolver-client.ts';
 import {applyEdits, sourceHash} from '../src/apply-edits.ts';
 import type {SourceMap} from '../src/protocol.ts';
-import {BARE_CWD, BIN, hasBinary, RUNTYPES_DTS, runTest, withInlineSources} from './helpers/inline.ts';
+import {BARE_CWD, BIN, hasBinary, MARKER_PACKAGE_OVERLAY, runTest, withInlineSources} from './helpers/inline.ts';
 import {MODULE_MODE_ALL_SINGLE} from '../src/go-generated/runtypes-constants.generated.ts';
 
 const register = hasBinary() ? it : it.skip;
@@ -26,7 +26,7 @@ async function assertModeParity(client: ResolverClient, file: string, source: st
   expect(goFile, `'go' mode produced no result for ${file}`).toBeDefined();
   expect(typeof goFile.code).toBe('string');
 
-  const ed = await client.transform([file], undefined, {emitEdits: true});
+  const ed = await client.transform([file], {emitEdits: true});
   const edFile = ed.transformed[file];
   expect(edFile, `'edits' mode produced no result for ${file}`).toBeDefined();
   // Happy path: no drift, so no re-sync would fire in the plugin.
@@ -78,7 +78,7 @@ getRunTypeId(u);
     }
   );
 
-  // Regression (docs/done/same-typeid-two-marker-calls-one-statement-not-injected.md):
+  // Regression (two marker calls with the same typeid in one statement):
   // a marker call passed as an argument to an unrelated GENERIC function whose
   // parameter INFERS the branded marker type must still inject — in BOTH wire
   // modes. Real-world trigger: vitest's
@@ -117,7 +117,7 @@ createStandardSchema<string>();
     async (sources) => {
       await withInlineSources(sources, async ({client}) => {
         const {sites, applied} = await assertModeParity(client, 'std.ts', sources['std.ts']);
-        expect(sites[0].fnIds).toHaveLength(2);
+        expect(sites[0].fnIds).toHaveLength(3);
         expect(applied.code).toMatch(/createStandardSchema<string>\(undefined, undefined, \[__rt_[^\]]+\]\);/);
       });
     }
@@ -227,7 +227,7 @@ export const staticId = getRunTypeId<User>();
 `;
     const client = new ResolverClient(BIN, BARE_CWD, '', {serverMode: true, moduleMode: MODULE_MODE_ALL_SINGLE});
     try {
-      await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'user.ts': source});
+      await client.setSources({...MARKER_PACKAGE_OVERLAY, 'user.ts': source});
       const {sites, applied} = await assertModeParity(client, 'user.ts', source);
       // The bundle-stamped site imports from the runtypes bundle, not its own module.
       expect(sites[0].module).toBeTruthy();
@@ -252,7 +252,7 @@ getRunTypeId<Guard>();
         const original = sources['guard.ts'];
 
         // Happy path: the resolver's hash matches the FE hash of the same source.
-        const ed = await client.transform(['guard.ts'], undefined, {emitEdits: true});
+        const ed = await client.transform(['guard.ts'], {emitEdits: true});
         const first = ed.transformed['guard.ts'];
         expect(first.sourceHash).toBe(sourceHash(original));
 
@@ -264,8 +264,8 @@ getRunTypeId<Guard>();
         // Recovery (what the plugin does on mismatch): re-upload the source and
         // re-request. Now the resolver's hash matches the drifted code, and the
         // fresh edits land correctly when applied to the drifted source.
-        await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, 'guard.ts': drifted});
-        const ed2 = await client.transform(['guard.ts'], undefined, {emitEdits: true});
+        await client.setSources({...MARKER_PACKAGE_OVERLAY, 'guard.ts': drifted});
+        const ed2 = await client.transform(['guard.ts'], {emitEdits: true});
         const second = ed2.transformed['guard.ts'];
         expect(second.sourceHash).toBe(sourceHash(drifted));
 
@@ -314,9 +314,26 @@ getRunTypeId<SC>();
 `,
     },
     async (sources) => {
-      await withInlineSources(sources, async ({client}) => {
+      // The trim is SESSION config now (--omit-sources-content), so this is a
+      // two-CLIENT A/B rather than two calls on one client: the shared worker
+      // client keeps self-contained maps, and a one-shot client spawned with
+      // the flag produces the trimmed twin.
+      await withInlineSources(sources, async ({client, sources: augmented}) => {
         const withContent = (await client.transform(['sc.ts'])).transformed['sc.ts'];
-        const withoutContent = (await client.transform(['sc.ts'], undefined, {omitSourcesContent: true})).transformed['sc.ts'];
+
+        const trimmed = new ResolverClient(BIN, BARE_CWD, '', {
+          serverMode: true,
+          emitMode: 'both',
+          omitSourcesContent: true,
+        });
+        let withoutContent;
+        try {
+          await trimmed.setSources({...MARKER_PACKAGE_OVERLAY, ...augmented});
+          withoutContent = (await trimmed.transform(['sc.ts'])).transformed['sc.ts'];
+        } finally {
+          trimmed.close();
+        }
+
         const a = withContent.map as SourceMap;
         const b = withoutContent.map as SourceMap;
         // Same code, same mappings — only the embedded original source is gone.

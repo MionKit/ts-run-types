@@ -11,6 +11,8 @@
 import {describe, it, expect} from 'vitest';
 import {hasBinary} from './roundtripHarness.ts';
 import {runRoundtripFuzz, runRoundtripFuzzForDuration} from './roundtripRunner.ts';
+import {soakTestTimeout, pathologyReport} from '../core/soakBudget.ts';
+import {entrySeed} from '../core/fuzzPolicy.ts';
 
 describe('fuzz / all-strategy round-trip — every codec agrees over generated types', () => {
   const register = hasBinary() ? it : it.skip;
@@ -18,7 +20,7 @@ describe('fuzz / all-strategy round-trip — every codec agrees over generated t
   register(
     'finds no oracle violations across a batch of generated types',
     async () => {
-      const report = await runRoundtripFuzz({seed: 0xc0ffee, iterations: 100});
+      const report = await runRoundtripFuzz({seed: entrySeed('roundtrip'), iterations: 100});
       if (report.violations.length > 0) {
         const summary = report.violations
           .slice(0, 25)
@@ -43,15 +45,16 @@ describe('fuzz / all-strategy round-trip — every codec agrees over generated t
   it.runIf(soakMs > 0)(
     'soak — round-trip generated types continuously and log all findings',
     async () => {
-      const report = await runRoundtripFuzzForDuration(soakMs, {seed: Number(process.env.RT_FUZZ_SEED ?? 1)}, (v) => {
+      const report = await runRoundtripFuzzForDuration(soakMs, {seed: entrySeed('roundtrip')}, (v) => {
         console.error(`[roundtrip-fuzz][${v.oracle}/${v.lane}] ${v.target} (seed=${v.seed}): ${v.message}\n    ${v.value}`);
       });
       console.error(
         `[roundtrip-fuzz] soak finished: ${report.runs} types, ${report.checked} checked, ` +
           `${report.violations.length} violation(s), ${report.skippedInvalidTypes} invalid-TS false positive(s) filtered`
       );
+      expect(pathologyReport(report.slowestIterationMs, report.slowestIterationRound)).toBeNull();
       expect(report.violations).toHaveLength(0);
     },
-    soakMs + 60_000
+    soakTestTimeout(soakMs)
   );
 });
