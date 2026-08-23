@@ -63,6 +63,11 @@ has drifted.
   30-day `minimumReleaseAge`; next pulls sharp, whose install script the allowBuilds
   allowlist rejects; and with no `@types/react` baked, `next build` auto-ran `pnpm
   add` inside the image, re-resolving and pruning the baked toolchains mid-build.
+- **compile:** `ts-runtypes compile` no longer crashes at random on a larger project.
+  The compiler emits files in parallel, and the step that collected them was not
+  safe to run from several threads at once, so two files finishing together could
+  kill the whole command. It showed up as a build that failed once and then
+  succeeded on a retry, with nothing in the project to explain it.
 - **sidecar:** A pattern that backtracks catastrophically can no longer wedge the
   pattern checker. `(x|y)+.*.*` against a long run of `x` never returns from the
   match, and the checker is single-threaded, so the build stalled for five seconds
@@ -78,6 +83,10 @@ has drifted.
 
 ### Testing
 
+- **cli:** A crash in a spawned `ts-runtypes` process now leaves a full report behind
+  instead of a truncated one. The failure message keeps the first, most useful part
+  (what went wrong and where), and the complete output is saved to a file that CI
+  keeps, so one failed run is enough to work out the cause.
 - **e2e:** The pre-publish matrix covers the Next.js adapter with a real `next build`,
   which is the only place that path can be exercised.
 - **devtools:** A test pins that the Next invalidation stamp moves on a type change,
