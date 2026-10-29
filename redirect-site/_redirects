@@ -1,0 +1,5 @@
+# Final deploy of runtypes.pages.dev (.github/workflows/website-deploy.yml ships this
+# folder as the whole site). RunTypes moved into the mion project, so every path,
+# the root included, permanently redirects to the RunTypes home on mion.io.
+# index.html is only a fallback. Keep the Pages project alive: deleting it breaks old links.
+/*  https://mion.io/runtypes  301
