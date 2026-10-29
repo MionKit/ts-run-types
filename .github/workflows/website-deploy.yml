@@ -44,4 +44,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # The action installs wrangler with the package manager the root lockfile names
+          # (pnpm), which this job no longer sets up.
+          packageManager: npm
           command: pages deploy redirect-site --project-name=${{ env.CLOUDFLARE_PAGES_PROJECT }} --branch=prod
